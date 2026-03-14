@@ -1,0 +1,192 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Core\Api\Services;
+
+use Core\Api\Jobs\DeliverWebhookJob;
+use Core\Api\Models\WebhookDelivery;
+use Core\Api\Models\WebhookEndpoint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Webhook Service - dispatches events to registered webhook endpoints.
+ *
+ * Finds all active endpoints subscribed to an event type and queues
+ * delivery jobs with proper payload formatting and signature generation.
+ */
+class WebhookService
+{
+    /**
+     * Dispatch an event to all subscribed webhook endpoints.
+     *
+     * @param  int  $workspaceId  The workspace that owns the webhooks
+     * @param  string  $eventType  The event type (e.g., 'bio.created')
+     * @param  array  $data  The event payload data
+     * @return array<WebhookDelivery> The created delivery records
+     */
+    public function dispatch(int $workspaceId, string $eventType, array $data): array
+    {
+        // Find all active endpoints for this workspace that subscribe to this event
+        $endpoints = WebhookEndpoint::query()
+            ->forWorkspace($workspaceId)
+            ->active()
+            ->forEvent($eventType)
+            ->get();
+
+        if ($endpoints->isEmpty()) {
+            Log::debug('No webhook endpoints found for event', [
+                'workspace_id' => $workspaceId,
+                'event_type' => $eventType,
+            ]);
+
+            return [];
+        }
+
+        $deliveries = [];
+
+        // Wrap all deliveries in a transaction to ensure atomicity
+        DB::transaction(function () use ($endpoints, $eventType, $data, $workspaceId, &$deliveries) {
+            foreach ($endpoints as $endpoint) {
+                // Create delivery record
+                $delivery = WebhookDelivery::createForEvent(
+                    $endpoint,
+                    $eventType,
+                    $data,
+                    $workspaceId
+                );
+
+                $deliveries[] = $delivery;
+
+                // Queue the delivery job after the transaction commits
+                DeliverWebhookJob::dispatch($delivery)->afterCommit();
+
+                Log::info('Webhook delivery queued', [
+                    'delivery_id' => $delivery->id,
+                    'endpoint_id' => $endpoint->id,
+                    'event_type' => $eventType,
+                ]);
+            }
+        });
+
+        return $deliveries;
+    }
+
+    /**
+     * Retry a specific failed delivery.
+     *
+     * @return bool True if retry was queued, false if not eligible
+     */
+    public function retry(WebhookDelivery $delivery): bool
+    {
+        if (! $delivery->canRetry()) {
+            return false;
+        }
+
+        DB::transaction(function () use ($delivery) {
+            // Reset status for manual retry but preserve attempt history
+            $delivery->update([
+                'status' => WebhookDelivery::STATUS_PENDING,
+                'next_retry_at' => null,
+            ]);
+
+            DeliverWebhookJob::dispatch($delivery)->afterCommit();
+
+            Log::info('Manual webhook retry queued', [
+                'delivery_id' => $delivery->id,
+                'attempt' => $delivery->attempt,
+            ]);
+        });
+
+        return true;
+    }
+
+    /**
+     * Process all pending and retryable deliveries.
+     *
+     * This method is typically called by a scheduled command.
+     *
+     * @return int Number of deliveries queued
+     */
+    public function processQueue(): int
+    {
+        $count = 0;
+
+        // Process deliveries one at a time with row locking to prevent race conditions
+        $deliveryIds = WebhookDelivery::query()
+            ->needsDelivery()
+            ->limit(100)
+            ->pluck('id');
+
+        foreach ($deliveryIds as $deliveryId) {
+            DB::transaction(function () use ($deliveryId, &$count) {
+                // Lock the row for update to prevent concurrent processing
+                $delivery = WebhookDelivery::query()
+                    ->with('endpoint')
+                    ->where('id', $deliveryId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $delivery) {
+                    return;
+                }
+
+                // Skip if already being processed (status changed since initial query)
+                if (! in_array($delivery->status, [WebhookDelivery::STATUS_PENDING, WebhookDelivery::STATUS_RETRYING])) {
+                    return;
+                }
+
+                // Handle inactive endpoints by cancelling the delivery
+                if (! $delivery->endpoint?->shouldReceive($delivery->event_type)) {
+                    $delivery->update(['status' => WebhookDelivery::STATUS_CANCELLED]);
+
+                    return;
+                }
+
+                // Mark as queued to prevent duplicate processing
+                $delivery->update(['status' => WebhookDelivery::STATUS_QUEUED]);
+
+                DeliverWebhookJob::dispatch($delivery)->afterCommit();
+                $count++;
+            });
+        }
+
+        if ($count > 0) {
+            Log::info('Processed webhook queue', ['count' => $count]);
+        }
+
+        return $count;
+    }
+
+    /**
+     * Get delivery statistics for a workspace.
+     */
+    public function getStats(int $workspaceId): array
+    {
+        $endpointIds = WebhookEndpoint::query()
+            ->forWorkspace($workspaceId)
+            ->pluck('id');
+
+        if ($endpointIds->isEmpty()) {
+            return [
+                'total' => 0,
+                'pending' => 0,
+                'success' => 0,
+                'failed' => 0,
+                'retrying' => 0,
+            ];
+        }
+
+        $deliveries = WebhookDelivery::query()
+            ->whereIn('webhook_endpoint_id', $endpointIds);
+
+        return [
+            'total' => (clone $deliveries)->count(),
+            'pending' => (clone $deliveries)->where('status', WebhookDelivery::STATUS_PENDING)->count(),
+            'success' => (clone $deliveries)->where('status', WebhookDelivery::STATUS_SUCCESS)->count(),
+            'failed' => (clone $deliveries)->where('status', WebhookDelivery::STATUS_FAILED)->count(),
+            'retrying' => (clone $deliveries)->where('status', WebhookDelivery::STATUS_RETRYING)->count(),
+        ];
+    }
+}

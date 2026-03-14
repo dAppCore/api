@@ -1,0 +1,39 @@
+{
+    "name": "lthn/api",
+    "description": "REST API module — Laravel API layer + standalone Go binary",
+    "keywords": ["api", "rest", "laravel", "openapi"],
+    "license": "EUPL-1.2",
+    "require": {
+        "php": "^8.2",
+        "lthn/php": "*",
+        "symfony/yaml": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Core\\Api\\": "src/php/src/Api/",
+            "Core\\Front\\Api\\": "src/php/src/Front/Api/",
+            "Core\\Website\\Api\\": "src/php/src/Website/Api/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Core\\Api\\Tests\\": "src/php/tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Core\\Front\\Api\\Boot"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "replace": {
+        "core/php-api": "self.version",
+        "lthn/php-api": "self.version"
+    }
+}

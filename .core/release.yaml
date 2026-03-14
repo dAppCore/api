@@ -1,0 +1,20 @@
+version: 1
+
+project:
+  name: core-api
+  repository: core/api
+
+publishers: []
+
+changelog:
+  include:
+    - feat
+    - fix
+    - perf
+    - refactor
+  exclude:
+    - chore
+    - docs
+    - style
+    - test
+    - ci

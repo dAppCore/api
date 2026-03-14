@@ -1,0 +1,14 @@
+# Binaries
+core-api
+*.exe
+
+# IDE
+.idea/
+.vscode/
+
+# Go
+vendor/
+
+# PHP
+/vendor/
+node_modules/
