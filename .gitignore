@@ -12,3 +12,4 @@ vendor/
 # PHP
 /vendor/
 node_modules/
+.core/
