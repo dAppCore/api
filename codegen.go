@@ -11,6 +11,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Supported SDK target languages.
@@ -45,16 +48,16 @@ type SDKGenerator struct {
 func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 	generator, ok := supportedLanguages[language]
 	if !ok {
-		return fmt.Errorf("unsupported language %q: supported languages are %v", language, SupportedLanguages())
+		return coreerr.E("SDKGenerator.Generate", fmt.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
 	}
 
 	if _, err := os.Stat(g.SpecPath); os.IsNotExist(err) {
-		return fmt.Errorf("spec file not found: %s", g.SpecPath)
+		return coreerr.E("SDKGenerator.Generate", "spec file not found: "+g.SpecPath, nil)
 	}
 
 	outputDir := filepath.Join(g.OutputDir, language)
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("create output directory: %w", err)
+	if err := coreio.Local.EnsureDir(outputDir); err != nil {
+		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
 	}
 
 	args := g.buildArgs(generator, outputDir)
@@ -63,7 +66,7 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("openapi-generator-cli failed for %s: %w", language, err)
+		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli failed for "+language, err)
 	}
 
 	return nil

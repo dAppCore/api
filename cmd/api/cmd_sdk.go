@@ -10,6 +10,9 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
+
 	goapi "forge.lthn.ai/core/api"
 )
 
@@ -23,7 +26,7 @@ func addSDKCommand(parent *cli.Command) {
 
 	cmd := cli.NewCommand("sdk", "Generate client SDKs from OpenAPI spec", "", func(cmd *cli.Command, args []string) error {
 		if lang == "" {
-			return fmt.Errorf("--lang is required. Supported: %s", strings.Join(goapi.SupportedLanguages(), ", "))
+			return coreerr.E("sdk.Generate", "--lang is required. Supported: "+strings.Join(goapi.SupportedLanguages(), ", "), nil)
 		}
 
 		// If no spec file provided, generate one to a temp file.
@@ -39,13 +42,13 @@ func addSDKCommand(parent *cli.Command) {
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
 			if err != nil {
-				return fmt.Errorf("create temp spec file: %w", err)
+				return coreerr.E("sdk.Generate", "create temp spec file", err)
 			}
-			defer os.Remove(tmpFile.Name())
+			defer coreio.Local.Delete(tmpFile.Name())
 
 			if err := goapi.ExportSpec(tmpFile, "json", builder, groups); err != nil {
 				tmpFile.Close()
-				return fmt.Errorf("generate spec: %w", err)
+				return coreerr.E("sdk.Generate", "generate spec", err)
 			}
 			tmpFile.Close()
 			specFile = tmpFile.Name()
@@ -61,7 +64,7 @@ func addSDKCommand(parent *cli.Command) {
 			fmt.Fprintln(os.Stderr, "openapi-generator-cli not found. Install with:")
 			fmt.Fprintln(os.Stderr, "  brew install openapi-generator    (macOS)")
 			fmt.Fprintln(os.Stderr, "  npm install @openapitools/openapi-generator-cli -g")
-			return fmt.Errorf("openapi-generator-cli not installed")
+			return coreerr.E("sdk.Generate", "openapi-generator-cli not installed", nil)
 		}
 
 		// Generate for each language.
@@ -72,7 +75,7 @@ func addSDKCommand(parent *cli.Command) {
 			}
 			fmt.Fprintf(os.Stderr, "Generating %s SDK...\n", l)
 			if err := gen.Generate(context.Background(), l); err != nil {
-				return fmt.Errorf("generate %s: %w", l, err)
+				return coreerr.E("sdk.Generate", "generate "+l, err)
 			}
 			fmt.Fprintf(os.Stderr, "  Done: %s/%s/\n", output, l)
 		}

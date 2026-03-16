@@ -4,6 +4,8 @@ go 1.26.0
 
 require (
 	forge.lthn.ai/core/cli v0.3.1
+	forge.lthn.ai/core/go-io v0.1.2
+	forge.lthn.ai/core/go-log v0.0.4
 	github.com/99designs/gqlgen v0.17.88
 	github.com/andybalholm/brotli v1.2.0
 	github.com/casbin/casbin/v2 v2.135.0
@@ -40,8 +42,6 @@ require (
 	forge.lthn.ai/core/go-crypt v0.1.7 // indirect
 	forge.lthn.ai/core/go-i18n v0.1.4 // indirect
 	forge.lthn.ai/core/go-inference v0.1.4 // indirect
-	forge.lthn.ai/core/go-io v0.1.2 // indirect
-	forge.lthn.ai/core/go-log v0.0.4 // indirect
 	forge.lthn.ai/core/go-process v0.2.3 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/ProtonMail/go-crypto v1.4.0 // indirect
