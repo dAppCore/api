@@ -3,8 +3,8 @@ module forge.lthn.ai/core/api
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/cli v0.3.1
-	forge.lthn.ai/core/go-io v0.1.2
+	forge.lthn.ai/core/cli v0.3.6
+	forge.lthn.ai/core/go-io v0.1.5
 	forge.lthn.ai/core/go-log v0.0.4
 	github.com/99designs/gqlgen v0.17.88
 	github.com/andybalholm/brotli v1.2.0
@@ -39,12 +39,9 @@ require (
 
 require (
 	forge.lthn.ai/core/go v0.3.1 // indirect
-	forge.lthn.ai/core/go-crypt v0.1.7 // indirect
-	forge.lthn.ai/core/go-i18n v0.1.4 // indirect
-	forge.lthn.ai/core/go-inference v0.1.4 // indirect
-	forge.lthn.ai/core/go-process v0.2.3 // indirect
+	forge.lthn.ai/core/go-i18n v0.1.6 // indirect
+	forge.lthn.ai/core/go-inference v0.1.5 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/ProtonMail/go-crypto v1.4.0 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
@@ -61,7 +58,6 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
