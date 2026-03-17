@@ -3,8 +3,8 @@ module forge.lthn.ai/core/api
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/cli v0.3.6
-	forge.lthn.ai/core/go-io v0.1.5
+	forge.lthn.ai/core/cli v0.3.7
+	forge.lthn.ai/core/go-io v0.1.7
 	forge.lthn.ai/core/go-log v0.0.4
 	github.com/99designs/gqlgen v0.17.88
 	github.com/andybalholm/brotli v1.2.0
@@ -38,9 +38,9 @@ require (
 )
 
 require (
-	forge.lthn.ai/core/go v0.3.1 // indirect
-	forge.lthn.ai/core/go-i18n v0.1.6 // indirect
-	forge.lthn.ai/core/go-inference v0.1.6 // indirect
+	forge.lthn.ai/core/go v0.3.3 // indirect
+	forge.lthn.ai/core/go-i18n v0.1.7 // indirect
+	forge.lthn.ai/core/go-inference v0.1.7 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
