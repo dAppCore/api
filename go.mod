@@ -40,12 +40,12 @@ require (
 require (
 	forge.lthn.ai/core/go v0.3.1 // indirect
 	forge.lthn.ai/core/go-i18n v0.1.6 // indirect
-	forge.lthn.ai/core/go-inference v0.1.5 // indirect
+	forge.lthn.ai/core/go-inference v0.1.6 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
-	github.com/bytedance/gopkg v0.1.3 // indirect
+	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/casbin/govaluate v1.10.0 // indirect
