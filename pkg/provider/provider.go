@@ -12,7 +12,7 @@
 package provider
 
 import (
-	"forge.lthn.ai/core/api"
+	"dappco.re/go/core/api"
 )
 
 // Provider extends RouteGroup with a provider identity.

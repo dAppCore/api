@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 // setupTracing creates an in-memory span exporter, wires it into a

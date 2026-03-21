@@ -17,7 +17,7 @@ import (
 	"github.com/gin-contrib/httpsign/crypto"
 	"github.com/gin-gonic/gin"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 const testSecretKey = "test-secret-key-for-hmac-sha256"

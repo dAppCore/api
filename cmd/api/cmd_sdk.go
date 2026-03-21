@@ -10,10 +10,10 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 
-	goapi "forge.lthn.ai/core/api"
+	goapi "dappco.re/go/core/api"
 )
 
 func addSDKCommand(parent *cli.Command) {

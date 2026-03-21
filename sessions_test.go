@@ -11,7 +11,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 // ── Helpers ─────────────────────────────────────────────────────────────

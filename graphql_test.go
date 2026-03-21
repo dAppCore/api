@@ -15,7 +15,7 @@ import (
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 // newTestSchema creates a minimal ExecutableSchema that responds to { name }

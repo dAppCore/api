@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	coreio "dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // ExportSpec generates the OpenAPI spec and writes it to w.

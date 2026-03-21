@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 // ── OK ──────────────────────────────────────────────────────────────────

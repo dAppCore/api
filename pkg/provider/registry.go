@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sync"
 
-	"forge.lthn.ai/core/api"
+	"dappco.re/go/core/api"
 )
 
 // Registry collects providers and mounts them on an api.Engine.

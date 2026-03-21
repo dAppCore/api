@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 func TestEngine_GroupsIter(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 // ── WithSecure ──────────────────────────────────────────────────────────

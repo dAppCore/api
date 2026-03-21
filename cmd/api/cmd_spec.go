@@ -8,7 +8,7 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 
-	goapi "forge.lthn.ai/core/api"
+	goapi "dappco.re/go/core/api"
 )
 
 func addSpecCommand(parent *cli.Command) {

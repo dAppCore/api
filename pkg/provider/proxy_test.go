@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"forge.lthn.ai/core/api"
-	"forge.lthn.ai/core/api/pkg/provider"
+	"dappco.re/go/core/api"
+	"dappco.re/go/core/api/pkg/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
