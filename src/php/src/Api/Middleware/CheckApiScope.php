@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core\Api\Middleware;
 
 use Core\Api\Models\ApiKey;
+use Core\Api\Concerns\HasApiResponses;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +26,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class CheckApiScope
 {
+    use HasApiResponses;
+
     public function handle(Request $request, Closure $next, string ...$scopes): Response
     {
         $apiKey = $request->attributes->get('api_key');
@@ -38,12 +41,13 @@ class CheckApiScope
         // Check all required scopes
         foreach ($scopes as $scope) {
             if (! $apiKey->hasScope($scope)) {
-                return response()->json([
-                    'error' => 'forbidden',
-                    'message' => "API key missing required scope: {$scope}",
-                    'required_scopes' => $scopes,
-                    'key_scopes' => $apiKey->scopes,
-                ], 403);
+                return $this->forbiddenResponse(
+                    message: "API key missing required scope: {$scope}",
+                    meta: [
+                        'required_scopes' => $scopes,
+                        'key_scopes' => $apiKey->scopes,
+                    ],
+                );
             }
         }
 

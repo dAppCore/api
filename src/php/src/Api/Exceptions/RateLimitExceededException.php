@@ -36,7 +36,9 @@ class RateLimitExceededException extends HttpException
     public function render(): JsonResponse
     {
         return response()->json([
+            'success' => false,
             'error' => 'rate_limit_exceeded',
+            'error_code' => 'rate_limit_exceeded',
             'message' => $this->getMessage(),
             'retry_after' => $this->rateLimitResult->retryAfter,
             'limit' => $this->rateLimitResult->limit,

@@ -6,6 +6,7 @@ namespace Core\Api\Middleware;
 
 use Closure;
 use Core\Api\Models\ApiKey;
+use Core\Api\Concerns\HasApiResponses;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -25,6 +26,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class EnforceApiScope
 {
+    use HasApiResponses;
+
     /**
      * HTTP method to required scope mapping.
      */
@@ -52,12 +55,13 @@ class EnforceApiScope
         $requiredScope = self::METHOD_SCOPES[$method] ?? ApiKey::SCOPE_READ;
 
         if (! $apiKey->hasScope($requiredScope)) {
-            return response()->json([
-                'error' => 'forbidden',
-                'message' => "API key missing required scope: {$requiredScope}",
-                'detail' => "{$method} requests require '{$requiredScope}' scope",
-                'key_scopes' => $apiKey->scopes,
-            ], 403);
+            return $this->forbiddenResponse(
+                message: "API key missing required scope: {$requiredScope}",
+                meta: [
+                    'detail' => "{$method} requests require '{$requiredScope}' scope",
+                    'key_scopes' => $apiKey->scopes,
+                ],
+            );
         }
 
         return $next($request);

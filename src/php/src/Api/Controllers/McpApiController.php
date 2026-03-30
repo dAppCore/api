@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core\Api\Controllers;
 
 use Core\Front\Controller;
+use Core\Api\Concerns\HasApiResponses;
 use Core\Api\Models\ApiKey;
 use Core\Mod\Mcp\Models\McpApiRequest;
 use Core\Mod\Mcp\Models\McpToolCall;
@@ -23,6 +24,8 @@ use Symfony\Component\Yaml\Yaml;
  */
 class McpApiController extends Controller
 {
+    use HasApiResponses;
+
     /**
      * List all available MCP servers.
      *
@@ -53,7 +56,7 @@ class McpApiController extends Controller
         $server = $this->loadServerFull($id);
 
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         return response()->json($server);
@@ -72,7 +75,7 @@ class McpApiController extends Controller
         $server = $this->loadServerFull($id);
 
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         $tools = $server['tools'] ?? [];
@@ -129,13 +132,13 @@ class McpApiController extends Controller
 
         $server = $this->loadServerFull($validated['server']);
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         // Verify tool exists in server definition
         $toolDef = collect($server['tools'] ?? [])->firstWhere('name', $validated['tool']);
         if (! $toolDef) {
-            return response()->json(['error' => 'Tool not found'], 404);
+            return $this->notFoundResponse('Tool');
         }
 
         // Version resolution
@@ -178,15 +181,17 @@ class McpApiController extends Controller
             );
 
             if (! empty($validationErrors)) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Validation failed',
-                    'error_code' => 'VALIDATION_ERROR',
-                    'validation_errors' => $validationErrors,
-                    'server' => $validated['server'],
-                    'tool' => $validated['tool'],
-                    'version' => $toolVersion?->version ?? 'unversioned',
-                ], 422);
+                return $this->errorResponse(
+                    errorCode: 'VALIDATION_ERROR',
+                    message: 'Validation failed',
+                    meta: [
+                        'validation_errors' => $validationErrors,
+                        'server' => $validated['server'],
+                        'tool' => $validated['tool'],
+                        'version' => $toolVersion?->version ?? 'unversioned',
+                    ],
+                    status: 422,
+                );
             }
         }
 
@@ -343,13 +348,13 @@ class McpApiController extends Controller
     {
         $serverConfig = $this->loadServerFull($server);
         if (! $serverConfig) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         // Verify tool exists in server definition
         $toolDef = collect($serverConfig['tools'] ?? [])->firstWhere('name', $tool);
         if (! $toolDef) {
-            return response()->json(['error' => 'Tool not found'], 404);
+            return $this->notFoundResponse('Tool');
         }
 
         $versionService = app(ToolVersionService::class);
@@ -374,7 +379,7 @@ class McpApiController extends Controller
         $toolVersion = $versionService->getToolAtVersion($server, $tool, $version);
 
         if (! $toolVersion) {
-            return response()->json(['error' => 'Version not found'], 404);
+            return $this->notFoundResponse('Version');
         }
 
         $response = response()->json($toolVersion->toApiArray());
@@ -399,7 +404,9 @@ class McpApiController extends Controller
     {
         // Parse URI format: server://resource/path
         if (! preg_match('/^([a-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
-            return response()->json(['error' => 'Invalid resource URI format'], 400);
+            return $this->validationErrorResponse([
+                'uri' => ['Invalid resource URI format. Expected pattern server://resource/path'],
+            ], 400);
         }
 
         $serverId = $matches[1];
@@ -407,7 +414,7 @@ class McpApiController extends Controller
 
         $server = $this->loadServerFull($serverId);
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         try {
@@ -418,10 +425,14 @@ class McpApiController extends Controller
                 'content' => $result,
             ]);
         } catch (\Throwable $e) {
-            return response()->json([
-                'error' => $e->getMessage(),
-                'uri' => $uri,
-            ], 500);
+            return $this->errorResponse(
+                errorCode: 'resource_read_error',
+                message: $e->getMessage(),
+                meta: [
+                    'uri' => $uri,
+                ],
+                status: 500,
+            );
         }
     }
 

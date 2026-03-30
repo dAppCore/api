@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Core\Api\Controllers\Api;
 
+use Core\Api\Concerns\HasApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -17,6 +18,8 @@ use Core\Api\Services\WebhookTemplateService;
  */
 class WebhookTemplateController extends Controller
 {
+    use HasApiResponses;
+
     public function __construct(
         protected WebhookTemplateService $templateService
     ) {}
@@ -29,7 +32,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $query = WebhookPayloadTemplate::where('workspace_id', $workspace->id)
@@ -61,7 +64,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $template = WebhookPayloadTemplate::where('workspace_id', $workspace->id)
@@ -69,7 +72,7 @@ class WebhookTemplateController extends Controller
             ->first();
 
         if (! $template) {
-            return response()->json(['error' => 'Template not found'], 404);
+            return $this->notFoundResponse('Template');
         }
 
         return response()->json([
@@ -85,7 +88,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $validated = $request->validate([
@@ -102,10 +105,9 @@ class WebhookTemplateController extends Controller
         $validation = $this->templateService->validateTemplate($validated['template'], $format);
 
         if (! $validation['valid']) {
-            return response()->json([
-                'error' => 'Invalid template',
-                'errors' => $validation['errors'],
-            ], 422);
+            return $this->validationErrorResponse([
+                'template' => $validation['errors'],
+            ]);
         }
 
         $template = WebhookPayloadTemplate::create([
@@ -133,7 +135,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $template = WebhookPayloadTemplate::where('workspace_id', $workspace->id)
@@ -141,7 +143,7 @@ class WebhookTemplateController extends Controller
             ->first();
 
         if (! $template) {
-            return response()->json(['error' => 'Template not found'], 404);
+            return $this->notFoundResponse('Template');
         }
 
         $validated = $request->validate([
@@ -159,10 +161,9 @@ class WebhookTemplateController extends Controller
             $validation = $this->templateService->validateTemplate($validated['template'], $format);
 
             if (! $validation['valid']) {
-                return response()->json([
-                    'error' => 'Invalid template',
-                    'errors' => $validation['errors'],
-                ], 422);
+                return $this->validationErrorResponse([
+                    'template' => $validation['errors'],
+                ]);
             }
         }
 
@@ -186,7 +187,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $template = WebhookPayloadTemplate::where('workspace_id', $workspace->id)
@@ -194,12 +195,12 @@ class WebhookTemplateController extends Controller
             ->first();
 
         if (! $template) {
-            return response()->json(['error' => 'Template not found'], 404);
+            return $this->notFoundResponse('Template');
         }
 
         // Don't allow deleting builtin templates
         if ($template->isBuiltin()) {
-            return response()->json(['error' => 'Built-in templates cannot be deleted'], 403);
+            return $this->forbiddenResponse('Built-in templates cannot be deleted');
         }
 
         $template->delete();
@@ -255,7 +256,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $template = WebhookPayloadTemplate::where('workspace_id', $workspace->id)
@@ -263,7 +264,7 @@ class WebhookTemplateController extends Controller
             ->first();
 
         if (! $template) {
-            return response()->json(['error' => 'Template not found'], 404);
+            return $this->notFoundResponse('Template');
         }
 
         $newName = $request->input('name', $template->name.' (copy)');
@@ -282,7 +283,7 @@ class WebhookTemplateController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $template = WebhookPayloadTemplate::where('workspace_id', $workspace->id)
@@ -290,7 +291,7 @@ class WebhookTemplateController extends Controller
             ->first();
 
         if (! $template) {
-            return response()->json(['error' => 'Template not found'], 404);
+            return $this->notFoundResponse('Template');
         }
 
         $template->setAsDefault();
