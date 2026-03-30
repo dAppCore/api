@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core\Api\Exceptions;
 
 use Core\Api\RateLimit\RateLimitResult;
+use Core\Api\Concerns\HasApiResponses;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -15,6 +16,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class RateLimitExceededException extends HttpException
 {
+    use HasApiResponses;
+
     public function __construct(
         protected RateLimitResult $rateLimitResult,
         string $message = 'Too many requests. Please slow down.',
@@ -35,15 +38,16 @@ class RateLimitExceededException extends HttpException
      */
     public function render(): JsonResponse
     {
-        return response()->json([
-            'success' => false,
-            'error' => 'rate_limit_exceeded',
-            'error_code' => 'rate_limit_exceeded',
-            'message' => $this->getMessage(),
-            'retry_after' => $this->rateLimitResult->retryAfter,
-            'limit' => $this->rateLimitResult->limit,
-            'resets_at' => $this->rateLimitResult->resetsAt->toIso8601String(),
-        ], 429, $this->rateLimitResult->headers());
+        return $this->errorResponse(
+            errorCode: 'rate_limit_exceeded',
+            message: $this->getMessage(),
+            meta: [
+                'retry_after' => $this->rateLimitResult->retryAfter,
+                'limit' => $this->rateLimitResult->limit,
+                'resets_at' => $this->rateLimitResult->resetsAt->toIso8601String(),
+            ],
+            status: 429,
+        )->withHeaders($this->rateLimitResult->headers());
     }
 
     /**

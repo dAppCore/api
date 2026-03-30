@@ -156,16 +156,18 @@ class McpApiController extends Controller
             // Sunset versions return 410 Gone
             $status = ($error['code'] ?? '') === 'TOOL_VERSION_SUNSET' ? 410 : 400;
 
-            return response()->json([
-                'success' => false,
-                'error' => $error['message'] ?? 'Version error',
-                'error_code' => $error['code'] ?? 'VERSION_ERROR',
-                'server' => $validated['server'],
-                'tool' => $validated['tool'],
-                'requested_version' => $validated['version'] ?? null,
-                'latest_version' => $error['latest_version'] ?? null,
-                'migration_notes' => $error['migration_notes'] ?? null,
-            ], $status);
+            return $this->errorResponse(
+                errorCode: $error['code'] ?? 'VERSION_ERROR',
+                message: $error['message'] ?? 'Version error',
+                meta: [
+                    'server' => $validated['server'],
+                    'tool' => $validated['tool'],
+                    'requested_version' => $validated['version'] ?? null,
+                    'latest_version' => $error['latest_version'] ?? null,
+                    'migration_notes' => $error['migration_notes'] ?? null,
+                ],
+                status: $status,
+            );
         }
 
         /** @var McpToolVersion|null $toolVersion */
@@ -267,7 +269,16 @@ class McpApiController extends Controller
             // Log full request for debugging/replay
             $this->logApiRequest($request, $validated, 500, $response, $durationMs, $apiKey, $e->getMessage());
 
-            return response()->json($response, 500);
+            return $this->errorResponse(
+                errorCode: 'tool_execution_error',
+                message: $e->getMessage(),
+                meta: array_filter([
+                    'server' => $validated['server'],
+                    'tool' => $validated['tool'],
+                    'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
+                ]),
+                status: 500,
+            );
         }
     }
 
