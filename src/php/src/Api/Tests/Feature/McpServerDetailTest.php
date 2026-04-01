@@ -111,4 +111,6 @@ it('includes tool versions and resource content on server detail requests when r
     $response->assertJsonPath('resources.0.uri', 'test-detail-server://documents/welcome');
     $response->assertJsonPath('resources.0.content.message', 'Hello from the server detail endpoint');
     $response->assertJsonPath('resources.0.content.version', 2);
+    $response->assertJsonPath('tool_count', 1);
+    $response->assertJsonPath('resource_count', 1);
 });

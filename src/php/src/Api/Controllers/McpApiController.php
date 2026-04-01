@@ -90,6 +90,9 @@ class McpApiController extends Controller
             $server['resources'] = $this->enrichResourcesWithContent($server['resources'] ?? []);
         }
 
+        $server['tool_count'] = count($server['tools'] ?? []);
+        $server['resource_count'] = count($server['resources'] ?? []);
+
         return response()->json($server);
     }
 
