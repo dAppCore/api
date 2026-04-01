@@ -193,7 +193,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 		"401": map[string]any{
 			"description": "Unauthorised",
@@ -202,7 +202,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 		"403": map[string]any{
 			"description": "Forbidden",
@@ -211,7 +211,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -229,7 +229,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 	}
 }
@@ -263,7 +263,7 @@ func healthResponses() map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 	}
 }

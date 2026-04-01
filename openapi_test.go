@@ -85,6 +85,20 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := headers["X-RateLimit-Reset"]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header on /health 429 response")
 	}
+	health504 := healthResponses["504"].(map[string]any)
+	health504Headers := health504["headers"].(map[string]any)
+	if _, ok := health504Headers["X-Request-ID"]; !ok {
+		t.Fatal("expected X-Request-ID header on /health 504 response")
+	}
+	if _, ok := health504Headers["X-RateLimit-Limit"]; !ok {
+		t.Fatal("expected X-RateLimit-Limit header on /health 504 response")
+	}
+	if _, ok := health504Headers["X-RateLimit-Remaining"]; !ok {
+		t.Fatal("expected X-RateLimit-Remaining header on /health 504 response")
+	}
+	if _, ok := health504Headers["X-RateLimit-Reset"]; !ok {
+		t.Fatal("expected X-RateLimit-Reset header on /health 504 response")
+	}
 
 	// Verify system tag exists.
 	tags := spec["tags"].([]any)
@@ -277,6 +291,22 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	}
 	if _, ok := headers["X-RateLimit-Reset"]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header in secured operation 429 response")
+	}
+	for _, code := range []string{"400", "401", "403", "504"} {
+		resp := responses[code].(map[string]any)
+		respHeaders := resp["headers"].(map[string]any)
+		if _, ok := respHeaders["X-Request-ID"]; !ok {
+			t.Fatalf("expected X-Request-ID header in secured operation %s response", code)
+		}
+		if _, ok := respHeaders["X-RateLimit-Limit"]; !ok {
+			t.Fatalf("expected X-RateLimit-Limit header in secured operation %s response", code)
+		}
+		if _, ok := respHeaders["X-RateLimit-Remaining"]; !ok {
+			t.Fatalf("expected X-RateLimit-Remaining header in secured operation %s response", code)
+		}
+		if _, ok := respHeaders["X-RateLimit-Reset"]; !ok {
+			t.Fatalf("expected X-RateLimit-Reset header in secured operation %s response", code)
+		}
 	}
 }
 
