@@ -181,7 +181,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample),
 			}
 			if rd.Deprecated {
 				operation["deprecated"] = true
@@ -209,12 +209,17 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 			// Add request body for methods that accept one.
 			// The contract only excludes GET; other verbs may legitimately carry bodies.
 			if rd.RequestBody != nil && method != "get" {
+				requestMediaType := map[string]any{
+					"schema": rd.RequestBody,
+				}
+				if rd.RequestExample != nil {
+					requestMediaType["example"] = rd.RequestExample
+				}
+
 				operation["requestBody"] = map[string]any{
 					"required": true,
 					"content": map[string]any{
-						"application/json": map[string]any{
-							"schema": rd.RequestBody,
-						},
+						"application/json": requestMediaType,
 					},
 				}
 			}
@@ -299,7 +304,7 @@ func normaliseOpenAPIPath(path string) string {
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any) map[string]any {
+func operationResponses(method string, statusCode int, dataSchema map[string]any, example any) map[string]any {
 	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
 	if method == "get" {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
@@ -311,10 +316,17 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		"headers":     successHeaders,
 	}
 	if !isNoContentStatus(code) {
+		content := map[string]any{
+			"schema": envelopeSchema(dataSchema),
+		}
+		if example != nil {
+			// Example payloads are optional, but when a route provides one we
+			// expose it alongside the schema so generated docs stay useful.
+			content["example"] = example
+		}
+
 		successResponse["content"] = map[string]any{
-			"application/json": map[string]any{
-				"schema": envelopeSchema(dataSchema),
-			},
+			"application/json": content,
 		}
 	}
 

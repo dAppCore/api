@@ -46,10 +46,12 @@ type RouteDescription struct {
 	StatusCode int
 	// Security overrides the default bearerAuth requirement when non-nil.
 	// Use an empty, non-nil slice to mark the route as public.
-	Security    []map[string][]string
-	Parameters  []ParameterDescription
-	RequestBody map[string]any // JSON Schema for request body (nil for GET)
-	Response    map[string]any // JSON Schema for success response data
+	Security        []map[string][]string
+	Parameters      []ParameterDescription
+	RequestBody     map[string]any // JSON Schema for request body (nil for GET)
+	RequestExample  any            // Optional example payload for the request body.
+	Response        map[string]any // JSON Schema for success response data
+	ResponseExample any            // Optional example payload for the success response.
 }
 
 // ParameterDescription describes an OpenAPI parameter for a route.

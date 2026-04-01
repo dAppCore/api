@@ -304,11 +304,17 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 						"name": map[string]any{"type": "string"},
 					},
 				},
+				RequestExample: map[string]any{
+					"name": "Widget",
+				},
 				Response: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"id": map[string]any{"type": "integer"},
 					},
+				},
+				ResponseExample: map[string]any{
+					"id": 42,
 				},
 			},
 		},
@@ -359,6 +365,18 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	}
 	if postOp.(map[string]any)["requestBody"] == nil {
 		t.Fatal("expected requestBody on POST /api/items/create")
+	}
+	requestBody := postOp.(map[string]any)["requestBody"].(map[string]any)
+	appJSON := requestBody["content"].(map[string]any)["application/json"].(map[string]any)
+	if appJSON["example"].(map[string]any)["name"] != "Widget" {
+		t.Fatalf("expected request example to be preserved, got %v", appJSON["example"])
+	}
+
+	responses := postOp.(map[string]any)["responses"].(map[string]any)
+	created := responses["200"].(map[string]any)
+	createdJSON := created["content"].(map[string]any)["application/json"].(map[string]any)
+	if createdJSON["example"].(map[string]any)["id"] != float64(42) {
+		t.Fatalf("expected response example to be preserved, got %v", createdJSON["example"])
 	}
 }
 
