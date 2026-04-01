@@ -198,6 +198,92 @@ func TestToolBridge_Good_ValidatesRequestBody(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Good_ValidatesResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK(map[string]any{"path": "/tmp/file.txt"}))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[map[string]any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("expected Success=true")
+	}
+	if resp.Data["path"] != "/tmp/file.txt" {
+		t.Fatalf("expected validated response data to reach client, got %v", resp.Data["path"])
+	}
+}
+
+func TestToolBridge_Bad_InvalidResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK(map[string]any{"path": 123}))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_tool_response" {
+		t.Fatalf("expected invalid_tool_response error, got %#v", resp.Error)
+	}
+}
+
 func TestToolBridge_Bad_InvalidRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
