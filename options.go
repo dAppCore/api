@@ -134,7 +134,7 @@ func WithSwagger(title, description, version string) Option {
 // server list through both the runtime Swagger UI and exported OpenAPI files.
 func WithSwaggerServers(servers ...string) Option {
 	return func(e *Engine) {
-		e.swaggerServers = append([]string(nil), servers...)
+		e.swaggerServers = normaliseServers(servers)
 	}
 }
 

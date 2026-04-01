@@ -230,6 +230,7 @@ func (c *OpenAPIClient) loadSpec() error {
 			}
 		}
 	}
+	c.servers = normaliseServers(c.servers)
 
 	if c.baseURL == "" {
 		for _, server := range c.servers {

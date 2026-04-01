@@ -263,7 +263,7 @@ func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 
 	e, err := api.New(
 		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
-		api.WithSwaggerServers("https://api.example.com", "/", ""),
+		api.WithSwaggerServers(" https://api.example.com ", "/", "", "https://api.example.com"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -293,7 +293,7 @@ func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 		t.Fatalf("expected servers array, got %T", doc["servers"])
 	}
 	if len(servers) != 2 {
-		t.Fatalf("expected 2 servers, got %d", len(servers))
+		t.Fatalf("expected 2 normalised servers, got %d", len(servers))
 	}
 
 	first := servers[0].(map[string]any)

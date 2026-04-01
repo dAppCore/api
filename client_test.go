@@ -278,8 +278,9 @@ info:
   title: Test API
   version: 1.0.0
 servers:
+  - url: " `+srv.URL+` "
   - url: /
-  - url: `+srv.URL+`
+  - url: " `+srv.URL+` "
 paths:
   /hello:
     get:

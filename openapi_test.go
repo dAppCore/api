@@ -779,9 +779,10 @@ func TestSpecBuilder_Good_Servers(t *testing.T) {
 		Title:   "Test",
 		Version: "1.0.0",
 		Servers: []string{
-			"https://api.example.com",
+			" https://api.example.com ",
 			"/",
 			"",
+			"https://api.example.com",
 		},
 	}
 
@@ -800,7 +801,7 @@ func TestSpecBuilder_Good_Servers(t *testing.T) {
 		t.Fatalf("expected servers array, got %T", spec["servers"])
 	}
 	if len(servers) != 2 {
-		t.Fatalf("expected 2 non-empty servers, got %d", len(servers))
+		t.Fatalf("expected 2 normalised servers, got %d", len(servers))
 	}
 
 	first := servers[0].(map[string]any)

@@ -37,17 +37,12 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		},
 	}
 
-	if len(sb.Servers) > 0 {
-		servers := make([]map[string]any, 0, len(sb.Servers))
-		for _, server := range sb.Servers {
-			if server == "" {
-				continue
-			}
-			servers = append(servers, map[string]any{"url": server})
+	if servers := normaliseServers(sb.Servers); len(servers) > 0 {
+		out := make([]map[string]any, 0, len(servers))
+		for _, server := range servers {
+			out = append(out, map[string]any{"url": server})
 		}
-		if len(servers) > 0 {
-			spec["servers"] = servers
-		}
+		spec["servers"] = out
 	}
 
 	// Add component schemas for the response envelope.
