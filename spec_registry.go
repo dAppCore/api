@@ -23,6 +23,9 @@ func RegisterSpecGroups(groups ...RouteGroup) {
 		if group == nil {
 			continue
 		}
+		if specRegistryContains(group) {
+			continue
+		}
 		specRegistry.groups = append(specRegistry.groups, group)
 	}
 }
@@ -36,4 +39,31 @@ func RegisteredSpecGroups() []RouteGroup {
 	out := make([]RouteGroup, len(specRegistry.groups))
 	copy(out, specRegistry.groups)
 	return out
+}
+
+// ResetSpecGroups clears the package-level spec registry.
+// It is primarily intended for tests that need to isolate global state.
+func ResetSpecGroups() {
+	specRegistry.mu.Lock()
+	defer specRegistry.mu.Unlock()
+
+	specRegistry.groups = nil
+}
+
+func specRegistryContains(group RouteGroup) bool {
+	key := specGroupKey(group)
+	for _, existing := range specRegistry.groups {
+		if specGroupKey(existing) == key {
+			return true
+		}
+	}
+	return false
+}
+
+func specGroupKey(group RouteGroup) string {
+	if group == nil {
+		return ""
+	}
+
+	return group.Name() + "\x00" + group.BasePath()
 }
