@@ -60,7 +60,9 @@ class SunsetExtension implements Extension
      */
     public function extendOperation(array $operation, Route $route, string $method, array $config): array
     {
-        if (! $this->hasSunsetMiddleware($route)) {
+        $sunset = $this->sunsetMiddlewareArguments($route);
+
+        if ($sunset === null) {
             return $operation;
         }
 
@@ -76,14 +78,20 @@ class SunsetExtension implements Extension
             $response['headers']['Deprecation'] = [
                 '$ref' => '#/components/headers/deprecation',
             ];
-            $response['headers']['Sunset'] = [
-                '$ref' => '#/components/headers/sunset',
-            ];
+            if ($sunset['sunsetDate'] !== null && $sunset['sunsetDate'] !== '') {
+                $response['headers']['Sunset'] = [
+                    '$ref' => '#/components/headers/sunset',
+                ];
+            }
             $response['headers']['X-API-Warn'] = [
                 '$ref' => '#/components/headers/xapiwarn',
             ];
 
-            if (! isset($response['headers']['Link'])) {
+            if (
+                $sunset['replacement'] !== null
+                && $sunset['replacement'] !== ''
+                && ! isset($response['headers']['Link'])
+            ) {
                 $response['headers']['Link'] = [
                     '$ref' => '#/components/headers/link',
                 ];
@@ -95,16 +103,45 @@ class SunsetExtension implements Extension
     }
 
     /**
-     * Determine whether the route uses the sunset middleware.
+     * Extract the configured sunset middleware arguments from a route.
+     *
+     * Returns null when the route does not use the sunset middleware.
+     *
+     * @return array{sunsetDate:?string,replacement:?string}|null
      */
-    protected function hasSunsetMiddleware(Route $route): bool
+    protected function sunsetMiddlewareArguments(Route $route): ?array
     {
         foreach ($route->middleware() as $middleware) {
-            if (str_starts_with($middleware, 'api.sunset') || str_contains($middleware, 'ApiSunset')) {
-                return true;
+            if (! str_starts_with($middleware, 'api.sunset') && ! str_contains($middleware, 'ApiSunset')) {
+                continue;
             }
+
+            $arguments = null;
+
+            if (str_contains($middleware, ':')) {
+                [, $arguments] = explode(':', $middleware, 2);
+            }
+
+            if ($arguments === null || $arguments === '') {
+                return [
+                    'sunsetDate' => null,
+                    'replacement' => null,
+                ];
+            }
+
+            $parts = explode(',', $arguments, 2);
+            $sunsetDate = trim($parts[0] ?? '');
+            $replacement = isset($parts[1]) ? trim($parts[1]) : null;
+            if ($replacement === '') {
+                $replacement = null;
+            }
+
+            return [
+                'sunsetDate' => $sunsetDate !== '' ? $sunsetDate : null,
+                'replacement' => $replacement,
+            ];
         }
 
-        return false;
+        return null;
     }
 }

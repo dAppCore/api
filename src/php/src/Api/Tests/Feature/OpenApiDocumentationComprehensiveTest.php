@@ -825,6 +825,29 @@ describe('Sunset Documentation', function () {
             ->toHaveKey('X-API-Warn')
             ->toHaveKey('Link');
     });
+
+    it('only documents the sunset headers that the middleware will emit', function () {
+        RouteFacade::prefix('api')
+            ->middleware(['api', 'api.sunset'])
+            ->group(function () {
+                RouteFacade::get('/sunset-test/plain', fn () => response()->json(['ok' => true]))
+                    ->name('sunset-test.plain');
+            });
+
+        config(['api-docs.routes.include' => ['api/*']]);
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/sunset-test/plain']['get'];
+        $headers = $operation['responses']['200']['headers'];
+
+        expect($operation['deprecated'])->toBeTrue();
+        expect($headers)->toHaveKey('Deprecation')
+            ->toHaveKey('X-API-Warn');
+        expect($headers)->not->toHaveKey('Sunset');
+        expect($headers)->not->toHaveKey('Link');
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
