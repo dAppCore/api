@@ -15,6 +15,11 @@ import (
 // to subscribed clients. Clients connect via a GET endpoint and receive
 // a streaming text/event-stream response. Each client may optionally
 // subscribe to a specific channel via the ?channel= query parameter.
+//
+// Example:
+//
+//	broker := api.NewSSEBroker()
+//	engine.GET("/events", broker.Handler())
 type SSEBroker struct {
 	mu      sync.RWMutex
 	wg      sync.WaitGroup
@@ -37,6 +42,10 @@ type sseEvent struct {
 }
 
 // NewSSEBroker creates a ready-to-use SSE broker.
+//
+// Example:
+//
+//	broker := api.NewSSEBroker()
 func NewSSEBroker() *SSEBroker {
 	return &SSEBroker{
 		clients: make(map[*sseClient]struct{}),
@@ -46,6 +55,10 @@ func NewSSEBroker() *SSEBroker {
 // Publish sends an event to all clients subscribed to the given channel.
 // Clients subscribed to an empty channel (no ?channel= param) receive
 // events on every channel. The data value is JSON-encoded before sending.
+//
+// Example:
+//
+//	broker.Publish("system", "ready", map[string]any{"status": "ok"})
 func (b *SSEBroker) Publish(channel, event string, data any) {
 	encoded, err := json.Marshal(data)
 	if err != nil {
@@ -81,6 +94,10 @@ func (b *SSEBroker) Publish(channel, event string, data any) {
 // Handler returns a Gin handler for the SSE endpoint. Clients connect with
 // a GET request and receive events as text/event-stream. An optional
 // ?channel=<name> query parameter subscribes the client to a specific channel.
+//
+// Example:
+//
+//	engine.GET("/events", broker.Handler())
 func (b *SSEBroker) Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		channel := c.Query("channel")
@@ -154,6 +171,10 @@ func (b *SSEBroker) ClientCount() int {
 
 // Drain signals all connected clients to disconnect and waits for their
 // handler goroutines to exit. Useful for graceful shutdown.
+//
+// Example:
+//
+//	broker.Drain()
 func (b *SSEBroker) Drain() {
 	b.mu.Lock()
 	for client := range b.clients {

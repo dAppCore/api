@@ -32,6 +32,10 @@ var supportedLanguages = map[string]string{
 }
 
 // SDKGenerator wraps openapi-generator-cli for SDK generation.
+//
+// Example:
+//
+//	gen := &api.SDKGenerator{SpecPath: "./openapi.yaml", OutputDir: "./sdk", PackageName: "service"}
 type SDKGenerator struct {
 	// SpecPath is the path to the OpenAPI spec file (JSON or YAML).
 	SpecPath string
@@ -45,6 +49,10 @@ type SDKGenerator struct {
 
 // Generate creates an SDK for the given language using openapi-generator-cli.
 // The language must be one of the supported languages returned by SupportedLanguages().
+//
+// Example:
+//
+//	err := gen.Generate(context.Background(), "go")
 func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 	generator, ok := supportedLanguages[language]
 	if !ok {
@@ -94,6 +102,10 @@ func (g *SDKGenerator) Available() bool {
 
 // SupportedLanguages returns the list of supported SDK target languages
 // in sorted order for deterministic output.
+//
+// Example:
+//
+//	langs := api.SupportedLanguages()
 func SupportedLanguages() []string {
 	return slices.Sorted(maps.Keys(supportedLanguages))
 }

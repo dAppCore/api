@@ -20,6 +20,11 @@ import (
 // OpenAPIClient is a small runtime client that can call operations by their
 // OpenAPI operationId. It loads the spec once, resolves the HTTP method and
 // path for each operation, and performs JSON request/response handling.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithSpec("./openapi.yaml"), api.WithBaseURL("https://api.example.com"))
+//	data, err := client.Call("get_health", nil)
 type OpenAPIClient struct {
 	specPath    string
 	baseURL     string
@@ -78,6 +83,10 @@ func WithHTTPClient(client *http.Client) OpenAPIClientOption {
 }
 
 // NewOpenAPIClient constructs a runtime client for calling OpenAPI operations.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithSpec("./openapi.yaml"))
 func NewOpenAPIClient(opts ...OpenAPIClientOption) *OpenAPIClient {
 	c := &OpenAPIClient{
 		httpClient: http.DefaultClient,
@@ -97,6 +106,10 @@ func NewOpenAPIClient(opts ...OpenAPIClientOption) *OpenAPIClient {
 // include "path", "query", "header", "cookie", and "body" keys to explicitly
 // control where the values are sent. When no explicit body is provided,
 // requests with a declared requestBody send the remaining parameters as JSON.
+//
+// Example:
+//
+//	data, err := client.Call("create_item", map[string]any{"name": "alpha"})
 func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 	if err := c.load(); err != nil {
 		return nil, err

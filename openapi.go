@@ -11,6 +11,11 @@ import (
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
+//
+// Example:
+//
+//	builder := &api.SpecBuilder{Title: "Service", Version: "1.0.0"}
+//	spec, err := builder.Build(engine.Groups())
 type SpecBuilder struct {
 	Title       string
 	Description string
@@ -21,6 +26,10 @@ type SpecBuilder struct {
 // Build generates the complete OpenAPI 3.1 JSON spec.
 // Groups implementing DescribableGroup contribute endpoint documentation.
 // Other groups are listed as tags only.
+//
+// Example:
+//
+//	data, err := (&api.SpecBuilder{Title: "Service", Version: "1.0.0"}).Build(engine.Groups())
 func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	spec := map[string]any{
 		"openapi": "3.1.0",
