@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Core\Api\Controllers\Api\UnifiedPixelController;
 use Core\Api\Controllers\Api\EntitlementApiController;
 use Core\Api\Controllers\Api\SeoReportController;
+use Core\Api\Controllers\Api\WebhookSecretController;
 use Core\Api\Controllers\McpApiController;
 use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
@@ -55,6 +56,41 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
     ->group(function () {
         Route::get('/', [EntitlementApiController::class, 'show'])
             ->name('show');
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhook secret rotation (authenticated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Route::middleware(['auth.api', 'api.scope.enforce'])
+    ->prefix('webhooks')
+    ->name('api.webhooks.')
+    ->group(function () {
+        Route::prefix('social/{uuid}/secret')
+            ->name('social.')
+            ->group(function () {
+                Route::post('/rotate', [WebhookSecretController::class, 'rotateSocialSecret'])
+                    ->name('rotate-secret');
+                Route::get('/', [WebhookSecretController::class, 'socialSecretStatus'])
+                    ->name('status');
+                Route::delete('/previous', [WebhookSecretController::class, 'invalidateSocialPreviousSecret'])
+                    ->name('invalidate-previous');
+                Route::patch('/grace-period', [WebhookSecretController::class, 'updateSocialGracePeriod'])
+                    ->name('grace-period');
+            });
+
+        Route::prefix('content/{uuid}/secret')
+            ->name('content.')
+            ->group(function () {
+                Route::post('/rotate', [WebhookSecretController::class, 'rotateContentSecret'])
+                    ->name('rotate-secret');
+                Route::get('/', [WebhookSecretController::class, 'contentSecretStatus'])
+                    ->name('status');
+                Route::delete('/previous', [WebhookSecretController::class, 'invalidateContentPreviousSecret'])
+                    ->name('invalidate-previous');
+                Route::patch('/grace-period', [WebhookSecretController::class, 'updateContentGracePeriod'])
+                    ->name('grace-period');
+            });
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
