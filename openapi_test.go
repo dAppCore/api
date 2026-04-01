@@ -52,6 +52,28 @@ func (s *iterStubGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	}
 }
 
+type countingIterGroup struct {
+	name          string
+	basePath      string
+	descs         []api.RouteDescription
+	describeCalls int
+}
+
+func (s *countingIterGroup) Name() string                       { return s.name }
+func (s *countingIterGroup) BasePath() string                   { return s.basePath }
+func (s *countingIterGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (s *countingIterGroup) Describe() []api.RouteDescription   { return nil }
+func (s *countingIterGroup) DescribeIter() iter.Seq[api.RouteDescription] {
+	s.describeCalls++
+	return func(yield func(api.RouteDescription) bool) {
+		for _, rd := range s.descs {
+			if !yield(rd) {
+				return
+			}
+		}
+	}
+}
+
 // ── SpecBuilder tests ─────────────────────────────────────────────────────
 
 func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
@@ -440,6 +462,48 @@ func TestSpecBuilder_Good_DescribeIterGroup(t *testing.T) {
 	tags, ok := op["tags"].([]any)
 	if !ok || len(tags) != 1 || tags[0] != "iter" {
 		t.Fatalf("expected tags to be populated from DescribeIter, got %v", op["tags"])
+	}
+}
+
+func TestSpecBuilder_Good_DescribeIterSnapshotOnce(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &countingIterGroup{
+		name:     "counted",
+		basePath: "/api/count",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Counted status",
+				Tags:    []string{"counted"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if group.describeCalls != 1 {
+		t.Fatalf("expected DescribeIter to be called once, got %d", group.describeCalls)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/count/status"].(map[string]any)["get"].(map[string]any)
+	if op["summary"] != "Counted status" {
+		t.Fatalf("expected summary='Counted status', got %v", op["summary"])
 	}
 }
 

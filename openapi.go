@@ -34,6 +34,11 @@ type SpecBuilder struct {
 	ExternalDocsURL         string
 }
 
+type preparedRouteGroup struct {
+	group RouteGroup
+	descs []RouteDescription
+}
+
 // Build generates the complete OpenAPI 3.1 JSON spec.
 // Groups implementing DescribableGroup contribute endpoint documentation.
 // Other groups are listed as tags only.
@@ -42,6 +47,8 @@ type SpecBuilder struct {
 //
 //	data, err := (&api.SpecBuilder{Title: "Service", Version: "1.0.0"}).Build(engine.Groups())
 func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
+	prepared := prepareRouteGroups(groups)
+
 	spec := map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
@@ -49,8 +56,8 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 			"description": sb.Description,
 			"version":     sb.Version,
 		},
-		"paths": sb.buildPaths(groups),
-		"tags":  sb.buildTags(groups),
+		"paths": sb.buildPaths(prepared),
+		"tags":  sb.buildTags(prepared),
 		"security": []any{
 			map[string]any{
 				"bearerAuth": []any{},
@@ -154,7 +161,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 }
 
 // buildPaths generates the paths object from all DescribableGroups.
-func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
+func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	operationIDs := map[string]int{}
 	paths := map[string]any{
 		// Built-in health endpoint.
@@ -170,12 +177,8 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 	}
 
 	for _, g := range groups {
-		descIter := routeDescriptions(g)
-		if descIter == nil {
-			continue
-		}
-		for rd := range descIter {
-			fullPath := joinOpenAPIPath(g.BasePath(), rd.Path)
+		for _, rd := range g.descs {
+			fullPath := joinOpenAPIPath(g.group.BasePath(), rd.Path)
 			method := strings.ToLower(rd.Method)
 
 			operation := map[string]any{
@@ -196,7 +199,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 					},
 				}
 			}
-			if tags := resolvedOperationTags(g, rd); len(tags) > 0 {
+			if tags := resolvedOperationTags(g.group, rd); len(tags) > 0 {
 				operation["tags"] = tags
 			}
 
@@ -468,14 +471,14 @@ func healthResponses() map[string]any {
 }
 
 // buildTags generates the tags array from all RouteGroups.
-func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
+func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 	tags := []map[string]any{
 		{"name": "system", "description": "System endpoints"},
 	}
 	seen := map[string]bool{"system": true}
 
 	for _, g := range groups {
-		name := strings.TrimSpace(g.Name())
+		name := strings.TrimSpace(g.group.Name())
 		if name != "" && !seen[name] {
 			tags = append(tags, map[string]any{
 				"name":        name,
@@ -484,12 +487,7 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 			seen[name] = true
 		}
 
-		descIter := routeDescriptions(g)
-		if descIter == nil {
-			continue
-		}
-
-		for rd := range descIter {
+		for _, rd := range g.descs {
 			for _, tag := range rd.Tags {
 				tag = strings.TrimSpace(tag)
 				if tag == "" || seen[tag] {
@@ -505,6 +503,41 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 	}
 
 	return tags
+}
+
+// prepareRouteGroups snapshots route descriptions once per group so iterator-
+// backed implementations can be consumed safely by both tag and path builders.
+func prepareRouteGroups(groups []RouteGroup) []preparedRouteGroup {
+	if len(groups) == 0 {
+		return nil
+	}
+
+	out := make([]preparedRouteGroup, 0, len(groups))
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		out = append(out, preparedRouteGroup{
+			group: g,
+			descs: collectRouteDescriptions(g),
+		})
+	}
+
+	return out
+}
+
+func collectRouteDescriptions(g RouteGroup) []RouteDescription {
+	descIter := routeDescriptions(g)
+	if descIter == nil {
+		return nil
+	}
+
+	descs := make([]RouteDescription, 0)
+	for rd := range descIter {
+		descs = append(descs, rd)
+	}
+
+	return descs
 }
 
 // routeDescriptions returns OpenAPI route descriptions for a group.
