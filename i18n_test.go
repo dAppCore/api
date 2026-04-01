@@ -133,6 +133,33 @@ func TestWithI18n_Good_QualityWeighting(t *testing.T) {
 	}
 }
 
+func TestWithI18n_Good_PreservesMatchedLocaleTag(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithI18n(api.I18nConfig{
+		DefaultLocale: "en",
+		Supported:     []string{"en", "fr", "fr-CA"},
+	}))
+	e.Register(&i18nTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/i18n/locale", nil)
+	req.Header.Set("Accept-Language", "fr-CA, fr;q=0.8")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp i18nLocaleResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Data["locale"] != "fr-CA" {
+		t.Fatalf("expected locale=%q, got %q", "fr-CA", resp.Data["locale"])
+	}
+}
+
 func TestWithI18n_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e, _ := api.New(

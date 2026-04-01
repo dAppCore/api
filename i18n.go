@@ -64,7 +64,7 @@ func WithI18n(cfg ...I18nConfig) Option {
 }
 
 // i18nMiddleware returns Gin middleware that parses Accept-Language, matches
-// it against supported locales, and stores the result in the context.
+// it against supported locales, and stores the resolved BCP 47 tag in the context.
 func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		accept := c.GetHeader("Accept-Language")
@@ -75,8 +75,7 @@ func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 		} else {
 			tags, _, _ := language.ParseAcceptLanguage(accept)
 			tag, _, _ := matcher.Match(tags...)
-			base, _ := tag.Base()
-			locale = base.String()
+			locale = tag.String()
 		}
 
 		c.Set(i18nContextKey, locale)
