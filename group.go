@@ -39,6 +39,9 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// StatusCode is the documented 2xx success status code.
+	// Zero defaults to 200.
+	StatusCode int
 	// Security overrides the default bearerAuth requirement when non-nil.
 	// Use an empty, non-nil slice to mark the route as public.
 	Security    []map[string][]string

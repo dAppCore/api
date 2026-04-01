@@ -321,6 +321,97 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_CustomSuccessStatusCode(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "items",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:     "POST",
+				Path:       "/items",
+				Summary:    "Create item",
+				StatusCode: http.StatusCreated,
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	responses := spec["paths"].(map[string]any)["/api/items"].(map[string]any)["post"].(map[string]any)["responses"].(map[string]any)
+	if _, ok := responses["201"]; !ok {
+		t.Fatal("expected 201 response for created operation")
+	}
+	if _, ok := responses["200"]; ok {
+		t.Fatal("expected 200 response to be omitted when a custom success status is declared")
+	}
+
+	created := responses["201"].(map[string]any)
+	if created["description"] != "Created" {
+		t.Fatalf("expected created description, got %v", created["description"])
+	}
+	if created["content"] == nil {
+		t.Fatal("expected content for 201 response")
+	}
+}
+
+func TestSpecBuilder_Good_NoContentSuccessStatusCode(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "items",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:     "DELETE",
+				Path:       "/items/{id}",
+				Summary:    "Delete item",
+				StatusCode: http.StatusNoContent,
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	responses := spec["paths"].(map[string]any)["/api/items/{id}"].(map[string]any)["delete"].(map[string]any)["responses"].(map[string]any)
+	resp204 := responses["204"].(map[string]any)
+	if resp204["description"] != "No content" {
+		t.Fatalf("expected no-content description, got %v", resp204["description"])
+	}
+	if _, ok := resp204["content"]; ok {
+		t.Fatal("expected no content block for 204 response")
+	}
+}
+
 func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
