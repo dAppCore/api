@@ -231,8 +231,13 @@ func (c *OpenAPIClient) loadSpec() error {
 		}
 	}
 
-	if c.baseURL == "" && len(c.servers) > 0 {
-		c.baseURL = c.servers[0]
+	if c.baseURL == "" {
+		for _, server := range c.servers {
+			if isAbsoluteBaseURL(server) {
+				c.baseURL = server
+				break
+			}
+		}
 	}
 
 	return nil
@@ -452,4 +457,12 @@ func appendQueryValue(query url.Values, key string, value any) {
 	}
 
 	query.Add(key, fmt.Sprint(value))
+}
+
+func isAbsoluteBaseURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return u.Scheme != "" && u.Host != ""
 }

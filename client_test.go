@@ -257,6 +257,58 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Good_UsesFirstAbsoluteServer(t *testing.T) {
+	errCh := make(chan error, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"message":"hello"}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+servers:
+  - url: /
+  - url: `+srv.URL+`
+paths:
+  /hello:
+    get:
+      operationId: get_hello
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+	)
+
+	result, err := client.Call("get_hello", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
+	hello, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", result)
+	}
+	if hello["message"] != "hello" {
+		t.Fatalf("expected message=hello, got %#v", hello["message"])
+	}
+}
+
 func TestOpenAPIClient_Bad_MissingOperation(t *testing.T) {
 	specPath := writeTempSpec(t, `openapi: 3.1.0
 info:
