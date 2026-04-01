@@ -68,6 +68,11 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := healthResponses["504"]; !ok {
 		t.Fatal("expected 504 response on /health")
 	}
+	rateLimit429 := healthResponses["429"].(map[string]any)
+	headers := rateLimit429["headers"].(map[string]any)
+	if _, ok := headers["Retry-After"]; !ok {
+		t.Fatal("expected Retry-After header on /health 429 response")
+	}
 
 	// Verify system tag exists.
 	tags := spec["tags"].([]any)
@@ -239,6 +244,11 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	}
 	if _, ok := responses["504"]; !ok {
 		t.Fatal("expected 504 response in secured operation")
+	}
+	rateLimit429 := responses["429"].(map[string]any)
+	headers := rateLimit429["headers"].(map[string]any)
+	if _, ok := headers["Retry-After"]; !ok {
+		t.Fatal("expected Retry-After header in secured operation 429 response")
 	}
 }
 

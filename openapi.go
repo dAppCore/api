@@ -202,6 +202,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
+			"headers": rateLimitHeaders(),
 		},
 		"504": map[string]any{
 			"description": "Gateway timeout",
@@ -233,6 +234,7 @@ func healthResponses() map[string]any {
 					"schema": envelopeSchema(nil),
 				},
 			},
+			"headers": rateLimitHeaders(),
 		},
 		"504": map[string]any{
 			"description": "Gateway timeout",
@@ -300,6 +302,20 @@ func envelopeSchema(dataSchema map[string]any) map[string]any {
 		"type":       "object",
 		"properties": properties,
 		"required":   []string{"success"},
+	}
+}
+
+// rateLimitHeaders documents the response headers emitted when rate limiting
+// rejects a request.
+func rateLimitHeaders() map[string]any {
+	return map[string]any{
+		"Retry-After": map[string]any{
+			"description": "Seconds until the rate limit resets",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 1,
+			},
+		},
 	}
 }
 
