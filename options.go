@@ -129,6 +129,15 @@ func WithSwagger(title, description, version string) Option {
 	}
 }
 
+// WithSwaggerServers adds OpenAPI server metadata to the generated Swagger spec.
+// Empty strings are ignored. Combine it with WithSwagger() to expose the same
+// server list through both the runtime Swagger UI and exported OpenAPI files.
+func WithSwaggerServers(servers ...string) Option {
+	return func(e *Engine) {
+		e.swaggerServers = append([]string(nil), servers...)
+	}
+}
+
 // WithPprof enables Go runtime profiling endpoints at /debug/pprof/.
 // The standard pprof handlers (index, cmdline, profile, symbol, trace,
 // allocs, block, goroutine, heap, mutex, threadcreate) are registered

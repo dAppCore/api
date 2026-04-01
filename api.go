@@ -34,6 +34,7 @@ type Engine struct {
 	swaggerTitle   string
 	swaggerDesc    string
 	swaggerVersion string
+	swaggerServers []string
 	pprofEnabled   bool
 	expvarEnabled  bool
 	graphql        *graphqlConfig
@@ -184,7 +185,7 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount Swagger UI if enabled.
 	if e.swaggerEnabled {
-		registerSwagger(r, e.swaggerTitle, e.swaggerDesc, e.swaggerVersion, e.groups)
+		registerSwagger(r, e.swaggerTitle, e.swaggerDesc, e.swaggerVersion, e.swaggerServers, e.groups)
 	}
 
 	// Mount pprof profiling endpoints if enabled.

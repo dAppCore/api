@@ -94,7 +94,7 @@ engine.Register(&Routes{service: svc})
 | File | Purpose |
 |------|---------|
 | `api.go` | `Engine` struct, `New()`, `build()`, `Serve()`, `Handler()`, `Channels()` |
-| `options.go` | All `With*()` option functions (27 options) |
+| `options.go` | All `With*()` option functions (28 options) |
 | `group.go` | `RouteGroup`, `StreamGroup`, `DescribableGroup` interfaces; `RouteDescription` |
 | `response.go` | `Response[T]`, `Error`, `Meta`, `OK()`, `Fail()`, `FailWithDetails()`, `Paginated()` |
 | `middleware.go` | `bearerAuthMiddleware()`, `requestIDMiddleware()` |

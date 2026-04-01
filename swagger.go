@@ -40,12 +40,13 @@ func (s *swaggerSpec) ReadDoc() string {
 }
 
 // registerSwagger mounts the Swagger UI and doc.json endpoint.
-func registerSwagger(g *gin.Engine, title, description, version string, groups []RouteGroup) {
+func registerSwagger(g *gin.Engine, title, description, version string, servers []string, groups []RouteGroup) {
 	spec := &swaggerSpec{
 		builder: &SpecBuilder{
 			Title:       title,
 			Description: description,
 			Version:     version,
+			Servers:     servers,
 		},
 		groups: groups,
 	}

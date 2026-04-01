@@ -159,6 +159,7 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithWSHandler(h)` | WebSocket at `/ws` | Wraps any `http.Handler` |
 | `WithAuthentik(cfg)` | Authentik forward-auth + OIDC JWT | Permissive; populates context, never rejects |
 | `WithSwagger(title, desc, ver)` | Swagger UI at `/swagger/` | Runtime spec via `SpecBuilder` |
+| `WithSwaggerServers(servers...)` | OpenAPI server metadata | Feeds the runtime Swagger spec and exported docs |
 | `WithPprof()` | Go profiling at `/debug/pprof/` | WARNING: do not expose in production without authentication |
 | `WithExpvar()` | Runtime metrics at `/debug/vars` | WARNING: do not expose in production without authentication |
 | `WithSecure()` | Security headers | HSTS 1 year, X-Frame-Options DENY, nosniff, strict referrer |

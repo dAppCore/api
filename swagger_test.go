@@ -258,6 +258,55 @@ func TestSwagger_Good_InfoFromOptions(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
+		api.WithSwaggerServers("https://api.example.com", "/", ""),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := doc["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array, got %T", doc["servers"])
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+
+	first := servers[0].(map[string]any)
+	if first["url"] != "https://api.example.com" {
+		t.Fatalf("expected first server url=%q, got %v", "https://api.example.com", first["url"])
+	}
+
+	second := servers[1].(map[string]any)
+	if second["url"] != "/" {
+		t.Fatalf("expected second server url=%q, got %v", "/", second["url"])
+	}
+}
+
 func TestSwagger_Good_ValidOpenAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
