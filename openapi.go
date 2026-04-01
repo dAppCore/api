@@ -212,9 +212,15 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 
 			// Add request body for methods that accept one.
 			// The contract only excludes GET; other verbs may legitimately carry bodies.
-			if rd.RequestBody != nil && method != "get" {
+			// An example-only request body still produces a documented payload so
+			// callers can see the expected shape even when a schema is omitted.
+			if method != "get" && (rd.RequestBody != nil || rd.RequestExample != nil) {
+				requestSchema := rd.RequestBody
+				if requestSchema == nil {
+					requestSchema = map[string]any{}
+				}
 				requestMediaType := map[string]any{
-					"schema": rd.RequestBody,
+					"schema": requestSchema,
 				}
 				if rd.RequestExample != nil {
 					requestMediaType["example"] = rd.RequestExample

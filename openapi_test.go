@@ -1003,6 +1003,55 @@ func TestSpecBuilder_Good_RequestBodyOnHead(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_RequestExampleWithoutSchema(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "resources",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "POST",
+				Path:    "/resources",
+				Summary: "Create resource",
+				Tags:    []string{"resources"},
+				RequestExample: map[string]any{
+					"name": "Example resource",
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	postOp := spec["paths"].(map[string]any)["/api/resources"].(map[string]any)["post"].(map[string]any)
+	requestBody := postOp["requestBody"].(map[string]any)
+	appJSON := requestBody["content"].(map[string]any)["application/json"].(map[string]any)
+
+	if appJSON["example"].(map[string]any)["name"] != "Example resource" {
+		t.Fatalf("expected request example to be preserved, got %v", appJSON["example"])
+	}
+
+	schema := appJSON["schema"].(map[string]any)
+	if len(schema) != 0 {
+		t.Fatalf("expected example-only request body to use an empty schema, got %v", schema)
+	}
+}
+
 func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
