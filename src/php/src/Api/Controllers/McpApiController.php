@@ -271,7 +271,8 @@ class McpApiController extends Controller
             $result = $this->executeToolViaArtisan(
                 $validated['server'],
                 $validated['tool'],
-                $validated['arguments'] ?? []
+                $validated['arguments'] ?? [],
+                $toolVersion?->version
             );
 
             $durationMs = (int) ((microtime(true) - $startTime) * 1000);
@@ -538,23 +539,14 @@ class McpApiController extends Controller
     /**
      * Execute tool via artisan MCP server command.
      */
-    protected function executeToolViaArtisan(string $server, string $tool, array $arguments): mixed
+    protected function executeToolViaArtisan(string $server, string $tool, array $arguments, ?string $version = null): mixed
     {
         $command = $this->resolveMcpServerCommand($server);
         if (! $command) {
             throw new \RuntimeException("Unknown server: {$server}");
         }
 
-        // Build MCP request
-        $mcpRequest = [
-            'jsonrpc' => '2.0',
-            'id' => uniqid(),
-            'method' => 'tools/call',
-            'params' => [
-                'name' => $tool,
-                'arguments' => $arguments,
-            ],
-        ];
+        $mcpRequest = $this->buildToolCallRequest($tool, $arguments, $version);
 
         // Execute via process
         $process = proc_open(
@@ -588,6 +580,28 @@ class McpApiController extends Controller
         }
 
         return $response['result'] ?? null;
+    }
+
+    /**
+     * Build the JSON-RPC payload for an MCP tool call.
+     */
+    protected function buildToolCallRequest(string $tool, array $arguments, ?string $version = null): array
+    {
+        $params = [
+            'name' => $tool,
+            'arguments' => $arguments,
+        ];
+
+        if ($version !== null && $version !== '') {
+            $params['version'] = $version;
+        }
+
+        return [
+            'jsonrpc' => '2.0',
+            'id' => uniqid(),
+            'method' => 'tools/call',
+            'params' => $params,
+        ];
     }
 
     /**
