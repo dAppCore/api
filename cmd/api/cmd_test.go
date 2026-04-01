@@ -99,7 +99,7 @@ func TestAPISpecCmd_Good_ServerFlagAddsServers(t *testing.T) {
 	AddAPICommands(root)
 
 	outputFile := t.TempDir() + "/spec.json"
-	root.SetArgs([]string{"api", "spec", "--server", "https://api.example.com,/", "--output", outputFile})
+	root.SetArgs([]string{"api", "spec", "--server", "https://api.example.com, /, https://api.example.com, ", "--output", outputFile})
 	root.SetErr(new(bytes.Buffer))
 
 	if err := root.Execute(); err != nil {
@@ -122,6 +122,27 @@ func TestAPISpecCmd_Good_ServerFlagAddsServers(t *testing.T) {
 	}
 	if len(servers) != 2 {
 		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+	if servers[0].(map[string]any)["url"] != "https://api.example.com" {
+		t.Fatalf("expected first server to be https://api.example.com, got %v", servers[0])
+	}
+	if servers[1].(map[string]any)["url"] != "/" {
+		t.Fatalf("expected second server to be /, got %v", servers[1])
+	}
+}
+
+func TestAPISDKCmd_Bad_EmptyLanguages(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	root.SetArgs([]string{"api", "sdk", "--lang", " , , "})
+	buf := new(bytes.Buffer)
+	root.SetOut(buf)
+	root.SetErr(buf)
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when --lang only contains empty values")
 	}
 }
 

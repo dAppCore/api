@@ -5,7 +5,6 @@ package api
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 
@@ -60,17 +59,5 @@ func addSpecCommand(parent *cli.Command) {
 }
 
 func parseServers(raw string) []string {
-	if raw == "" {
-		return nil
-	}
-
-	parts := strings.Split(raw, ",")
-	servers := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if server := strings.TrimSpace(part); server != "" {
-			servers = append(servers, server)
-		}
-	}
-
-	return servers
+	return splitUniqueCSV(raw)
 }

@@ -25,8 +25,9 @@ func addSDKCommand(parent *cli.Command) {
 	)
 
 	cmd := cli.NewCommand("sdk", "Generate client SDKs from OpenAPI spec", "", func(cmd *cli.Command, args []string) error {
-		if lang == "" {
-			return coreerr.E("sdk.Generate", "--lang is required. Supported: "+strings.Join(goapi.SupportedLanguages(), ", "), nil)
+		languages := splitUniqueCSV(lang)
+		if len(languages) == 0 {
+			return coreerr.E("sdk.Generate", "--lang is required and must include at least one non-empty language. Supported: "+strings.Join(goapi.SupportedLanguages(), ", "), nil)
 		}
 
 		// If no spec file provided, generate one to a temp file.
@@ -68,11 +69,7 @@ func addSDKCommand(parent *cli.Command) {
 		}
 
 		// Generate for each language.
-		for l := range strings.SplitSeq(lang, ",") {
-			l = strings.TrimSpace(l)
-			if l == "" {
-				continue
-			}
+		for _, l := range languages {
 			fmt.Fprintf(os.Stderr, "Generating %s SDK...\n", l)
 			if err := gen.Generate(context.Background(), l); err != nil {
 				return coreerr.E("sdk.Generate", "generate "+l, err)
