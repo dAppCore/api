@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"unicode/utf8"
 
@@ -88,44 +89,20 @@ func (b *ToolBridge) RegisterRoutes(rg *gin.RouterGroup) {
 
 // Describe returns OpenAPI route descriptions for all registered tools.
 func (b *ToolBridge) Describe() []RouteDescription {
-	descs := make([]RouteDescription, 0, len(b.tools))
-	for _, t := range b.tools {
-		tags := []string{t.descriptor.Group}
-		if t.descriptor.Group == "" {
-			tags = []string{b.name}
-		}
-		descs = append(descs, RouteDescription{
-			Method:      "POST",
-			Path:        "/" + t.descriptor.Name,
-			Summary:     t.descriptor.Description,
-			Description: t.descriptor.Description,
-			Tags:        tags,
-			RequestBody: t.descriptor.InputSchema,
-			Response:    t.descriptor.OutputSchema,
-		})
+	tools := b.snapshotTools()
+	descs := make([]RouteDescription, 0, len(tools))
+	for _, tool := range tools {
+		descs = append(descs, describeTool(tool.descriptor, b.name))
 	}
 	return descs
 }
 
 // DescribeIter returns an iterator over OpenAPI route descriptions for all registered tools.
 func (b *ToolBridge) DescribeIter() iter.Seq[RouteDescription] {
-	descs := b.Tools()
+	tools := b.snapshotTools()
 	return func(yield func(RouteDescription) bool) {
-		for _, desc := range descs {
-			tags := []string{desc.Group}
-			if desc.Group == "" {
-				tags = []string{b.name}
-			}
-			rd := RouteDescription{
-				Method:      "POST",
-				Path:        "/" + desc.Name,
-				Summary:     desc.Description,
-				Description: desc.Description,
-				Tags:        tags,
-				RequestBody: desc.InputSchema,
-				Response:    desc.OutputSchema,
-			}
-			if !yield(rd) {
+		for _, tool := range tools {
+			if !yield(describeTool(tool.descriptor, b.name)) {
 				return
 			}
 		}
@@ -138,8 +115,9 @@ func (b *ToolBridge) DescribeIter() iter.Seq[RouteDescription] {
 //
 //	descs := bridge.Tools()
 func (b *ToolBridge) Tools() []ToolDescriptor {
-	descs := make([]ToolDescriptor, len(b.tools))
-	for i, t := range b.tools {
+	tools := b.snapshotTools()
+	descs := make([]ToolDescriptor, len(tools))
+	for i, t := range tools {
 		descs[i] = t.descriptor
 	}
 	return descs
@@ -147,13 +125,36 @@ func (b *ToolBridge) Tools() []ToolDescriptor {
 
 // ToolsIter returns an iterator over all registered tool descriptors.
 func (b *ToolBridge) ToolsIter() iter.Seq[ToolDescriptor] {
-	descs := b.Tools()
+	tools := b.snapshotTools()
 	return func(yield func(ToolDescriptor) bool) {
-		for _, desc := range descs {
-			if !yield(desc) {
+		for _, tool := range tools {
+			if !yield(tool.descriptor) {
 				return
 			}
 		}
+	}
+}
+
+func (b *ToolBridge) snapshotTools() []boundTool {
+	if len(b.tools) == 0 {
+		return nil
+	}
+	return slices.Clone(b.tools)
+}
+
+func describeTool(desc ToolDescriptor, defaultTag string) RouteDescription {
+	tags := []string{desc.Group}
+	if desc.Group == "" {
+		tags = []string{defaultTag}
+	}
+	return RouteDescription{
+		Method:      "POST",
+		Path:        "/" + desc.Name,
+		Summary:     desc.Description,
+		Description: desc.Description,
+		Tags:        tags,
+		RequestBody: desc.InputSchema,
+		Response:    desc.OutputSchema,
 	}
 }
 
