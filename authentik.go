@@ -148,7 +148,7 @@ func authentikMiddleware(cfg AuthentikConfig) gin.HandlerFunc {
 		// Skip public paths.
 		path := c.Request.URL.Path
 		for p := range public {
-			if strings.HasPrefix(path, p) {
+			if isPublicPath(path, p) {
 				c.Next()
 				return
 			}

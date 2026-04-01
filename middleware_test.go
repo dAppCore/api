@@ -27,6 +27,16 @@ func (m *mwTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type swaggerLikeGroup struct{}
+
+func (g *swaggerLikeGroup) Name() string     { return "swagger-like" }
+func (g *swaggerLikeGroup) BasePath() string { return "/swaggerx" }
+func (g *swaggerLikeGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/secret", func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("classified"))
+	})
+}
+
 type requestIDTestGroup struct {
 	gotID *string
 }
@@ -148,6 +158,21 @@ func TestBearerAuth_Good_HealthBypassesAuth(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for /health, got %d", w.Code)
+	}
+}
+
+func TestBearerAuth_Bad_SimilarPrefixDoesNotBypassAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithBearerAuth("s3cret"))
+	e.Register(&swaggerLikeGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/swaggerx/secret", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for /swaggerx/secret, got %d", w.Code)
 	}
 }
 

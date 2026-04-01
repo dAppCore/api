@@ -42,7 +42,7 @@ func bearerAuthMiddleware(token string, skip []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check whether the request path should bypass authentication.
 		for _, path := range skip {
-			if strings.HasPrefix(c.Request.URL.Path, path) {
+			if isPublicPath(c.Request.URL.Path, path) {
 				c.Next()
 				return
 			}
@@ -62,6 +62,30 @@ func bearerAuthMiddleware(token string, skip []string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// isPublicPath reports whether requestPath should bypass auth for publicPath.
+// It matches the exact path and any nested subpath, but not sibling prefixes
+// such as /swaggerx when the public path is /swagger.
+func isPublicPath(requestPath, publicPath string) bool {
+	if publicPath == "" {
+		return false
+	}
+
+	normalized := strings.TrimRight(publicPath, "/")
+	if normalized == "" {
+		normalized = "/"
+	}
+
+	if requestPath == normalized {
+		return true
+	}
+
+	if normalized == "/" {
+		return true
+	}
+
+	return strings.HasPrefix(requestPath, normalized+"/")
 }
 
 // requestIDMiddleware ensures every response carries an X-Request-ID header.
