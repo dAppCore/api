@@ -646,10 +646,177 @@ class OpenApiBuilder
             return ['type' => 'object'];
         }
 
-        // For now, return a generic object schema
-        // A more sophisticated implementation would analyze the resource's toArray method
+        try {
+            $resource = new $resourceClass(new \stdClass);
+            $data = $resource->toArray(request());
+
+            if (is_array($data)) {
+                return $this->inferArraySchema($data);
+            }
+        } catch (\Throwable) {
+            // Fall back to a generic object schema when the resource cannot
+            // be instantiated safely in the current context.
+        }
+
         return [
             'type' => 'object',
+            'additionalProperties' => true,
+        ];
+    }
+
+    /**
+     * Infer an OpenAPI schema from a PHP array.
+     */
+    protected function inferArraySchema(array $value): array
+    {
+        if (array_is_list($value)) {
+            $itemSchema = ['type' => 'object'];
+
+            foreach ($value as $item) {
+                if ($item === null) {
+                    continue;
+                }
+
+                $itemSchema = $this->inferValueSchema($item);
+                break;
+            }
+
+            return [
+                'type' => 'array',
+                'items' => $itemSchema,
+            ];
+        }
+
+        $properties = [];
+        foreach ($value as $key => $item) {
+            $properties[(string) $key] = $this->inferValueSchema($item, (string) $key);
+        }
+
+        return [
+            'type' => 'object',
+            'properties' => $properties,
+            'additionalProperties' => true,
+        ];
+    }
+
+    /**
+     * Infer an OpenAPI schema node from a PHP value.
+     */
+    protected function inferValueSchema(mixed $value, ?string $key = null): array
+    {
+        if ($value === null) {
+            return $this->inferNullableSchema($key);
+        }
+
+        if (is_bool($value)) {
+            return ['type' => 'boolean'];
+        }
+
+        if (is_int($value)) {
+            return ['type' => 'integer'];
+        }
+
+        if (is_float($value)) {
+            return ['type' => 'number'];
+        }
+
+        if (is_string($value)) {
+            return $this->inferStringSchema($value, $key);
+        }
+
+        if (is_array($value)) {
+            return $this->inferArraySchema($value);
+        }
+
+        if (is_object($value)) {
+            return $this->inferObjectSchema($value);
+        }
+
+        return [];
+    }
+
+    /**
+     * Infer a schema for a null value using the field name as a hint.
+     */
+    protected function inferNullableSchema(?string $key): array
+    {
+        if ($key === null) {
+            return ['nullable' => true];
+        }
+
+        $normalized = strtolower($key);
+
+        return match (true) {
+            $normalized === 'id',
+            str_ends_with($normalized, '_id'),
+            str_ends_with($normalized, 'count'),
+            str_ends_with($normalized, 'total'),
+            str_ends_with($normalized, 'page'),
+            str_ends_with($normalized, 'limit'),
+            str_ends_with($normalized, 'offset'),
+            str_ends_with($normalized, 'size'),
+            str_ends_with($normalized, 'quantity'),
+            str_ends_with($normalized, 'rank'),
+            str_ends_with($normalized, 'score') => ['type' => 'integer', 'nullable' => true],
+            str_starts_with($normalized, 'is_'),
+            str_starts_with($normalized, 'has_'),
+            str_starts_with($normalized, 'can_'),
+            str_starts_with($normalized, 'should_'),
+            str_starts_with($normalized, 'enabled'),
+            str_starts_with($normalized, 'active') => ['type' => 'boolean', 'nullable' => true],
+            str_ends_with($normalized, '_at'),
+            str_ends_with($normalized, '_on'),
+            str_contains($normalized, 'date'),
+            str_contains($normalized, 'time'),
+            str_contains($normalized, 'timestamp') => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+            str_contains($normalized, 'email') => ['type' => 'string', 'format' => 'email', 'nullable' => true],
+            str_contains($normalized, 'url'),
+            str_contains($normalized, 'uri') => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+            str_contains($normalized, 'uuid') => ['type' => 'string', 'format' => 'uuid', 'nullable' => true],
+            str_contains($normalized, 'name'),
+            str_contains($normalized, 'title'),
+            str_contains($normalized, 'description'),
+            str_contains($normalized, 'status'),
+            str_contains($normalized, 'type'),
+            str_contains($normalized, 'code'),
+            str_contains($normalized, 'token'),
+            str_contains($normalized, 'slug'),
+            str_contains($normalized, 'key') => ['type' => 'string', 'nullable' => true],
+            default => ['nullable' => true],
+        };
+    }
+
+    /**
+     * Infer a schema for a string value using the field name as a hint.
+     */
+    protected function inferStringSchema(string $value, ?string $key): array
+    {
+        if ($key !== null) {
+            $nullable = $this->inferNullableSchema($key);
+
+            if (($nullable['type'] ?? null) === 'string') {
+                $nullable['nullable'] = false;
+                return $nullable;
+            }
+        }
+
+        return ['type' => 'string'];
+    }
+
+    /**
+     * Infer a schema for an object value.
+     */
+    protected function inferObjectSchema(object $value): array
+    {
+        $properties = [];
+
+        foreach (get_object_vars($value) as $key => $item) {
+            $properties[$key] = $this->inferValueSchema($item, (string) $key);
+        }
+
+        return [
+            'type' => 'object',
+            'properties' => $properties,
             'additionalProperties' => true,
         ];
     }

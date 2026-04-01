@@ -458,6 +458,29 @@ describe('ApiResponse Attribute Rendering', function () {
         expect($response->resource)->toBe(TestJsonResource::class);
     });
 
+    it('infers resource schema fields from JsonResource payloads', function () {
+        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.exclude' => []]);
+
+        RouteFacade::prefix('api')
+            ->middleware('api')
+            ->group(function () {
+                RouteFacade::get('/test-scan/items/{id}', [TestOpenApiController::class, 'show']);
+            });
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $schema = $spec['paths']['/api/test-scan/items/{id}']['get']['responses']['200']['content']['application/json']['schema'] ?? null;
+
+        expect($schema)->not->toBeNull();
+        expect($schema['type'])->toBe('object');
+        expect($schema['properties'])->toHaveKey('id')
+            ->toHaveKey('name');
+        expect($schema['properties']['id']['type'])->toBe('integer');
+        expect($schema['properties']['name']['type'])->toBe('string');
+    });
+
     it('supports paginated flag', function () {
         $response = new ApiResponse(
             status: 200,
