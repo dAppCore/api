@@ -246,11 +246,17 @@ class VersionedRoutes
     {
         $middleware = ["api.version:{$this->version}"];
 
-        if ($this->isDeprecated && $this->sunsetDate) {
-            if ($this->replacement !== null && $this->replacement !== '') {
-                $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement}";
+        if ($this->isDeprecated) {
+            if ($this->sunsetDate !== null && $this->sunsetDate !== '') {
+                if ($this->replacement !== null && $this->replacement !== '') {
+                    $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement}";
+                } else {
+                    $middleware[] = "api.sunset:{$this->sunsetDate}";
+                }
+            } elseif ($this->replacement !== null && $this->replacement !== '') {
+                $middleware[] = "api.sunset:,$this->replacement";
             } else {
-                $middleware[] = "api.sunset:{$this->sunsetDate}";
+                $middleware[] = 'api.sunset';
             }
         }
 

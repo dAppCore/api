@@ -40,6 +40,14 @@ use Symfony\Component\HttpFoundation\Response;
  * Route::middleware('api.sunset:2025-06-01,/api/v2/new-endpoint')->group(function () {
  *     Route::get('/old-endpoint', OldController::class);
  * });
+ *
+ * You can also mark a route as deprecated without a fixed removal date:
+ *
+ * ```php
+ * Route::middleware('api.sunset')->group(function () {
+ *     Route::get('/old-endpoint', OldController::class);
+ * });
+ * ```
  * ```
  *
  * ## Response Headers
@@ -56,29 +64,31 @@ class ApiSunset
     /**
      * Handle an incoming request.
      *
-     * @param  string  $sunsetDate  The sunset date (YYYY-MM-DD or RFC7231 format)
+     * @param  string  $sunsetDate  The sunset date (YYYY-MM-DD or RFC7231 format), or empty for deprecation-only
      * @param  string|null  $replacement  Optional replacement endpoint URL
      */
-    public function handle(Request $request, Closure $next, string $sunsetDate, ?string $replacement = null): Response
+    public function handle(Request $request, Closure $next, string $sunsetDate = '', ?string $replacement = null): Response
     {
         /** @var Response $response */
         $response = $next($request);
 
-        // Convert date to RFC7231 format if needed
-        $formattedDate = $this->formatSunsetDate($sunsetDate);
+        if ($sunsetDate !== '') {
+            // Convert date to RFC7231 format if needed
+            $formattedDate = $this->formatSunsetDate($sunsetDate);
 
-        // Add Sunset header
-        $response->headers->set('Sunset', $formattedDate);
+            // Add Sunset header
+            $response->headers->set('Sunset', $formattedDate);
+        }
 
         // Add Deprecation header
         $response->headers->set('Deprecation', 'true');
 
         // Add warning header
-        $version = $request->attributes->get('api_version', 'unknown');
-        $response->headers->set(
-            'X-API-Warn',
-            "This endpoint is deprecated and will be removed on {$sunsetDate}."
-        );
+        $warning = 'This endpoint is deprecated.';
+        if ($sunsetDate !== '') {
+            $warning = "This endpoint is deprecated and will be removed on {$sunsetDate}.";
+        }
+        $response->headers->set('X-API-Warn', $warning);
 
         // Add Link header for replacement if provided
         if ($replacement !== null) {
