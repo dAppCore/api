@@ -512,8 +512,8 @@ func mergeOperationParameters(existing any, explicit []map[string]any) []map[str
 // resolvedOperationTags returns the explicit route tags when provided, or a
 // stable fallback derived from the group's name when the route omits tags.
 func resolvedOperationTags(g RouteGroup, rd RouteDescription) []string {
-	if len(rd.Tags) > 0 {
-		return cleanTags(rd.Tags)
+	if tags := cleanTags(rd.Tags); len(tags) > 0 {
+		return tags
 	}
 
 	if name := strings.TrimSpace(g.Name()); name != "" {

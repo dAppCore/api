@@ -1028,6 +1028,48 @@ func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_BlankRouteTagsFallBackToGroupName(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "fallback",
+		basePath: "/api/fallback",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Check status",
+				Tags:    []string{"", "  "},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/fallback/status"].(map[string]any)["get"].(map[string]any)
+	tags, ok := op["tags"].([]any)
+	if !ok {
+		t.Fatalf("expected tags array, got %T", op["tags"])
+	}
+	if len(tags) != 1 || tags[0] != "fallback" {
+		t.Fatalf("expected blank route tags to fall back to group name, got %v", tags)
+	}
+}
+
 func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
