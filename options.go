@@ -138,6 +138,19 @@ func WithSwaggerServers(servers ...string) Option {
 	}
 }
 
+// WithSwaggerLicense adds licence metadata to the generated Swagger spec.
+// Pass both a name and URL to populate the OpenAPI info block consistently.
+//
+// Example:
+//
+//	api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/")
+func WithSwaggerLicense(name, url string) Option {
+	return func(e *Engine) {
+		e.swaggerLicenseName = name
+		e.swaggerLicenseURL = url
+	}
+}
+
 // WithPprof enables Go runtime profiling endpoints at /debug/pprof/.
 // The standard pprof handlers (index, cmdline, profile, symbol, trace,
 // allocs, block, goroutine, heap, mutex, threadcreate) are registered

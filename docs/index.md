@@ -44,6 +44,7 @@ func main() {
         api.WithSecure(),
         api.WithSlog(nil),
         api.WithSwagger("My API", "A service description", "1.0.0"),
+        api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
     )
 
     engine.Register(myRoutes) // any RouteGroup implementation

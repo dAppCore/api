@@ -258,6 +258,49 @@ func TestSwagger_Good_InfoFromOptions(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_UsesLicenseMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Licensed API", "Licensed test", "1.0.0"),
+		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected license metadata in swagger doc")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected license name=%q, got %v", "EUPL-1.2", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected license url=%q, got %v", "https://eupl.eu/1.2/en/", license["url"])
+	}
+}
+
 func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

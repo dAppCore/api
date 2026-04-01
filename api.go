@@ -25,19 +25,21 @@ const shutdownTimeout = 10 * time.Second
 
 // Engine is the central API server managing route groups and middleware.
 type Engine struct {
-	addr           string
-	groups         []RouteGroup
-	middlewares    []gin.HandlerFunc
-	wsHandler      http.Handler
-	sseBroker      *SSEBroker
-	swaggerEnabled bool
-	swaggerTitle   string
-	swaggerDesc    string
-	swaggerVersion string
-	swaggerServers []string
-	pprofEnabled   bool
-	expvarEnabled  bool
-	graphql        *graphqlConfig
+	addr               string
+	groups             []RouteGroup
+	middlewares        []gin.HandlerFunc
+	wsHandler          http.Handler
+	sseBroker          *SSEBroker
+	swaggerEnabled     bool
+	swaggerTitle       string
+	swaggerDesc        string
+	swaggerVersion     string
+	swaggerServers     []string
+	swaggerLicenseName string
+	swaggerLicenseURL  string
+	pprofEnabled       bool
+	expvarEnabled      bool
+	graphql            *graphqlConfig
 }
 
 // New creates an Engine with the given options.
@@ -185,7 +187,16 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount Swagger UI if enabled.
 	if e.swaggerEnabled {
-		registerSwagger(r, e.swaggerTitle, e.swaggerDesc, e.swaggerVersion, e.swaggerServers, e.groups)
+		registerSwagger(
+			r,
+			e.swaggerTitle,
+			e.swaggerDesc,
+			e.swaggerVersion,
+			e.swaggerServers,
+			e.swaggerLicenseName,
+			e.swaggerLicenseURL,
+			e.groups,
+		)
 	}
 
 	// Mount pprof profiling endpoints if enabled.
