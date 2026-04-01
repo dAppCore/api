@@ -408,6 +408,109 @@ func TestToolBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Good_ValidatesSchemaCombinators(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "route_choice",
+		Description: "Choose a route",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"choice": map[string]any{
+					"oneOf": []any{
+						map[string]any{
+							"type": "string",
+							"allOf": []any{
+								map[string]any{"minLength": 2},
+								map[string]any{"pattern": "^[A-Z]+$"},
+							},
+						},
+						map[string]any{
+							"type":    "string",
+							"pattern": "^A",
+						},
+					},
+				},
+			},
+			"required": []any{"choice"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", bytes.NewBufferString(`{"choice":"BC"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestToolBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "route_choice",
+		Description: "Choose a route",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"choice": map[string]any{
+					"oneOf": []any{
+						map[string]any{
+							"type": "string",
+							"allOf": []any{
+								map[string]any{"minLength": 1},
+								map[string]any{"pattern": "^[A-Z]+$"},
+							},
+						},
+						map[string]any{
+							"type":    "string",
+							"pattern": "^A",
+						},
+					},
+				},
+			},
+			"required": []any{"choice"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", bytes.NewBufferString(`{"choice":"A"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
 func TestToolBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

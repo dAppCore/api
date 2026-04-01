@@ -362,6 +362,53 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 		}
 	}
 
+	if err := validateSchemaCombinators(value, schema, path); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateSchemaCombinators(value any, schema map[string]any, path string) error {
+	if subschemas := schemaObjects(schema["allOf"]); len(subschemas) > 0 {
+		for _, subschema := range subschemas {
+			if err := validateSchemaNode(value, subschema, path); err != nil {
+				return err
+			}
+		}
+	}
+
+	if subschemas := schemaObjects(schema["anyOf"]); len(subschemas) > 0 {
+		for _, subschema := range subschemas {
+			if err := validateSchemaNode(value, subschema, path); err == nil {
+				goto anyOfMatched
+			}
+		}
+		return fmt.Errorf("%s must match at least one schema in anyOf", displayPath(path))
+	}
+
+anyOfMatched:
+	if subschemas := schemaObjects(schema["oneOf"]); len(subschemas) > 0 {
+		matches := 0
+		for _, subschema := range subschemas {
+			if err := validateSchemaNode(value, subschema, path); err == nil {
+				matches++
+			}
+		}
+		if matches != 1 {
+			if matches == 0 {
+				return fmt.Errorf("%s must match exactly one schema in oneOf", displayPath(path))
+			}
+			return fmt.Errorf("%s matches multiple schemas in oneOf", displayPath(path))
+		}
+	}
+
+	if subschema, ok := schema["not"].(map[string]any); ok && subschema != nil {
+		if err := validateSchemaNode(value, subschema, path); err == nil {
+			return fmt.Errorf("%s must not match the forbidden schema", displayPath(path))
+		}
+	}
+
 	return nil
 }
 
@@ -622,6 +669,23 @@ func schemaMap(value any) map[string]any {
 	}
 	m, _ := value.(map[string]any)
 	return m
+}
+
+func schemaObjects(value any) []map[string]any {
+	switch raw := value.(type) {
+	case []any:
+		out := make([]map[string]any, 0, len(raw))
+		for _, item := range raw {
+			if schema := schemaMap(item); schema != nil {
+				out = append(out, schema)
+			}
+		}
+		return out
+	case []map[string]any:
+		return append([]map[string]any(nil), raw...)
+	default:
+		return nil
+	}
 }
 
 func stringList(value any) []string {
