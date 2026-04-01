@@ -310,6 +310,118 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Bad_ValidatesRequestBodyAgainstSchema(t *testing.T) {
+	called := make(chan struct{}, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		called <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":"123"}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /users:
+    post:
+      operationId: create_user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	if _, err := client.Call("create_user", map[string]any{
+		"body": map[string]any{},
+	}); err == nil {
+		t.Fatal("expected request body validation error, got nil")
+	}
+
+	select {
+	case <-called:
+		t.Fatal("expected request validation to fail before the HTTP call")
+	default:
+	}
+}
+
+func TestOpenAPIClient_Bad_ValidatesResponseAgainstSchema(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":123}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /users:
+    get:
+      operationId: list_users
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [id]
+                    properties:
+                      id:
+                        type: string
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	if _, err := client.Call("list_users", nil); err == nil {
+		t.Fatal("expected response validation error, got nil")
+	}
+}
+
 func TestOpenAPIClient_Bad_MissingOperation(t *testing.T) {
 	specPath := writeTempSpec(t, `openapi: 3.1.0
 info:
