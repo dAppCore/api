@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"iter"
 	"os"
 	"strings"
 
@@ -51,7 +52,7 @@ func addSDKCommand(parent *cli.Command) {
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
 			builder := sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
-			groups := sdkSpecGroups()
+			groups := sdkSpecGroupsIter()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
 			if err != nil {
@@ -59,7 +60,7 @@ func addSDKCommand(parent *cli.Command) {
 			}
 			defer coreio.Local.Delete(tmpFile.Name())
 
-			if err := goapi.ExportSpec(tmpFile, "json", builder, groups); err != nil {
+			if err := goapi.ExportSpecIter(tmpFile, "json", builder, groups); err != nil {
 				tmpFile.Close()
 				return coreerr.E("sdk.Generate", "generate spec", err)
 			}
@@ -132,4 +133,8 @@ func sdkSpecBuilder(title, description, version, termsURL, contactName, contactU
 func sdkSpecGroups() []goapi.RouteGroup {
 	bridge := goapi.NewToolBridge("/tools")
 	return append(goapi.RegisteredSpecGroups(), bridge)
+}
+
+func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {
+	return specGroupsIter(goapi.NewToolBridge("/tools"))
 }

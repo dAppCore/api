@@ -5,6 +5,7 @@ package api
 import (
 	"encoding/json"
 	"io"
+	"iter"
 	"os"
 	"path/filepath"
 
@@ -47,6 +48,34 @@ func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []Route
 	}
 }
 
+// ExportSpecIter generates the OpenAPI spec from an iterator and writes it to w.
+// Format must be "json" or "yaml".
+func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
+	data, err := builder.BuildIter(groups)
+	if err != nil {
+		return coreerr.E("ExportSpecIter", "build spec", err)
+	}
+
+	switch format {
+	case "json":
+		_, err = w.Write(data)
+		return err
+	case "yaml":
+		var obj any
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return coreerr.E("ExportSpecIter", "unmarshal spec", err)
+		}
+		enc := yaml.NewEncoder(w)
+		enc.SetIndent(2)
+		if err := enc.Encode(obj); err != nil {
+			return coreerr.E("ExportSpecIter", "encode yaml", err)
+		}
+		return enc.Close()
+	default:
+		return coreerr.E("ExportSpecIter", "unsupported format "+format+": use \"json\" or \"yaml\"", nil)
+	}
+}
+
 // ExportSpecToFile writes the spec to the given path.
 // The parent directory is created if it does not exist.
 //
@@ -63,4 +92,18 @@ func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 	}
 	defer f.Close()
 	return ExportSpec(f, format, builder, groups)
+}
+
+// ExportSpecToFileIter writes the OpenAPI spec from an iterator to the given path.
+// The parent directory is created if it does not exist.
+func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
+	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
+		return coreerr.E("ExportSpecToFileIter", "create directory", err)
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return coreerr.E("ExportSpecToFileIter", "create file", err)
+	}
+	defer f.Close()
+	return ExportSpecIter(f, format, builder, groups)
 }

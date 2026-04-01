@@ -160,6 +160,13 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	return json.MarshalIndent(spec, "", "  ")
 }
 
+// BuildIter generates the complete OpenAPI 3.1 JSON spec from a route-group
+// iterator. The iterator is snapshotted before building so the result stays
+// stable even if the source changes during rendering.
+func (sb *SpecBuilder) BuildIter(groups iter.Seq[RouteGroup]) ([]byte, error) {
+	return sb.Build(collectRouteGroups(groups))
+}
+
 // buildPaths generates the paths object from all DescribableGroups.
 func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	operationIDs := map[string]int{}
@@ -534,6 +541,19 @@ func prepareRouteGroups(groups []RouteGroup) []preparedRouteGroup {
 			group: g,
 			descs: collectRouteDescriptions(g),
 		})
+	}
+
+	return out
+}
+
+func collectRouteGroups(groups iter.Seq[RouteGroup]) []RouteGroup {
+	if groups == nil {
+		return nil
+	}
+
+	out := make([]RouteGroup, 0)
+	for group := range groups {
+		out = append(out, group)
 	}
 
 	return out

@@ -47,17 +47,17 @@ func addSpecCommand(parent *cli.Command) {
 		}
 
 		bridge := goapi.NewToolBridge("/tools")
-		groups := append(goapi.RegisteredSpecGroups(), bridge)
+		groups := specGroupsIter(bridge)
 
 		if output != "" {
-			if err := goapi.ExportSpecToFile(output, format, builder, groups); err != nil {
+			if err := goapi.ExportSpecToFileIter(output, format, builder, groups); err != nil {
 				return err
 			}
 			fmt.Fprintf(os.Stderr, "Spec written to %s\n", output)
 			return nil
 		}
 
-		return goapi.ExportSpec(os.Stdout, format, builder, groups)
+		return goapi.ExportSpecIter(os.Stdout, format, builder, groups)
 	})
 
 	cli.StringFlag(cmd, &output, "output", "o", "", "Write spec to file instead of stdout")
