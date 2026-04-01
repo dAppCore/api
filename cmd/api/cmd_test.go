@@ -82,6 +82,12 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
 	}
+	if specCmd.Flag("license-name") == nil {
+		t.Fatal("expected --license-name flag on spec command")
+	}
+	if specCmd.Flag("license-url") == nil {
+		t.Fatal("expected --license-url flag on spec command")
+	}
 	if specCmd.Flag("server") == nil {
 		t.Fatal("expected --server flag on spec command")
 	}
@@ -188,6 +194,50 @@ func TestAPISpecCmd_Good_RegisteredSpecGroups(t *testing.T) {
 	}
 }
 
+func TestAPISpecCmd_Good_LicenseFlagsPopulateSpecInfo(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--license-name", "EUPL-1.2",
+		"--license-url", "https://eupl.eu/1.2/en/",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected license metadata in generated spec")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected licence name EUPL-1.2, got %v", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected licence url to be preserved, got %v", license["url"])
+	}
+}
+
 func TestAPISDKCmd_Bad_EmptyLanguages(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
@@ -254,6 +304,12 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on sdk command")
 	}
+	if sdkCmd.Flag("license-name") == nil {
+		t.Fatal("expected --license-name flag on sdk command")
+	}
+	if sdkCmd.Flag("license-url") == nil {
+		t.Fatal("expected --license-url flag on sdk command")
+	}
 	if sdkCmd.Flag("server") == nil {
 		t.Fatal("expected --server flag on sdk command")
 	}
@@ -269,7 +325,14 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 
 	api.RegisterSpecGroups(specCmdStubGroup{})
 
-	builder := sdkSpecBuilder("Custom SDK API", "Custom SDK description", "9.9.9", "https://api.example.com, /, https://api.example.com")
+	builder := sdkSpecBuilder(
+		"Custom SDK API",
+		"Custom SDK description",
+		"9.9.9",
+		"EUPL-1.2",
+		"https://eupl.eu/1.2/en/",
+		"https://api.example.com, /, https://api.example.com",
+	)
 	groups := sdkSpecGroups()
 
 	outputFile := t.TempDir() + "/spec.json"
@@ -299,6 +362,17 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if info["version"] != "9.9.9" {
 		t.Fatalf("expected custom version, got %v", info["version"])
+	}
+
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected licence metadata in generated spec")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected licence name EUPL-1.2, got %v", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected licence url to be preserved, got %v", license["url"])
 	}
 
 	servers, ok := spec["servers"].([]any)

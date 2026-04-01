@@ -18,6 +18,8 @@ func addSpecCommand(parent *cli.Command) {
 		title       string
 		description string
 		version     string
+		licenseName string
+		licenseURL  string
 		servers     string
 	)
 
@@ -28,6 +30,8 @@ func addSpecCommand(parent *cli.Command) {
 			Description: description,
 			Version:     version,
 			Servers:     parseServers(servers),
+			LicenseName: licenseName,
+			LicenseURL:  licenseURL,
 		}
 
 		bridge := goapi.NewToolBridge("/tools")
@@ -49,6 +53,8 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
+	cli.StringFlag(cmd, &licenseName, "license-name", "", "", "OpenAPI licence name in spec")
+	cli.StringFlag(cmd, &licenseURL, "license-url", "", "", "OpenAPI licence URL in spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
 
 	parent.AddCommand(cmd)

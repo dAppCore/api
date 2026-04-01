@@ -31,6 +31,8 @@ func addSDKCommand(parent *cli.Command) {
 		title       string
 		description string
 		version     string
+		licenseName string
+		licenseURL  string
 		servers     string
 	)
 
@@ -42,7 +44,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, servers)
+			builder := sdkSpecBuilder(title, description, version, licenseName, licenseURL, servers)
 			groups := sdkSpecGroups()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -91,17 +93,21 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", defaultSDKTitle, "API title in generated spec")
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
 	cli.StringFlag(cmd, &version, "version", "V", defaultSDKVersion, "API version in generated spec")
+	cli.StringFlag(cmd, &licenseName, "license-name", "", "", "OpenAPI licence name in generated spec")
+	cli.StringFlag(cmd, &licenseURL, "license-url", "", "", "OpenAPI licence URL in generated spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
 
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, servers string) *goapi.SpecBuilder {
+func sdkSpecBuilder(title, description, version, licenseName, licenseURL, servers string) *goapi.SpecBuilder {
 	return &goapi.SpecBuilder{
 		Title:       title,
 		Description: description,
 		Version:     version,
 		Servers:     parseServers(servers),
+		LicenseName: licenseName,
+		LicenseURL:  licenseURL,
 	}
 }
 
