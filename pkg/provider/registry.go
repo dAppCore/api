@@ -152,3 +152,32 @@ func (r *Registry) Info() []ProviderInfo {
 	}
 	return infos
 }
+
+// SpecFiles returns all non-empty provider OpenAPI spec file paths.
+// The result is deduplicated and sorted for stable discovery output.
+func (r *Registry) SpecFiles() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	files := make(map[string]struct{}, len(r.providers))
+	for _, p := range r.providers {
+		if sf, ok := p.(interface{ SpecFile() string }); ok {
+			if path := sf.SpecFile(); path != "" {
+				files[path] = struct{}{}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(files))
+	for path := range files {
+		out = append(out, path)
+	}
+
+	slices.Sort(out)
+	return out
+}
+
+// SpecFilesIter returns an iterator over all non-empty provider OpenAPI spec files.
+func (r *Registry) SpecFilesIter() iter.Seq[string] {
+	return slices.Values(r.SpecFiles())
+}

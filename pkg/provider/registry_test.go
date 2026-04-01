@@ -38,6 +38,13 @@ func (r *renderableProvider) Element() provider.ElementSpec {
 	return provider.ElementSpec{Tag: "core-stub-panel", Source: "/assets/stub.js"}
 }
 
+type specFileProvider struct {
+	stubProvider
+	specFile string
+}
+
+func (s *specFileProvider) SpecFile() string { return s.specFile }
+
 type fullProvider struct {
 	streamableProvider
 }
@@ -176,4 +183,28 @@ func TestRegistry_Iter_Good(t *testing.T) {
 		count++
 	}
 	assert.Equal(t, 2, count)
+}
+
+func TestRegistry_SpecFiles_Good(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&stubProvider{})
+	reg.Add(&specFileProvider{specFile: "/tmp/b.json"})
+	reg.Add(&specFileProvider{specFile: "/tmp/a.yaml"})
+	reg.Add(&specFileProvider{specFile: "/tmp/a.yaml"})
+	reg.Add(&specFileProvider{specFile: ""})
+
+	assert.Equal(t, []string{"/tmp/a.yaml", "/tmp/b.json"}, reg.SpecFiles())
+}
+
+func TestRegistry_SpecFilesIter_Good(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&specFileProvider{specFile: "/tmp/z.json"})
+	reg.Add(&specFileProvider{specFile: "/tmp/x.json"})
+
+	var files []string
+	for file := range reg.SpecFilesIter() {
+		files = append(files, file)
+	}
+
+	assert.Equal(t, []string{"/tmp/x.json", "/tmp/z.json"}, files)
 }
