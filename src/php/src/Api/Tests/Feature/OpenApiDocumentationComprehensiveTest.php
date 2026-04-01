@@ -152,6 +152,26 @@ describe('OpenApiBuilder Controller Scanning', function () {
         expect($operation['operationId'])->toBe('testScanItemsIndex');
     });
 
+    it('makes duplicate operation IDs unique', function () {
+        RouteFacade::prefix('api')
+            ->middleware('api')
+            ->group(function () {
+                RouteFacade::get('/duplicate-id/dup-one', fn () => response()->json([]));
+                RouteFacade::get('/duplicate-id/dup_one', fn () => response()->json([]));
+            });
+
+        config(['api-docs.routes.include' => ['api/*']]);
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $first = $spec['paths']['/api/duplicate-id/dup-one']['get']['operationId'];
+        $second = $spec['paths']['/api/duplicate-id/dup_one']['get']['operationId'];
+
+        expect($first)->not->toBe($second);
+        expect($second)->toEndWith('_2');
+    });
+
     it('generates summary from route name', function () {
         $builder = new OpenApiBuilder;
         $spec = $builder->build();

@@ -229,6 +229,7 @@ class OpenApiBuilder
     protected function buildPaths(array $config): array
     {
         $paths = [];
+        $operationIds = [];
         $includePatterns = $config['routes']['include'] ?? ['api/*'];
         $excludePatterns = $config['routes']['exclude'] ?? [];
 
@@ -243,7 +244,7 @@ class OpenApiBuilder
 
             foreach ($methods as $method) {
                 $method = strtolower($method);
-                $operation = $this->buildOperation($route, $method, $config);
+                $operation = $this->buildOperation($route, $method, $config, $operationIds);
 
                 if ($operation !== null) {
                     $paths[$path][$method] = $operation;
@@ -297,7 +298,7 @@ class OpenApiBuilder
     /**
      * Build operation for a specific route and method.
      */
-    protected function buildOperation(Route $route, string $method, array $config): ?array
+    protected function buildOperation(Route $route, string $method, array $config, array &$operationIds): ?array
     {
         $controller = $route->getController();
         $action = $route->getActionMethod();
@@ -309,7 +310,7 @@ class OpenApiBuilder
 
         $operation = [
             'summary' => $this->buildSummary($route, $method),
-            'operationId' => $this->buildOperationId($route, $method),
+            'operationId' => $this->buildOperationId($route, $method, $operationIds),
             'tags' => $this->buildOperationTags($route, $controller, $action),
             'responses' => $this->buildResponses($controller, $action),
         ];
@@ -398,15 +399,24 @@ class OpenApiBuilder
     /**
      * Build operation ID from route name.
      */
-    protected function buildOperationId(Route $route, string $method): string
+    protected function buildOperationId(Route $route, string $method, array &$operationIds): string
     {
         $name = $route->getName();
 
         if ($name) {
-            return Str::camel(str_replace(['.', '-'], '_', $name));
+            $base = Str::camel(str_replace(['.', '-'], '_', $name));
+        } else {
+            $base = Str::camel($method.'_'.str_replace(['/', '-', '.'], '_', $route->uri()));
         }
 
-        return Str::camel($method.'_'.str_replace(['/', '-', '.'], '_', $route->uri()));
+        $count = $operationIds[$base] ?? 0;
+        $operationIds[$base] = $count + 1;
+
+        if ($count === 0) {
+            return $base;
+        }
+
+        return $base.'_'.($count + 1);
     }
 
     /**
