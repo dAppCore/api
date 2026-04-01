@@ -26,6 +26,19 @@ func (m *mwTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type requestIDTestGroup struct {
+	gotID *string
+}
+
+func (g requestIDTestGroup) Name() string     { return "request-id" }
+func (g requestIDTestGroup) BasePath() string { return "/v1" }
+func (g requestIDTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/secret", func(c *gin.Context) {
+		*g.gotID = api.GetRequestID(c)
+		c.JSON(http.StatusOK, api.OK("classified"))
+	})
+}
+
 // ── Bearer auth ─────────────────────────────────────────────────────────
 
 func TestBearerAuth_Bad_MissingToken(t *testing.T) {
@@ -148,6 +161,31 @@ func TestRequestID_Good_PreservesClientID(t *testing.T) {
 	id := w.Header().Get("X-Request-ID")
 	if id != "client-id-abc" {
 		t.Fatalf("expected X-Request-ID=%q, got %q", "client-id-abc", id)
+	}
+}
+
+func TestRequestID_Good_ContextAccessor(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRequestID())
+
+	var gotID string
+	e.Register(requestIDTestGroup{gotID: &gotID})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/secret", nil)
+	req.Header.Set("X-Request-ID", "client-id-xyz")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if gotID == "" {
+		t.Fatal("expected GetRequestID to return the request ID inside the handler")
+	}
+	if gotID != "client-id-xyz" {
+		t.Fatalf("expected GetRequestID=%q, got %q", "client-id-xyz", gotID)
 	}
 }
 

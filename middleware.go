@@ -11,6 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// requestIDContextKey is the Gin context key used by requestIDMiddleware.
+const requestIDContextKey = "request_id"
+
 // bearerAuthMiddleware validates the Authorization: Bearer <token> header.
 // Requests to paths in the skip list are allowed through without authentication.
 // Returns 401 with Fail("unauthorised", ...) on missing or invalid tokens.
@@ -52,8 +55,19 @@ func requestIDMiddleware() gin.HandlerFunc {
 			id = hex.EncodeToString(b)
 		}
 
-		c.Set("request_id", id)
+		c.Set(requestIDContextKey, id)
 		c.Header("X-Request-ID", id)
 		c.Next()
 	}
+}
+
+// GetRequestID returns the request ID assigned by requestIDMiddleware.
+// Returns an empty string when the middleware was not applied.
+func GetRequestID(c *gin.Context) string {
+	if v, ok := c.Get(requestIDContextKey); ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
