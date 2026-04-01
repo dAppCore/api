@@ -373,6 +373,51 @@ func TestSpecBuilder_Good_RequestBodyOnDelete(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_RequestBodyOnHead(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "resources",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "HEAD",
+				Path:    "/resources/{id}",
+				Summary: "Check resource",
+				Tags:    []string{"resources"},
+				RequestBody: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"include": map[string]any{"type": "string"},
+					},
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	headOp := paths["/api/resources/{id}"].(map[string]any)["head"].(map[string]any)
+	if headOp["requestBody"] == nil {
+		t.Fatal("expected requestBody on HEAD /api/resources/{id}")
+	}
+}
+
 func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

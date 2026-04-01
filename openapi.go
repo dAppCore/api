@@ -137,7 +137,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 
 			// Add request body for methods that accept one.
 			// The contract only excludes GET; other verbs may legitimately carry bodies.
-			if rd.RequestBody != nil && method != "get" && method != "head" {
+			if rd.RequestBody != nil && method != "get" {
 				operation["requestBody"] = map[string]any{
 					"required": true,
 					"content": map[string]any{
