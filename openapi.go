@@ -29,6 +29,11 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		},
 		"paths": sb.buildPaths(groups),
 		"tags":  sb.buildTags(groups),
+		"security": []any{
+			map[string]any{
+				"bearerAuth": []any{},
+			},
+		},
 	}
 
 	// Add component schemas for the response envelope.
@@ -52,6 +57,13 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 					"per_page":   map[string]any{"type": "integer"},
 					"total":      map[string]any{"type": "integer"},
 				},
+			},
+		},
+		"securitySchemes": map[string]any{
+			"bearerAuth": map[string]any{
+				"type":         "http",
+				"scheme":       "bearer",
+				"bearerFormat": "JWT",
 			},
 		},
 	}
@@ -98,6 +110,11 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"description": rd.Description,
 				"tags":        rd.Tags,
 				"operationId": operationID(method, fullPath, operationIDs),
+				"security": []any{
+					map[string]any{
+						"bearerAuth": []any{},
+					},
+				},
 				"responses": map[string]any{
 					"200": map[string]any{
 						"description": "Successful response",
@@ -138,6 +155,14 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 					method: operation,
 				}
 			}
+		}
+	}
+
+	// The built-in health check remains public, so override the inherited
+	// default security requirement with an explicit empty array.
+	if health, ok := paths["/health"].(map[string]any); ok {
+		if op, ok := health["get"].(map[string]any); ok {
+			op["security"] = []any{}
 		}
 	}
 

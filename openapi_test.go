@@ -74,6 +74,25 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if !found {
 		t.Fatal("expected system tag in spec")
 	}
+
+	components := spec["components"].(map[string]any)
+	securitySchemes := components["securitySchemes"].(map[string]any)
+	bearerAuth := securitySchemes["bearerAuth"].(map[string]any)
+	if bearerAuth["type"] != "http" {
+		t.Fatalf("expected bearerAuth.type=http, got %v", bearerAuth["type"])
+	}
+	if bearerAuth["scheme"] != "bearer" {
+		t.Fatalf("expected bearerAuth.scheme=bearer, got %v", bearerAuth["scheme"])
+	}
+
+	security := spec["security"].([]any)
+	if len(security) != 1 {
+		t.Fatalf("expected one default security requirement, got %d", len(security))
+	}
+	req := security[0].(map[string]any)
+	if _, ok := req["bearerAuth"]; !ok {
+		t.Fatal("expected default bearerAuth security requirement")
+	}
 }
 
 func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
@@ -350,6 +369,12 @@ func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	health := paths["/health"].(map[string]any)["get"].(map[string]any)
 	if health["operationId"] != "get_health" {
 		t.Fatalf("expected operationId='get_health', got %v", health["operationId"])
+	}
+	if security := health["security"]; security == nil {
+		t.Fatal("expected explicit public security override on /health")
+	}
+	if len(health["security"].([]any)) != 0 {
+		t.Fatalf("expected /health security to be empty, got %v", health["security"])
 	}
 }
 
