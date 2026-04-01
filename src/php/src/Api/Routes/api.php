@@ -73,6 +73,8 @@ Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce'])
             ->name('servers.show');
         Route::get('/servers/{id}/tools', [McpApiController::class, 'tools'])
             ->name('servers.tools');
+        Route::get('/servers/{id}/resources', [McpApiController::class, 'resources'])
+            ->name('servers.resources');
 
         // Tool version history (read)
         Route::get('/servers/{server}/tools/{tool}/versions', [McpApiController::class, 'toolVersions'])

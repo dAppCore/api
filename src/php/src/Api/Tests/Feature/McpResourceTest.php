@@ -87,3 +87,16 @@ it('reads a resource from the server definition', function () {
     ]);
 });
 
+it('lists resources for a server', function () {
+    $response = $this->getJson('/api/mcp/servers/test-resource-server/resources', [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertOk();
+    $response->assertJsonPath('server', 'test-resource-server');
+    $response->assertJsonPath('count', 1);
+    $response->assertJsonPath('resources.0.uri', 'test-resource-server://documents/welcome');
+    $response->assertJsonPath('resources.0.path', 'documents/welcome');
+    $response->assertJsonPath('resources.0.name', 'welcome');
+    $response->assertJsonMissingPath('resources.0.content');
+});

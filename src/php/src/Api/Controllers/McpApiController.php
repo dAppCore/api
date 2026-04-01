@@ -111,6 +111,50 @@ class McpApiController extends Controller
     }
 
     /**
+     * List resources for a specific server.
+     *
+     * GET /api/v1/mcp/servers/{id}/resources
+     *
+     * Query params:
+     * - include_content: bool - include resource content when the definition already contains it
+     */
+    public function resources(Request $request, string $id): JsonResponse
+    {
+        $server = $this->loadServerFull($id);
+
+        if (! $server) {
+            return $this->notFoundResponse('Server');
+        }
+
+        $includeContent = $request->boolean('include_content', false);
+
+        $resources = collect($server['resources'] ?? [])
+            ->filter(fn ($resource) => is_array($resource))
+            ->map(function (array $resource) use ($includeContent) {
+                $payload = array_filter([
+                    'uri' => $resource['uri'] ?? null,
+                    'path' => $resource['path'] ?? null,
+                    'name' => $resource['name'] ?? null,
+                    'description' => $resource['description'] ?? null,
+                    'mime_type' => $resource['mime_type'] ?? ($resource['mimeType'] ?? null),
+                ], static fn ($value) => $value !== null);
+
+                if ($includeContent && $this->resourceDefinitionHasContent($resource)) {
+                    $payload['content'] = $this->normaliseResourceContent($resource);
+                }
+
+                return $payload;
+            })
+            ->values();
+
+        return response()->json([
+            'server' => $id,
+            'resources' => $resources,
+            'count' => $resources->count(),
+        ]);
+    }
+
+    /**
      * Execute a tool on an MCP server.
      *
      * POST /api/v1/mcp/tools/call
