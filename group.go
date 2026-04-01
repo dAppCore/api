@@ -39,6 +39,9 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// Security overrides the default bearerAuth requirement when non-nil.
+	// Use an empty, non-nil slice to mark the route as public.
+	Security    []map[string][]string
 	Parameters  []ParameterDescription
 	RequestBody map[string]any // JSON Schema for request body (nil for GET)
 	Response    map[string]any // JSON Schema for success response data

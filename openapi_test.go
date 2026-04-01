@@ -321,6 +321,83 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "security",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:   "GET",
+				Path:     "/public",
+				Summary:  "Public endpoint",
+				Security: []map[string][]string{},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+			{
+				Method:  "GET",
+				Path:    "/scoped",
+				Summary: "Scoped endpoint",
+				Security: []map[string][]string{
+					{
+						"bearerAuth": []string{},
+					},
+					{
+						"oauth2": []string{"read:items"},
+					},
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+
+	publicOp := paths["/api/public"].(map[string]any)["get"].(map[string]any)
+	publicSecurity, ok := publicOp["security"].([]any)
+	if !ok {
+		t.Fatalf("expected public security array, got %T", publicOp["security"])
+	}
+	if len(publicSecurity) != 0 {
+		t.Fatalf("expected public route to have empty security requirement, got %v", publicSecurity)
+	}
+
+	scopedOp := paths["/api/scoped"].(map[string]any)["get"].(map[string]any)
+	scopedSecurity, ok := scopedOp["security"].([]any)
+	if !ok {
+		t.Fatalf("expected scoped security array, got %T", scopedOp["security"])
+	}
+	if len(scopedSecurity) != 2 {
+		t.Fatalf("expected 2 security requirements, got %d", len(scopedSecurity))
+	}
+	firstReq := scopedSecurity[0].(map[string]any)
+	if _, ok := firstReq["bearerAuth"]; !ok {
+		t.Fatalf("expected bearerAuth requirement, got %v", firstReq)
+	}
+	secondReq := scopedSecurity[1].(map[string]any)
+	if scopes, ok := secondReq["oauth2"].([]any); !ok || len(scopes) != 1 || scopes[0] != "read:items" {
+		t.Fatalf("expected oauth2 read:items requirement, got %v", secondReq["oauth2"])
+	}
+}
+
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

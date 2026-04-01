@@ -123,12 +123,16 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"security": []any{
+				"responses":   operationResponses(method, rd.Response),
+			}
+			if rd.Security != nil {
+				operation["security"] = rd.Security
+			} else {
+				operation["security"] = []any{
 					map[string]any{
 						"bearerAuth": []any{},
 					},
-				},
-				"responses": operationResponses(method, rd.Response),
+				}
 			}
 			if tags := resolvedOperationTags(g, rd); len(tags) > 0 {
 				operation["tags"] = tags
