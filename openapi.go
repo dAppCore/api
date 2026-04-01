@@ -231,6 +231,15 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 			},
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
+		"500": map[string]any{
+			"description": "Internal server error",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+		},
 	}
 }
 
@@ -258,6 +267,15 @@ func healthResponses() map[string]any {
 		},
 		"504": map[string]any{
 			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+		},
+		"500": map[string]any{
+			"description": "Internal server error",
 			"content": map[string]any{
 				"application/json": map[string]any{
 					"schema": envelopeSchema(nil),

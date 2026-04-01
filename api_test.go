@@ -29,6 +29,16 @@ func (h *healthGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type panicGroup struct{}
+
+func (p *panicGroup) Name() string     { return "panic" }
+func (p *panicGroup) BasePath() string { return "/panic" }
+func (p *panicGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/boom", func(c *gin.Context) {
+		panic("boom")
+	})
+}
+
 // ── New ─────────────────────────────────────────────────────────────────
 
 func TestNew_Good(t *testing.T) {
@@ -146,6 +156,41 @@ func TestHandler_Bad_NotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestHandler_Bad_PanicReturnsEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRequestID())
+	e.Register(&panicGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/panic/boom", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil {
+		t.Fatal("expected Error to be non-nil")
+	}
+	if resp.Error.Code != "internal_server_error" {
+		t.Fatalf("expected error code=%q, got %q", "internal_server_error", resp.Error.Code)
+	}
+	if resp.Error.Message != "Internal server error" {
+		t.Fatalf("expected error message=%q, got %q", "Internal server error", resp.Error.Message)
+	}
+	if got := w.Header().Get("X-Request-ID"); got == "" {
+		t.Fatal("expected X-Request-ID header to survive panic recovery")
 	}
 }
 

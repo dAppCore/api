@@ -150,7 +150,7 @@ func (e *Engine) Serve(ctx context.Context) error {
 // user-supplied middleware, the health endpoint, and all registered route groups.
 func (e *Engine) build() *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(recoveryMiddleware())
 
 	// Apply user-supplied middleware after recovery but before routes.
 	for _, mw := range e.middlewares {

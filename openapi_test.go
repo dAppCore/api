@@ -68,6 +68,9 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := healthResponses["504"]; !ok {
 		t.Fatal("expected 504 response on /health")
 	}
+	if _, ok := healthResponses["500"]; !ok {
+		t.Fatal("expected 500 response on /health")
+	}
 	rateLimit429 := healthResponses["429"].(map[string]any)
 	headers := rateLimit429["headers"].(map[string]any)
 	if _, ok := headers["Retry-After"]; !ok {
@@ -275,6 +278,9 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	if _, ok := responses["504"]; !ok {
 		t.Fatal("expected 504 response in secured operation")
 	}
+	if _, ok := responses["500"]; !ok {
+		t.Fatal("expected 500 response in secured operation")
+	}
 	rateLimit429 := responses["429"].(map[string]any)
 	headers := rateLimit429["headers"].(map[string]any)
 	if _, ok := headers["Retry-After"]; !ok {
@@ -292,7 +298,7 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	if _, ok := headers["X-RateLimit-Reset"]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header in secured operation 429 response")
 	}
-	for _, code := range []string{"400", "401", "403", "504"} {
+	for _, code := range []string{"400", "401", "403", "504", "500"} {
 		resp := responses[code].(map[string]any)
 		respHeaders := resp["headers"].(map[string]any)
 		if _, ok := respHeaders["X-Request-ID"]; !ok {

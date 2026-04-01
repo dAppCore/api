@@ -5,7 +5,9 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -18,6 +20,20 @@ const requestIDContextKey = "request_id"
 // requestStartContextKey stores when the request began so handlers can
 // calculate elapsed duration for response metadata.
 const requestStartContextKey = "request_start"
+
+// recoveryMiddleware converts panics into a standard JSON error envelope.
+// This keeps internal failures consistent with the rest of the framework
+// and avoids Gin's default plain-text 500 response.
+func recoveryMiddleware() gin.HandlerFunc {
+	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		fmt.Fprintf(gin.DefaultErrorWriter, "[Recovery] panic recovered: %v\n", recovered)
+		debug.PrintStack()
+		c.AbortWithStatusJSON(http.StatusInternalServerError, Fail(
+			"internal_server_error",
+			"Internal server error",
+		))
+	})
+}
 
 // bearerAuthMiddleware validates the Authorization: Bearer <token> header.
 // Requests to paths in the skip list are allowed through without authentication.
