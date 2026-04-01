@@ -116,7 +116,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 			continue
 		}
 		for _, rd := range dg.Describe() {
-			fullPath := g.BasePath() + rd.Path
+			fullPath := joinOpenAPIPath(g.BasePath(), rd.Path)
 			method := strings.ToLower(rd.Method)
 
 			operation := map[string]any{
@@ -172,6 +172,46 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 	}
 
 	return paths
+}
+
+// joinOpenAPIPath normalises a base path and relative route path into a single
+// OpenAPI path without duplicate or missing separators.
+func joinOpenAPIPath(basePath, routePath string) string {
+	basePath = strings.TrimSpace(basePath)
+	routePath = strings.TrimSpace(routePath)
+
+	if basePath == "" {
+		basePath = "/"
+	}
+	if routePath == "" || routePath == "/" {
+		return normaliseOpenAPIPath(basePath)
+	}
+
+	basePath = normaliseOpenAPIPath(basePath)
+	routePath = strings.TrimLeft(routePath, "/")
+
+	if basePath == "/" {
+		return "/" + routePath
+	}
+
+	return basePath + "/" + routePath
+}
+
+// normaliseOpenAPIPath trims whitespace and collapses trailing separators
+// while preserving the root path.
+func normaliseOpenAPIPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	path = strings.TrimRight(path, "/")
+	if path == "" {
+		return "/"
+	}
+	return path
 }
 
 // operationResponses builds the standard response set for a documented API

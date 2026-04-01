@@ -624,6 +624,43 @@ func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_PathNormalisation(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "users",
+		basePath: "/api/",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "users/{id}",
+				Summary: "Get user",
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/api/users/{id}"]; !ok {
+		t.Fatalf("expected normalised path /api/users/{id}, got %v", paths)
+	}
+}
+
 func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
