@@ -187,14 +187,16 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		for _, rd := range g.descs {
 			fullPath := joinOpenAPIPath(g.group.BasePath(), rd.Path)
 			method := strings.ToLower(rd.Method)
+			deprecated := rd.Deprecated || strings.TrimSpace(rd.SunsetDate) != "" || strings.TrimSpace(rd.Replacement) != ""
+			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
 
 			operation := map[string]any{
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, rd.Security),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, rd.Security, deprecationHeaders),
 			}
-			if rd.Deprecated {
+			if deprecated {
 				operation["deprecated"] = true
 			}
 			if rd.Security != nil {
@@ -321,8 +323,8 @@ func normaliseOpenAPIPath(path string) string {
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string) map[string]any {
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecationHeaders map[string]any) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders)
 	if method == "get" {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
 	}
@@ -361,7 +363,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -370,7 +372,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders(), deprecationHeaders),
 		},
 		"504": map[string]any{
 			"description": "Gateway timeout",
@@ -379,7 +381,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
 		},
 		"500": map[string]any{
 			"description": "Internal server error",
@@ -388,7 +390,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
 		},
 	}
 
@@ -400,7 +402,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
 		}
 		responses["403"] = map[string]any{
 			"description": "Forbidden",
@@ -409,7 +411,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
 		}
 	}
 
@@ -491,6 +493,52 @@ func healthResponses() map[string]any {
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 	}
+}
+
+// deprecationResponseHeaders documents the standard deprecation headers for
+// deprecated or sunsetted operations.
+func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string) map[string]any {
+	sunsetDate = strings.TrimSpace(sunsetDate)
+	replacement = strings.TrimSpace(replacement)
+
+	if !deprecated && sunsetDate == "" && replacement == "" {
+		return nil
+	}
+
+	headers := map[string]any{
+		"Deprecation": map[string]any{
+			"description": "Indicates the endpoint is deprecated",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"X-API-Warn": map[string]any{
+			"description": "Human-readable deprecation warning",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+	}
+
+	if sunsetDate != "" {
+		headers["Sunset"] = map[string]any{
+			"description": "RFC 7231 date when the endpoint will be removed",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		}
+	}
+
+	if replacement != "" {
+		headers["Link"] = map[string]any{
+			"description": "Successor endpoint advertised with rel=\"successor-version\"",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		}
+	}
+
+	return headers
 }
 
 // buildTags generates the tags array from all RouteGroups.

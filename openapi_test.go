@@ -1451,10 +1451,12 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 		basePath: "/api/legacy",
 		descs: []api.RouteDescription{
 			{
-				Method:     "GET",
-				Path:       "/status",
-				Summary:    "Check legacy status",
-				Deprecated: true,
+				Method:      "GET",
+				Path:        "/status",
+				Summary:     "Check legacy status",
+				Deprecated:  true,
+				SunsetDate:  "2025-06-01",
+				Replacement: "/api/v2/status",
 				Response: map[string]any{
 					"type": "object",
 				},
@@ -1479,6 +1481,15 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 	}
 	if !deprecated {
 		t.Fatal("expected deprecated operation to be marked true")
+	}
+
+	responses := op["responses"].(map[string]any)
+	success := responses["200"].(map[string]any)
+	headers := success["headers"].(map[string]any)
+	for _, name := range []string{"Deprecation", "Sunset", "Link", "X-API-Warn"} {
+		if _, ok := headers[name]; !ok {
+			t.Fatalf("expected deprecation header %q in operation response headers", name)
+		}
 	}
 }
 

@@ -53,6 +53,11 @@ type RouteDescription struct {
 	Tags        []string // OpenAPI tags for grouping
 	// Deprecated marks the operation as deprecated in OpenAPI.
 	Deprecated bool
+	// SunsetDate marks when a deprecated operation will be removed.
+	// Use YYYY-MM-DD or an RFC 7231 HTTP date string.
+	SunsetDate string
+	// Replacement points to the successor endpoint URL, when known.
+	Replacement string
 	// StatusCode is the documented 2xx success status code.
 	// Zero defaults to 200.
 	StatusCode int
