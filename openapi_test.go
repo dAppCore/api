@@ -73,6 +73,9 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := headers["Retry-After"]; !ok {
 		t.Fatal("expected Retry-After header on /health 429 response")
 	}
+	if _, ok := headers["X-Request-ID"]; !ok {
+		t.Fatal("expected X-Request-ID header on /health 429 response")
+	}
 
 	// Verify system tag exists.
 	tags := spec["tags"].([]any)
@@ -250,6 +253,9 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	if _, ok := headers["Retry-After"]; !ok {
 		t.Fatal("expected Retry-After header in secured operation 429 response")
 	}
+	if _, ok := headers["X-Request-ID"]; !ok {
+		t.Fatal("expected X-Request-ID header in secured operation 429 response")
+	}
 }
 
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
@@ -292,6 +298,10 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	getOp := fetchPath["get"].(map[string]any)
 	responses := getOp["responses"].(map[string]any)
 	resp200 := responses["200"].(map[string]any)
+	headers := resp200["headers"].(map[string]any)
+	if _, ok := headers["X-Request-ID"]; !ok {
+		t.Fatal("expected X-Request-ID header on 200 response")
+	}
 	content := resp200["content"].(map[string]any)
 	appJSON := content["application/json"].(map[string]any)
 	schema := appJSON["schema"].(map[string]any)
