@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Core\Api\Controllers\Api\UnifiedPixelController;
+use Core\Api\Controllers\Api\EntitlementApiController;
 use Core\Api\Controllers\McpApiController;
 use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
@@ -30,6 +31,18 @@ Route::middleware([PublicApiCors::class, 'api.rate'])
     ->group(function () {
         Route::match(['GET', 'POST', 'OPTIONS'], '/{pixelKey}', [UnifiedPixelController::class, 'track'])
             ->name('track');
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Entitlements (authenticated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Route::middleware(['auth.api', 'api.scope.enforce'])
+    ->prefix('entitlements')
+    ->name('api.entitlements.')
+    ->group(function () {
+        Route::get('/', [EntitlementApiController::class, 'show'])
+            ->name('show');
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
