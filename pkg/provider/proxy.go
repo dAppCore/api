@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	coreapi "dappco.re/go/core/api"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,14 +40,20 @@ type ProxyConfig struct {
 type ProxyProvider struct {
 	config ProxyConfig
 	proxy  *httputil.ReverseProxy
+	err    error
 }
 
 // NewProxy creates a ProxyProvider from the given configuration.
-// The upstream URL must be valid or NewProxy will panic.
+// Invalid upstream URLs do not panic; the provider retains the
+// configuration error and responds with a standard 500 envelope when
+// mounted. This keeps provider construction safe for callers.
 func NewProxy(cfg ProxyConfig) *ProxyProvider {
 	target, err := url.Parse(cfg.Upstream)
 	if err != nil {
-		panic("provider.NewProxy: invalid upstream URL: " + err.Error())
+		return &ProxyProvider{
+			config: cfg,
+			err:    err,
+		}
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
@@ -69,6 +76,15 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 		config: cfg,
 		proxy:  proxy,
 	}
+}
+
+// Err reports any configuration error detected while constructing the proxy.
+// A nil error means the proxy is ready to mount and serve requests.
+func (p *ProxyProvider) Err() error {
+	if p == nil {
+		return nil
+	}
+	return p.err
 }
 
 // stripBasePath removes an exact base path prefix from a request path.
@@ -112,6 +128,19 @@ func (p *ProxyProvider) BasePath() string {
 // RegisterRoutes mounts a catch-all reverse proxy handler on the router group.
 func (p *ProxyProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.Any("/*path", func(c *gin.Context) {
+		if p == nil || p.err != nil || p.proxy == nil {
+			details := map[string]any{}
+			if p != nil && p.err != nil {
+				details["error"] = p.err.Error()
+			}
+			c.JSON(http.StatusInternalServerError, coreapi.FailWithDetails(
+				"invalid_provider_configuration",
+				"Provider is misconfigured",
+				details,
+			))
+			return
+		}
+
 		// Use the underlying http.ResponseWriter directly. Gin's
 		// responseWriter wrapper does not implement http.CloseNotifier,
 		// which httputil.ReverseProxy requires for cancellation signalling.
