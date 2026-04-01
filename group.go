@@ -45,6 +45,19 @@ type DescribableGroupIter interface {
 }
 
 // RouteDescription describes a single endpoint for OpenAPI generation.
+//
+// Example:
+//
+//	rd := api.RouteDescription{
+//		Method:      "POST",
+//		Path:        "/users",
+//		Summary:     "Create a user",
+//		Description: "Creates a new user account.",
+//		Tags:        []string{"users"},
+//		StatusCode:  201,
+//		RequestBody: map[string]any{"type": "object"},
+//		Response:    map[string]any{"type": "object"},
+//	}
 type RouteDescription struct {
 	Method      string   // HTTP method: GET, POST, PUT, DELETE, PATCH
 	Path        string   // Path relative to BasePath, e.g. "/generate"
@@ -73,6 +86,17 @@ type RouteDescription struct {
 }
 
 // ParameterDescription describes an OpenAPI parameter for a route.
+//
+// Example:
+//
+//	param := api.ParameterDescription{
+//		Name:        "id",
+//		In:          "path",
+//		Description: "User identifier",
+//		Required:    true,
+//		Schema:      map[string]any{"type": "string"},
+//		Example:     "usr_123",
+//	}
 type ParameterDescription struct {
 	Name        string         // Parameter name.
 	In          string         // Parameter location: path, query, header, or cookie.

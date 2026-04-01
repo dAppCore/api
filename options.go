@@ -140,6 +140,10 @@ func WithSwagger(title, description, version string) Option {
 
 // WithSwaggerTermsOfService adds the terms of service URL to the generated Swagger spec.
 // Empty strings are ignored.
+//
+// Example:
+//
+//	api.WithSwaggerTermsOfService("https://example.com/terms")
 func WithSwaggerTermsOfService(url string) Option {
 	return func(e *Engine) {
 		e.swaggerTermsOfService = url
@@ -148,6 +152,10 @@ func WithSwaggerTermsOfService(url string) Option {
 
 // WithSwaggerContact adds contact metadata to the generated Swagger spec.
 // Empty fields are ignored. Multiple calls replace the previous contact data.
+//
+// Example:
+//
+//	api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com")
 func WithSwaggerContact(name, url, email string) Option {
 	return func(e *Engine) {
 		e.swaggerContactName = name
@@ -159,6 +167,10 @@ func WithSwaggerContact(name, url, email string) Option {
 // WithSwaggerServers adds OpenAPI server metadata to the generated Swagger spec.
 // Empty strings are ignored. Multiple calls append and normalise the combined
 // server list so callers can compose metadata across options.
+//
+// Example:
+//
+//	api.WithSwaggerServers("https://api.example.com", "https://docs.example.com")
 func WithSwaggerServers(servers ...string) Option {
 	return func(e *Engine) {
 		e.swaggerServers = normaliseServers(append(e.swaggerServers, servers...))
@@ -181,6 +193,10 @@ func WithSwaggerLicense(name, url string) Option {
 // WithSwaggerExternalDocs adds top-level external documentation metadata to
 // the generated Swagger spec.
 // Empty URLs are ignored; the description is optional.
+//
+// Example:
+//
+//	api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs")
 func WithSwaggerExternalDocs(description, url string) Option {
 	return func(e *Engine) {
 		e.swaggerExternalDocsDescription = description
