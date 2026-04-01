@@ -95,6 +95,28 @@ func TestRegister_Good_MultipleGroups(t *testing.T) {
 	}
 }
 
+func TestRegister_Good_GroupsReturnsCopy(t *testing.T) {
+	e, _ := api.New()
+	first := &healthGroup{}
+	second := &stubGroup{}
+	e.Register(first)
+	e.Register(second)
+
+	groups := e.Groups()
+	groups[0] = nil
+
+	fresh := e.Groups()
+	if fresh[0] == nil {
+		t.Fatal("expected Groups to return a copy, but engine state was mutated")
+	}
+	if fresh[0].Name() != first.Name() {
+		t.Fatalf("expected first group name %q, got %q", first.Name(), fresh[0].Name())
+	}
+	if fresh[1].Name() != "stub" {
+		t.Fatalf("expected second group name %q, got %q", "stub", fresh[1].Name())
+	}
+}
+
 // ── Handler ─────────────────────────────────────────────────────────────
 
 func TestHandler_Good_HealthEndpoint(t *testing.T) {

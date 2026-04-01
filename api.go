@@ -65,9 +65,9 @@ func (e *Engine) Addr() string {
 	return e.addr
 }
 
-// Groups returns all registered route groups.
+// Groups returns a copy of all registered route groups.
 func (e *Engine) Groups() []RouteGroup {
-	return e.groups
+	return slices.Clone(e.groups)
 }
 
 // GroupsIter returns an iterator over all registered route groups.
