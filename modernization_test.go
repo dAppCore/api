@@ -27,6 +27,28 @@ func TestEngine_GroupsIter(t *testing.T) {
 	}
 }
 
+func TestEngine_GroupsIter_Good_SnapshotsCurrentGroups(t *testing.T) {
+	e, _ := api.New()
+	g1 := &healthGroup{}
+	g2 := &stubGroup{}
+	e.Register(g1)
+
+	iter := e.GroupsIter()
+	e.Register(g2)
+
+	var groups []api.RouteGroup
+	for g := range iter {
+		groups = append(groups, g)
+	}
+
+	if len(groups) != 1 {
+		t.Fatalf("expected iterator snapshot to contain 1 group, got %d", len(groups))
+	}
+	if groups[0].Name() != "health-extra" {
+		t.Fatalf("expected snapshot to preserve original group, got %q", groups[0].Name())
+	}
+}
+
 type streamGroupStub struct {
 	healthGroup
 	channels []string
@@ -49,6 +71,26 @@ func TestEngine_ChannelsIter(t *testing.T) {
 	expected := []string{"ch1", "ch2", "ch3"}
 	if !slices.Equal(channels, expected) {
 		t.Fatalf("expected channels %v, got %v", expected, channels)
+	}
+}
+
+func TestEngine_ChannelsIter_Good_SnapshotsCurrentChannels(t *testing.T) {
+	e, _ := api.New()
+	g1 := &streamGroupStub{channels: []string{"ch1", "ch2"}}
+	g2 := &streamGroupStub{channels: []string{"ch3"}}
+	e.Register(g1)
+
+	iter := e.ChannelsIter()
+	e.Register(g2)
+
+	var channels []string
+	for ch := range iter {
+		channels = append(channels, ch)
+	}
+
+	expected := []string{"ch1", "ch2"}
+	if !slices.Equal(channels, expected) {
+		t.Fatalf("expected snapshot channels %v, got %v", expected, channels)
 	}
 }
 

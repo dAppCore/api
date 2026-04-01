@@ -72,7 +72,8 @@ func (e *Engine) Groups() []RouteGroup {
 
 // GroupsIter returns an iterator over all registered route groups.
 func (e *Engine) GroupsIter() iter.Seq[RouteGroup] {
-	return slices.Values(e.groups)
+	groups := slices.Clone(e.groups)
+	return slices.Values(groups)
 }
 
 // Register adds a route group to the engine.
@@ -94,8 +95,9 @@ func (e *Engine) Channels() []string {
 
 // ChannelsIter returns an iterator over WebSocket channel names from registered StreamGroups.
 func (e *Engine) ChannelsIter() iter.Seq[string] {
+	groups := slices.Clone(e.groups)
 	return func(yield func(string) bool) {
-		for _, g := range e.groups {
+		for _, g := range groups {
 			if sg, ok := g.(StreamGroup); ok {
 				for _, c := range sg.Channels() {
 					if !yield(c) {
