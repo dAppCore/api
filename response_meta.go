@@ -104,8 +104,8 @@ func (w *responseMetaRecorder) commit() {
 	_, _ = w.ResponseWriter.Write(w.body.Bytes())
 }
 
-// responseMetaMiddleware injects request metadata into successful JSON
-// envelope responses before they are written to the client.
+// responseMetaMiddleware injects request metadata into JSON envelope
+// responses before they are written to the client.
 func responseMetaMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if _, ok := c.Get(requestStartContextKey); !ok {
@@ -156,7 +156,9 @@ func refreshResponseMetaBody(body []byte, meta *Meta) []byte {
 	}
 
 	if _, ok := obj["success"]; !ok {
-		return body
+		if _, ok := obj["error"]; !ok {
+			return body
+		}
 	}
 
 	current := map[string]any{}

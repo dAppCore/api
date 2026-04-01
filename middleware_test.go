@@ -73,6 +73,17 @@ func (g autoResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type autoErrorResponseMetaTestGroup struct{}
+
+func (g autoErrorResponseMetaTestGroup) Name() string     { return "auto-error-response-meta" }
+func (g autoErrorResponseMetaTestGroup) BasePath() string { return "/v1" }
+func (g autoErrorResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/error", func(c *gin.Context) {
+		time.Sleep(2 * time.Millisecond)
+		c.JSON(http.StatusBadRequest, api.Fail("bad_request", "request failed"))
+	})
+}
+
 // ── Bearer auth ─────────────────────────────────────────────────────────
 
 func TestBearerAuth_Bad_MissingToken(t *testing.T) {
@@ -307,6 +318,42 @@ func TestResponseMeta_Good_AttachesMetaAutomatically(t *testing.T) {
 	}
 	if got := w.Header().Get("X-Request-ID"); got != "client-id-auto-meta" {
 		t.Fatalf("expected response header X-Request-ID=%q, got %q", "client-id-auto-meta", got)
+	}
+}
+
+func TestResponseMeta_Good_AttachesMetaToErrorResponses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+	)
+	e.Register(autoErrorResponseMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/error", nil)
+	req.Header.Set("X-Request-ID", "client-id-auto-error-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-auto-error-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-auto-error-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Error == nil || resp.Error.Code != "bad_request" {
+		t.Fatalf("expected bad_request error, got %+v", resp.Error)
 	}
 }
 
