@@ -250,8 +250,80 @@ func TestWithCache_Good_PreservesCurrentRequestIDOnHit(t *testing.T) {
 	if got := w2.Header().Get("X-Cache"); got != "HIT" {
 		t.Fatalf("expected X-Cache=HIT, got %q", got)
 	}
-	if body1, body2 := w1.Body.String(), w2.Body.String(); body1 != body2 {
-		t.Fatalf("expected cached body %q, got %q", body1, body2)
+
+	var resp2 api.Response[string]
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp2.Data != "call-1" {
+		t.Fatalf("expected cached response data %q, got %q", "call-1", resp2.Data)
+	}
+	if resp2.Meta == nil {
+		t.Fatal("expected cached response meta to be attached")
+	}
+	if resp2.Meta.RequestID != "second-request-id" {
+		t.Fatalf("expected cached response request_id=%q, got %q", "second-request-id", resp2.Meta.RequestID)
+	}
+	if resp2.Meta.Duration == "" {
+		t.Fatal("expected cached response duration to be refreshed")
+	}
+}
+
+func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithCache(5*time.Second),
+	)
+	e.Register(requestMetaTestGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req1.Header.Set("X-Request-ID", "first-request-id")
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w1.Code)
+	}
+
+	var resp1 api.Response[string]
+	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp1.Meta == nil {
+		t.Fatal("expected meta on first response")
+	}
+	if resp1.Meta.RequestID != "first-request-id" {
+		t.Fatalf("expected first response request_id=%q, got %q", "first-request-id", resp1.Meta.RequestID)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req2.Header.Set("X-Request-ID", "second-request-id")
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w2.Code)
+	}
+
+	var resp2 api.Response[string]
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp2.Meta == nil {
+		t.Fatal("expected meta on cached response")
+	}
+	if resp2.Meta.RequestID != "second-request-id" {
+		t.Fatalf("expected cached response request_id=%q, got %q", "second-request-id", resp2.Meta.RequestID)
+	}
+	if resp2.Meta.Duration == "" {
+		t.Fatal("expected cached response duration to be refreshed")
+	}
+	if resp2.Meta.Page != 1 || resp2.Meta.PerPage != 25 || resp2.Meta.Total != 100 {
+		t.Fatalf("expected pagination metadata to remain intact, got %+v", resp2.Meta)
+	}
+	if got := w2.Header().Get("X-Request-ID"); got != "second-request-id" {
+		t.Fatalf("expected response header X-Request-ID=%q, got %q", "second-request-id", got)
 	}
 }
 
