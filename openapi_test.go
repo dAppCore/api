@@ -328,6 +328,51 @@ func TestSpecBuilder_Good_OperationIDPreservesPathParams(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_RequestBodyOnDelete(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "resources",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "DELETE",
+				Path:    "/resources/{id}",
+				Summary: "Delete resource",
+				Tags:    []string{"resources"},
+				RequestBody: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"reason": map[string]any{"type": "string"},
+					},
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	deleteOp := paths["/api/resources/{id}"].(map[string]any)["delete"].(map[string]any)
+	if deleteOp["requestBody"] == nil {
+		t.Fatal("expected requestBody on DELETE /api/resources/{id}")
+	}
+}
+
 func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
