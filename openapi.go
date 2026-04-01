@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -60,6 +61,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 
 // buildPaths generates the paths object from all DescribableGroups.
 func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
+	operationIDs := map[string]int{}
 	paths := map[string]any{
 		// Built-in health endpoint.
 		"/health": map[string]any{
@@ -67,7 +69,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"summary":     "Health check",
 				"description": "Returns server health status",
 				"tags":        []string{"system"},
-				"operationId": operationID("get", "/health"),
+				"operationId": operationID("get", "/health", operationIDs),
 				"responses": map[string]any{
 					"200": map[string]any{
 						"description": "Server is healthy",
@@ -95,7 +97,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"tags":        rd.Tags,
-				"operationId": operationID(method, fullPath),
+				"operationId": operationID(method, fullPath, operationIDs),
 				"responses": map[string]any{
 					"200": map[string]any{
 						"description": "Successful response",
@@ -187,9 +189,8 @@ func envelopeSchema(dataSchema map[string]any) map[string]any {
 }
 
 // operationID builds a stable OpenAPI operationId from the HTTP method and path.
-// The generated identifier is lower snake_case and strips path parameter braces
-// so it stays friendly for downstream SDK generators.
-func operationID(method, path string) string {
+// The generated identifier is lower snake_case and preserves path parameter names.
+func operationID(method, path string, operationIDs map[string]int) string {
 	var b strings.Builder
 	b.Grow(len(method) + len(path) + 1)
 	lastUnderscore := false
@@ -219,7 +220,13 @@ func operationID(method, path string) string {
 	writeUnderscore()
 	for _, r := range path {
 		switch r {
-		case '/', '-', '.', '{', '}', ' ':
+		case '/':
+			writeUnderscore()
+		case '-':
+			writeUnderscore()
+		case '.':
+			writeUnderscore()
+		case ' ':
 			writeUnderscore()
 		default:
 			appendToken(r)
@@ -230,5 +237,15 @@ func operationID(method, path string) string {
 	if out == "" {
 		return "operation"
 	}
-	return out
+
+	if operationIDs == nil {
+		return out
+	}
+
+	count := operationIDs[out]
+	operationIDs[out] = count + 1
+	if count == 0 {
+		return out
+	}
+	return out + "_" + strconv.Itoa(count+1)
 }

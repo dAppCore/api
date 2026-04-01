@@ -253,6 +253,62 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_OperationIDPreservesPathParams(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "users",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/users/{id}",
+				Summary: "Get user by id",
+				Tags:    []string{"users"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+			{
+				Method:  "GET",
+				Path:    "/users/{name}",
+				Summary: "Get user by name",
+				Tags:    []string{"users"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	byID := paths["/api/users/{id}"].(map[string]any)["get"].(map[string]any)
+	byName := paths["/api/users/{name}"].(map[string]any)["get"].(map[string]any)
+
+	if byID["operationId"] != "get_api_users_id" {
+		t.Fatalf("expected operationId='get_api_users_id', got %v", byID["operationId"])
+	}
+	if byName["operationId"] != "get_api_users_name" {
+		t.Fatalf("expected operationId='get_api_users_name', got %v", byName["operationId"])
+	}
+	if byID["operationId"] == byName["operationId"] {
+		t.Fatal("expected unique operationId values for distinct path parameters")
+	}
+}
+
 func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
