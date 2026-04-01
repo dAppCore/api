@@ -13,33 +13,37 @@ import (
 
 func addSpecCommand(parent *cli.Command) {
 	var (
-		output       string
-		format       string
-		title        string
-		description  string
-		version      string
-		termsURL     string
-		contactName  string
-		contactURL   string
-		contactEmail string
-		licenseName  string
-		licenseURL   string
-		servers      string
+		output                  string
+		format                  string
+		title                   string
+		description             string
+		version                 string
+		termsURL                string
+		contactName             string
+		contactURL              string
+		contactEmail            string
+		licenseName             string
+		licenseURL              string
+		externalDocsDescription string
+		externalDocsURL         string
+		servers                 string
 	)
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
 		// Build spec from all route groups registered for CLI generation.
 		builder := &goapi.SpecBuilder{
-			Title:          title,
-			Description:    description,
-			Version:        version,
-			TermsOfService: termsURL,
-			ContactName:    contactName,
-			ContactURL:     contactURL,
-			ContactEmail:   contactEmail,
-			Servers:        parseServers(servers),
-			LicenseName:    licenseName,
-			LicenseURL:     licenseURL,
+			Title:                   title,
+			Description:             description,
+			Version:                 version,
+			TermsOfService:          termsURL,
+			ContactName:             contactName,
+			ContactURL:              contactURL,
+			ContactEmail:            contactEmail,
+			Servers:                 parseServers(servers),
+			LicenseName:             licenseName,
+			LicenseURL:              licenseURL,
+			ExternalDocsDescription: externalDocsDescription,
+			ExternalDocsURL:         externalDocsURL,
 		}
 
 		bridge := goapi.NewToolBridge("/tools")
@@ -67,6 +71,8 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &contactEmail, "contact-email", "", "", "OpenAPI contact email in spec")
 	cli.StringFlag(cmd, &licenseName, "license-name", "", "", "OpenAPI licence name in spec")
 	cli.StringFlag(cmd, &licenseURL, "license-url", "", "", "OpenAPI licence URL in spec")
+	cli.StringFlag(cmd, &externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in spec")
+	cli.StringFlag(cmd, &externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
 
 	parent.AddCommand(cmd)

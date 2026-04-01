@@ -100,6 +100,12 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("license-url") == nil {
 		t.Fatal("expected --license-url flag on spec command")
 	}
+	if specCmd.Flag("external-docs-description") == nil {
+		t.Fatal("expected --external-docs-description flag on spec command")
+	}
+	if specCmd.Flag("external-docs-url") == nil {
+		t.Fatal("expected --external-docs-url flag on spec command")
+	}
 	if specCmd.Flag("server") == nil {
 		t.Fatal("expected --server flag on spec command")
 	}
@@ -215,6 +221,45 @@ func TestAPISpecCmd_Good_TermsOfServiceFlagPopulatesSpecInfo(t *testing.T) {
 	}
 	if info["termsOfService"] != "https://example.com/terms" {
 		t.Fatalf("expected termsOfService to be preserved, got %v", info["termsOfService"])
+	}
+}
+
+func TestAPISpecCmd_Good_ExternalDocsFlagsPopulateSpec(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--external-docs-description", "Developer guide",
+		"--external-docs-url", "https://example.com/docs",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	externalDocs, ok := spec["externalDocs"].(map[string]any)
+	if !ok {
+		t.Fatal("expected externalDocs metadata in generated spec")
+	}
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected externalDocs description Developer guide, got %v", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected externalDocs url to be preserved, got %v", externalDocs["url"])
 	}
 }
 
@@ -442,6 +487,8 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"support@example.com",
 		"EUPL-1.2",
 		"https://eupl.eu/1.2/en/",
+		"",
+		"",
 		"https://api.example.com, /, https://api.example.com",
 	)
 	groups := sdkSpecGroups()

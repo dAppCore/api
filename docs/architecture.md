@@ -30,6 +30,8 @@ type Engine struct {
     swaggerTitle   string
     swaggerDesc    string
     swaggerVersion string
+    swaggerExternalDocsDescription string
+    swaggerExternalDocsURL         string
     pprofEnabled   bool
     expvarEnabled  bool
     graphql        *graphqlConfig
@@ -166,6 +168,7 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithSwaggerContact(name, url, email)` | OpenAPI contact metadata | Populates the Swagger spec info block without manual `SpecBuilder` wiring |
 | `WithSwaggerServers(servers...)` | OpenAPI server metadata | Feeds the runtime Swagger spec and exported docs |
 | `WithSwaggerLicense(name, url)` | OpenAPI licence metadata | Populates the Swagger spec info block without manual `SpecBuilder` wiring |
+| `WithSwaggerExternalDocs(description, url)` | OpenAPI external documentation metadata | Populates the top-level `externalDocs` block without manual `SpecBuilder` wiring |
 | `WithPprof()` | Go profiling at `/debug/pprof/` | WARNING: do not expose in production without authentication |
 | `WithExpvar()` | Runtime metrics at `/debug/vars` | WARNING: do not expose in production without authentication |
 | `WithSecure()` | Security headers | HSTS 1 year, X-Frame-Options DENY, nosniff, strict referrer |

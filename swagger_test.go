@@ -383,6 +383,48 @@ func TestSwagger_Good_UsesTermsOfServiceMetadata(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_UsesExternalDocsMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Docs API", "Docs test", "1.0.0"),
+		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	externalDocs, ok := doc["externalDocs"].(map[string]any)
+	if !ok {
+		t.Fatal("expected externalDocs metadata in swagger doc")
+	}
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected externalDocs description=%q, got %v", "Developer guide", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected externalDocs url=%q, got %v", "https://example.com/docs", externalDocs["url"])
+	}
+}
+
 func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

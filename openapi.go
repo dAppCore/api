@@ -11,24 +11,26 @@ import (
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
-// Title, Description, Version, and optional contact/licence metadata populate the
-// OpenAPI info block.
+// Title, Description, Version, and optional contact/licence/terms metadata populate the
+// OpenAPI info block. Top-level external documentation metadata is also supported.
 //
 // Example:
 //
 //	builder := &api.SpecBuilder{Title: "Service", Version: "1.0.0"}
 //	spec, err := builder.Build(engine.Groups())
 type SpecBuilder struct {
-	Title          string
-	Description    string
-	Version        string
-	TermsOfService string
-	ContactName    string
-	ContactURL     string
-	ContactEmail   string
-	Servers        []string
-	LicenseName    string
-	LicenseURL     string
+	Title                   string
+	Description             string
+	Version                 string
+	TermsOfService          string
+	ContactName             string
+	ContactURL              string
+	ContactEmail            string
+	Servers                 []string
+	LicenseName             string
+	LicenseURL              string
+	ExternalDocsDescription string
+	ExternalDocsURL         string
 }
 
 // Build generates the complete OpenAPI 3.1 JSON spec.
@@ -89,6 +91,16 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 			out = append(out, map[string]any{"url": server})
 		}
 		spec["servers"] = out
+	}
+
+	if sb.ExternalDocsURL != "" {
+		externalDocs := map[string]any{
+			"url": sb.ExternalDocsURL,
+		}
+		if sb.ExternalDocsDescription != "" {
+			externalDocs["description"] = sb.ExternalDocsDescription
+		}
+		spec["externalDocs"] = externalDocs
 	}
 
 	// Add component schemas for the response envelope.

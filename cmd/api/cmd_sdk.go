@@ -24,20 +24,22 @@ const (
 
 func addSDKCommand(parent *cli.Command) {
 	var (
-		lang         string
-		output       string
-		specFile     string
-		packageName  string
-		title        string
-		description  string
-		version      string
-		termsURL     string
-		contactName  string
-		contactURL   string
-		contactEmail string
-		licenseName  string
-		licenseURL   string
-		servers      string
+		lang                    string
+		output                  string
+		specFile                string
+		packageName             string
+		title                   string
+		description             string
+		version                 string
+		termsURL                string
+		contactName             string
+		contactURL              string
+		contactEmail            string
+		licenseName             string
+		licenseURL              string
+		externalDocsDescription string
+		externalDocsURL         string
+		servers                 string
 	)
 
 	cmd := cli.NewCommand("sdk", "Generate client SDKs from OpenAPI spec", "", func(cmd *cli.Command, args []string) error {
@@ -48,7 +50,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, servers)
+			builder := sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
 			groups := sdkSpecGroups()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -103,23 +105,27 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &contactEmail, "contact-email", "", "", "OpenAPI contact email in generated spec")
 	cli.StringFlag(cmd, &licenseName, "license-name", "", "", "OpenAPI licence name in generated spec")
 	cli.StringFlag(cmd, &licenseURL, "license-url", "", "", "OpenAPI licence URL in generated spec")
+	cli.StringFlag(cmd, &externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in generated spec")
+	cli.StringFlag(cmd, &externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in generated spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
 
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, servers string) *goapi.SpecBuilder {
+func sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
 	return &goapi.SpecBuilder{
-		Title:          title,
-		Description:    description,
-		Version:        version,
-		TermsOfService: termsURL,
-		ContactName:    contactName,
-		ContactURL:     contactURL,
-		ContactEmail:   contactEmail,
-		Servers:        parseServers(servers),
-		LicenseName:    licenseName,
-		LicenseURL:     licenseURL,
+		Title:                   title,
+		Description:             description,
+		Version:                 version,
+		TermsOfService:          termsURL,
+		ContactName:             contactName,
+		ContactURL:              contactURL,
+		ContactEmail:            contactEmail,
+		Servers:                 parseServers(servers),
+		LicenseName:             licenseName,
+		LicenseURL:              licenseURL,
+		ExternalDocsDescription: externalDocsDescription,
+		ExternalDocsURL:         externalDocsURL,
 	}
 }
 

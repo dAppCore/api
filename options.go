@@ -169,6 +169,16 @@ func WithSwaggerLicense(name, url string) Option {
 	}
 }
 
+// WithSwaggerExternalDocs adds top-level external documentation metadata to
+// the generated Swagger spec.
+// Empty URLs are ignored; the description is optional.
+func WithSwaggerExternalDocs(description, url string) Option {
+	return func(e *Engine) {
+		e.swaggerExternalDocsDescription = description
+		e.swaggerExternalDocsURL = url
+	}
+}
+
 // WithPprof enables Go runtime profiling endpoints at /debug/pprof/.
 // The standard pprof handlers (index, cmdline, profile, symbol, trace,
 // allocs, block, goroutine, heap, mutex, threadcreate) are registered

@@ -238,6 +238,37 @@ func TestSpecBuilder_Good_InfoIncludesTermsOfService(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_InfoIncludesExternalDocs(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                   "Test",
+		Description:             "External docs test API",
+		Version:                 "1.2.3",
+		ExternalDocsDescription: "Developer guide",
+		ExternalDocsURL:         "https://example.com/docs",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	externalDocs, ok := spec["externalDocs"].(map[string]any)
+	if !ok {
+		t.Fatal("expected externalDocs metadata in spec")
+	}
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected externalDocs description to be preserved, got %v", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected externalDocs url to be preserved, got %v", externalDocs["url"])
+	}
+}
+
 func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",
