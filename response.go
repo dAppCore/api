@@ -2,6 +2,8 @@
 
 package api
 
+import "github.com/gin-gonic/gin"
+
 // Response is the standard envelope for all API responses.
 type Response[T any] struct {
 	Success bool   `json:"success"`
@@ -68,4 +70,28 @@ func Paginated[T any](data T, page, perPage, total int) Response[T] {
 			Total:   total,
 		},
 	}
+}
+
+// AttachRequestMeta merges request metadata into an existing response envelope.
+// Existing pagination metadata is preserved; request_id and duration are added
+// when available from the Gin context.
+func AttachRequestMeta[T any](c *gin.Context, resp Response[T]) Response[T] {
+	meta := GetRequestMeta(c)
+	if meta == nil {
+		return resp
+	}
+
+	if resp.Meta == nil {
+		resp.Meta = meta
+		return resp
+	}
+
+	if resp.Meta.RequestID == "" {
+		resp.Meta.RequestID = meta.RequestID
+	}
+	if resp.Meta.Duration == "" {
+		resp.Meta.Duration = meta.Duration
+	}
+
+	return resp
 }

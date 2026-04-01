@@ -7,12 +7,17 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // requestIDContextKey is the Gin context key used by requestIDMiddleware.
 const requestIDContextKey = "request_id"
+
+// requestStartContextKey stores when the request began so handlers can
+// calculate elapsed duration for response metadata.
+const requestStartContextKey = "request_start"
 
 // bearerAuthMiddleware validates the Authorization: Bearer <token> header.
 // Requests to paths in the skip list are allowed through without authentication.
@@ -48,6 +53,8 @@ func bearerAuthMiddleware(token string, skip []string) gin.HandlerFunc {
 // string is generated. The ID is also stored in the Gin context as "request_id".
 func requestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(requestStartContextKey, time.Now())
+
 		id := c.GetHeader("X-Request-ID")
 		if id == "" {
 			b := make([]byte, 16)
@@ -70,4 +77,36 @@ func GetRequestID(c *gin.Context) string {
 		}
 	}
 	return ""
+}
+
+// GetRequestDuration returns the elapsed time since requestIDMiddleware started
+// handling the request. Returns 0 when the middleware was not applied.
+func GetRequestDuration(c *gin.Context) time.Duration {
+	if v, ok := c.Get(requestStartContextKey); ok {
+		if started, ok := v.(time.Time); ok && !started.IsZero() {
+			return time.Since(started)
+		}
+	}
+	return 0
+}
+
+// GetRequestMeta returns request metadata collected by requestIDMiddleware.
+// The returned meta includes the request ID and elapsed duration when
+// available. It returns nil when neither value is available.
+func GetRequestMeta(c *gin.Context) *Meta {
+	meta := &Meta{}
+
+	if id := GetRequestID(c); id != "" {
+		meta.RequestID = id
+	}
+
+	if duration := GetRequestDuration(c); duration > 0 {
+		meta.Duration = duration.String()
+	}
+
+	if meta.RequestID == "" && meta.Duration == "" {
+		return nil
+	}
+
+	return meta
 }

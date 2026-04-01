@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -36,6 +37,18 @@ func (g requestIDTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/secret", func(c *gin.Context) {
 		*g.gotID = api.GetRequestID(c)
 		c.JSON(http.StatusOK, api.OK("classified"))
+	})
+}
+
+type requestMetaTestGroup struct{}
+
+func (g requestMetaTestGroup) Name() string     { return "request-meta" }
+func (g requestMetaTestGroup) BasePath() string { return "/v1" }
+func (g requestMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/meta", func(c *gin.Context) {
+		time.Sleep(2 * time.Millisecond)
+		resp := api.AttachRequestMeta(c, api.Paginated("classified", 1, 25, 100))
+		c.JSON(http.StatusOK, resp)
 	})
 }
 
@@ -186,6 +199,39 @@ func TestRequestID_Good_ContextAccessor(t *testing.T) {
 	}
 	if gotID != "client-id-xyz" {
 		t.Fatalf("expected GetRequestID=%q, got %q", "client-id-xyz", gotID)
+	}
+}
+
+func TestRequestID_Good_RequestMetaHelper(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRequestID())
+	e.Register(requestMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req.Header.Set("X-Request-ID", "client-id-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Meta.Page != 1 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
+		t.Fatalf("expected pagination metadata to be preserved, got %+v", resp.Meta)
 	}
 }
 
