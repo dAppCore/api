@@ -42,6 +42,9 @@ type boundTool struct {
 	handler    gin.HandlerFunc
 }
 
+var _ RouteGroup = (*ToolBridge)(nil)
+var _ DescribableGroup = (*ToolBridge)(nil)
+
 // NewToolBridge creates a bridge that mounts tool endpoints at basePath.
 //
 // Example:
