@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	api "dappco.re/go/core/api"
@@ -122,6 +123,54 @@ paths:
 	}
 	if updated["name"] != "Ada" {
 		t.Fatalf("expected name=Ada, got %#v", updated["name"])
+	}
+}
+
+func TestOpenAPIClient_Good_LoadsSpecFromReader(t *testing.T) {
+	errCh := make(chan error, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"message":"pong"}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := api.NewOpenAPIClient(
+		api.WithSpecReader(strings.NewReader(`openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /ping:
+    get:
+      operationId: ping
+`)),
+		api.WithBaseURL(srv.URL),
+	)
+
+	result, err := client.Call("ping", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
+	ping, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", result)
+	}
+	if ping["message"] != "pong" {
+		t.Fatalf("expected message=pong, got %#v", ping["message"])
 	}
 }
 

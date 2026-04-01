@@ -29,6 +29,7 @@ import (
 //	data, err := client.Call("get_health", nil)
 type OpenAPIClient struct {
 	specPath    string
+	specReader  io.Reader
 	baseURL     string
 	bearerToken string
 	httpClient  *http.Client
@@ -64,6 +65,18 @@ type OpenAPIClientOption func(*OpenAPIClient)
 func WithSpec(path string) OpenAPIClientOption {
 	return func(c *OpenAPIClient) {
 		c.specPath = path
+	}
+}
+
+// WithSpecReader sets an in-memory or streamed OpenAPI document source.
+// It is read once the first time the client loads its spec.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithSpecReader(strings.NewReader(spec)))
+func WithSpecReader(reader io.Reader) OpenAPIClientOption {
+	return func(c *OpenAPIClient) {
+		c.specReader = reader
 	}
 }
 
@@ -239,17 +252,25 @@ func (c *OpenAPIClient) load() error {
 }
 
 func (c *OpenAPIClient) loadSpec() error {
-	if c.specPath == "" {
-		return coreerr.E("OpenAPIClient.loadSpec", "spec path is required", nil)
+	var (
+		data []byte
+		err  error
+	)
+
+	switch {
+	case c.specReader != nil:
+		data, err = io.ReadAll(c.specReader)
+	case c.specPath != "":
+		f, openErr := os.Open(c.specPath)
+		if openErr != nil {
+			return coreerr.E("OpenAPIClient.loadSpec", "read spec", openErr)
+		}
+		defer f.Close()
+		data, err = io.ReadAll(f)
+	default:
+		return coreerr.E("OpenAPIClient.loadSpec", "spec path or reader is required", nil)
 	}
 
-	f, err := os.Open(c.specPath)
-	if err != nil {
-		return coreerr.E("OpenAPIClient.loadSpec", "read spec", err)
-	}
-	defer f.Close()
-
-	data, err := io.ReadAll(f)
 	if err != nil {
 		return coreerr.E("OpenAPIClient.loadSpec", "read spec", err)
 	}
