@@ -52,6 +52,17 @@ func (g requestMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type autoResponseMetaTestGroup struct{}
+
+func (g autoResponseMetaTestGroup) Name() string     { return "auto-response-meta" }
+func (g autoResponseMetaTestGroup) BasePath() string { return "/v1" }
+func (g autoResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/meta", func(c *gin.Context) {
+		time.Sleep(2 * time.Millisecond)
+		c.JSON(http.StatusOK, api.Paginated("classified", 1, 25, 100))
+	})
+}
+
 // ── Bearer auth ─────────────────────────────────────────────────────────
 
 func TestBearerAuth_Bad_MissingToken(t *testing.T) {
@@ -232,6 +243,45 @@ func TestRequestID_Good_RequestMetaHelper(t *testing.T) {
 	}
 	if resp.Meta.Page != 1 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
 		t.Fatalf("expected pagination metadata to be preserved, got %+v", resp.Meta)
+	}
+}
+
+func TestResponseMeta_Good_AttachesMetaAutomatically(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+	)
+	e.Register(autoResponseMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req.Header.Set("X-Request-ID", "client-id-auto-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-auto-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-auto-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Meta.Page != 1 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
+		t.Fatalf("expected pagination metadata to be preserved, got %+v", resp.Meta)
+	}
+	if got := w.Header().Get("X-Request-ID"); got != "client-id-auto-meta" {
+		t.Fatalf("expected response header X-Request-ID=%q, got %q", "client-id-auto-meta", got)
 	}
 }
 

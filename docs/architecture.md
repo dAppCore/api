@@ -151,6 +151,7 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithAddr(addr)` | Listen address | Default `:8080` |
 | `WithBearerAuth(token)` | Static bearer token authentication | Skips `/health` and `/swagger` |
 | `WithRequestID()` | `X-Request-ID` propagation | Preserves client-supplied IDs; generates 16-byte hex otherwise |
+| `WithResponseMeta()` | Request metadata in JSON envelopes | Merges `request_id` and `duration` into standard responses |
 | `WithCORS(origins...)` | CORS policy | `"*"` enables `AllowAllOrigins`; 12-hour `MaxAge` |
 | `WithRateLimit(limit)` | Per-IP token-bucket rate limiting | `429 Too Many Requests`; `Retry-After` on rejection; zero or negative disables |
 | `WithMiddleware(mw...)` | Arbitrary Gin middleware | Escape hatch for custom middleware |

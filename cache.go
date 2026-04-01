@@ -5,8 +5,6 @@ package api
 import (
 	"bytes"
 	"container/list"
-	"encoding/json"
-	"io"
 	"maps"
 	"net/http"
 	"strconv"
@@ -185,43 +183,5 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 // Non-JSON bodies, malformed JSON, and responses without a top-level object are
 // returned unchanged.
 func refreshCachedResponseMeta(body []byte, meta *Meta) []byte {
-	if meta == nil {
-		return body
-	}
-
-	var payload any
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.UseNumber()
-	if err := dec.Decode(&payload); err != nil {
-		return body
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		return body
-	}
-
-	obj, ok := payload.(map[string]any)
-	if !ok {
-		return body
-	}
-
-	current := map[string]any{}
-	if existing, ok := obj["meta"].(map[string]any); ok {
-		current = existing
-	}
-
-	if meta.RequestID != "" {
-		current["request_id"] = meta.RequestID
-	}
-	if meta.Duration != "" {
-		current["duration"] = meta.Duration
-	}
-
-	obj["meta"] = current
-
-	updated, err := json.Marshal(obj)
-	if err != nil {
-		return body
-	}
-	return updated
+	return refreshResponseMetaBody(body, meta)
 }

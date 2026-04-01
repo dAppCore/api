@@ -52,6 +52,16 @@ func WithRequestID() Option {
 	}
 }
 
+// WithResponseMeta attaches request metadata to JSON envelope responses.
+// It preserves any existing pagination metadata and merges in request_id
+// and duration when available from the request context. Combine it with
+// WithRequestID() to populate both fields automatically.
+func WithResponseMeta() Option {
+	return func(e *Engine) {
+		e.middlewares = append(e.middlewares, responseMetaMiddleware())
+	}
+}
+
 // WithCORS configures Cross-Origin Resource Sharing via gin-contrib/cors.
 // Pass "*" to allow all origins, or supply specific origin URLs.
 // Standard methods (GET, POST, PUT, PATCH, DELETE, OPTIONS) and common
