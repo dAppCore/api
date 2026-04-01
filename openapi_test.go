@@ -188,6 +188,46 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "secure",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/private",
+				Summary: "Private endpoint",
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	responses := spec["paths"].(map[string]any)["/api/private"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
+	if _, ok := responses["401"]; !ok {
+		t.Fatal("expected 401 response in secured operation")
+	}
+	if _, ok := responses["403"]; !ok {
+		t.Fatal("expected 403 response in secured operation")
+	}
+}
+
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

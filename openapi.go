@@ -146,6 +146,22 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 							},
 						},
 					},
+					"401": map[string]any{
+						"description": "Unauthorised",
+						"content": map[string]any{
+							"application/json": map[string]any{
+								"schema": envelopeSchema(nil),
+							},
+						},
+					},
+					"403": map[string]any{
+						"description": "Forbidden",
+						"content": map[string]any{
+							"application/json": map[string]any{
+								"schema": envelopeSchema(nil),
+							},
+						},
+					},
 				},
 			}
 
