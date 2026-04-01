@@ -4,6 +4,8 @@ package api_test
 
 import (
 	"bufio"
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -336,6 +338,63 @@ func TestNoSSEBroker_Good(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for /events without broker, got %d", w.Code)
+	}
+}
+
+func TestWithSSE_Good_EngineShutdownDrainsClients(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to allocate listener: %v", err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+
+	e, err := api.New(api.WithAddr(addr), api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- e.Serve(ctx)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	resp, err := http.Get("http://" + addr + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	waitForClients(t, broker, 1)
+
+	cancel()
+
+	select {
+	case serveErr := <-errCh:
+		if serveErr != nil {
+			t.Fatalf("Serve returned unexpected error: %v", serveErr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return within 5 seconds after context cancellation")
+	}
+
+	if got := broker.ClientCount(); got != 0 {
+		t.Fatalf("expected SSE broker to drain all clients, got %d", got)
 	}
 }
 

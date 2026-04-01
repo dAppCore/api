@@ -123,6 +123,12 @@ func (e *Engine) Serve(ctx context.Context) error {
 	// Block until context is cancelled.
 	<-ctx.Done()
 
+	// Signal SSE clients first so their handlers can exit cleanly before the
+	// HTTP server begins its own shutdown sequence.
+	if e.sseBroker != nil {
+		e.sseBroker.Drain()
+	}
+
 	// Graceful shutdown with timeout.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
