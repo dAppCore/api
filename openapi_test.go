@@ -885,6 +885,25 @@ func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
+	tags, ok := spec["tags"].([]any)
+	if !ok {
+		t.Fatalf("expected tags array, got %T", spec["tags"])
+	}
+	expectedTags := map[string]bool{
+		"system":  true,
+		"tools":   true,
+		"files":   true,
+		"metrics": true,
+	}
+	for _, raw := range tags {
+		tag := raw.(map[string]any)
+		name, _ := tag["name"].(string)
+		delete(expectedTags, name)
+	}
+	if len(expectedTags) != 0 {
+		t.Fatalf("expected declared tags to include system, tools, files, and metrics, missing %v", expectedTags)
+	}
+
 	paths := spec["paths"].(map[string]any)
 
 	// Verify POST /tools/file_read exists.

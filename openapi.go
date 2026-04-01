@@ -349,6 +349,24 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 			})
 			seen[name] = true
 		}
+
+		dg, ok := g.(DescribableGroup)
+		if !ok {
+			continue
+		}
+
+		for _, rd := range dg.Describe() {
+			for _, tag := range rd.Tags {
+				if tag == "" || seen[tag] {
+					continue
+				}
+				tags = append(tags, map[string]any{
+					"name":        tag,
+					"description": tag + " endpoints",
+				})
+				seen[tag] = true
+			}
+		}
 	}
 
 	return tags
