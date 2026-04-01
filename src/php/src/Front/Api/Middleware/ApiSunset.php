@@ -12,52 +12,17 @@ declare(strict_types=1);
 namespace Core\Front\Api\Middleware;
 
 use Closure;
+use DateTimeImmutable;
+use DateTimeInterface;
+use DateTimeZone;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * API Sunset Middleware.
  *
- * Adds the HTTP Sunset header to responses to indicate when an endpoint
- * will be deprecated or removed.
- *
- * The Sunset header is defined in RFC 8594 and indicates that a resource
- * will become unresponsive at the specified date.
- *
- * ## Usage
- *
- * Apply to routes that will be sunset:
- *
- * ```php
- * Route::middleware('api.sunset:2025-06-01')->group(function () {
- *     Route::get('/legacy-endpoint', LegacyController::class);
- * });
- * ```
- *
- * Or with a replacement link:
- *
- * ```php
- * Route::middleware('api.sunset:2025-06-01,/api/v2/new-endpoint')->group(function () {
- *     Route::get('/old-endpoint', OldController::class);
- * });
- *
- * You can also mark a route as deprecated without a fixed removal date:
- *
- * ```php
- * Route::middleware('api.sunset')->group(function () {
- *     Route::get('/old-endpoint', OldController::class);
- * });
- * ```
- * ```
- *
- * ## Response Headers
- *
- * The middleware adds these headers:
- * - Sunset: <date in RFC7231 format>
- * - Deprecation: true
- * - Link: <replacement-url>; rel="successor-version" (if replacement provided)
- *
- * @see https://datatracker.ietf.org/doc/html/rfc8594 RFC 8594: The "Sunset" HTTP Header Field
+ * Adds deprecation headers to a route and optionally advertises a sunset
+ * date and successor endpoint.
  */
 class ApiSunset
 {
@@ -65,58 +30,54 @@ class ApiSunset
      * Handle an incoming request.
      *
      * @param  string  $sunsetDate  The sunset date (YYYY-MM-DD or RFC7231 format), or empty for deprecation-only
-     * @param  string|null  $replacement  Optional replacement endpoint URL
+     * @param  string|null  $replacement  Optional successor endpoint URL
      */
     public function handle(Request $request, Closure $next, string $sunsetDate = '', ?string $replacement = null): Response
     {
         /** @var Response $response */
         $response = $next($request);
 
-        if ($sunsetDate !== '') {
-            // Convert date to RFC7231 format if needed
-            $formattedDate = $this->formatSunsetDate($sunsetDate);
-
-            // Add Sunset header
-            $response->headers->set('Sunset', $formattedDate);
-        }
-
-        // Add Deprecation header
         $response->headers->set('Deprecation', 'true');
 
-        // Add warning header
+        if ($sunsetDate !== '') {
+            $response->headers->set('Sunset', $this->formatSunsetDate($sunsetDate));
+        }
+
+        if ($replacement !== null && $replacement !== '') {
+            $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $replacement));
+        }
+
         $warning = 'This endpoint is deprecated.';
         if ($sunsetDate !== '') {
             $warning = "This endpoint is deprecated and will be removed on {$sunsetDate}.";
         }
-        $response->headers->set('X-API-Warn', $warning);
 
-        // Add Link header for replacement if provided
-        if ($replacement !== null) {
-            $response->headers->set('Link', "<{$replacement}>; rel=\"successor-version\"");
-        }
+        $response->headers->set('X-API-Warn', $warning);
 
         return $response;
     }
 
     /**
-     * Format the sunset date to RFC7231 format.
-     *
-     * Accepts dates in YYYY-MM-DD format or already-formatted RFC7231 dates.
+     * Format the sunset date to RFC7231 format when possible.
      */
-    protected function formatSunsetDate(string $date): string
+    protected function formatSunsetDate(string $sunsetDate): string
     {
-        // Check if already in RFC7231 format (contains comma, day name)
-        if (str_contains($date, ',')) {
-            return $date;
+        $sunsetDate = trim($sunsetDate);
+        if ($sunsetDate === '') {
+            return $sunsetDate;
+        }
+
+        // Already RFC7231-style dates contain a comma, so preserve them.
+        if (str_contains($sunsetDate, ',')) {
+            return $sunsetDate;
         }
 
         try {
-            return (new \DateTimeImmutable($date))
-                ->setTimezone(new \DateTimeZone('GMT'))
-                ->format(\DateTimeInterface::RFC7231);
-        } catch (\Exception) {
-            // If parsing fails, return as-is
-            return $date;
+            return (new DateTimeImmutable($sunsetDate))
+                ->setTimezone(new DateTimeZone('GMT'))
+                ->format(DateTimeInterface::RFC7231);
+        } catch (\Throwable) {
+            return $sunsetDate;
         }
     }
 }
