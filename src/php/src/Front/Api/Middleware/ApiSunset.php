@@ -37,6 +37,10 @@ class ApiSunset
         /** @var Response $response */
         $response = $next($request);
 
+        if (! (bool) config('api.headers.include_deprecation', true)) {
+            return $response;
+        }
+
         $response->headers->set('Deprecation', 'true');
 
         if ($sunsetDate !== '') {
