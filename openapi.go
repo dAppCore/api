@@ -108,7 +108,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 			operation := map[string]any{
 				"summary":     rd.Summary,
 				"description": rd.Description,
-				"tags":        rd.Tags,
+				"tags":        resolvedOperationTags(g, rd),
 				"operationId": operationID(method, fullPath, operationIDs),
 				"security": []any{
 					map[string]any{
@@ -189,6 +189,20 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 	}
 
 	return tags
+}
+
+// resolvedOperationTags returns the explicit route tags when provided, or a
+// stable fallback derived from the group's name when the route omits tags.
+func resolvedOperationTags(g RouteGroup, rd RouteDescription) []string {
+	if len(rd.Tags) > 0 {
+		return rd.Tags
+	}
+
+	if name := g.Name(); name != "" {
+		return []string{name}
+	}
+
+	return nil
 }
 
 // envelopeSchema wraps a data schema in the standard Response[T] envelope.
