@@ -589,3 +589,22 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		t.Fatalf("expected second server to be /, got %v", servers[1])
 	}
 }
+
+func TestAPISDKCmd_Good_SpecGroupsDeduplicateToolBridge(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
+	api.RegisterSpecGroups(api.NewToolBridge("/tools"))
+
+	groups := sdkSpecGroups()
+	if len(groups) != 1 {
+		t.Fatalf("expected the built-in tools bridge to be deduplicated, got %d groups", len(groups))
+	}
+	if groups[0].BasePath() != "/tools" {
+		t.Fatalf("expected the remaining group to be /tools, got %s", groups[0].BasePath())
+	}
+}

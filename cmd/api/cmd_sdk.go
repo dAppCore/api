@@ -131,8 +131,11 @@ func sdkSpecBuilder(title, description, version, termsURL, contactName, contactU
 }
 
 func sdkSpecGroups() []goapi.RouteGroup {
-	bridge := goapi.NewToolBridge("/tools")
-	return append(goapi.RegisteredSpecGroups(), bridge)
+	groups := make([]goapi.RouteGroup, 0)
+	for group := range sdkSpecGroupsIter() {
+		groups = append(groups, group)
+	}
+	return groups
 }
 
 func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {
