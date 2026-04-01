@@ -101,6 +101,10 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 
 	components := spec["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	if _, ok := schemas["Response"]; !ok {
+		t.Fatal("expected Response component schema in spec")
+	}
 	securitySchemes := components["securitySchemes"].(map[string]any)
 	bearerAuth := securitySchemes["bearerAuth"].(map[string]any)
 	if bearerAuth["type"] != "http" {

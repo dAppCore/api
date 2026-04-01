@@ -53,6 +53,20 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	// Add component schemas for the response envelope.
 	spec["components"] = map[string]any{
 		"schemas": map[string]any{
+			"Response": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"success": map[string]any{"type": "boolean"},
+					"data":    map[string]any{},
+					"error": map[string]any{
+						"$ref": "#/components/schemas/Error",
+					},
+					"meta": map[string]any{
+						"$ref": "#/components/schemas/Meta",
+					},
+				},
+				"required": []string{"success"},
+			},
 			"Error": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
