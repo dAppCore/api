@@ -128,6 +128,7 @@ type RouteDescription struct {
     Summary     string
     Description string
     Tags        []string
+    Parameters  []ParameterDescription
     RequestBody map[string]any
     Response    map[string]any
 }

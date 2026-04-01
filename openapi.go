@@ -135,6 +135,9 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 			if params := pathParameters(fullPath); len(params) > 0 {
 				operation["parameters"] = params
 			}
+			if explicit := operationParameters(rd.Parameters); len(explicit) > 0 {
+				operation["parameters"] = mergeOperationParameters(operation["parameters"], explicit)
+			}
 
 			// Add request body for methods that accept one.
 			// The contract only excludes GET; other verbs may legitimately carry bodies.
@@ -347,6 +350,83 @@ func pathParameters(path string) []map[string]any {
 	}
 
 	return params
+}
+
+// operationParameters converts explicit route parameter descriptions into
+// OpenAPI parameter objects.
+func operationParameters(params []ParameterDescription) []map[string]any {
+	if len(params) == 0 {
+		return nil
+	}
+
+	out := make([]map[string]any, 0, len(params))
+	for _, param := range params {
+		if param.Name == "" || param.In == "" {
+			continue
+		}
+
+		entry := map[string]any{
+			"name":     param.Name,
+			"in":       param.In,
+			"required": param.Required || param.In == "path",
+		}
+		if param.Description != "" {
+			entry["description"] = param.Description
+		}
+		if param.Deprecated {
+			entry["deprecated"] = true
+		}
+		if len(param.Schema) > 0 {
+			entry["schema"] = param.Schema
+		} else if param.In == "path" || param.In == "query" || param.In == "header" || param.In == "cookie" {
+			entry["schema"] = map[string]any{"type": "string"}
+		}
+		if param.Example != nil {
+			entry["example"] = param.Example
+		}
+
+		out = append(out, entry)
+	}
+
+	return out
+}
+
+// mergeOperationParameters combines generated and explicit parameter
+// definitions, letting explicit entries override auto-generated path params.
+func mergeOperationParameters(existing any, explicit []map[string]any) []map[string]any {
+	merged := make([]map[string]any, 0, len(explicit))
+	index := map[string]int{}
+
+	add := func(param map[string]any) {
+		name, _ := param["name"].(string)
+		in, _ := param["in"].(string)
+		if name == "" || in == "" {
+			return
+		}
+		key := in + ":" + name
+		if pos, ok := index[key]; ok {
+			merged[pos] = param
+			return
+		}
+		index[key] = len(merged)
+		merged = append(merged, param)
+	}
+
+	if params, ok := existing.([]map[string]any); ok {
+		for _, param := range params {
+			add(param)
+		}
+	}
+
+	for _, param := range explicit {
+		add(param)
+	}
+
+	if len(merged) == 0 {
+		return nil
+	}
+
+	return merged
 }
 
 // resolvedOperationTags returns the explicit route tags when provided, or a

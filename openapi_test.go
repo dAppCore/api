@@ -624,6 +624,87 @@ func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "users",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/users/{id}",
+				Summary: "Get user",
+				Parameters: []api.ParameterDescription{
+					{
+						Name:        "id",
+						In:          "path",
+						Description: "User identifier",
+						Schema: map[string]any{
+							"type": "string",
+						},
+					},
+					{
+						Name:        "verbose",
+						In:          "query",
+						Description: "Include verbose details",
+						Schema: map[string]any{
+							"type": "boolean",
+						},
+					},
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/users/{id}"].(map[string]any)["get"].(map[string]any)
+	params, ok := op["parameters"].([]any)
+	if !ok {
+		t.Fatalf("expected parameters array, got %T", op["parameters"])
+	}
+	if len(params) != 2 {
+		t.Fatalf("expected 2 parameters, got %d", len(params))
+	}
+
+	pathParam := params[0].(map[string]any)
+	if pathParam["name"] != "id" {
+		t.Fatalf("expected path parameter name=id, got %v", pathParam["name"])
+	}
+	if pathParam["in"] != "path" {
+		t.Fatalf("expected path parameter in=path, got %v", pathParam["in"])
+	}
+	if pathParam["description"] != "User identifier" {
+		t.Fatalf("expected merged path parameter description, got %v", pathParam["description"])
+	}
+
+	queryParam := params[1].(map[string]any)
+	if queryParam["name"] != "verbose" {
+		t.Fatalf("expected query parameter name=verbose, got %v", queryParam["name"])
+	}
+	if queryParam["in"] != "query" {
+		t.Fatalf("expected query parameter in=query, got %v", queryParam["in"])
+	}
+	if required, ok := queryParam["required"].(bool); !ok || required {
+		t.Fatalf("expected query parameter to be optional, got %v", queryParam["required"])
+	}
+}
+
 func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

@@ -34,11 +34,23 @@ type DescribableGroup interface {
 
 // RouteDescription describes a single endpoint for OpenAPI generation.
 type RouteDescription struct {
-	Method      string         // HTTP method: GET, POST, PUT, DELETE, PATCH
-	Path        string         // Path relative to BasePath, e.g. "/generate"
-	Summary     string         // Short summary
-	Description string         // Long description
-	Tags        []string       // OpenAPI tags for grouping
+	Method      string   // HTTP method: GET, POST, PUT, DELETE, PATCH
+	Path        string   // Path relative to BasePath, e.g. "/generate"
+	Summary     string   // Short summary
+	Description string   // Long description
+	Tags        []string // OpenAPI tags for grouping
+	Parameters  []ParameterDescription
 	RequestBody map[string]any // JSON Schema for request body (nil for GET)
 	Response    map[string]any // JSON Schema for success response data
+}
+
+// ParameterDescription describes an OpenAPI parameter for a route.
+type ParameterDescription struct {
+	Name        string         // Parameter name.
+	In          string         // Parameter location: path, query, header, or cookie.
+	Description string         // Human-readable parameter description.
+	Required    bool           // Whether the parameter is required.
+	Deprecated  bool           // Whether the parameter is deprecated.
+	Schema      map[string]any // JSON Schema for the parameter value.
+	Example     any            // Optional example value.
 }
