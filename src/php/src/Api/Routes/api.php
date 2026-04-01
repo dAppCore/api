@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Core\Api\Controllers\Api\UnifiedPixelController;
 use Core\Api\Controllers\McpApiController;
+use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
 use Illuminate\Support\Facades\Route;
 
@@ -13,10 +15,22 @@ use Illuminate\Support\Facades\Route;
 |
 | Core API routes for cross-cutting concerns.
 |
-| TODO: SeoReportController, UnifiedPixelController, EntitlementApiController
-|       are planned but not yet implemented. Re-add routes when controllers exist.
+| TODO: SeoReportController and EntitlementApiController are planned but not
+|       yet implemented. Re-add routes when controllers exist.
 |
 */
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified Pixel (public tracking)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Route::middleware([PublicApiCors::class, 'api.rate'])
+    ->prefix('pixel')
+    ->name('api.pixel.')
+    ->group(function () {
+        Route::match(['GET', 'POST', 'OPTIONS'], '/{pixelKey}', [UnifiedPixelController::class, 'track'])
+            ->name('track');
+    });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MCP HTTP Bridge (API key auth)

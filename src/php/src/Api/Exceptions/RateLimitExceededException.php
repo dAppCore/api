@@ -7,6 +7,7 @@ namespace Core\Api\Exceptions;
 use Core\Api\RateLimit\RateLimitResult;
 use Core\Api\Concerns\HasApiResponses;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -36,9 +37,9 @@ class RateLimitExceededException extends HttpException
     /**
      * Render the exception as a JSON response.
      */
-    public function render(): JsonResponse
+    public function render(?Request $request = null): JsonResponse
     {
-        return $this->errorResponse(
+        $response = $this->errorResponse(
             errorCode: 'rate_limit_exceeded',
             message: $this->getMessage(),
             meta: [
@@ -48,6 +49,14 @@ class RateLimitExceededException extends HttpException
             ],
             status: 429,
         )->withHeaders($this->rateLimitResult->headers());
+
+        if ($request !== null) {
+            $origin = $request->headers->get('Origin', '*');
+            $response->headers->set('Access-Control-Allow-Origin', $origin);
+            $response->headers->set('Vary', 'Origin');
+        }
+
+        return $response;
     }
 
     /**
