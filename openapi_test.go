@@ -145,6 +145,9 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	if getOp.(map[string]any)["summary"] != "List items" {
 		t.Fatalf("expected summary='List items', got %v", getOp.(map[string]any)["summary"])
 	}
+	if getOp.(map[string]any)["operationId"] != "get_api_items_list" {
+		t.Fatalf("expected operationId='get_api_items_list', got %v", getOp.(map[string]any)["operationId"])
+	}
 
 	// Verify POST /api/items/create exists with request body.
 	createPath, ok := paths["/api/items/create"]
@@ -157,6 +160,9 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	}
 	if postOp.(map[string]any)["summary"] != "Create item" {
 		t.Fatalf("expected summary='Create item', got %v", postOp.(map[string]any)["summary"])
+	}
+	if postOp.(map[string]any)["operationId"] != "post_api_items_create" {
+		t.Fatalf("expected operationId='post_api_items_create', got %v", postOp.(map[string]any)["operationId"])
 	}
 	if postOp.(map[string]any)["requestBody"] == nil {
 		t.Fatal("expected requestBody on POST /api/items/create")
@@ -206,6 +212,9 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	content := resp200["content"].(map[string]any)
 	appJSON := content["application/json"].(map[string]any)
 	schema := appJSON["schema"].(map[string]any)
+	if getOp["operationId"] != "get_data_fetch" {
+		t.Fatalf("expected operationId='get_data_fetch', got %v", getOp["operationId"])
+	}
 
 	// Verify envelope structure.
 	if schema["type"] != "object" {
@@ -282,6 +291,10 @@ func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	if _, ok := paths["/health"]; !ok {
 		t.Fatal("expected /health path in spec")
 	}
+	health := paths["/health"].(map[string]any)["get"].(map[string]any)
+	if health["operationId"] != "get_health" {
+		t.Fatalf("expected operationId='get_health', got %v", health["operationId"])
+	}
 }
 
 func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
@@ -350,6 +363,9 @@ func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 	if postOp.(map[string]any)["summary"] != "Read a file from disk" {
 		t.Fatalf("expected summary='Read a file from disk', got %v", postOp.(map[string]any)["summary"])
 	}
+	if postOp.(map[string]any)["operationId"] != "post_tools_file_read" {
+		t.Fatalf("expected operationId='post_tools_file_read', got %v", postOp.(map[string]any)["operationId"])
+	}
 
 	// Verify POST /tools/metrics_query exists.
 	metricsPath, ok := paths["/tools/metrics_query"]
@@ -362,6 +378,9 @@ func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 	}
 	if metricsOp.(map[string]any)["summary"] != "Query metrics data" {
 		t.Fatalf("expected summary='Query metrics data', got %v", metricsOp.(map[string]any)["summary"])
+	}
+	if metricsOp.(map[string]any)["operationId"] != "post_tools_metrics_query" {
+		t.Fatalf("expected operationId='post_tools_metrics_query', got %v", metricsOp.(map[string]any)["operationId"])
 	}
 
 	// Verify request body is present on both (both are POST with InputSchema).

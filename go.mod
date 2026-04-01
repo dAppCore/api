@@ -132,6 +132,6 @@ require (
 replace (
 	dappco.re/go/core => ../go
 	dappco.re/go/core/i18n => ../go-i18n
-	dappco.re/go/core/io => ../go-io
-	dappco.re/go/core/log => ../go-log
+	dappco.re/go/core/io => ./go-io
+	dappco.re/go/core/log => ./go-log
 )

@@ -5,6 +5,7 @@ package api
 import (
 	"encoding/json"
 	"strings"
+	"unicode"
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
@@ -66,6 +67,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"summary":     "Health check",
 				"description": "Returns server health status",
 				"tags":        []string{"system"},
+				"operationId": operationID("get", "/health"),
 				"responses": map[string]any{
 					"200": map[string]any{
 						"description": "Server is healthy",
@@ -93,6 +95,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"tags":        rd.Tags,
+				"operationId": operationID(method, fullPath),
 				"responses": map[string]any{
 					"200": map[string]any{
 						"description": "Successful response",
@@ -181,4 +184,51 @@ func envelopeSchema(dataSchema map[string]any) map[string]any {
 		"properties": properties,
 		"required":   []string{"success"},
 	}
+}
+
+// operationID builds a stable OpenAPI operationId from the HTTP method and path.
+// The generated identifier is lower snake_case and strips path parameter braces
+// so it stays friendly for downstream SDK generators.
+func operationID(method, path string) string {
+	var b strings.Builder
+	b.Grow(len(method) + len(path) + 1)
+	lastUnderscore := false
+
+	writeUnderscore := func() {
+		if b.Len() > 0 && !lastUnderscore {
+			b.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+
+	appendToken := func(r rune) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if unicode.IsUpper(r) {
+				r = unicode.ToLower(r)
+			}
+			b.WriteRune(r)
+			lastUnderscore = false
+			return
+		}
+		writeUnderscore()
+	}
+
+	for _, r := range method {
+		appendToken(r)
+	}
+	writeUnderscore()
+	for _, r := range path {
+		switch r {
+		case '/', '-', '.', '{', '}', ' ':
+			writeUnderscore()
+		default:
+			appendToken(r)
+		}
+	}
+
+	out := strings.Trim(b.String(), "_")
+	if out == "" {
+		return "operation"
+	}
+	return out
 }
