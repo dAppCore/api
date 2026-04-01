@@ -128,6 +128,7 @@ type RouteDescription struct {
     Summary     string
     Description string
     Tags        []string
+    Deprecated  bool
     StatusCode  int
     Parameters  []ParameterDescription
     RequestBody map[string]any

@@ -39,6 +39,8 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// Deprecated marks the operation as deprecated in OpenAPI.
+	Deprecated bool
 	// StatusCode is the documented 2xx success status code.
 	// Zero defaults to 200.
 	StatusCode int

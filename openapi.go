@@ -166,6 +166,9 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"operationId": operationID(method, fullPath, operationIDs),
 				"responses":   operationResponses(method, rd.StatusCode, rd.Response),
 			}
+			if rd.Deprecated {
+				operation["deprecated"] = true
+			}
 			if rd.Security != nil {
 				operation["security"] = rd.Security
 			} else {

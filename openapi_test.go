@@ -1129,6 +1129,48 @@ func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "legacy",
+		basePath: "/api/legacy",
+		descs: []api.RouteDescription{
+			{
+				Method:     "GET",
+				Path:       "/status",
+				Summary:    "Check legacy status",
+				Deprecated: true,
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/legacy/status"].(map[string]any)["get"].(map[string]any)
+	deprecated, ok := op["deprecated"].(bool)
+	if !ok {
+		t.Fatalf("expected deprecated boolean, got %T", op["deprecated"])
+	}
+	if !deprecated {
+		t.Fatal("expected deprecated operation to be marked true")
+	}
+}
+
 func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
