@@ -22,8 +22,7 @@ func addSpecCommand(parent *cli.Command) {
 	)
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
-		// Build spec from registered route groups.
-		// Additional groups can be added here as the platform grows.
+		// Build spec from all route groups registered for CLI generation.
 		builder := &goapi.SpecBuilder{
 			Title:       title,
 			Description: description,
@@ -31,11 +30,8 @@ func addSpecCommand(parent *cli.Command) {
 			Servers:     parseServers(servers),
 		}
 
-		// Start with the default tool bridge — future versions will
-		// auto-populate from the MCP tool registry once the bridge
-		// integration lands in the local go-ai module.
 		bridge := goapi.NewToolBridge("/tools")
-		groups := []goapi.RouteGroup{bridge}
+		groups := append(goapi.RegisteredSpecGroups(), bridge)
 
 		if output != "" {
 			if err := goapi.ExportSpecToFile(output, format, builder, groups); err != nil {

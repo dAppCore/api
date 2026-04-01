@@ -39,7 +39,7 @@ func addSDKCommand(parent *cli.Command) {
 			}
 
 			bridge := goapi.NewToolBridge("/tools")
-			groups := []goapi.RouteGroup{bridge}
+			groups := append(goapi.RegisteredSpecGroups(), bridge)
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
 			if err != nil {

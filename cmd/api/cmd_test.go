@@ -8,8 +8,31 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+
 	"forge.lthn.ai/core/cli/pkg/cli"
+
+	api "dappco.re/go/core/api"
 )
+
+type specCmdStubGroup struct{}
+
+func (specCmdStubGroup) Name() string                       { return "registered" }
+func (specCmdStubGroup) BasePath() string                   { return "/registered" }
+func (specCmdStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (specCmdStubGroup) Describe() []api.RouteDescription {
+	return []api.RouteDescription{
+		{
+			Method:  "GET",
+			Path:    "/ping",
+			Summary: "Ping registered group",
+			Tags:    []string{"registered"},
+			Response: map[string]any{
+				"type": "string",
+			},
+		},
+	}
+}
 
 func TestAPISpecCmd_Good_CommandStructure(t *testing.T) {
 	root := &cli.Command{Use: "root"}
@@ -128,6 +151,40 @@ func TestAPISpecCmd_Good_ServerFlagAddsServers(t *testing.T) {
 	}
 	if servers[1].(map[string]any)["url"] != "/" {
 		t.Fatalf("expected second server to be /, got %v", servers[1])
+	}
+}
+
+func TestAPISpecCmd_Good_RegisteredSpecGroups(t *testing.T) {
+	api.RegisterSpecGroups(specCmdStubGroup{})
+
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{"api", "spec", "--output", outputFile})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object in generated spec, got %T", spec["paths"])
+	}
+
+	if _, ok := paths["/registered/ping"]; !ok {
+		t.Fatal("expected registered route group path in generated spec")
 	}
 }
 
