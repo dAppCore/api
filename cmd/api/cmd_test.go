@@ -4,6 +4,8 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"testing"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
@@ -51,8 +53,41 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("title") == nil {
 		t.Fatal("expected --title flag on spec command")
 	}
+	if specCmd.Flag("description") == nil {
+		t.Fatal("expected --description flag on spec command")
+	}
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
+	}
+}
+
+func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{"api", "spec", "--description", "Custom API description", "--output", outputFile})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+	if info["description"] != "Custom API description" {
+		t.Fatalf("expected custom description, got %v", info["description"])
 	}
 }
 

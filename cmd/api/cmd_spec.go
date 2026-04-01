@@ -13,10 +13,11 @@ import (
 
 func addSpecCommand(parent *cli.Command) {
 	var (
-		output  string
-		format  string
-		title   string
-		version string
+		output      string
+		format      string
+		title       string
+		description string
+		version     string
 	)
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
@@ -24,7 +25,7 @@ func addSpecCommand(parent *cli.Command) {
 		// Additional groups can be added here as the platform grows.
 		builder := &goapi.SpecBuilder{
 			Title:       title,
-			Description: "Lethean Core API",
+			Description: description,
 			Version:     version,
 		}
 
@@ -48,6 +49,7 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &output, "output", "o", "", "Write spec to file instead of stdout")
 	cli.StringFlag(cmd, &format, "format", "f", "json", "Output format: json or yaml")
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
+	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
 
 	parent.AddCommand(cmd)
