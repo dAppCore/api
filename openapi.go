@@ -132,6 +132,10 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"responses": operationResponses(method, rd.Response),
 			}
 
+			if params := pathParameters(fullPath); len(params) > 0 {
+				operation["parameters"] = params
+			}
+
 			// Add request body for methods that accept one.
 			// The contract only excludes GET; other verbs may legitimately carry bodies.
 			if rd.RequestBody != nil && method != "get" {
@@ -305,6 +309,44 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 	}
 
 	return tags
+}
+
+// pathParameters extracts unique OpenAPI path parameters from a path template.
+// Parameters are returned in the order they appear in the path.
+func pathParameters(path string) []map[string]any {
+	const (
+		open  = '{'
+		close = '}'
+	)
+
+	seen := map[string]bool{}
+	params := make([]map[string]any, 0)
+
+	for i := 0; i < len(path); i++ {
+		if path[i] != open {
+			continue
+		}
+		end := strings.IndexByte(path[i+1:], close)
+		if end < 0 {
+			continue
+		}
+		name := path[i+1 : i+1+end]
+		if name == "" || strings.ContainsAny(name, "/{}") || seen[name] {
+			continue
+		}
+		seen[name] = true
+		params = append(params, map[string]any{
+			"name":     name,
+			"in":       "path",
+			"required": true,
+			"schema": map[string]any{
+				"type": "string",
+			},
+		})
+		i += end + 1
+	}
+
+	return params
 }
 
 // resolvedOperationTags returns the explicit route tags when provided, or a

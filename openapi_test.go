@@ -567,6 +567,63 @@ func TestSpecBuilder_Good_RequestBodyOnHead(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_PathParameters(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "users",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/users/{id}/{slug}",
+				Summary: "Get user",
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/users/{id}/{slug}"].(map[string]any)["get"].(map[string]any)
+	params, ok := op["parameters"].([]any)
+	if !ok {
+		t.Fatalf("expected parameters array, got %T", op["parameters"])
+	}
+	if len(params) != 2 {
+		t.Fatalf("expected 2 path parameters, got %d", len(params))
+	}
+
+	first := params[0].(map[string]any)
+	if first["name"] != "id" {
+		t.Fatalf("expected first parameter name=id, got %v", first["name"])
+	}
+	if first["in"] != "path" {
+		t.Fatalf("expected first parameter in=path, got %v", first["in"])
+	}
+	if required, ok := first["required"].(bool); !ok || !required {
+		t.Fatalf("expected first parameter to be required, got %v", first["required"])
+	}
+
+	second := params[1].(map[string]any)
+	if second["name"] != "slug" {
+		t.Fatalf("expected second parameter name=slug, got %v", second["name"])
+	}
+}
+
 func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
