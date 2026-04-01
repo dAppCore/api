@@ -413,6 +413,8 @@ class McpApiController extends Controller
      */
     public function resource(Request $request, string $uri): JsonResponse
     {
+        $uri = rawurldecode($uri);
+
         // Parse URI format: server://resource/path
         if (! preg_match('/^([a-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
             return $this->validationErrorResponse([
@@ -428,12 +430,35 @@ class McpApiController extends Controller
             return $this->notFoundResponse('Server');
         }
 
+        $resourceDef = $this->findResourceDefinition($server, $uri, $resourcePath);
+        if ($resourceDef !== null && $this->resourceDefinitionHasContent($resourceDef)) {
+            return response()->json([
+                'uri' => $uri,
+                'server' => $serverId,
+                'resource' => $resourcePath,
+                'content' => $this->normaliseResourceContent($resourceDef),
+            ]);
+        }
+
         try {
             $result = $this->readResourceViaArtisan($serverId, $resourcePath);
+            if ($result === null) {
+                return $this->notFoundResponse('Resource');
+            }
+
+            if (is_array($result) && array_key_exists('content', $result)) {
+                $content = $result['content'];
+            } elseif (is_array($result) && array_key_exists('contents', $result)) {
+                $content = $result['contents'];
+            } else {
+                $content = $result;
+            }
 
             return response()->json([
                 'uri' => $uri,
-                'content' => $result,
+                'server' => $serverId,
+                'resource' => $resourcePath,
+                'content' => $content,
             ]);
         } catch (\Throwable $e) {
             return $this->errorResponse(
@@ -452,16 +477,7 @@ class McpApiController extends Controller
      */
     protected function executeToolViaArtisan(string $server, string $tool, array $arguments): mixed
     {
-        $commandMap = [
-            'hosthub-agent' => 'mcp:agent-server',
-            'socialhost' => 'mcp:socialhost-server',
-            'biohost' => 'mcp:biohost-server',
-            'commerce' => 'mcp:commerce-server',
-            'supporthost' => 'mcp:support-server',
-            'upstream' => 'mcp:upstream-server',
-        ];
-
-        $command = $commandMap[$server] ?? null;
+        $command = $this->resolveMcpServerCommand($server);
         if (! $command) {
             throw new \RuntimeException("Unknown server: {$server}");
         }
@@ -516,9 +532,130 @@ class McpApiController extends Controller
      */
     protected function readResourceViaArtisan(string $server, string $path): mixed
     {
-        // Similar to executeToolViaArtisan but with resources/read method
-        // Simplified for now - can expand later
-        return ['path' => $path, 'content' => 'Resource reading not yet implemented'];
+        $command = $this->resolveMcpServerCommand($server);
+        if (! $command) {
+            throw new \RuntimeException("Unknown server: {$server}");
+        }
+
+        $mcpRequest = [
+            'jsonrpc' => '2.0',
+            'id' => uniqid(),
+            'method' => 'resources/read',
+            'params' => [
+                'uri' => "{$server}://{$path}",
+                'path' => $path,
+            ],
+        ];
+
+        $process = proc_open(
+            ['php', 'artisan', $command],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            base_path()
+        );
+
+        if (! is_resource($process)) {
+            throw new \RuntimeException('Failed to start MCP server process');
+        }
+
+        fwrite($pipes[0], json_encode($mcpRequest)."\n");
+        fclose($pipes[0]);
+
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        proc_close($process);
+
+        $response = json_decode($output, true);
+        if (! is_array($response)) {
+            throw new \RuntimeException('Invalid MCP resource response');
+        }
+
+        if (isset($response['error'])) {
+            throw new \RuntimeException($response['error']['message'] ?? 'Resource read failed');
+        }
+
+        return $response['result'] ?? null;
+    }
+
+    /**
+     * Resolve the artisan command used for a given MCP server.
+     */
+    protected function resolveMcpServerCommand(string $server): ?string
+    {
+        $commandMap = [
+            'hosthub-agent' => 'mcp:agent-server',
+            'socialhost' => 'mcp:socialhost-server',
+            'biohost' => 'mcp:biohost-server',
+            'commerce' => 'mcp:commerce-server',
+            'supporthost' => 'mcp:support-server',
+            'upstream' => 'mcp:upstream-server',
+        ];
+
+        return $commandMap[$server] ?? null;
+    }
+
+    /**
+     * Find a resource definition within the loaded server config.
+     */
+    protected function findResourceDefinition(array $server, string $uri, string $path): mixed
+    {
+        foreach ($server['resources'] ?? [] as $resource) {
+            if (! is_array($resource)) {
+                continue;
+            }
+
+            $resourceUri = $resource['uri'] ?? null;
+            $resourcePath = $resource['path'] ?? null;
+            $resourceName = $resource['name'] ?? null;
+
+            if ($resourceUri === $uri || $resourcePath === $path || $resourceName === basename($path)) {
+                return $resource;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalise a resource definition into a response payload.
+     */
+    protected function normaliseResourceContent(mixed $resource): mixed
+    {
+        if (! is_array($resource)) {
+            return $resource;
+        }
+
+        foreach (['content', 'contents', 'body', 'text', 'value'] as $field) {
+            if (array_key_exists($field, $resource)) {
+                return $resource[$field];
+            }
+        }
+
+        return $resource;
+    }
+
+    /**
+     * Determine whether a resource definition already carries readable content.
+     */
+    protected function resourceDefinitionHasContent(mixed $resource): bool
+    {
+        if (! is_array($resource)) {
+            return true;
+        }
+
+        foreach (['content', 'contents', 'body', 'text', 'value'] as $field) {
+            if (array_key_exists($field, $resource)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
