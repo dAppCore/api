@@ -155,6 +155,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 				"bearerFormat": "JWT",
 			},
 		},
+		"headers": deprecationHeaderComponents(),
 	}
 
 	return json.MarshalIndent(spec, "", "  ")
@@ -507,38 +508,59 @@ func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string)
 
 	headers := map[string]any{
 		"Deprecation": map[string]any{
-			"description": "Indicates the endpoint is deprecated",
-			"schema": map[string]any{
-				"type": "string",
-			},
+			"$ref": "#/components/headers/deprecation",
 		},
 		"X-API-Warn": map[string]any{
-			"description": "Human-readable deprecation warning",
-			"schema": map[string]any{
-				"type": "string",
-			},
+			"$ref": "#/components/headers/xapiwarn",
 		},
 	}
 
 	if sunsetDate != "" {
 		headers["Sunset"] = map[string]any{
-			"description": "RFC 7231 date when the endpoint will be removed",
-			"schema": map[string]any{
-				"type": "string",
-			},
+			"$ref": "#/components/headers/sunset",
 		}
 	}
 
 	if replacement != "" {
 		headers["Link"] = map[string]any{
-			"description": "Successor endpoint advertised with rel=\"successor-version\"",
-			"schema": map[string]any{
-				"type": "string",
-			},
+			"$ref": "#/components/headers/link",
 		}
 	}
 
 	return headers
+}
+
+// deprecationHeaderComponents returns reusable OpenAPI header components for
+// the standard deprecation and sunset middleware headers.
+func deprecationHeaderComponents() map[string]any {
+	return map[string]any{
+		"deprecation": map[string]any{
+			"description": "Indicates that the endpoint is deprecated.",
+			"schema": map[string]any{
+				"type": "string",
+				"enum": []string{"true"},
+			},
+		},
+		"sunset": map[string]any{
+			"description": "The date and time after which the endpoint will no longer be supported.",
+			"schema": map[string]any{
+				"type":   "string",
+				"format": "date-time",
+			},
+		},
+		"link": map[string]any{
+			"description": "Reference to the successor endpoint, when one is provided.",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"xapiwarn": map[string]any{
+			"description": "Human-readable deprecation warning for clients.",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+	}
 }
 
 // buildTags generates the tags array from all RouteGroups.

@@ -1491,6 +1491,19 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 			t.Fatalf("expected deprecation header %q in operation response headers", name)
 		}
 	}
+
+	components := spec["components"].(map[string]any)
+	headerComponents := components["headers"].(map[string]any)
+	for _, name := range []string{"deprecation", "sunset", "link", "xapiwarn"} {
+		if _, ok := headerComponents[name]; !ok {
+			t.Fatalf("expected reusable header component %q", name)
+		}
+	}
+
+	deprecationHeader := headers["Deprecation"].(map[string]any)
+	if got := deprecationHeader["$ref"]; got != "#/components/headers/deprecation" {
+		t.Fatalf("expected Deprecation header to reference shared component, got %v", got)
+	}
 }
 
 func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
