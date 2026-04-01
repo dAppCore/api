@@ -245,6 +245,29 @@ describe('Application Endpoint Parameter Docs', function () {
         expect($serverIncludeContent['schema']['type'])->toBe('boolean');
     });
 
+    it('lets explicit path parameter metadata override the generated entry', function () {
+        RouteFacade::prefix('api')
+            ->middleware('api')
+            ->group(function () {
+                RouteFacade::get('/test-scan/items/{id}/explicit', [TestExplicitPathParameterController::class, 'show']);
+            });
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/test-scan/items/{id}/explicit']['get'];
+        $parameters = $operation['parameters'] ?? [];
+
+        expect($parameters)->toHaveCount(1);
+
+        $idParam = collect($parameters)->firstWhere('name', 'id');
+
+        expect($idParam)->not->toBeNull();
+        expect($idParam['in'])->toBe('path');
+        expect($idParam['required'])->toBeTrue();
+        expect($idParam['description'])->toBe('Explicit item identifier');
+    });
+
     it('documents the MCP tool call request body shape', function () {
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1176,6 +1199,16 @@ class TestPartialHiddenController
 
     #[ApiHidden]
     public function hiddenMethod(): void {}
+}
+
+/**
+ * Test controller with an explicit path parameter override.
+ */
+class TestExplicitPathParameterController
+{
+    #[ApiParameter('id', 'path', 'string', 'Explicit item identifier')]
+    #[ApiResponse(200, TestJsonResource::class, 'Item details')]
+    public function show(string $id): void {}
 }
 
 /**

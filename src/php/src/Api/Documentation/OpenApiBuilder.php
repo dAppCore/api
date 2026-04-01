@@ -523,16 +523,36 @@ class OpenApiBuilder
     protected function buildParameters(Route $route, ?object $controller, string $action, array $config): array
     {
         $parameters = [];
+        $parameterIndex = [];
+
+        $addParameter = function (array $parameter) use (&$parameters, &$parameterIndex): void {
+            $name = $parameter['name'] ?? null;
+            $in = $parameter['in'] ?? null;
+
+            if (! is_string($name) || $name === '' || ! is_string($in) || $in === '') {
+                return;
+            }
+
+            $key = $in.':'.$name;
+            if (isset($parameterIndex[$key])) {
+                $parameters[$parameterIndex[$key]] = $parameter;
+
+                return;
+            }
+
+            $parameterIndex[$key] = count($parameters);
+            $parameters[] = $parameter;
+        };
 
         // Add path parameters
         preg_match_all('/\{([^}?]+)\??}/', $route->uri(), $matches);
         foreach ($matches[1] as $param) {
-            $parameters[] = [
+            $addParameter([
                 'name' => $param,
                 'in' => 'path',
                 'required' => true,
                 'schema' => ['type' => 'string'],
-            ];
+            ]);
         }
 
         // Add parameters from ApiParameter attributes
@@ -544,12 +564,12 @@ class OpenApiBuilder
 
                 foreach ($paramAttrs as $attr) {
                     $param = $attr->newInstance();
-                    $parameters[] = $param->toOpenApi();
+                    $addParameter($param->toOpenApi());
                 }
             }
         }
 
-        return $parameters;
+        return array_values($parameters);
     }
 
     /**
