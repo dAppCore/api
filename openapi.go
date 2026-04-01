@@ -325,15 +325,14 @@ func normaliseOpenAPIPath(path string) string {
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
 func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecationHeaders map[string]any) map[string]any {
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders)
+	documentedHeaders := documentedResponseHeaders(responseHeaders)
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
 	if method == "get" {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
 	}
-	if headers := documentedResponseHeaders(responseHeaders); len(headers) > 0 {
-		successHeaders = mergeHeaders(successHeaders, headers)
-	}
 
 	isPublic := security != nil && len(security) == 0
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
 
 	code := successStatusCode(statusCode)
 	successResponse := map[string]any{
@@ -364,7 +363,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
+			"headers": errorHeaders,
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -373,7 +372,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders(), deprecationHeaders),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders(), deprecationHeaders, documentedHeaders),
 		},
 		"504": map[string]any{
 			"description": "Gateway timeout",
@@ -382,7 +381,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
+			"headers": errorHeaders,
 		},
 		"500": map[string]any{
 			"description": "Internal server error",
@@ -391,7 +390,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
+			"headers": errorHeaders,
 		},
 	}
 
@@ -403,7 +402,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
+			"headers": errorHeaders,
 		}
 		responses["403"] = map[string]any{
 			"description": "Forbidden",
@@ -412,7 +411,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders),
+			"headers": errorHeaders,
 		}
 	}
 

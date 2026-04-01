@@ -1112,6 +1112,18 @@ func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 	if schema["type"] != "string" {
 		t.Fatalf("expected response header schema type string, got %v", schema["type"])
 	}
+
+	errorResp := responses["500"].(map[string]any)
+	errorHeaders, ok := errorResp["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected 500 headers map, got %T", errorResp["headers"])
+	}
+	if _, ok := errorHeaders["Content-Disposition"]; !ok {
+		t.Fatal("expected route-specific headers on error responses too")
+	}
+	if _, ok := errorHeaders["X-Export-ID"]; !ok {
+		t.Fatal("expected route-specific headers on error responses too")
+	}
 }
 
 func TestSpecBuilder_Good_PathParameters(t *testing.T) {
