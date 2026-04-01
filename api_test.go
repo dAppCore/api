@@ -202,3 +202,32 @@ func TestServe_Good_GracefulShutdown(t *testing.T) {
 		t.Fatal("Serve did not return within 5 seconds after context cancellation")
 	}
 }
+
+func TestServe_Bad_ReturnsListenErrorBeforeCancel(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to reserve port: %v", err)
+	}
+	addr := ln.Addr().String()
+	defer ln.Close()
+
+	e, _ := api.New(api.WithAddr(addr))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- e.Serve(ctx)
+	}()
+
+	select {
+	case serveErr := <-errCh:
+		if serveErr == nil {
+			t.Fatal("expected Serve to return a listen error, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("Serve did not return promptly after listener failure")
+	}
+}

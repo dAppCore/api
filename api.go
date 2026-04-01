@@ -120,8 +120,12 @@ func (e *Engine) Serve(ctx context.Context) error {
 		close(errCh)
 	}()
 
-	// Block until context is cancelled.
-	<-ctx.Done()
+	// Return immediately if the listener fails before shutdown is requested.
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+	}
 
 	// Signal SSE clients first so their handlers can exit cleanly before the
 	// HTTP server begins its own shutdown sequence.
