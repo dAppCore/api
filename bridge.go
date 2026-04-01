@@ -257,7 +257,8 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 		return nil
 	}
 
-	if schemaType, _ := schema["type"].(string); schemaType != "" {
+	schemaType, _ := schema["type"].(string)
+	if schemaType != "" {
 		switch schemaType {
 		case "object":
 			obj, ok := value.(map[string]any)
@@ -296,8 +297,6 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 					return fmt.Errorf("%s contains unknown field %q", displayPath(path), name)
 				}
 			}
-
-			return nil
 		case "array":
 			arr, ok := value.([]any)
 			if !ok {
@@ -310,31 +309,27 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 					}
 				}
 			}
-			return nil
 		case "string":
 			if _, ok := value.(string); !ok {
 				return typeError(path, "string", value)
 			}
-			return nil
 		case "boolean":
 			if _, ok := value.(bool); !ok {
 				return typeError(path, "boolean", value)
 			}
-			return nil
 		case "integer":
 			if !isIntegerValue(value) {
 				return typeError(path, "integer", value)
 			}
-			return nil
 		case "number":
 			if !isNumberValue(value) {
 				return typeError(path, "number", value)
 			}
-			return nil
 		}
 	}
 
-	if props := schemaMap(schema["properties"]); len(props) > 0 || schema["required"] != nil || schema["additionalProperties"] != nil {
+	if schemaType == "" && (len(schemaMap(schema["properties"])) > 0 || schema["required"] != nil || schema["additionalProperties"] != nil) {
+		props := schemaMap(schema["properties"])
 		return validateSchemaNode(value, map[string]any{
 			"type":                 "object",
 			"properties":           props,

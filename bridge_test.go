@@ -362,6 +362,52 @@ func TestToolBridge_Good_ValidatesEnumValues(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "publish_item",
+		Description: "Publish an item",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"draft", "published"},
+				},
+			},
+			"required": []any{"status"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("published"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"archived"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
 func TestToolBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
