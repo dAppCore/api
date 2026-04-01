@@ -22,7 +22,8 @@ use Symfony\Component\HttpFoundation\Response;
  * API Sunset Middleware.
  *
  * Adds deprecation headers to a route and optionally advertises a sunset
- * date and successor endpoint.
+ * date and successor endpoint. Existing header values are preserved so
+ * downstream middleware and handlers can keep their own warning metadata.
  */
 class ApiSunset
 {
@@ -41,14 +42,14 @@ class ApiSunset
             return $response;
         }
 
-        $response->headers->set('Deprecation', 'true');
+        $response->headers->set('Deprecation', 'true', false);
 
         if ($sunsetDate !== '') {
-            $response->headers->set('Sunset', $this->formatSunsetDate($sunsetDate));
+            $response->headers->set('Sunset', $this->formatSunsetDate($sunsetDate), false);
         }
 
         if ($replacement !== null && $replacement !== '') {
-            $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $replacement));
+            $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $replacement), false);
         }
 
         $warning = 'This endpoint is deprecated.';
@@ -56,7 +57,7 @@ class ApiSunset
             $warning = "This endpoint is deprecated and will be removed on {$sunsetDate}.";
         }
 
-        $response->headers->set('X-API-Warn', $warning);
+        $response->headers->set('X-API-Warn', $warning, false);
 
         return $response;
     }
