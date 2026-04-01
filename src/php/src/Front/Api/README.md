@@ -145,7 +145,7 @@ VersionedRoutes::versions([1, 2], function () {
 
 // Deprecated version with sunset
 VersionedRoutes::v1()
-    ->deprecated('2025-06-01')
+    ->deprecated('2025-06-01', '/api/v2/new-endpoint')
     ->routes(function () {
         Route::get('/legacy', LegacyController::class);
     });
