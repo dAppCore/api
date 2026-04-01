@@ -216,6 +216,9 @@ func WithSlog(logger *slog.Logger) Option {
 // runs without a deadline) — this is safe and will not panic.
 func WithTimeout(d time.Duration) Option {
 	return func(e *Engine) {
+		if d <= 0 {
+			return
+		}
 		e.middlewares = append(e.middlewares, timeout.New(
 			timeout.WithTimeout(d),
 			timeout.WithResponse(timeoutResponse),
