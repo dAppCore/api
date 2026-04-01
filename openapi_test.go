@@ -833,6 +833,64 @@ func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "   ",
+		basePath: "/api/blank",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Check status",
+				Tags:    []string{"", "  ", "data", "data"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tags := spec["tags"].([]any)
+	var foundData bool
+	for _, raw := range tags {
+		tag := raw.(map[string]any)
+		name, _ := tag["name"].(string)
+		if name == "" {
+			t.Fatal("expected blank tag names to be ignored")
+		}
+		if name == "data" {
+			foundData = true
+		}
+	}
+	if !foundData {
+		t.Fatal("expected data tag to be retained")
+	}
+
+	op := spec["paths"].(map[string]any)["/api/blank/status"].(map[string]any)["get"].(map[string]any)
+	opTags, ok := op["tags"].([]any)
+	if !ok {
+		t.Fatalf("expected tags array, got %T", op["tags"])
+	}
+	if len(opTags) != 1 || opTags[0] != "data" {
+		t.Fatalf("expected operation tags to be cleaned to [data], got %v", opTags)
+	}
+}
+
 func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

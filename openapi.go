@@ -122,7 +122,6 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 			operation := map[string]any{
 				"summary":     rd.Summary,
 				"description": rd.Description,
-				"tags":        resolvedOperationTags(g, rd),
 				"operationId": operationID(method, fullPath, operationIDs),
 				"security": []any{
 					map[string]any{
@@ -130,6 +129,9 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 					},
 				},
 				"responses": operationResponses(method, rd.Response),
+			}
+			if tags := resolvedOperationTags(g, rd); len(tags) > 0 {
+				operation["tags"] = tags
 			}
 
 			if params := pathParameters(fullPath); len(params) > 0 {
@@ -341,8 +343,8 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 	seen := map[string]bool{"system": true}
 
 	for _, g := range groups {
-		name := g.Name()
-		if !seen[name] {
+		name := strings.TrimSpace(g.Name())
+		if name != "" && !seen[name] {
 			tags = append(tags, map[string]any{
 				"name":        name,
 				"description": name + " endpoints",
@@ -357,6 +359,7 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 
 		for _, rd := range dg.Describe() {
 			for _, tag := range rd.Tags {
+				tag = strings.TrimSpace(tag)
 				if tag == "" || seen[tag] {
 					continue
 				}
@@ -491,14 +494,40 @@ func mergeOperationParameters(existing any, explicit []map[string]any) []map[str
 // stable fallback derived from the group's name when the route omits tags.
 func resolvedOperationTags(g RouteGroup, rd RouteDescription) []string {
 	if len(rd.Tags) > 0 {
-		return rd.Tags
+		return cleanTags(rd.Tags)
 	}
 
-	if name := g.Name(); name != "" {
+	if name := strings.TrimSpace(g.Name()); name != "" {
 		return []string{name}
 	}
 
 	return nil
+}
+
+// cleanTags trims whitespace and removes empty or duplicate tags while
+// preserving the first occurrence of each name.
+func cleanTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	cleaned := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		cleaned = append(cleaned, tag)
+	}
+	if len(cleaned) == 0 {
+		return nil
+	}
+	return cleaned
 }
 
 // envelopeSchema wraps a data schema in the standard Response[T] envelope.
