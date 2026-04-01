@@ -9,6 +9,7 @@ import (
 	"errors"
 	"iter"
 	"net/http"
+	"reflect"
 	"slices"
 	"time"
 
@@ -78,6 +79,9 @@ func (e *Engine) GroupsIter() iter.Seq[RouteGroup] {
 
 // Register adds a route group to the engine.
 func (e *Engine) Register(group RouteGroup) {
+	if isNilRouteGroup(group) {
+		return
+	}
 	e.groups = append(e.groups, group)
 }
 
@@ -174,6 +178,9 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount each registered group at its base path.
 	for _, g := range e.groups {
+		if isNilRouteGroup(g) {
+			continue
+		}
 		rg := r.Group(g.BasePath())
 		g.RegisterRoutes(rg)
 	}
@@ -224,4 +231,18 @@ func (e *Engine) build() *gin.Engine {
 	}
 
 	return r
+}
+
+func isNilRouteGroup(group RouteGroup) bool {
+	if group == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(group)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

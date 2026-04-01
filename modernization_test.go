@@ -94,6 +94,24 @@ func TestEngine_ChannelsIter_Good_SnapshotsCurrentChannels(t *testing.T) {
 	}
 }
 
+func TestEngine_Register_Good_IgnoresNilGroups(t *testing.T) {
+	e, _ := api.New()
+
+	var nilGroup *healthGroup
+	e.Register(nilGroup)
+
+	g1 := &healthGroup{}
+	e.Register(g1)
+
+	groups := e.Groups()
+	if len(groups) != 1 {
+		t.Fatalf("expected 1 registered group, got %d", len(groups))
+	}
+	if groups[0].Name() != "health-extra" {
+		t.Fatalf("expected the original group to be preserved, got %q", groups[0].Name())
+	}
+}
+
 func TestToolBridge_Iterators(t *testing.T) {
 	b := api.NewToolBridge("/tools")
 	desc := api.ToolDescriptor{Name: "test", Group: "g1"}
