@@ -211,6 +211,23 @@ describe('Application Endpoint Parameter Docs', function () {
         expect($includeContent['in'])->toBe('query');
         expect($includeContent['schema']['type'])->toBe('boolean');
     });
+
+    it('documents the MCP tool call request body shape', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/mcp/tools/call']['post'];
+        $schema = $operation['requestBody']['content']['application/json']['schema'] ?? null;
+
+        expect($schema)->not->toBeNull();
+        expect($schema['type'])->toBe('object');
+        expect($schema['properties'])->toHaveKey('server')
+            ->toHaveKey('tool')
+            ->toHaveKey('arguments')
+            ->toHaveKey('version');
+        expect($schema['required'])->toBe(['server', 'tool']);
+        expect($schema['additionalProperties'])->toBeTrue();
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

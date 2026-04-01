@@ -328,7 +328,7 @@ class OpenApiBuilder
 
         // Add request body for POST/PUT/PATCH
         if (in_array($method, ['post', 'put', 'patch'])) {
-            $operation['requestBody'] = $this->buildRequestBody($controller, $action);
+            $operation['requestBody'] = $this->buildRequestBody($route, $controller, $action);
         }
 
         // Add security requirements
@@ -661,8 +661,45 @@ class OpenApiBuilder
     /**
      * Build request body schema.
      */
-    protected function buildRequestBody(?object $controller, string $action): array
+    protected function buildRequestBody(Route $route, ?object $controller, string $action): array
     {
+        if ($controller instanceof \Core\Api\Controllers\McpApiController && $action === 'callTool') {
+            return [
+                'required' => true,
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'server' => [
+                                    'type' => 'string',
+                                    'maxLength' => 64,
+                                    'description' => 'MCP server identifier.',
+                                ],
+                                'tool' => [
+                                    'type' => 'string',
+                                    'maxLength' => 128,
+                                    'description' => 'Tool name to invoke on the selected server.',
+                                ],
+                                'arguments' => [
+                                    'type' => 'object',
+                                    'description' => 'Tool arguments passed through to MCP.',
+                                    'additionalProperties' => true,
+                                ],
+                                'version' => [
+                                    'type' => 'string',
+                                    'maxLength' => 32,
+                                    'description' => 'Optional tool version to execute. Defaults to the latest supported version.',
+                                ],
+                            ],
+                            'required' => ['server', 'tool'],
+                            'additionalProperties' => true,
+                        ],
+                    ],
+                ],
+            ];
+        }
+
         return [
             'required' => true,
             'content' => [
