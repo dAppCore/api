@@ -738,6 +738,13 @@ func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
 	if len(publicSecurity) != 0 {
 		t.Fatalf("expected public route to have empty security requirement, got %v", publicSecurity)
 	}
+	publicResponses := publicOp["responses"].(map[string]any)
+	if _, ok := publicResponses["401"]; ok {
+		t.Fatal("expected public route to omit 401 response documentation")
+	}
+	if _, ok := publicResponses["403"]; ok {
+		t.Fatal("expected public route to omit 403 response documentation")
+	}
 
 	scopedOp := paths["/api/scoped"].(map[string]any)["get"].(map[string]any)
 	scopedSecurity, ok := scopedOp["security"].([]any)

@@ -185,7 +185,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.Security),
 			}
 			if rd.Deprecated {
 				operation["deprecated"] = true
@@ -314,11 +314,13 @@ func normaliseOpenAPIPath(path string) string {
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any, example any) map[string]any {
+func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, security []map[string][]string) map[string]any {
 	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
 	if method == "get" {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
 	}
+
+	isPublic := security != nil && len(security) == 0
 
 	code := successStatusCode(statusCode)
 	successResponse := map[string]any{
@@ -340,28 +342,10 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		}
 	}
 
-	return map[string]any{
+	responses := map[string]any{
 		strconv.Itoa(code): successResponse,
 		"400": map[string]any{
 			"description": "Bad request",
-			"content": map[string]any{
-				"application/json": map[string]any{
-					"schema": envelopeSchema(nil),
-				},
-			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
-		},
-		"401": map[string]any{
-			"description": "Unauthorised",
-			"content": map[string]any{
-				"application/json": map[string]any{
-					"schema": envelopeSchema(nil),
-				},
-			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
-		},
-		"403": map[string]any{
-			"description": "Forbidden",
 			"content": map[string]any{
 				"application/json": map[string]any{
 					"schema": envelopeSchema(nil),
@@ -397,6 +381,29 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 	}
+
+	if !isPublic {
+		responses["401"] = map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+		}
+		responses["403"] = map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+		}
+	}
+
+	return responses
 }
 
 func successStatusCode(statusCode int) int {
