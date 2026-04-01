@@ -257,6 +257,84 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Good_UsesTopLevelQueryParametersOnPost(t *testing.T) {
+	errCh := make(chan error, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			errCh <- fmt.Errorf("expected POST, got %s", r.Method)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if got := r.URL.Query().Get("verbose"); got != "true" {
+			errCh <- fmt.Errorf("expected query verbose=true, got %q", got)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			errCh <- fmt.Errorf("read body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if string(body) != `{"name":"Ada"}` {
+			errCh <- fmt.Errorf("expected JSON body {\"name\":\"Ada\"}, got %q", string(body))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /submit:
+    post:
+      operationId: submit_item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      parameters:
+        - name: verbose
+          in: query
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	result, err := client.Call("submit_item", map[string]any{
+		"verbose": true,
+		"name":    "Ada",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
+	decoded, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", result)
+	}
+	if okValue, ok := decoded["ok"].(bool); !ok || !okValue {
+		t.Fatalf("expected ok=true, got %#v", decoded["ok"])
+	}
+}
+
 func TestOpenAPIClient_Good_UsesHeaderAndCookieParameters(t *testing.T) {
 	errCh := make(chan error, 1)
 	mux := http.NewServeMux()

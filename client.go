@@ -342,22 +342,21 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 			appendQueryValue(query, key, value)
 		}
 	}
-	if op.method == http.MethodGet || (op.method == http.MethodHead && !op.hasRequestBody) {
-		for key, value := range params {
-			if key == "path" || key == "body" || key == "query" || key == "header" || key == "cookie" {
-				continue
-			}
-			if containsString(pathKeys, key) {
-				continue
-			}
-			if operationParameterLocation(op, key) == "header" || operationParameterLocation(op, key) == "cookie" {
-				continue
-			}
-			if _, exists := query[key]; exists {
-				continue
-			}
-			appendQueryValue(query, key, value)
+	for key, value := range params {
+		if key == "path" || key == "body" || key == "query" || key == "header" || key == "cookie" {
+			continue
 		}
+		if containsString(pathKeys, key) {
+			continue
+		}
+		location := operationParameterLocation(op, key)
+		if location != "query" && !(location == "" && (op.method == http.MethodGet || (op.method == http.MethodHead && !op.hasRequestBody))) {
+			continue
+		}
+		if _, exists := query[key]; exists {
+			continue
+		}
+		appendQueryValue(query, key, value)
 	}
 
 	if encoded := query.Encode(); encoded != "" {
