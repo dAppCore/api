@@ -38,6 +38,15 @@ func TestWithRateLimit_Good_AllowsBurstThenRejects(t *testing.T) {
 	if w1.Code != http.StatusOK {
 		t.Fatalf("expected first request to succeed, got %d", w1.Code)
 	}
+	if got := w1.Header().Get("X-RateLimit-Limit"); got != "2" {
+		t.Fatalf("expected X-RateLimit-Limit=2, got %q", got)
+	}
+	if got := w1.Header().Get("X-RateLimit-Remaining"); got != "1" {
+		t.Fatalf("expected X-RateLimit-Remaining=1, got %q", got)
+	}
+	if got := w1.Header().Get("X-RateLimit-Reset"); got == "" {
+		t.Fatal("expected X-RateLimit-Reset on successful response")
+	}
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
@@ -57,6 +66,15 @@ func TestWithRateLimit_Good_AllowsBurstThenRejects(t *testing.T) {
 
 	if got := w3.Header().Get("Retry-After"); got == "" {
 		t.Fatal("expected Retry-After header on 429 response")
+	}
+	if got := w3.Header().Get("X-RateLimit-Limit"); got != "2" {
+		t.Fatalf("expected X-RateLimit-Limit=2 on 429, got %q", got)
+	}
+	if got := w3.Header().Get("X-RateLimit-Remaining"); got != "0" {
+		t.Fatalf("expected X-RateLimit-Remaining=0 on 429, got %q", got)
+	}
+	if got := w3.Header().Get("X-RateLimit-Reset"); got == "" {
+		t.Fatal("expected X-RateLimit-Reset on 429 response")
 	}
 
 	var resp api.Response[any]
@@ -84,6 +102,9 @@ func TestWithRateLimit_Good_IsolatesPerIP(t *testing.T) {
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
 		t.Fatalf("expected first IP to succeed, got %d", w1.Code)
+	}
+	if got := w1.Header().Get("X-RateLimit-Limit"); got != "1" {
+		t.Fatalf("expected X-RateLimit-Limit=1, got %q", got)
 	}
 
 	w2 := httptest.NewRecorder()

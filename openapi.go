@@ -170,7 +170,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(dataSchema),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 		"400": map[string]any{
 			"description": "Bad request",
@@ -231,7 +231,7 @@ func healthResponses() map[string]any {
 					"schema": envelopeSchema(map[string]any{"type": "string"}),
 				},
 			},
-			"headers": standardResponseHeaders(),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -316,8 +316,57 @@ func envelopeSchema(dataSchema map[string]any) map[string]any {
 // rejects a request.
 func rateLimitHeaders() map[string]any {
 	return map[string]any{
+		"X-RateLimit-Limit": map[string]any{
+			"description": "Maximum number of requests allowed in the current window",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 1,
+			},
+		},
+		"X-RateLimit-Remaining": map[string]any{
+			"description": "Number of requests remaining in the current window",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 0,
+			},
+		},
+		"X-RateLimit-Reset": map[string]any{
+			"description": "Unix timestamp when the rate limit window resets",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 1,
+			},
+		},
 		"Retry-After": map[string]any{
 			"description": "Seconds until the rate limit resets",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 1,
+			},
+		},
+	}
+}
+
+// rateLimitSuccessHeaders documents the response headers emitted on
+// successful requests when rate limiting is enabled.
+func rateLimitSuccessHeaders() map[string]any {
+	return map[string]any{
+		"X-RateLimit-Limit": map[string]any{
+			"description": "Maximum number of requests allowed in the current window",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 1,
+			},
+		},
+		"X-RateLimit-Remaining": map[string]any{
+			"description": "Number of requests remaining in the current window",
+			"schema": map[string]any{
+				"type":    "integer",
+				"minimum": 0,
+			},
+		},
+		"X-RateLimit-Reset": map[string]any{
+			"description": "Unix timestamp when the rate limit window resets",
 			"schema": map[string]any{
 				"type":    "integer",
 				"minimum": 1,

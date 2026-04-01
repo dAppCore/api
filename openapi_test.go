@@ -76,6 +76,15 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := headers["X-Request-ID"]; !ok {
 		t.Fatal("expected X-Request-ID header on /health 429 response")
 	}
+	if _, ok := headers["X-RateLimit-Limit"]; !ok {
+		t.Fatal("expected X-RateLimit-Limit header on /health 429 response")
+	}
+	if _, ok := headers["X-RateLimit-Remaining"]; !ok {
+		t.Fatal("expected X-RateLimit-Remaining header on /health 429 response")
+	}
+	if _, ok := headers["X-RateLimit-Reset"]; !ok {
+		t.Fatal("expected X-RateLimit-Reset header on /health 429 response")
+	}
 
 	// Verify system tag exists.
 	tags := spec["tags"].([]any)
@@ -256,6 +265,15 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	if _, ok := headers["X-Request-ID"]; !ok {
 		t.Fatal("expected X-Request-ID header in secured operation 429 response")
 	}
+	if _, ok := headers["X-RateLimit-Limit"]; !ok {
+		t.Fatal("expected X-RateLimit-Limit header in secured operation 429 response")
+	}
+	if _, ok := headers["X-RateLimit-Remaining"]; !ok {
+		t.Fatal("expected X-RateLimit-Remaining header in secured operation 429 response")
+	}
+	if _, ok := headers["X-RateLimit-Reset"]; !ok {
+		t.Fatal("expected X-RateLimit-Reset header in secured operation 429 response")
+	}
 }
 
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
@@ -301,6 +319,15 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	headers := resp200["headers"].(map[string]any)
 	if _, ok := headers["X-Request-ID"]; !ok {
 		t.Fatal("expected X-Request-ID header on 200 response")
+	}
+	if _, ok := headers["X-RateLimit-Limit"]; !ok {
+		t.Fatal("expected X-RateLimit-Limit header on 200 response")
+	}
+	if _, ok := headers["X-RateLimit-Remaining"]; !ok {
+		t.Fatal("expected X-RateLimit-Remaining header on 200 response")
+	}
+	if _, ok := headers["X-RateLimit-Reset"]; !ok {
+		t.Fatal("expected X-RateLimit-Reset header on 200 response")
 	}
 	content := resp200["content"].(map[string]any)
 	appJSON := content["application/json"].(map[string]any)

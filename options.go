@@ -260,8 +260,10 @@ func WithCache(ttl time.Duration, maxEntries ...int) Option {
 }
 
 // WithRateLimit adds per-IP token-bucket rate limiting middleware.
-// Requests exceeding the configured limit per second are rejected with
-// 429 Too Many Requests and the standard Fail() error envelope.
+// Requests that pass are annotated with X-RateLimit-Limit,
+// X-RateLimit-Remaining, and X-RateLimit-Reset headers. Requests
+// exceeding the configured limit are rejected with 429 Too Many
+// Requests, Retry-After, and the standard Fail() error envelope.
 // A zero or negative limit disables rate limiting.
 func WithRateLimit(limit int) Option {
 	return func(e *Engine) {

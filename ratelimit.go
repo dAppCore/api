@@ -3,6 +3,7 @@
 package api
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"sync"
@@ -30,6 +31,14 @@ type rateLimitBucket struct {
 	lastSeen time.Time
 }
 
+type rateLimitDecision struct {
+	allowed    bool
+	retryAfter time.Duration
+	limit      int
+	remaining  int
+	resetAt    time.Time
+}
+
 func newRateLimitStore(limit int) *rateLimitStore {
 	now := time.Now()
 	return &rateLimitStore{
@@ -39,7 +48,7 @@ func newRateLimitStore(limit int) *rateLimitStore {
 	}
 }
 
-func (s *rateLimitStore) allow(key string) (bool, time.Duration) {
+func (s *rateLimitStore) allow(key string) rateLimitDecision {
 	now := time.Now()
 
 	s.mu.Lock()
@@ -81,7 +90,12 @@ func (s *rateLimitStore) allow(key string) (bool, time.Duration) {
 
 	if bucket.tokens >= 1 {
 		bucket.tokens--
-		return true, 0
+		return rateLimitDecision{
+			allowed:   true,
+			limit:     s.limit,
+			remaining: int(math.Floor(bucket.tokens)),
+			resetAt:   now.Add(timeUntilFull(bucket.tokens, s.limit)),
+		}
 	}
 
 	deficit := 1 - bucket.tokens
@@ -93,7 +107,13 @@ func (s *rateLimitStore) allow(key string) (bool, time.Duration) {
 		}
 	}
 
-	return false, wait
+	return rateLimitDecision{
+		allowed:    false,
+		retryAfter: wait,
+		limit:      s.limit,
+		remaining:  0,
+		resetAt:    now.Add(wait),
+	}
 }
 
 func rateLimitMiddleware(limit int) gin.HandlerFunc {
@@ -107,15 +127,16 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		key := clientRateLimitKey(c)
-		allowed, retryAfter := store.allow(key)
-		if !allowed {
-			secs := int(retryAfter / time.Second)
-			if retryAfter%time.Second != 0 {
+		decision := store.allow(key)
+		if !decision.allowed {
+			secs := int(decision.retryAfter / time.Second)
+			if decision.retryAfter%time.Second != 0 {
 				secs++
 			}
 			if secs < 1 {
 				secs = 1
 			}
+			setRateLimitHeaders(c, decision.limit, decision.remaining, decision.resetAt)
 			c.Header("Retry-After", strconv.Itoa(secs))
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, Fail(
 				"rate_limit_exceeded",
@@ -125,7 +146,40 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 		}
 
 		c.Next()
+		setRateLimitHeaders(c, decision.limit, decision.remaining, decision.resetAt)
 	}
+}
+
+func setRateLimitHeaders(c *gin.Context, limit, remaining int, resetAt time.Time) {
+	if limit > 0 {
+		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
+	}
+	if remaining < 0 {
+		remaining = 0
+	}
+	c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
+	if !resetAt.IsZero() {
+		reset := resetAt.Unix()
+		if reset <= time.Now().Unix() {
+			reset = time.Now().Add(time.Second).Unix()
+		}
+		c.Header("X-RateLimit-Reset", strconv.FormatInt(reset, 10))
+	}
+}
+
+func timeUntilFull(tokens float64, limit int) time.Duration {
+	if limit <= 0 {
+		return 0
+	}
+	missing := float64(limit) - tokens
+	if missing <= 0 {
+		return 0
+	}
+	seconds := missing / float64(limit)
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(math.Ceil(seconds * float64(time.Second)))
 }
 
 func clientRateLimitKey(c *gin.Context) string {
