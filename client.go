@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -270,7 +271,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	query := url.Values{}
 	if explicitQuery, ok := nestedMap(params, "query"); ok {
 		for key, value := range explicitQuery {
-			query.Set(key, fmt.Sprint(value))
+			appendQueryValue(query, key, value)
 		}
 	}
 	if op.method == http.MethodGet || (op.method == http.MethodHead && !op.hasRequestBody) {
@@ -284,7 +285,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 			if _, exists := query[key]; exists {
 				continue
 			}
-			query.Set(key, fmt.Sprint(value))
+			appendQueryValue(query, key, value)
 		}
 	}
 
@@ -412,4 +413,43 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func appendQueryValue(query url.Values, key string, value any) {
+	switch v := value.(type) {
+	case nil:
+		return
+	case []byte:
+		query.Add(key, string(v))
+		return
+	case []string:
+		for _, item := range v {
+			query.Add(key, item)
+		}
+		return
+	case []any:
+		for _, item := range v {
+			appendQueryValue(query, key, item)
+		}
+		return
+	}
+
+	rv := reflect.ValueOf(value)
+	if !rv.IsValid() {
+		return
+	}
+
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			query.Add(key, string(rv.Bytes()))
+			return
+		}
+		for i := 0; i < rv.Len(); i++ {
+			appendQueryValue(query, key, rv.Index(i).Interface())
+		}
+		return
+	}
+
+	query.Add(key, fmt.Sprint(value))
 }

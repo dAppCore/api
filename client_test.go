@@ -194,6 +194,69 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Good_CallOperationWithRepeatedQueryValues(t *testing.T) {
+	errCh := make(chan error, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if got := r.URL.Query()["tag"]; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
+			errCh <- fmt.Errorf("expected repeated tag values [alpha beta], got %v", got)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if got := r.URL.Query().Get("page"); got != "2" {
+			errCh <- fmt.Errorf("expected page=2, got %q", got)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /search:
+    get:
+      operationId: search_items
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	result, err := client.Call("search_items", map[string]any{
+		"tag":  []string{"alpha", "beta"},
+		"page": 2,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
+	decoded, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", result)
+	}
+	if okValue, ok := decoded["ok"].(bool); !ok || !okValue {
+		t.Fatalf("expected ok=true, got %#v", decoded["ok"])
+	}
+}
+
 func TestOpenAPIClient_Bad_MissingOperation(t *testing.T) {
 	specPath := writeTempSpec(t, `openapi: 3.1.0
 info:
