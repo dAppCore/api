@@ -60,6 +60,14 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := paths["/health"]; !ok {
 		t.Fatal("expected /health path in spec")
 	}
+	health := paths["/health"].(map[string]any)["get"].(map[string]any)
+	healthResponses := health["responses"].(map[string]any)
+	if _, ok := healthResponses["429"]; !ok {
+		t.Fatal("expected 429 response on /health")
+	}
+	if _, ok := healthResponses["504"]; !ok {
+		t.Fatal("expected 504 response on /health")
+	}
 
 	// Verify system tag exists.
 	tags := spec["tags"].([]any)
@@ -225,6 +233,12 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	}
 	if _, ok := responses["403"]; !ok {
 		t.Fatal("expected 403 response in secured operation")
+	}
+	if _, ok := responses["429"]; !ok {
+		t.Fatal("expected 429 response in secured operation")
+	}
+	if _, ok := responses["504"]; !ok {
+		t.Fatal("expected 504 response in secured operation")
 	}
 }
 

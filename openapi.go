@@ -96,16 +96,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 				"description": "Returns server health status",
 				"tags":        []string{"system"},
 				"operationId": operationID("get", "/health", operationIDs),
-				"responses": map[string]any{
-					"200": map[string]any{
-						"description": "Server is healthy",
-						"content": map[string]any{
-							"application/json": map[string]any{
-								"schema": envelopeSchema(map[string]any{"type": "string"}),
-							},
-						},
-					},
-				},
+				"responses":   healthResponses(),
 			},
 		},
 	}
@@ -129,40 +120,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 						"bearerAuth": []any{},
 					},
 				},
-				"responses": map[string]any{
-					"200": map[string]any{
-						"description": "Successful response",
-						"content": map[string]any{
-							"application/json": map[string]any{
-								"schema": envelopeSchema(rd.Response),
-							},
-						},
-					},
-					"400": map[string]any{
-						"description": "Bad request",
-						"content": map[string]any{
-							"application/json": map[string]any{
-								"schema": envelopeSchema(nil),
-							},
-						},
-					},
-					"401": map[string]any{
-						"description": "Unauthorised",
-						"content": map[string]any{
-							"application/json": map[string]any{
-								"schema": envelopeSchema(nil),
-							},
-						},
-					},
-					"403": map[string]any{
-						"description": "Forbidden",
-						"content": map[string]any{
-							"application/json": map[string]any{
-								"schema": envelopeSchema(nil),
-							},
-						},
-					},
-				},
+				"responses": operationResponses(rd.Response),
 			}
 
 			// Add request body for methods that accept one.
@@ -198,6 +156,93 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 	}
 
 	return paths
+}
+
+// operationResponses builds the standard response set for a documented API
+// operation. The framework always exposes the common envelope responses, plus
+// middleware-driven 429 and 504 errors.
+func operationResponses(dataSchema map[string]any) map[string]any {
+	return map[string]any{
+		"200": map[string]any{
+			"description": "Successful response",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(dataSchema),
+				},
+			},
+		},
+		"400": map[string]any{
+			"description": "Bad request",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+		"401": map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+		"403": map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+		"429": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+		"504": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+	}
+}
+
+// healthResponses builds the response set for the built-in health endpoint.
+// It stays public, but rate limiting and timeouts can still apply.
+func healthResponses() map[string]any {
+	return map[string]any{
+		"200": map[string]any{
+			"description": "Server is healthy",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(map[string]any{"type": "string"}),
+				},
+			},
+		},
+		"429": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+		"504": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+		},
+	}
 }
 
 // buildTags generates the tags array from all RouteGroups.
