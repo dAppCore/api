@@ -576,7 +576,9 @@ Generates an OpenAPI 3.1 specification from registered route groups.
 | `--output` | `-o` | (stdout) | Write spec to file |
 | `--format` | `-f` | `json` | Output format: `json` or `yaml` |
 | `--title` | `-t` | `Lethean Core API` | API title |
+| `--description` | `-d` | `Lethean Core API` | API description |
 | `--version` | `-V` | `1.0.0` | API version |
+| `--server` | `-S` | (none) | Comma-separated OpenAPI server URL(s) |
 
 ### `core api sdk`
 
@@ -588,6 +590,10 @@ Generates client SDKs from an OpenAPI spec using `openapi-generator-cli`.
 | `--output` | `-o` | `./sdk` | Output directory |
 | `--spec` | `-s` | (auto-generated) | Path to existing OpenAPI spec |
 | `--package` | `-p` | `lethean` | Package name for generated SDK |
+| `--title` | `-t` | `Lethean Core API` | API title in generated spec |
+| `--description` | `-d` | `Lethean Core API` | API description in generated spec |
+| `--version` | `-V` | `1.0.0` | API version in generated spec |
+| `--server` | `-S` | (none) | Comma-separated OpenAPI server URL(s) |
 
 ---
 

@@ -245,4 +245,73 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("package") == nil {
 		t.Fatal("expected --package flag on sdk command")
 	}
+	if sdkCmd.Flag("title") == nil {
+		t.Fatal("expected --title flag on sdk command")
+	}
+	if sdkCmd.Flag("description") == nil {
+		t.Fatal("expected --description flag on sdk command")
+	}
+	if sdkCmd.Flag("version") == nil {
+		t.Fatal("expected --version flag on sdk command")
+	}
+	if sdkCmd.Flag("server") == nil {
+		t.Fatal("expected --server flag on sdk command")
+	}
+}
+
+func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
+	api.RegisterSpecGroups(specCmdStubGroup{})
+
+	builder := sdkSpecBuilder("Custom SDK API", "Custom SDK description", "9.9.9", "https://api.example.com, /, https://api.example.com")
+	groups := sdkSpecGroups()
+
+	outputFile := t.TempDir() + "/spec.json"
+	if err := api.ExportSpecToFile(outputFile, "json", builder, groups); err != nil {
+		t.Fatalf("unexpected error writing temp spec: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+	if info["title"] != "Custom SDK API" {
+		t.Fatalf("expected custom title, got %v", info["title"])
+	}
+	if info["description"] != "Custom SDK description" {
+		t.Fatalf("expected custom description, got %v", info["description"])
+	}
+	if info["version"] != "9.9.9" {
+		t.Fatalf("expected custom version, got %v", info["version"])
+	}
+
+	servers, ok := spec["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array in generated spec, got %T", spec["servers"])
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+	if servers[0].(map[string]any)["url"] != "https://api.example.com" {
+		t.Fatalf("expected first server to be https://api.example.com, got %v", servers[0])
+	}
+	if servers[1].(map[string]any)["url"] != "/" {
+		t.Fatalf("expected second server to be /, got %v", servers[1])
+	}
 }
