@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Mod\Api\Services;
+namespace Core\Api\Services;
 
 use Carbon\Carbon;
-use Mod\Api\Models\ApiUsage;
-use Mod\Api\Models\ApiUsageDaily;
+use Core\Api\Models\ApiUsage;
+use Core\Api\Models\ApiUsageDaily;
 
 /**
  * API Usage Service - tracks and reports API usage metrics.

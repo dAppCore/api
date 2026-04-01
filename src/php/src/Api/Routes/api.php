@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Core\Api\Controllers\Api\UnifiedPixelController;
 use Core\Api\Controllers\Api\EntitlementApiController;
+use Core\Api\Controllers\Api\SeoReportController;
 use Core\Api\Controllers\McpApiController;
 use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
@@ -16,8 +17,7 @@ use Illuminate\Support\Facades\Route;
 |
 | Core API routes for cross-cutting concerns.
 |
-| TODO: SeoReportController and EntitlementApiController are planned but not
-|       yet implemented. Re-add routes when controllers exist.
+| SEO, pixel tracking, entitlements, and MCP bridge endpoints.
 |
 */
 
@@ -31,6 +31,18 @@ Route::middleware([PublicApiCors::class, 'api.rate'])
     ->group(function () {
         Route::match(['GET', 'POST', 'OPTIONS'], '/{pixelKey}', [UnifiedPixelController::class, 'track'])
             ->name('track');
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEO analysis (authenticated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Route::middleware(['auth.api', 'api.scope.enforce'])
+    ->prefix('seo')
+    ->name('api.seo.')
+    ->group(function () {
+        Route::get('/report', [SeoReportController::class, 'show'])
+            ->name('report');
     });
 
 // ─────────────────────────────────────────────────────────────────────────────

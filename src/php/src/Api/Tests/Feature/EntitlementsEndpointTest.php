@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use Mod\Api\Models\ApiKey;
-use Mod\Api\Services\ApiUsageService;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Api\Models\ApiKey;
+use Core\Api\Services\ApiUsageService;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
