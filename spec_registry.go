@@ -2,7 +2,12 @@
 
 package api
 
-import "sync"
+import (
+	"iter"
+	"sync"
+
+	"slices"
+)
 
 // specRegistry stores RouteGroups that should be included in CLI-generated
 // OpenAPI documents. Packages can register their groups during init and the
@@ -47,6 +52,19 @@ func RegisteredSpecGroups() []RouteGroup {
 	out := make([]RouteGroup, len(specRegistry.groups))
 	copy(out, specRegistry.groups)
 	return out
+}
+
+// RegisteredSpecGroupsIter returns an iterator over the route groups registered
+// for CLI-generated OpenAPI documents.
+//
+// The iterator snapshots the current registry contents so callers can range
+// over it without holding the registry lock.
+func RegisteredSpecGroupsIter() iter.Seq[RouteGroup] {
+	specRegistry.mu.RLock()
+	groups := slices.Clone(specRegistry.groups)
+	specRegistry.mu.RUnlock()
+
+	return slices.Values(groups)
 }
 
 // ResetSpecGroups clears the package-level spec registry.
