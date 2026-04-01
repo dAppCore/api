@@ -192,7 +192,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.Security),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, rd.Security),
 			}
 			if rd.Deprecated {
 				operation["deprecated"] = true
@@ -321,10 +321,13 @@ func normaliseOpenAPIPath(path string) string {
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, security []map[string][]string) map[string]any {
+func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string) map[string]any {
 	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
 	if method == "get" {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
+	if headers := documentedResponseHeaders(responseHeaders); len(headers) > 0 {
+		successHeaders = mergeHeaders(successHeaders, headers)
 	}
 
 	isPublic := security != nil && len(security) == 0
@@ -845,6 +848,32 @@ func cacheSuccessHeaders() map[string]any {
 			},
 		},
 	}
+}
+
+// documentedResponseHeaders converts route-specific response header metadata
+// into OpenAPI header objects.
+func documentedResponseHeaders(headers map[string]string) map[string]any {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	out := make(map[string]any, len(headers))
+	for name, description := range headers {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		out[name] = map[string]any{
+			"description": description,
+			"schema": map[string]any{
+				"type": "string",
+			},
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // standardResponseHeaders documents headers emitted by the response envelope

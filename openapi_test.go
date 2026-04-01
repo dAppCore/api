@@ -1059,6 +1059,61 @@ func TestSpecBuilder_Good_RequestExampleWithoutSchema(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "downloads",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/exports/{id}",
+				Summary: "Download export",
+				ResponseHeaders: map[string]string{
+					"Content-Disposition": "Download filename suggested by the server",
+					"X-Export-ID":         "Identifier for the generated export",
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	responses := spec["paths"].(map[string]any)["/api/exports/{id}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
+	resp200 := responses["200"].(map[string]any)
+	headers, ok := resp200["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected headers map, got %T", resp200["headers"])
+	}
+
+	header, ok := headers["Content-Disposition"].(map[string]any)
+	if !ok {
+		t.Fatal("expected Content-Disposition response header to be documented")
+	}
+	if header["description"] != "Download filename suggested by the server" {
+		t.Fatalf("expected header description to be preserved, got %v", header["description"])
+	}
+	schema := header["schema"].(map[string]any)
+	if schema["type"] != "string" {
+		t.Fatalf("expected response header schema type string, got %v", schema["type"])
+	}
+}
+
 func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

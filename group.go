@@ -64,6 +64,7 @@ type RouteDescription struct {
 	RequestExample  any            // Optional example payload for the request body.
 	Response        map[string]any // JSON Schema for success response data
 	ResponseExample any            // Optional example payload for the success response.
+	ResponseHeaders map[string]string
 }
 
 // ParameterDescription describes an OpenAPI parameter for a route.
