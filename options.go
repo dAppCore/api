@@ -119,8 +119,9 @@ func WithAuthentik(cfg AuthentikConfig) Option {
 }
 
 // WithSunset adds deprecation headers to every response.
-// The middleware emits Deprecation, optional Sunset, optional Link, and
-// X-API-Warn headers. Use it to deprecate an entire route group or API version.
+// The middleware appends Deprecation, optional Sunset, optional Link, and
+// X-API-Warn headers without clobbering any existing header values. Use it to
+// deprecate an entire route group or API version.
 func WithSunset(sunsetDate, replacement string) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, ApiSunset(sunsetDate, replacement))

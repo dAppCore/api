@@ -12,8 +12,10 @@ import (
 
 // ApiSunset returns middleware that marks a route or group as deprecated.
 //
-// The middleware adds standard deprecation headers to every response:
-// Deprecation, optional Sunset, optional Link, and X-API-Warn.
+// The middleware appends standard deprecation headers to every response:
+// Deprecation, optional Sunset, optional Link, and X-API-Warn. Existing header
+// values are preserved so downstream middleware and handlers can keep their own
+// link relations or warning metadata.
 //
 // Example:
 //
@@ -30,14 +32,14 @@ func ApiSunset(sunsetDate, replacement string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
-		c.Header("Deprecation", "true")
+		c.Writer.Header().Add("Deprecation", "true")
 		if formatted != "" {
-			c.Header("Sunset", formatted)
+			c.Writer.Header().Add("Sunset", formatted)
 		}
 		if replacement != "" {
 			c.Writer.Header().Add("Link", "<"+replacement+">; rel=\"successor-version\"")
 		}
-		c.Header("X-API-Warn", warning)
+		c.Writer.Header().Add("X-API-Warn", warning)
 	}
 }
 
