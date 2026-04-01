@@ -257,6 +257,103 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Good_UsesHeaderAndCookieParameters(t *testing.T) {
+	errCh := make(chan error, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/inspect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if got := r.Header.Get("X-Trace-ID"); got != "trace-123" {
+			errCh <- fmt.Errorf("expected X-Trace-ID=trace-123, got %q", got)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if got := r.Header.Get("X-Custom-Header"); got != "custom-value" {
+			errCh <- fmt.Errorf("expected X-Custom-Header=custom-value, got %q", got)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		session, err := r.Cookie("session_id")
+		if err != nil {
+			errCh <- fmt.Errorf("expected session_id cookie: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if session.Value != "cookie-123" {
+			errCh <- fmt.Errorf("expected session_id=cookie-123, got %q", session.Value)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		pref, err := r.Cookie("pref")
+		if err != nil {
+			errCh <- fmt.Errorf("expected pref cookie: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if pref.Value != "dark" {
+			errCh <- fmt.Errorf("expected pref=dark, got %q", pref.Value)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /inspect:
+    get:
+      operationId: inspect_request
+      parameters:
+        - name: X-Trace-ID
+          in: header
+        - name: session_id
+          in: cookie
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	result, err := client.Call("inspect_request", map[string]any{
+		"X-Trace-ID": "trace-123",
+		"session_id": "cookie-123",
+		"header": map[string]any{
+			"X-Custom-Header": "custom-value",
+		},
+		"cookie": map[string]any{
+			"pref": "dark",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
+	decoded, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", result)
+	}
+	if okValue, ok := decoded["ok"].(bool); !ok || !okValue {
+		t.Fatalf("expected ok=true, got %#v", decoded["ok"])
+	}
+}
+
 func TestOpenAPIClient_Good_UsesFirstAbsoluteServer(t *testing.T) {
 	errCh := make(chan error, 1)
 	mux := http.NewServeMux()
