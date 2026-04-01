@@ -102,6 +102,11 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := health504Headers["X-RateLimit-Reset"]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header on /health 504 response")
 	}
+	health200 := health["responses"].(map[string]any)["200"].(map[string]any)
+	health200Headers := health200["headers"].(map[string]any)
+	if _, ok := health200Headers["X-Cache"]; !ok {
+		t.Fatal("expected X-Cache header on /health 200 response")
+	}
 
 	// Verify system tag exists.
 	tags := spec["tags"].([]any)
@@ -368,6 +373,9 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	}
 	if _, ok := headers["X-RateLimit-Reset"]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header on 200 response")
+	}
+	if _, ok := headers["X-Cache"]; !ok {
+		t.Fatal("expected X-Cache header on 200 response")
 	}
 	content := resp200["content"].(map[string]any)
 	appJSON := content["application/json"].(map[string]any)

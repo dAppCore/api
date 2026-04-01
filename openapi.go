@@ -129,7 +129,7 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 						"bearerAuth": []any{},
 					},
 				},
-				"responses": operationResponses(rd.Response),
+				"responses": operationResponses(method, rd.Response),
 			}
 
 			// Add request body for methods that accept one.
@@ -170,7 +170,12 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(dataSchema map[string]any) map[string]any {
+func operationResponses(method string, dataSchema map[string]any) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	if method == "get" {
+		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
+
 	return map[string]any{
 		"200": map[string]any{
 			"description": "Successful response",
@@ -179,7 +184,7 @@ func operationResponses(dataSchema map[string]any) map[string]any {
 					"schema": envelopeSchema(dataSchema),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": successHeaders,
 		},
 		"400": map[string]any{
 			"description": "Bad request",
@@ -249,7 +254,7 @@ func healthResponses() map[string]any {
 					"schema": envelopeSchema(map[string]any{"type": "string"}),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), cacheSuccessHeaders()),
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -397,6 +402,19 @@ func rateLimitSuccessHeaders() map[string]any {
 			"schema": map[string]any{
 				"type":    "integer",
 				"minimum": 1,
+			},
+		},
+	}
+}
+
+// cacheSuccessHeaders documents the response header emitted on successful
+// cache hits.
+func cacheSuccessHeaders() map[string]any {
+	return map[string]any{
+		"X-Cache": map[string]any{
+			"description": "Indicates the response was served from the in-memory cache",
+			"schema": map[string]any{
+				"type": "string",
 			},
 		},
 	}
