@@ -189,6 +189,30 @@ func TestAPISpecCmd_Good_ContactFlagsPopulateSpecInfo(t *testing.T) {
 	}
 }
 
+func TestSpecGroupsIter_Good_DeduplicatesExtraBridge(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
+	group := specCmdStubGroup{}
+	api.RegisterSpecGroups(group)
+
+	var groups []api.RouteGroup
+	for g := range specGroupsIter(group) {
+		groups = append(groups, g)
+	}
+
+	if len(groups) != 1 {
+		t.Fatalf("expected duplicate extra group to be skipped, got %d groups", len(groups))
+	}
+	if groups[0].Name() != group.Name() || groups[0].BasePath() != group.BasePath() {
+		t.Fatalf("expected original group to be preserved, got %s at %s", groups[0].Name(), groups[0].BasePath())
+	}
+}
+
 func TestAPISpecCmd_Good_TermsOfServiceFlagPopulatesSpecInfo(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
