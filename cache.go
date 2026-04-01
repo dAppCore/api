@@ -125,9 +125,17 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 		// Serve from cache if a valid entry exists.
 		if entry := store.get(key); entry != nil {
 			for k, vals := range entry.headers {
+				if http.CanonicalHeaderKey(k) == "X-Request-ID" {
+					continue
+				}
 				for _, v := range vals {
 					c.Writer.Header().Set(k, v)
 				}
+			}
+			if requestID := GetRequestID(c); requestID != "" {
+				c.Writer.Header().Set("X-Request-ID", requestID)
+			} else if requestID := c.GetHeader("X-Request-ID"); requestID != "" {
+				c.Writer.Header().Set("X-Request-ID", requestID)
 			}
 			c.Writer.Header().Set("X-Cache", "HIT")
 			c.Writer.WriteHeader(entry.status)
