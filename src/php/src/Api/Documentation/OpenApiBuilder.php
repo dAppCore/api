@@ -12,6 +12,7 @@ use Core\Api\Documentation\Attributes\ApiTag;
 use Core\Api\Documentation\Extensions\ApiKeyAuthExtension;
 use Core\Api\Documentation\Extensions\RateLimitExtension;
 use Core\Api\Documentation\Extensions\SunsetExtension;
+use Core\Api\Documentation\Extensions\VersionExtension;
 use Core\Api\Documentation\Extensions\WorkspaceHeaderExtension;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Routing\Route;
@@ -58,6 +59,7 @@ class OpenApiBuilder
     {
         $this->extensions = [
             new WorkspaceHeaderExtension,
+            new VersionExtension,
             new RateLimitExtension,
             new SunsetExtension,
             new ApiKeyAuthExtension,
