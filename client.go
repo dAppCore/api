@@ -86,8 +86,8 @@ func NewOpenAPIClient(opts ...OpenAPIClientOption) *OpenAPIClient {
 //
 // The params argument may be a map, struct, or nil. For convenience, a map may
 // include "path", "query", and "body" keys to explicitly control where the
-// values are sent. When no explicit body is provided, non-GET requests send the
-// remaining parameters as JSON.
+// values are sent. When no explicit body is provided, requests with a declared
+// requestBody send the remaining parameters as JSON.
 func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 	if err := c.load(); err != nil {
 		return nil, err
@@ -273,7 +273,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 			query.Set(key, fmt.Sprint(value))
 		}
 	}
-	if op.method == http.MethodGet || op.method == http.MethodHead {
+	if op.method == http.MethodGet || (op.method == http.MethodHead && !op.hasRequestBody) {
 		for key, value := range params {
 			if key == "path" || key == "body" || key == "query" {
 				continue
@@ -300,7 +300,7 @@ func (c *OpenAPIClient) buildBody(op openAPIOperation, params map[string]any) (i
 		return encodeJSONBody(explicitBody)
 	}
 
-	if op.method == http.MethodGet || op.method == http.MethodHead {
+	if op.method == http.MethodGet || (op.method == http.MethodHead && !op.hasRequestBody) {
 		return nil, nil
 	}
 

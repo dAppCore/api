@@ -4,6 +4,7 @@ package api_test
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -121,6 +122,75 @@ paths:
 	}
 	if updated["name"] != "Ada" {
 		t.Fatalf("expected name=Ada, got %#v", updated["name"])
+	}
+}
+
+func TestOpenAPIClient_Good_CallHeadOperationWithRequestBody(t *testing.T) {
+	errCh := make(chan error, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/head", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead {
+			errCh <- fmt.Errorf("expected HEAD, got %s", r.Method)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if got := r.URL.RawQuery; got != "" {
+			errCh <- fmt.Errorf("expected no query string, got %q", got)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			errCh <- fmt.Errorf("read body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if string(body) != `{"name":"Ada"}` {
+			errCh <- fmt.Errorf("expected JSON body {\"name\":\"Ada\"}, got %q", string(body))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /head:
+    head:
+      operationId: head_check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	result, err := client.Call("head_check", map[string]any{
+		"name": "Ada",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+	if result != nil {
+		t.Fatalf("expected nil result for empty HEAD response body, got %T", result)
 	}
 }
 
