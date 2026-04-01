@@ -298,6 +298,10 @@ func timeoutResponse(c *gin.Context) {
 //
 // An optional maxEntries limit enables LRU eviction when the cache reaches
 // capacity. A value <= 0 keeps the cache unbounded for backward compatibility.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithCache(5*time.Minute, 100))
 func WithCache(ttl time.Duration, maxEntries ...int) Option {
 	return func(e *Engine) {
 		limit := 0
@@ -316,6 +320,10 @@ func WithCache(ttl time.Duration, maxEntries ...int) Option {
 // Requests exceeding the configured limit are rejected with 429 Too Many
 // Requests, Retry-After, and the standard Fail() error envelope.
 // A zero or negative limit disables rate limiting.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithRateLimit(100))
 func WithRateLimit(limit int) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, rateLimitMiddleware(limit))
@@ -368,6 +376,11 @@ func WithHTTPSign(secrets httpsign.Secrets, opts ...httpsign.Option) Option {
 // Clients connect to the endpoint and receive a streaming text/event-stream
 // response. The broker manages client connections and broadcasts events
 // published via its Publish method.
+//
+// Example:
+//
+//	broker := api.NewSSEBroker()
+//	engine, _ := api.New(api.WithSSE(broker))
 func WithSSE(broker *SSEBroker) Option {
 	return func(e *Engine) {
 		e.sseBroker = broker
@@ -381,6 +394,10 @@ func WithSSE(broker *SSEBroker) Option {
 //
 // After this middleware runs, handlers can call location.Get(c) to retrieve
 // a *url.URL with the detected scheme, host, and base path.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithLocation())
 func WithLocation() Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, location.Default())
@@ -394,6 +411,10 @@ func WithLocation() Option {
 //	api.New(
 //	    api.WithGraphQL(schema, api.WithPlayground(), api.WithGraphQLPath("/gql")),
 //	)
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithGraphQL(schema))
 func WithGraphQL(schema graphql.ExecutableSchema, opts ...GraphQLOption) Option {
 	return func(e *Engine) {
 		cfg := &graphqlConfig{

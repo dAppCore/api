@@ -50,6 +50,10 @@ func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []Route
 
 // ExportSpecIter generates the OpenAPI spec from an iterator and writes it to w.
 // Format must be "json" or "yaml".
+//
+// Example:
+//
+//	_ = api.ExportSpecIter(os.Stdout, "json", builder, api.RegisteredSpecGroupsIter())
 func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
 	data, err := builder.BuildIter(groups)
 	if err != nil {
@@ -96,6 +100,10 @@ func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 
 // ExportSpecToFileIter writes the OpenAPI spec from an iterator to the given path.
 // The parent directory is created if it does not exist.
+//
+// Example:
+//
+//	_ = api.ExportSpecToFileIter("./api/openapi.json", "json", builder, api.RegisteredSpecGroupsIter())
 func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
 	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
 		return coreerr.E("ExportSpecToFileIter", "create directory", err)
