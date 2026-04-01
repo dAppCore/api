@@ -55,6 +55,10 @@ type openAPIParameter struct {
 type OpenAPIClientOption func(*OpenAPIClient)
 
 // WithSpec sets the filesystem path to the OpenAPI document.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithSpec("./openapi.yaml"))
 func WithSpec(path string) OpenAPIClientOption {
 	return func(c *OpenAPIClient) {
 		c.specPath = path
@@ -62,6 +66,10 @@ func WithSpec(path string) OpenAPIClientOption {
 }
 
 // WithBaseURL sets the base URL used for outgoing requests.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithBaseURL("https://api.example.com"))
 func WithBaseURL(baseURL string) OpenAPIClientOption {
 	return func(c *OpenAPIClient) {
 		c.baseURL = baseURL
@@ -69,6 +77,13 @@ func WithBaseURL(baseURL string) OpenAPIClientOption {
 }
 
 // WithBearerToken sets the Authorization bearer token used for requests.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(
+//		api.WithBaseURL("https://api.example.com"),
+//		api.WithBearerToken("secret-token"),
+//	)
 func WithBearerToken(token string) OpenAPIClientOption {
 	return func(c *OpenAPIClient) {
 		c.bearerToken = token
@@ -76,6 +91,10 @@ func WithBearerToken(token string) OpenAPIClientOption {
 }
 
 // WithHTTPClient sets the HTTP client used to execute requests.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithHTTPClient(http.DefaultClient))
 func WithHTTPClient(client *http.Client) OpenAPIClientOption {
 	return func(c *OpenAPIClient) {
 		c.httpClient = client

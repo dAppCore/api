@@ -16,6 +16,10 @@ import (
 
 // ExportSpec generates the OpenAPI spec and writes it to w.
 // Format must be "json" or "yaml".
+//
+// Example:
+//
+//	_ = api.ExportSpec(os.Stdout, "yaml", builder, engine.Groups())
 func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []RouteGroup) error {
 	data, err := builder.Build(groups)
 	if err != nil {
@@ -45,6 +49,10 @@ func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []Route
 
 // ExportSpecToFile writes the spec to the given path.
 // The parent directory is created if it does not exist.
+//
+// Example:
+//
+//	_ = api.ExportSpecToFile("./api/openapi.yaml", "yaml", builder, engine.Groups())
 func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup) error {
 	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
 		return coreerr.E("ExportSpecToFile", "create directory", err)

@@ -111,6 +111,12 @@ func SupportedLanguages() []string {
 }
 
 // SupportedLanguagesIter returns an iterator over supported SDK target languages in sorted order.
+//
+// Example:
+//
+//	for lang := range api.SupportedLanguagesIter() {
+//		fmt.Println(lang)
+//	}
 func SupportedLanguagesIter() iter.Seq[string] {
 	return slices.Values(SupportedLanguages())
 }

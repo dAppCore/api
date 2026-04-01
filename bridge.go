@@ -43,6 +43,10 @@ type boundTool struct {
 }
 
 // NewToolBridge creates a bridge that mounts tool endpoints at basePath.
+//
+// Example:
+//
+//	bridge := api.NewToolBridge("/mcp")
 func NewToolBridge(basePath string) *ToolBridge {
 	return &ToolBridge{
 		basePath: basePath,
@@ -51,6 +55,10 @@ func NewToolBridge(basePath string) *ToolBridge {
 }
 
 // Add registers a tool with its HTTP handler.
+//
+// Example:
+//
+//	bridge.Add(api.ToolDescriptor{Name: "ping", Description: "Ping the service"}, handler)
 func (b *ToolBridge) Add(desc ToolDescriptor, handler gin.HandlerFunc) {
 	if validator := newToolInputValidator(desc.OutputSchema); validator != nil {
 		handler = wrapToolResponseHandler(handler, validator)
@@ -120,6 +128,10 @@ func (b *ToolBridge) DescribeIter() iter.Seq[RouteDescription] {
 }
 
 // Tools returns all registered tool descriptors.
+//
+// Example:
+//
+//	descs := bridge.Tools()
 func (b *ToolBridge) Tools() []ToolDescriptor {
 	descs := make([]ToolDescriptor, len(b.tools))
 	for i, t := range b.tools {

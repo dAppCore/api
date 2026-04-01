@@ -15,6 +15,10 @@ var specRegistry struct {
 // RegisterSpecGroups adds route groups to the package-level spec registry.
 // Nil groups are ignored. Registered groups are returned by RegisteredSpecGroups
 // in the order they were added.
+//
+// Example:
+//
+//	api.RegisterSpecGroups(api.NewToolBridge("/mcp"))
 func RegisterSpecGroups(groups ...RouteGroup) {
 	specRegistry.mu.Lock()
 	defer specRegistry.mu.Unlock()
@@ -32,6 +36,10 @@ func RegisterSpecGroups(groups ...RouteGroup) {
 
 // RegisteredSpecGroups returns a copy of the route groups registered for
 // CLI-generated OpenAPI documents.
+//
+// Example:
+//
+//	groups := api.RegisteredSpecGroups()
 func RegisteredSpecGroups() []RouteGroup {
 	specRegistry.mu.RLock()
 	defer specRegistry.mu.RUnlock()
@@ -43,6 +51,10 @@ func RegisteredSpecGroups() []RouteGroup {
 
 // ResetSpecGroups clears the package-level spec registry.
 // It is primarily intended for tests that need to isolate global state.
+//
+// Example:
+//
+//	api.ResetSpecGroups()
 func ResetSpecGroups() {
 	specRegistry.mu.Lock()
 	defer specRegistry.mu.Unlock()
