@@ -173,6 +173,40 @@ func TestRegistry_Info_Good_ProxyMetadata(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:9999", info.Upstream)
 }
 
+func TestRegistry_InfoIter_Good(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&fullProvider{})
+
+	var infos []provider.ProviderInfo
+	for info := range reg.InfoIter() {
+		infos = append(infos, info)
+	}
+
+	require.Len(t, infos, 1)
+	info := infos[0]
+	assert.Equal(t, "full", info.Name)
+	assert.Equal(t, "/api/full", info.BasePath)
+	assert.Equal(t, []string{"stub.event"}, info.Channels)
+	require.NotNil(t, info.Element)
+	assert.Equal(t, "core-full-panel", info.Element.Tag)
+}
+
+func TestRegistry_InfoIter_Good_SnapshotCurrentProviders(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&fullProvider{})
+
+	iter := reg.InfoIter()
+	reg.Add(&specFileProvider{specFile: "/tmp/later.json"})
+
+	var infos []provider.ProviderInfo
+	for info := range iter {
+		infos = append(infos, info)
+	}
+
+	require.Len(t, infos, 1)
+	assert.Equal(t, "full", infos[0].Name)
+}
+
 func TestRegistry_Iter_Good(t *testing.T) {
 	reg := provider.NewRegistry()
 	reg.Add(&stubProvider{})

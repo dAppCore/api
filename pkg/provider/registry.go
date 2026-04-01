@@ -153,6 +153,40 @@ func (r *Registry) Info() []ProviderInfo {
 	return infos
 }
 
+// InfoIter returns an iterator over all registered provider summaries.
+// The iterator snapshots the current registry contents so callers can range
+// over it without holding the registry lock.
+func (r *Registry) InfoIter() iter.Seq[ProviderInfo] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(ProviderInfo) bool) {
+		for _, p := range providers {
+			info := ProviderInfo{
+				Name:     p.Name(),
+				BasePath: p.BasePath(),
+			}
+			if s, ok := p.(Streamable); ok {
+				info.Channels = s.Channels()
+			}
+			if rv, ok := p.(Renderable); ok {
+				elem := rv.Element()
+				info.Element = &elem
+			}
+			if sf, ok := p.(interface{ SpecFile() string }); ok {
+				info.SpecFile = sf.SpecFile()
+			}
+			if up, ok := p.(interface{ Upstream() string }); ok {
+				info.Upstream = up.Upstream()
+			}
+			if !yield(info) {
+				return
+			}
+		}
+	}
+}
+
 // SpecFiles returns all non-empty provider OpenAPI spec file paths.
 // The result is deduplicated and sorted for stable discovery output.
 func (r *Registry) SpecFiles() []string {
