@@ -15,7 +15,7 @@ func normaliseServers(servers []string) []string {
 	seen := make(map[string]struct{}, len(servers))
 
 	for _, server := range servers {
-		server = strings.TrimSpace(server)
+		server = normaliseServer(server)
 		if server == "" {
 			continue
 		}
@@ -31,4 +31,23 @@ func normaliseServers(servers []string) []string {
 	}
 
 	return cleaned
+}
+
+// normaliseServer trims surrounding whitespace and removes a trailing slash
+// from non-root server URLs so equivalent metadata collapses to one entry.
+func normaliseServer(server string) string {
+	server = strings.TrimSpace(server)
+	if server == "" {
+		return ""
+	}
+	if server == "/" {
+		return server
+	}
+
+	server = strings.TrimRight(server, "/")
+	if server == "" {
+		return "/"
+	}
+
+	return server
 }
