@@ -231,6 +231,18 @@ describe('Application Endpoint Parameter Docs', function () {
         expect($includeContent)->not->toBeNull();
         expect($includeContent['in'])->toBe('query');
         expect($includeContent['schema']['type'])->toBe('boolean');
+
+        $serverOperation = $spec['paths']['/api/mcp/servers/{id}']['get'];
+        $serverIncludeVersions = collect($serverOperation['parameters'] ?? [])->firstWhere('name', 'include_versions');
+        $serverIncludeContent = collect($serverOperation['parameters'] ?? [])->firstWhere('name', 'include_content');
+
+        expect($serverIncludeVersions)->not->toBeNull();
+        expect($serverIncludeVersions['in'])->toBe('query');
+        expect($serverIncludeVersions['schema']['type'])->toBe('boolean');
+
+        expect($serverIncludeContent)->not->toBeNull();
+        expect($serverIncludeContent['in'])->toBe('query');
+        expect($serverIncludeContent['schema']['type'])->toBe('boolean');
     });
 
     it('documents the MCP tool call request body shape', function () {

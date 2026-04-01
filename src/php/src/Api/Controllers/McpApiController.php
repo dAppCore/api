@@ -51,13 +51,43 @@ class McpApiController extends Controller
      * Get server details with tools and resources.
      *
      * GET /api/v1/mcp/servers/{id}
+     *
+     * Query params:
+     * - include_versions: bool - include version info for each tool
+     * - include_content: bool - include resource content when the definition already contains it
      */
+    #[ApiParameter(
+        name: 'include_versions',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include version information for each tool',
+        required: false,
+        example: false,
+        default: false
+    )]
+    #[ApiParameter(
+        name: 'include_content',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include resource content when the definition already contains it',
+        required: false,
+        example: false,
+        default: false
+    )]
     public function server(Request $request, string $id): JsonResponse
     {
         $server = $this->loadServerFull($id);
 
         if (! $server) {
             return $this->notFoundResponse('Server');
+        }
+
+        if ($request->boolean('include_versions', false)) {
+            $server['tools'] = $this->enrichToolsWithVersioning($id, $server['tools'] ?? []);
+        }
+
+        if ($request->boolean('include_content', false)) {
+            $server['resources'] = $this->enrichResourcesWithContent($server['resources'] ?? []);
         }
 
         return response()->json($server);
@@ -171,6 +201,63 @@ class McpApiController extends Controller
             'resources' => $resources,
             'count' => $resources->count(),
         ]);
+    }
+
+    /**
+     * Enrich a tool collection with version metadata.
+     *
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<int, array<string, mixed>>
+     */
+    protected function enrichToolsWithVersioning(string $serverId, array $tools): array
+    {
+        $versionService = app(ToolVersionService::class);
+
+        return collect($tools)->map(function (array $tool) use ($serverId, $versionService) {
+            $toolName = $tool['name'] ?? '';
+            $latestVersion = $versionService->getLatestVersion($serverId, $toolName);
+
+            $tool['versioning'] = [
+                'latest_version' => $latestVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
+                'is_versioned' => $latestVersion !== null,
+                'deprecated' => $latestVersion?->is_deprecated ?? false,
+            ];
+
+            if ($latestVersion?->input_schema) {
+                $tool['inputSchema'] = $latestVersion->input_schema;
+            }
+
+            return $tool;
+        })->all();
+    }
+
+    /**
+     * Enrich a resource collection with inline content when available.
+     *
+     * @param  array<int, array<string, mixed>>  $resources
+     * @return array<int, array<string, mixed>>
+     */
+    protected function enrichResourcesWithContent(array $resources): array
+    {
+        return collect($resources)
+            ->filter(fn ($resource) => is_array($resource))
+            ->map(function (array $resource) {
+                $payload = array_filter([
+                    'uri' => $resource['uri'] ?? null,
+                    'path' => $resource['path'] ?? null,
+                    'name' => $resource['name'] ?? null,
+                    'description' => $resource['description'] ?? null,
+                    'mime_type' => $resource['mime_type'] ?? ($resource['mimeType'] ?? null),
+                ], static fn ($value) => $value !== null);
+
+                if ($this->resourceDefinitionHasContent($resource)) {
+                    $payload['content'] = $this->normaliseResourceContent($resource);
+                }
+
+                return $payload;
+            })
+            ->values()
+            ->all();
     }
 
     /**
