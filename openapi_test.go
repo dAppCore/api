@@ -632,3 +632,42 @@ func TestSpecBuilder_Bad_InfoFields(t *testing.T) {
 		t.Fatalf("expected version=1.0.0, got %v", info["version"])
 	}
 }
+
+func TestSpecBuilder_Good_Servers(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+		Servers: []string{
+			"https://api.example.com",
+			"/",
+			"",
+		},
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := spec["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array, got %T", spec["servers"])
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 non-empty servers, got %d", len(servers))
+	}
+
+	first := servers[0].(map[string]any)
+	if first["url"] != "https://api.example.com" {
+		t.Fatalf("expected first server url=%q, got %v", "https://api.example.com", first["url"])
+	}
+	second := servers[1].(map[string]any)
+	if second["url"] != "/" {
+		t.Fatalf("expected second server url=%q, got %v", "/", second["url"])
+	}
+}

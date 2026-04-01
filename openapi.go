@@ -14,6 +14,7 @@ type SpecBuilder struct {
 	Title       string
 	Description string
 	Version     string
+	Servers     []string
 }
 
 // Build generates the complete OpenAPI 3.1 JSON spec.
@@ -34,6 +35,19 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 				"bearerAuth": []any{},
 			},
 		},
+	}
+
+	if len(sb.Servers) > 0 {
+		servers := make([]map[string]any, 0, len(sb.Servers))
+		for _, server := range sb.Servers {
+			if server == "" {
+				continue
+			}
+			servers = append(servers, map[string]any{"url": server})
+		}
+		if len(servers) > 0 {
+			spec["servers"] = servers
+		}
 	}
 
 	// Add component schemas for the response envelope.

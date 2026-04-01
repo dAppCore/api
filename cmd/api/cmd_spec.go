@@ -5,6 +5,7 @@ package api
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 
@@ -18,6 +19,7 @@ func addSpecCommand(parent *cli.Command) {
 		title       string
 		description string
 		version     string
+		servers     string
 	)
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
@@ -27,6 +29,7 @@ func addSpecCommand(parent *cli.Command) {
 			Title:       title,
 			Description: description,
 			Version:     version,
+			Servers:     parseServers(servers),
 		}
 
 		// Start with the default tool bridge — future versions will
@@ -51,6 +54,23 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
+	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
 
 	parent.AddCommand(cmd)
+}
+
+func parseServers(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	servers := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if server := strings.TrimSpace(part); server != "" {
+			servers = append(servers, server)
+		}
+	}
+
+	return servers
 }

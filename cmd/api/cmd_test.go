@@ -59,6 +59,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
 	}
+	if specCmd.Flag("server") == nil {
+		t.Fatal("expected --server flag on spec command")
+	}
 }
 
 func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
@@ -88,6 +91,37 @@ func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
 	}
 	if info["description"] != "Custom API description" {
 		t.Fatalf("expected custom description, got %v", info["description"])
+	}
+}
+
+func TestAPISpecCmd_Good_ServerFlagAddsServers(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{"api", "spec", "--server", "https://api.example.com,/", "--output", outputFile})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	servers, ok := spec["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array in generated spec, got %T", spec["servers"])
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
 	}
 }
 
