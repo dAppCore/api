@@ -114,7 +114,7 @@ func TestRegistry_Streamable_Good(t *testing.T) {
 
 func TestRegistry_Describable_Good(t *testing.T) {
 	reg := provider.NewRegistry()
-	reg.Add(&stubProvider{})       // not describable
+	reg.Add(&stubProvider{})        // not describable
 	reg.Add(&describableProvider{}) // describable
 
 	d := reg.Describable()
@@ -145,6 +145,25 @@ func TestRegistry_Info_Good(t *testing.T) {
 	assert.Equal(t, []string{"stub.event"}, info.Channels)
 	require.NotNil(t, info.Element)
 	assert.Equal(t, "core-full-panel", info.Element.Tag)
+}
+
+func TestRegistry_Info_Good_ProxyMetadata(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(provider.NewProxy(provider.ProxyConfig{
+		Name:     "proxy",
+		BasePath: "/api/proxy",
+		Upstream: "http://127.0.0.1:9999",
+		SpecFile: "/tmp/proxy-openapi.json",
+	}))
+
+	infos := reg.Info()
+	require.Len(t, infos, 1)
+
+	info := infos[0]
+	assert.Equal(t, "proxy", info.Name)
+	assert.Equal(t, "/api/proxy", info.BasePath)
+	assert.Equal(t, "/tmp/proxy-openapi.json", info.SpecFile)
+	assert.Equal(t, "http://127.0.0.1:9999", info.Upstream)
 }
 
 func TestRegistry_Iter_Good(t *testing.T) {

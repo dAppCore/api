@@ -120,6 +120,8 @@ type ProviderInfo struct {
 	BasePath string       `json:"basePath"`
 	Channels []string     `json:"channels,omitempty"`
 	Element  *ElementSpec `json:"element,omitempty"`
+	SpecFile string       `json:"specFile,omitempty"`
+	Upstream string       `json:"upstream,omitempty"`
 }
 
 // Info returns a summary of all registered providers.
@@ -139,6 +141,12 @@ func (r *Registry) Info() []ProviderInfo {
 		if rv, ok := p.(Renderable); ok {
 			elem := rv.Element()
 			info.Element = &elem
+		}
+		if sf, ok := p.(interface{ SpecFile() string }); ok {
+			info.SpecFile = sf.SpecFile()
+		}
+		if up, ok := p.(interface{ Upstream() string }); ok {
+			info.Upstream = up.Upstream()
 		}
 		infos = append(infos, info)
 	}
