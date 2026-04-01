@@ -2,7 +2,11 @@
 
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"iter"
+
+	"github.com/gin-gonic/gin"
+)
 
 // RouteGroup registers API routes onto a Gin router group.
 // Subsystems implement this interface to declare their endpoints.
@@ -30,6 +34,14 @@ type DescribableGroup interface {
 	RouteGroup
 	// Describe returns endpoint descriptions for OpenAPI generation.
 	Describe() []RouteDescription
+}
+
+// DescribableGroupIter extends DescribableGroup with an iterator-based
+// description source for callers that want to avoid slice allocation.
+type DescribableGroupIter interface {
+	DescribableGroup
+	// DescribeIter returns endpoint descriptions for OpenAPI generation.
+	DescribeIter() iter.Seq[RouteDescription]
 }
 
 // RouteDescription describes a single endpoint for OpenAPI generation.

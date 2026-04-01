@@ -4,6 +4,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"iter"
 	"net/http"
 	"testing"
 
@@ -30,6 +31,26 @@ type plainStubGroup struct{}
 func (plainStubGroup) Name() string                       { return "plain" }
 func (plainStubGroup) BasePath() string                   { return "/plain" }
 func (plainStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+
+type iterStubGroup struct {
+	name     string
+	basePath string
+	descs    []api.RouteDescription
+}
+
+func (s *iterStubGroup) Name() string                       { return s.name }
+func (s *iterStubGroup) BasePath() string                   { return s.basePath }
+func (s *iterStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (s *iterStubGroup) Describe() []api.RouteDescription   { return nil }
+func (s *iterStubGroup) DescribeIter() iter.Seq[api.RouteDescription] {
+	return func(yield func(api.RouteDescription) bool) {
+		for _, rd := range s.descs {
+			if !yield(rd) {
+				return
+			}
+		}
+	}
+}
 
 // ── SpecBuilder tests ─────────────────────────────────────────────────────
 
@@ -377,6 +398,48 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	createdJSON := created["content"].(map[string]any)["application/json"].(map[string]any)
 	if createdJSON["example"].(map[string]any)["id"] != float64(42) {
 		t.Fatalf("expected response example to be preserved, got %v", createdJSON["example"])
+	}
+}
+
+func TestSpecBuilder_Good_DescribeIterGroup(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &iterStubGroup{
+		name:     "iter",
+		basePath: "/api/iter",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Iter status",
+				Tags:    []string{"iter"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/iter/status"].(map[string]any)["get"].(map[string]any)
+	if op["summary"] != "Iter status" {
+		t.Fatalf("expected summary='Iter status', got %v", op["summary"])
+	}
+	tags, ok := op["tags"].([]any)
+	if !ok || len(tags) != 1 || tags[0] != "iter" {
+		t.Fatalf("expected tags to be populated from DescribeIter, got %v", op["tags"])
 	}
 }
 

@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"iter"
 	"net/http"
 	"strconv"
 	"strings"
@@ -169,11 +170,11 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 	}
 
 	for _, g := range groups {
-		dg, ok := g.(DescribableGroup)
-		if !ok {
+		descIter := routeDescriptions(g)
+		if descIter == nil {
 			continue
 		}
-		for _, rd := range dg.Describe() {
+		for rd := range descIter {
 			fullPath := joinOpenAPIPath(g.BasePath(), rd.Path)
 			method := strings.ToLower(rd.Method)
 
@@ -483,12 +484,12 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 			seen[name] = true
 		}
 
-		dg, ok := g.(DescribableGroup)
-		if !ok {
+		descIter := routeDescriptions(g)
+		if descIter == nil {
 			continue
 		}
 
-		for _, rd := range dg.Describe() {
+		for rd := range descIter {
 			for _, tag := range rd.Tags {
 				tag = strings.TrimSpace(tag)
 				if tag == "" || seen[tag] {
@@ -504,6 +505,26 @@ func (sb *SpecBuilder) buildTags(groups []RouteGroup) []map[string]any {
 	}
 
 	return tags
+}
+
+// routeDescriptions returns OpenAPI route descriptions for a group.
+// Iterator-backed implementations are preferred when available so builders
+// can avoid slice allocation.
+func routeDescriptions(g RouteGroup) iter.Seq[RouteDescription] {
+	if dg, ok := g.(DescribableGroupIter); ok {
+		return dg.DescribeIter()
+	}
+	if dg, ok := g.(DescribableGroup); ok {
+		descs := dg.Describe()
+		return func(yield func(RouteDescription) bool) {
+			for _, rd := range descs {
+				if !yield(rd) {
+					return
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // pathParameters extracts unique OpenAPI path parameters from a path template.
