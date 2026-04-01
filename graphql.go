@@ -4,6 +4,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -35,7 +36,7 @@ func WithPlayground() GraphQLOption {
 // The default path is "/graphql".
 func WithGraphQLPath(path string) GraphQLOption {
 	return func(cfg *graphqlConfig) {
-		cfg.path = path
+		cfg.path = normaliseGraphQLPath(path)
 	}
 }
 
@@ -53,6 +54,22 @@ func mountGraphQL(r *gin.Engine, cfg *graphqlConfig) {
 		playgroundHandler := playground.Handler("GraphQL", cfg.path)
 		r.GET(playgroundPath, wrapHTTPHandler(playgroundHandler))
 	}
+}
+
+// normaliseGraphQLPath coerces custom GraphQL paths into a stable form.
+// The path always begins with a single slash and never ends with one.
+func normaliseGraphQLPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return defaultGraphQLPath
+	}
+
+	path = "/" + strings.Trim(path, "/")
+	if path == "/" {
+		return defaultGraphQLPath
+	}
+
+	return path
 }
 
 // wrapHTTPHandler adapts a standard http.Handler to a Gin handler function.
