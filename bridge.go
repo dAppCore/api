@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -18,6 +17,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+
+	coreerr "dappco.re/go/core/log"
 )
 
 // ToolDescriptor describes a tool that can be exposed as a REST endpoint.
@@ -218,7 +219,7 @@ func newToolInputValidator(schema map[string]any) *toolInputValidator {
 
 func (v *toolInputValidator) Validate(body []byte) error {
 	if len(bytes.TrimSpace(body)) == 0 {
-		return fmt.Errorf("request body is required")
+		return coreerr.E("ToolBridge.Validate", "request body is required", nil)
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(body))
@@ -226,11 +227,11 @@ func (v *toolInputValidator) Validate(body []byte) error {
 
 	var payload any
 	if err := dec.Decode(&payload); err != nil {
-		return fmt.Errorf("invalid JSON: %w", err)
+		return coreerr.E("ToolBridge.Validate", "invalid JSON", err)
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return fmt.Errorf("request body must contain a single JSON value")
+		return coreerr.E("ToolBridge.Validate", "request body must contain a single JSON value", nil)
 	}
 
 	return validateSchemaNode(payload, v.schema, "")
@@ -243,29 +244,29 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 
 	var envelope map[string]any
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("invalid JSON response: %w", err)
+		return coreerr.E("ToolBridge.ValidateResponse", "invalid JSON response", err)
 	}
 
 	success, _ := envelope["success"].(bool)
 	if !success {
-		return fmt.Errorf("response is missing a successful envelope")
+		return coreerr.E("ToolBridge.ValidateResponse", "response is missing a successful envelope", nil)
 	}
 
 	data, ok := envelope["data"]
 	if !ok {
-		return fmt.Errorf("response is missing data")
+		return coreerr.E("ToolBridge.ValidateResponse", "response is missing data", nil)
 	}
 
 	encoded, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("encode response data: %w", err)
+		return coreerr.E("ToolBridge.ValidateResponse", "encode response data", err)
 	}
 
 	var payload any
 	dec := json.NewDecoder(bytes.NewReader(encoded))
 	dec.UseNumber()
 	if err := dec.Decode(&payload); err != nil {
-		return fmt.Errorf("decode response data: %w", err)
+		return coreerr.E("ToolBridge.ValidateResponse", "decode response data", err)
 	}
 
 	return validateSchemaNode(payload, v.schema, "")
@@ -287,7 +288,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 
 			for _, name := range stringList(schema["required"]) {
 				if _, ok := obj[name]; !ok {
-					return fmt.Errorf("%s is missing required field %q", displayPath(path), name)
+					return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s is missing required field %q", displayPath(path), name), nil)
 				}
 			}
 
@@ -313,7 +314,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 							continue
 						}
 					}
-					return fmt.Errorf("%s contains unknown field %q", displayPath(path), name)
+					return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s contains unknown field %q", displayPath(path), name), nil)
 				}
 			}
 			if err := validateObjectConstraints(obj, schema, path); err != nil {
@@ -375,7 +376,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 
 	if rawEnum, ok := schema["enum"]; ok {
 		if !enumContains(value, rawEnum) {
-			return fmt.Errorf("%s must be one of the declared enum values", displayPath(path))
+			return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must be one of the declared enum values", displayPath(path)), nil)
 		}
 	}
 
@@ -401,7 +402,7 @@ func validateSchemaCombinators(value any, schema map[string]any, path string) er
 				goto anyOfMatched
 			}
 		}
-		return fmt.Errorf("%s must match at least one schema in anyOf", displayPath(path))
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must match at least one schema in anyOf", displayPath(path)), nil)
 	}
 
 anyOfMatched:
@@ -414,15 +415,15 @@ anyOfMatched:
 		}
 		if matches != 1 {
 			if matches == 0 {
-				return fmt.Errorf("%s must match exactly one schema in oneOf", displayPath(path))
+				return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must match exactly one schema in oneOf", displayPath(path)), nil)
 			}
-			return fmt.Errorf("%s matches multiple schemas in oneOf", displayPath(path))
+			return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s matches multiple schemas in oneOf", displayPath(path)), nil)
 		}
 	}
 
 	if subschema, ok := schema["not"].(map[string]any); ok && subschema != nil {
 		if err := validateSchemaNode(value, subschema, path); err == nil {
-			return fmt.Errorf("%s must not match the forbidden schema", displayPath(path))
+			return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must not match the forbidden schema", displayPath(path)), nil)
 		}
 	}
 
@@ -432,18 +433,18 @@ anyOfMatched:
 func validateStringConstraints(value string, schema map[string]any, path string) error {
 	length := utf8.RuneCountInString(value)
 	if minLength, ok := schemaInt(schema["minLength"]); ok && length < minLength {
-		return fmt.Errorf("%s must be at least %d characters long", displayPath(path), minLength)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must be at least %d characters long", displayPath(path), minLength), nil)
 	}
 	if maxLength, ok := schemaInt(schema["maxLength"]); ok && length > maxLength {
-		return fmt.Errorf("%s must be at most %d characters long", displayPath(path), maxLength)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must be at most %d characters long", displayPath(path), maxLength), nil)
 	}
 	if pattern, ok := schema["pattern"].(string); ok && pattern != "" {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			return fmt.Errorf("%s has an invalid pattern %q: %w", displayPath(path), pattern, err)
+			return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s has an invalid pattern %q", displayPath(path), pattern), err)
 		}
 		if !re.MatchString(value) {
-			return fmt.Errorf("%s does not match pattern %q", displayPath(path), pattern)
+			return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s does not match pattern %q", displayPath(path), pattern), nil)
 		}
 	}
 	return nil
@@ -451,30 +452,30 @@ func validateStringConstraints(value string, schema map[string]any, path string)
 
 func validateNumericConstraints(value any, schema map[string]any, path string) error {
 	if minimum, ok := schemaFloat(schema["minimum"]); ok && numericLessThan(value, minimum) {
-		return fmt.Errorf("%s must be greater than or equal to %v", displayPath(path), minimum)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must be greater than or equal to %v", displayPath(path), minimum), nil)
 	}
 	if maximum, ok := schemaFloat(schema["maximum"]); ok && numericGreaterThan(value, maximum) {
-		return fmt.Errorf("%s must be less than or equal to %v", displayPath(path), maximum)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must be less than or equal to %v", displayPath(path), maximum), nil)
 	}
 	return nil
 }
 
 func validateArrayConstraints(value []any, schema map[string]any, path string) error {
 	if minItems, ok := schemaInt(schema["minItems"]); ok && len(value) < minItems {
-		return fmt.Errorf("%s must contain at least %d items", displayPath(path), minItems)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must contain at least %d items", displayPath(path), minItems), nil)
 	}
 	if maxItems, ok := schemaInt(schema["maxItems"]); ok && len(value) > maxItems {
-		return fmt.Errorf("%s must contain at most %d items", displayPath(path), maxItems)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must contain at most %d items", displayPath(path), maxItems), nil)
 	}
 	return nil
 }
 
 func validateObjectConstraints(value map[string]any, schema map[string]any, path string) error {
 	if minProps, ok := schemaInt(schema["minProperties"]); ok && len(value) < minProps {
-		return fmt.Errorf("%s must contain at least %d properties", displayPath(path), minProps)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must contain at least %d properties", displayPath(path), minProps), nil)
 	}
 	if maxProps, ok := schemaInt(schema["maxProperties"]); ok && len(value) > maxProps {
-		return fmt.Errorf("%s must contain at most %d properties", displayPath(path), maxProps)
+		return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must contain at most %d properties", displayPath(path), maxProps), nil)
 	}
 	return nil
 }
@@ -627,7 +628,7 @@ func (w *toolResponseRecorder) Written() bool {
 }
 
 func (w *toolResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return nil, nil, errors.New("response hijacking is not supported by ToolBridge output validation")
+	return nil, nil, coreerr.E("ToolBridge.ResponseRecorder", "response hijacking is not supported by ToolBridge output validation", nil)
 }
 
 func (w *toolResponseRecorder) commit() {
@@ -663,7 +664,7 @@ func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]
 }
 
 func typeError(path, want string, value any) error {
-	return fmt.Errorf("%s must be %s, got %s", displayPath(path), want, describeJSONValue(value))
+	return coreerr.E("ToolBridge.ValidateSchema", fmt.Sprintf("%s must be %s, got %s", displayPath(path), want, describeJSONValue(value)), nil)
 }
 
 func displayPath(path string) string {
