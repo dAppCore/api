@@ -28,15 +28,16 @@ func ApiSunset(sunsetDate, replacement string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		c.Next()
+
 		c.Header("Deprecation", "true")
 		if formatted != "" {
 			c.Header("Sunset", formatted)
 		}
 		if replacement != "" {
-			c.Header("Link", "<"+replacement+">; rel=\"successor-version\"")
+			c.Writer.Header().Add("Link", "<"+replacement+">; rel=\"successor-version\"")
 		}
 		c.Header("X-API-Warn", warning)
-		c.Next()
 	}
 }
 
