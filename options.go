@@ -239,6 +239,16 @@ func WithCache(ttl time.Duration) Option {
 	}
 }
 
+// WithRateLimit adds per-IP token-bucket rate limiting middleware.
+// Requests exceeding the configured limit per second are rejected with
+// 429 Too Many Requests and the standard Fail() error envelope.
+// A zero or negative limit disables rate limiting.
+func WithRateLimit(limit int) Option {
+	return func(e *Engine) {
+		e.middlewares = append(e.middlewares, rateLimitMiddleware(limit))
+	}
+}
+
 // WithSessions adds server-side session management middleware via
 // gin-contrib/sessions using a cookie-based store. The name parameter
 // sets the session cookie name (e.g. "session") and secret is the key
