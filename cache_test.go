@@ -250,3 +250,37 @@ func TestWithCache_Good_ExpiredCacheMisses(t *testing.T) {
 		t.Fatalf("expected counter=2, got %d", grp.counter.Load())
 	}
 }
+
+func TestWithCache_Good_EvictsWhenCapacityReached(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	grp := &cacheCounterGroup{}
+	e, _ := api.New(api.WithCache(5*time.Second, 1))
+	e.Register(grp)
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
+	h.ServeHTTP(w1, req1)
+	if !strings.Contains(w1.Body.String(), "call-1") {
+		t.Fatalf("expected first response to contain %q, got %q", "call-1", w1.Body.String())
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/cache/other", nil)
+	h.ServeHTTP(w2, req2)
+	if !strings.Contains(w2.Body.String(), "other-2") {
+		t.Fatalf("expected second response to contain %q, got %q", "other-2", w2.Body.String())
+	}
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
+	h.ServeHTTP(w3, req3)
+	if !strings.Contains(w3.Body.String(), "call-3") {
+		t.Fatalf("expected evicted response to contain %q, got %q", "call-3", w3.Body.String())
+	}
+
+	if grp.counter.Load() != 3 {
+		t.Fatalf("expected counter=3 after eviction, got %d", grp.counter.Load())
+	}
+}

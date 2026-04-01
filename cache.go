@@ -4,6 +4,7 @@ package api
 
 import (
 	"bytes"
+	"container/list"
 	"maps"
 	"net/http"
 	"sync"
@@ -22,29 +23,44 @@ type cacheEntry struct {
 
 // cacheStore is a simple thread-safe in-memory cache keyed by request URL.
 type cacheStore struct {
-	mu      sync.RWMutex
-	entries map[string]*cacheEntry
+	mu         sync.RWMutex
+	entries    map[string]*cacheEntry
+	order      *list.List
+	index      map[string]*list.Element
+	maxEntries int
 }
 
 // newCacheStore creates an empty cache store.
-func newCacheStore() *cacheStore {
+func newCacheStore(maxEntries int) *cacheStore {
 	return &cacheStore{
-		entries: make(map[string]*cacheEntry),
+		entries:    make(map[string]*cacheEntry),
+		order:      list.New(),
+		index:      make(map[string]*list.Element),
+		maxEntries: maxEntries,
 	}
 }
 
 // get retrieves a non-expired entry for the given key.
 // Returns nil if the key is missing or expired.
 func (s *cacheStore) get(key string) *cacheEntry {
-	s.mu.RLock()
+	s.mu.Lock()
 	entry, ok := s.entries[key]
-	s.mu.RUnlock()
+	if ok {
+		if elem, exists := s.index[key]; exists {
+			s.order.MoveToFront(elem)
+		}
+	}
+	s.mu.Unlock()
 
 	if !ok {
 		return nil
 	}
 	if time.Now().After(entry.expires) {
 		s.mu.Lock()
+		if elem, exists := s.index[key]; exists {
+			s.order.Remove(elem)
+			delete(s.index, key)
+		}
 		delete(s.entries, key)
 		s.mu.Unlock()
 		return nil
@@ -55,7 +71,26 @@ func (s *cacheStore) get(key string) *cacheEntry {
 // set stores a cache entry with the given TTL.
 func (s *cacheStore) set(key string, entry *cacheEntry) {
 	s.mu.Lock()
+	if elem, ok := s.index[key]; ok {
+		s.order.MoveToFront(elem)
+		s.entries[key] = entry
+		s.mu.Unlock()
+		return
+	}
+
+	if s.maxEntries > 0 && len(s.entries) >= s.maxEntries {
+		back := s.order.Back()
+		if back != nil {
+			oldKey := back.Value.(string)
+			delete(s.entries, oldKey)
+			delete(s.index, oldKey)
+			s.order.Remove(back)
+		}
+	}
+
 	s.entries[key] = entry
+	elem := s.order.PushFront(key)
+	s.index[key] = elem
 	s.mu.Unlock()
 }
 

@@ -232,9 +232,16 @@ func timeoutResponse(c *gin.Context) {
 // Successful (2xx) GET responses are cached for the given TTL and served
 // with an X-Cache: HIT header on subsequent requests. Non-GET methods
 // and error responses pass through uncached.
-func WithCache(ttl time.Duration) Option {
+//
+// An optional maxEntries limit enables LRU eviction when the cache reaches
+// capacity. A value <= 0 keeps the cache unbounded for backward compatibility.
+func WithCache(ttl time.Duration, maxEntries ...int) Option {
 	return func(e *Engine) {
-		store := newCacheStore()
+		limit := 0
+		if len(maxEntries) > 0 {
+			limit = maxEntries[0]
+		}
+		store := newCacheStore(limit)
 		e.middlewares = append(e.middlewares, cacheMiddleware(store, ttl))
 	}
 }
