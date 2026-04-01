@@ -269,6 +269,58 @@ func TestWithSSE_Good_MultipleClients(t *testing.T) {
 	wg.Wait()
 }
 
+func TestWithSSE_Good_DrainDisconnectsClients(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	waitForClients(t, broker, 1)
+
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+		}
+	}()
+
+	drainDone := make(chan struct{})
+	go func() {
+		broker.Drain()
+		close(drainDone)
+	}()
+
+	select {
+	case <-drainDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for SSE drain to complete")
+	}
+
+	select {
+	case <-streamDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for SSE client to disconnect")
+	}
+
+	if got := broker.ClientCount(); got != 0 {
+		t.Fatalf("expected 0 connected SSE clients after drain, got %d", got)
+	}
+
+	_ = resp.Body.Close()
+}
+
 // ── No SSE broker ────────────────────────────────────────────────────────
 
 func TestNoSSEBroker_Good(t *testing.T) {
