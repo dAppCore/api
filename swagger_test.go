@@ -301,6 +301,52 @@ func TestSwagger_Good_UsesLicenseMetadata(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_UsesContactMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Contact API", "Contact test", "1.0.0"),
+		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in swagger doc")
+	}
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected contact name=%q, got %v", "API Support", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url=%q, got %v", "https://example.com/support", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email=%q, got %v", "support@example.com", contact["email"])
+	}
+}
+
 func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -178,6 +178,42 @@ func TestSpecBuilder_Good_InfoIncludesLicenseMetadata(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_InfoIncludesContactMetadata(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:        "Test",
+		Description:  "Contact test API",
+		Version:      "1.2.3",
+		ContactName:  "API Support",
+		ContactURL:   "https://example.com/support",
+		ContactEmail: "support@example.com",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := spec["info"].(map[string]any)
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in spec info")
+	}
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected contact name API Support, got %v", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url to be preserved, got %v", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email to be preserved, got %v", contact["email"])
+	}
+}
+
 func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

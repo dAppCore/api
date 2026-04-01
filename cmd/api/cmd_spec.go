@@ -13,25 +13,31 @@ import (
 
 func addSpecCommand(parent *cli.Command) {
 	var (
-		output      string
-		format      string
-		title       string
-		description string
-		version     string
-		licenseName string
-		licenseURL  string
-		servers     string
+		output       string
+		format       string
+		title        string
+		description  string
+		version      string
+		contactName  string
+		contactURL   string
+		contactEmail string
+		licenseName  string
+		licenseURL   string
+		servers      string
 	)
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
 		// Build spec from all route groups registered for CLI generation.
 		builder := &goapi.SpecBuilder{
-			Title:       title,
-			Description: description,
-			Version:     version,
-			Servers:     parseServers(servers),
-			LicenseName: licenseName,
-			LicenseURL:  licenseURL,
+			Title:        title,
+			Description:  description,
+			Version:      version,
+			ContactName:  contactName,
+			ContactURL:   contactURL,
+			ContactEmail: contactEmail,
+			Servers:      parseServers(servers),
+			LicenseName:  licenseName,
+			LicenseURL:   licenseURL,
 		}
 
 		bridge := goapi.NewToolBridge("/tools")
@@ -53,6 +59,9 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
+	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in spec")
+	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")
+	cli.StringFlag(cmd, &contactEmail, "contact-email", "", "", "OpenAPI contact email in spec")
 	cli.StringFlag(cmd, &licenseName, "license-name", "", "", "OpenAPI licence name in spec")
 	cli.StringFlag(cmd, &licenseURL, "license-url", "", "", "OpenAPI licence URL in spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")

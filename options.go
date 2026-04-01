@@ -129,6 +129,16 @@ func WithSwagger(title, description, version string) Option {
 	}
 }
 
+// WithSwaggerContact adds contact metadata to the generated Swagger spec.
+// Empty fields are ignored. Multiple calls replace the previous contact data.
+func WithSwaggerContact(name, url, email string) Option {
+	return func(e *Engine) {
+		e.swaggerContactName = name
+		e.swaggerContactURL = url
+		e.swaggerContactEmail = email
+	}
+}
+
 // WithSwaggerServers adds OpenAPI server metadata to the generated Swagger spec.
 // Empty strings are ignored. Multiple calls append and normalise the combined
 // server list so callers can compose metadata across options.

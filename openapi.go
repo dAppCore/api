@@ -11,7 +11,7 @@ import (
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
-// Title, Description, Version, and optional licence metadata populate the
+// Title, Description, Version, and optional contact/licence metadata populate the
 // OpenAPI info block.
 //
 // Example:
@@ -19,12 +19,15 @@ import (
 //	builder := &api.SpecBuilder{Title: "Service", Version: "1.0.0"}
 //	spec, err := builder.Build(engine.Groups())
 type SpecBuilder struct {
-	Title       string
-	Description string
-	Version     string
-	Servers     []string
-	LicenseName string
-	LicenseURL  string
+	Title        string
+	Description  string
+	Version      string
+	ContactName  string
+	ContactURL   string
+	ContactEmail string
+	Servers      []string
+	LicenseName  string
+	LicenseURL   string
 }
 
 // Build generates the complete OpenAPI 3.1 JSON spec.
@@ -59,6 +62,20 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 			license["url"] = sb.LicenseURL
 		}
 		spec["info"].(map[string]any)["license"] = license
+	}
+
+	if sb.ContactName != "" || sb.ContactURL != "" || sb.ContactEmail != "" {
+		contact := map[string]any{}
+		if sb.ContactName != "" {
+			contact["name"] = sb.ContactName
+		}
+		if sb.ContactURL != "" {
+			contact["url"] = sb.ContactURL
+		}
+		if sb.ContactEmail != "" {
+			contact["email"] = sb.ContactEmail
+		}
+		spec["info"].(map[string]any)["contact"] = contact
 	}
 
 	if servers := normaliseServers(sb.Servers); len(servers) > 0 {

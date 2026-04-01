@@ -82,6 +82,15 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
 	}
+	if specCmd.Flag("contact-name") == nil {
+		t.Fatal("expected --contact-name flag on spec command")
+	}
+	if specCmd.Flag("contact-url") == nil {
+		t.Fatal("expected --contact-url flag on spec command")
+	}
+	if specCmd.Flag("contact-email") == nil {
+		t.Fatal("expected --contact-email flag on spec command")
+	}
 	if specCmd.Flag("license-name") == nil {
 		t.Fatal("expected --license-name flag on spec command")
 	}
@@ -120,6 +129,54 @@ func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
 	}
 	if info["description"] != "Custom API description" {
 		t.Fatalf("expected custom description, got %v", info["description"])
+	}
+}
+
+func TestAPISpecCmd_Good_ContactFlagsPopulateSpecInfo(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--contact-name", "API Support",
+		"--contact-url", "https://example.com/support",
+		"--contact-email", "support@example.com",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in generated spec")
+	}
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected contact name API Support, got %v", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url to be preserved, got %v", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email to be preserved, got %v", contact["email"])
 	}
 }
 
@@ -304,6 +361,15 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on sdk command")
 	}
+	if sdkCmd.Flag("contact-name") == nil {
+		t.Fatal("expected --contact-name flag on sdk command")
+	}
+	if sdkCmd.Flag("contact-url") == nil {
+		t.Fatal("expected --contact-url flag on sdk command")
+	}
+	if sdkCmd.Flag("contact-email") == nil {
+		t.Fatal("expected --contact-email flag on sdk command")
+	}
 	if sdkCmd.Flag("license-name") == nil {
 		t.Fatal("expected --license-name flag on sdk command")
 	}
@@ -329,6 +395,9 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"Custom SDK API",
 		"Custom SDK description",
 		"9.9.9",
+		"SDK Support",
+		"https://example.com/support",
+		"support@example.com",
 		"EUPL-1.2",
 		"https://eupl.eu/1.2/en/",
 		"https://api.example.com, /, https://api.example.com",
@@ -362,6 +431,20 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if info["version"] != "9.9.9" {
 		t.Fatalf("expected custom version, got %v", info["version"])
+	}
+
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in generated spec")
+	}
+	if contact["name"] != "SDK Support" {
+		t.Fatalf("expected contact name SDK Support, got %v", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url to be preserved, got %v", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email to be preserved, got %v", contact["email"])
 	}
 
 	license, ok := info["license"].(map[string]any)
