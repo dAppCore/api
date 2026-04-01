@@ -452,6 +452,104 @@ func TestToolBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Good_EnforcesStringConstraints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "publish_code",
+		Description: "Publish a code",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{
+					"type":      "string",
+					"minLength": 3,
+					"maxLength": 5,
+					"pattern":   "^[A-Z]+$",
+				},
+			},
+			"required": []any{"code"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_code", bytes.NewBufferString(`{"code":"ABC"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestToolBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "quota_check",
+		Description: "Check quotas",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"count": map[string]any{
+					"type":    "integer",
+					"minimum": 1,
+					"maximum": 3,
+				},
+				"labels": map[string]any{
+					"type":     "array",
+					"minItems": 2,
+					"maxItems": 4,
+					"items": map[string]any{
+						"type": "string",
+					},
+				},
+				"payload": map[string]any{
+					"type":                 "object",
+					"minProperties":        1,
+					"maxProperties":        2,
+					"additionalProperties": true,
+				},
+			},
+			"required": []any{"count", "labels", "payload"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/quota_check", bytes.NewBufferString(`{"count":0,"labels":["one"],"payload":{}}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for numeric/collection constraint failure, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
 func TestToolBridge_Good_ToolsAccessor(t *testing.T) {
 	bridge := api.NewToolBridge("/tools")
 	bridge.Add(api.ToolDescriptor{Name: "alpha", Description: "Tool A", Group: "a"}, func(c *gin.Context) {})

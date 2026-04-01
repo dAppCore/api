@@ -13,7 +13,9 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 )
@@ -297,6 +299,9 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 					return fmt.Errorf("%s contains unknown field %q", displayPath(path), name)
 				}
 			}
+			if err := validateObjectConstraints(obj, schema, path); err != nil {
+				return err
+			}
 		case "array":
 			arr, ok := value.([]any)
 			if !ok {
@@ -309,9 +314,16 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 					}
 				}
 			}
+			if err := validateArrayConstraints(arr, schema, path); err != nil {
+				return err
+			}
 		case "string":
-			if _, ok := value.(string); !ok {
+			str, ok := value.(string)
+			if !ok {
 				return typeError(path, "string", value)
+			}
+			if err := validateStringConstraints(str, schema, path); err != nil {
+				return err
 			}
 		case "boolean":
 			if _, ok := value.(bool); !ok {
@@ -321,9 +333,15 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 			if !isIntegerValue(value) {
 				return typeError(path, "integer", value)
 			}
+			if err := validateNumericConstraints(value, schema, path); err != nil {
+				return err
+			}
 		case "number":
 			if !isNumberValue(value) {
 				return typeError(path, "number", value)
+			}
+			if err := validateNumericConstraints(value, schema, path); err != nil {
+				return err
 			}
 		}
 	}
@@ -345,6 +363,138 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 	}
 
 	return nil
+}
+
+func validateStringConstraints(value string, schema map[string]any, path string) error {
+	length := utf8.RuneCountInString(value)
+	if minLength, ok := schemaInt(schema["minLength"]); ok && length < minLength {
+		return fmt.Errorf("%s must be at least %d characters long", displayPath(path), minLength)
+	}
+	if maxLength, ok := schemaInt(schema["maxLength"]); ok && length > maxLength {
+		return fmt.Errorf("%s must be at most %d characters long", displayPath(path), maxLength)
+	}
+	if pattern, ok := schema["pattern"].(string); ok && pattern != "" {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("%s has an invalid pattern %q: %w", displayPath(path), pattern, err)
+		}
+		if !re.MatchString(value) {
+			return fmt.Errorf("%s does not match pattern %q", displayPath(path), pattern)
+		}
+	}
+	return nil
+}
+
+func validateNumericConstraints(value any, schema map[string]any, path string) error {
+	if minimum, ok := schemaFloat(schema["minimum"]); ok && numericLessThan(value, minimum) {
+		return fmt.Errorf("%s must be greater than or equal to %v", displayPath(path), minimum)
+	}
+	if maximum, ok := schemaFloat(schema["maximum"]); ok && numericGreaterThan(value, maximum) {
+		return fmt.Errorf("%s must be less than or equal to %v", displayPath(path), maximum)
+	}
+	return nil
+}
+
+func validateArrayConstraints(value []any, schema map[string]any, path string) error {
+	if minItems, ok := schemaInt(schema["minItems"]); ok && len(value) < minItems {
+		return fmt.Errorf("%s must contain at least %d items", displayPath(path), minItems)
+	}
+	if maxItems, ok := schemaInt(schema["maxItems"]); ok && len(value) > maxItems {
+		return fmt.Errorf("%s must contain at most %d items", displayPath(path), maxItems)
+	}
+	return nil
+}
+
+func validateObjectConstraints(value map[string]any, schema map[string]any, path string) error {
+	if minProps, ok := schemaInt(schema["minProperties"]); ok && len(value) < minProps {
+		return fmt.Errorf("%s must contain at least %d properties", displayPath(path), minProps)
+	}
+	if maxProps, ok := schemaInt(schema["maxProperties"]); ok && len(value) > maxProps {
+		return fmt.Errorf("%s must contain at most %d properties", displayPath(path), maxProps)
+	}
+	return nil
+}
+
+func schemaInt(value any) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case int8:
+		return int(v), true
+	case int16:
+		return int(v), true
+	case int32:
+		return int(v), true
+	case int64:
+		return int(v), true
+	case uint:
+		return int(v), true
+	case uint8:
+		return int(v), true
+	case uint16:
+		return int(v), true
+	case uint32:
+		return int(v), true
+	case uint64:
+		return int(v), true
+	case float64:
+		if v == float64(int(v)) {
+			return int(v), true
+		}
+	case json.Number:
+		if n, err := v.Int64(); err == nil {
+			return int(n), true
+		}
+	}
+	return 0, false
+}
+
+func schemaFloat(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int8:
+		return float64(v), true
+	case int16:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint8:
+		return float64(v), true
+	case uint16:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case json.Number:
+		if n, err := v.Float64(); err == nil {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+func numericLessThan(value any, limit float64) bool {
+	if n, ok := numericValue(value); ok {
+		return n < limit
+	}
+	return false
+}
+
+func numericGreaterThan(value any, limit float64) bool {
+	if n, ok := numericValue(value); ok {
+		return n > limit
+	}
+	return false
 }
 
 type toolResponseRecorder struct {
