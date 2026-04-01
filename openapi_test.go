@@ -146,6 +146,38 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_InfoIncludesLicenseMetadata(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:       "Test",
+		Description: "Licensed test API",
+		Version:     "1.2.3",
+		LicenseName: "EUPL-1.2",
+		LicenseURL:  "https://eupl.eu/1.2/en/",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := spec["info"].(map[string]any)
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected license metadata in spec info")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected license name EUPL-1.2, got %v", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected license url to be preserved, got %v", license["url"])
+	}
+}
+
 func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

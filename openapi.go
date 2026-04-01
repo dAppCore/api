@@ -11,6 +11,8 @@ import (
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
+// Title, Description, Version, and optional licence metadata populate the
+// OpenAPI info block.
 //
 // Example:
 //
@@ -21,6 +23,8 @@ type SpecBuilder struct {
 	Description string
 	Version     string
 	Servers     []string
+	LicenseName string
+	LicenseURL  string
 }
 
 // Build generates the complete OpenAPI 3.1 JSON spec.
@@ -45,6 +49,16 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 				"bearerAuth": []any{},
 			},
 		},
+	}
+
+	if sb.LicenseName != "" {
+		license := map[string]any{
+			"name": sb.LicenseName,
+		}
+		if sb.LicenseURL != "" {
+			license["url"] = sb.LicenseURL
+		}
+		spec["info"].(map[string]any)["license"] = license
 	}
 
 	if servers := normaliseServers(sb.Servers); len(servers) > 0 {
