@@ -176,6 +176,44 @@ describe('OpenApiBuilder Controller Scanning', function () {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Application Endpoint Parameter Docs
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Application Endpoint Parameter Docs', function () {
+    it('documents the SEO report url query parameter', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/seo/report']['get'];
+        $urlParam = collect($operation['parameters'] ?? [])->firstWhere('name', 'url');
+
+        expect($urlParam)->not->toBeNull();
+        expect($urlParam['in'])->toBe('query');
+        expect($urlParam['required'])->toBeTrue();
+        expect($urlParam['schema']['format'])->toBe('uri');
+    });
+
+    it('documents MCP list query parameters', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $toolsOperation = $spec['paths']['/api/mcp/servers/{id}/tools']['get'];
+        $includeVersions = collect($toolsOperation['parameters'] ?? [])->firstWhere('name', 'include_versions');
+
+        expect($includeVersions)->not->toBeNull();
+        expect($includeVersions['in'])->toBe('query');
+        expect($includeVersions['schema']['type'])->toBe('boolean');
+
+        $resourcesOperation = $spec['paths']['/api/mcp/servers/{id}/resources']['get'];
+        $includeContent = collect($resourcesOperation['parameters'] ?? [])->firstWhere('name', 'include_content');
+
+        expect($includeContent)->not->toBeNull();
+        expect($includeContent['in'])->toBe('query');
+        expect($includeContent['schema']['type'])->toBe('boolean');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ApiParameter Attribute Parsing
 // ─────────────────────────────────────────────────────────────────────────────
 

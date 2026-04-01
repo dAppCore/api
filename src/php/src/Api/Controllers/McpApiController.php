@@ -6,6 +6,7 @@ namespace Core\Api\Controllers;
 
 use Core\Front\Controller;
 use Core\Api\Concerns\HasApiResponses;
+use Core\Api\Documentation\Attributes\ApiParameter;
 use Core\Api\Models\ApiKey;
 use Core\Mod\Mcp\Models\McpApiRequest;
 use Core\Mod\Mcp\Models\McpToolCall;
@@ -70,6 +71,15 @@ class McpApiController extends Controller
      * Query params:
      * - include_versions: bool - include version info for each tool
      */
+    #[ApiParameter(
+        name: 'include_versions',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include version information for each tool',
+        required: false,
+        example: false,
+        default: false
+    )]
     public function tools(Request $request, string $id): JsonResponse
     {
         $server = $this->loadServerFull($id);
@@ -118,6 +128,15 @@ class McpApiController extends Controller
      * Query params:
      * - include_content: bool - include resource content when the definition already contains it
      */
+    #[ApiParameter(
+        name: 'include_content',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include resource content when the definition already contains it',
+        required: false,
+        example: false,
+        default: false
+    )]
     public function resources(Request $request, string $id): JsonResponse
     {
         $server = $this->loadServerFull($id);
