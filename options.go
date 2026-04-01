@@ -130,11 +130,11 @@ func WithSwagger(title, description, version string) Option {
 }
 
 // WithSwaggerServers adds OpenAPI server metadata to the generated Swagger spec.
-// Empty strings are ignored. Combine it with WithSwagger() to expose the same
-// server list through both the runtime Swagger UI and exported OpenAPI files.
+// Empty strings are ignored. Multiple calls append and normalise the combined
+// server list so callers can compose metadata across options.
 func WithSwaggerServers(servers ...string) Option {
 	return func(e *Engine) {
-		e.swaggerServers = normaliseServers(servers)
+		e.swaggerServers = normaliseServers(append(e.swaggerServers, servers...))
 	}
 }
 

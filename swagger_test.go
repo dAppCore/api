@@ -307,6 +307,54 @@ func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_AppendsServerMetadataAcrossCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
+		api.WithSwaggerServers("https://api.example.com", "/"),
+		api.WithSwaggerServers(" https://docs.example.com ", "/", "https://api.example.com"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := doc["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array, got %T", doc["servers"])
+	}
+	if len(servers) != 3 {
+		t.Fatalf("expected 3 normalised servers, got %d", len(servers))
+	}
+
+	expected := []string{"https://api.example.com", "/", "https://docs.example.com"}
+	for i, want := range expected {
+		got := servers[i].(map[string]any)["url"]
+		if got != want {
+			t.Fatalf("expected server[%d] url=%q, got %v", i, want, got)
+		}
+	}
+}
+
 func TestSwagger_Good_ValidOpenAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
