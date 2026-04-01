@@ -3,6 +3,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/language"
 )
@@ -12,6 +14,12 @@ const i18nContextKey = "i18n.locale"
 
 // i18nMessagesKey is the Gin context key for the message lookup map.
 const i18nMessagesKey = "i18n.messages"
+
+// i18nCatalogKey is the Gin context key for the full locale->message catalog.
+const i18nCatalogKey = "i18n.catalog"
+
+// i18nDefaultLocaleKey stores the configured default locale for fallback lookups.
+const i18nDefaultLocaleKey = "i18n.default_locale"
 
 // I18nConfig configures the internationalisation middleware.
 type I18nConfig struct {
@@ -79,13 +87,12 @@ func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 		}
 
 		c.Set(i18nContextKey, locale)
+		c.Set(i18nDefaultLocaleKey, cfg.DefaultLocale)
 
 		// Attach the message map for this locale if messages are configured.
 		if cfg.Messages != nil {
+			c.Set(i18nCatalogKey, cfg.Messages)
 			if msgs, ok := cfg.Messages[locale]; ok {
-				c.Set(i18nMessagesKey, msgs)
-			} else if msgs, ok := cfg.Messages[cfg.DefaultLocale]; ok {
-				// Fall back to default locale messages.
 				c.Set(i18nMessagesKey, msgs)
 			}
 		}
@@ -116,5 +123,57 @@ func GetMessage(c *gin.Context, key string) (string, bool) {
 			}
 		}
 	}
+
+	catalog, _ := c.Get(i18nCatalogKey)
+	msgsByLocale, _ := catalog.(map[string]map[string]string)
+	if len(msgsByLocale) == 0 {
+		return "", false
+	}
+
+	locales := localeFallbacks(GetLocale(c))
+	if defaultLocale, ok := c.Get(i18nDefaultLocaleKey); ok {
+		if fallback, ok := defaultLocale.(string); ok && fallback != "" {
+			locales = append(locales, localeFallbacks(fallback)...)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(locales))
+	for _, locale := range locales {
+		if locale == "" {
+			continue
+		}
+		if _, ok := seen[locale]; ok {
+			continue
+		}
+		seen[locale] = struct{}{}
+		if msgs, ok := msgsByLocale[locale]; ok {
+			if msg, ok := msgs[key]; ok {
+				return msg, true
+			}
+		}
+	}
+
 	return "", false
+}
+
+// localeFallbacks returns the locale and its parent tags in order from
+// most specific to least specific. For example, "fr-CA" yields
+// ["fr-CA", "fr"] and "zh-Hant-TW" yields ["zh-Hant-TW", "zh-Hant", "zh"].
+func localeFallbacks(locale string) []string {
+	locale = strings.TrimSpace(strings.ReplaceAll(locale, "_", "-"))
+	if locale == "" {
+		return nil
+	}
+
+	parts := strings.Split(locale, "-")
+	if len(parts) == 0 {
+		return []string{locale}
+	}
+
+	fallbacks := make([]string, 0, len(parts))
+	for i := len(parts); i >= 1; i-- {
+		fallbacks = append(fallbacks, strings.Join(parts[:i], "-"))
+	}
+
+	return fallbacks
 }

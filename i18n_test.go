@@ -251,3 +251,40 @@ func TestWithI18n_Good_LooksUpMessage(t *testing.T) {
 		t.Fatalf("expected message=%q, got %q", "Hello", respEn.Data.Message)
 	}
 }
+
+func TestWithI18n_Good_FallsBackToParentLocaleMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithI18n(api.I18nConfig{
+		DefaultLocale: "en",
+		Supported:     []string{"en", "fr", "fr-CA"},
+		Messages: map[string]map[string]string{
+			"en": {"greeting": "Hello"},
+			"fr": {"greeting": "Bonjour"},
+		},
+	}))
+	e.Register(&i18nTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/i18n/greeting", nil)
+	req.Header.Set("Accept-Language", "fr-CA")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp i18nMessageResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Data.Locale != "fr-CA" {
+		t.Fatalf("expected locale=%q, got %q", "fr-CA", resp.Data.Locale)
+	}
+	if resp.Data.Message != "Bonjour" {
+		t.Fatalf("expected fallback message=%q, got %q", "Bonjour", resp.Data.Message)
+	}
+	if !resp.Data.Found {
+		t.Fatal("expected found=true")
+	}
+}
