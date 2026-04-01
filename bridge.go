@@ -105,20 +105,21 @@ func (b *ToolBridge) Describe() []RouteDescription {
 
 // DescribeIter returns an iterator over OpenAPI route descriptions for all registered tools.
 func (b *ToolBridge) DescribeIter() iter.Seq[RouteDescription] {
+	descs := b.Tools()
 	return func(yield func(RouteDescription) bool) {
-		for _, t := range b.tools {
-			tags := []string{t.descriptor.Group}
-			if t.descriptor.Group == "" {
+		for _, desc := range descs {
+			tags := []string{desc.Group}
+			if desc.Group == "" {
 				tags = []string{b.name}
 			}
 			rd := RouteDescription{
 				Method:      "POST",
-				Path:        "/" + t.descriptor.Name,
-				Summary:     t.descriptor.Description,
-				Description: t.descriptor.Description,
+				Path:        "/" + desc.Name,
+				Summary:     desc.Description,
+				Description: desc.Description,
 				Tags:        tags,
-				RequestBody: t.descriptor.InputSchema,
-				Response:    t.descriptor.OutputSchema,
+				RequestBody: desc.InputSchema,
+				Response:    desc.OutputSchema,
 			}
 			if !yield(rd) {
 				return
@@ -142,9 +143,10 @@ func (b *ToolBridge) Tools() []ToolDescriptor {
 
 // ToolsIter returns an iterator over all registered tool descriptors.
 func (b *ToolBridge) ToolsIter() iter.Seq[ToolDescriptor] {
+	descs := b.Tools()
 	return func(yield func(ToolDescriptor) bool) {
-		for _, t := range b.tools {
-			if !yield(t.descriptor) {
+		for _, desc := range descs {
+			if !yield(desc) {
 				return
 			}
 		}

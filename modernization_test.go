@@ -118,6 +118,33 @@ func TestToolBridge_Iterators(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Iterators_Good_SnapshotCurrentTools(t *testing.T) {
+	b := api.NewToolBridge("/tools")
+	b.Add(api.ToolDescriptor{Name: "first", Group: "g1"}, nil)
+
+	toolsIter := b.ToolsIter()
+	descsIter := b.DescribeIter()
+
+	b.Add(api.ToolDescriptor{Name: "second", Group: "g2"}, nil)
+
+	var tools []api.ToolDescriptor
+	for tool := range toolsIter {
+		tools = append(tools, tool)
+	}
+
+	var descs []api.RouteDescription
+	for desc := range descsIter {
+		descs = append(descs, desc)
+	}
+
+	if len(tools) != 1 || tools[0].Name != "first" {
+		t.Fatalf("expected ToolsIter snapshot to contain the original tool, got %v", tools)
+	}
+	if len(descs) != 1 || descs[0].Path != "/first" {
+		t.Fatalf("expected DescribeIter snapshot to contain the original tool, got %v", descs)
+	}
+}
+
 func TestCodegen_SupportedLanguagesIter(t *testing.T) {
 	var langs []string
 	for l := range api.SupportedLanguagesIter() {
