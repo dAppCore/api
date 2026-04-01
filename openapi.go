@@ -177,7 +177,8 @@ func (sb *SpecBuilder) buildPaths(groups []RouteGroup) map[string]any {
 }
 
 // joinOpenAPIPath normalises a base path and relative route path into a single
-// OpenAPI path without duplicate or missing separators.
+// OpenAPI path without duplicate or missing separators. Gin-style parameters
+// such as :id and *path are converted to OpenAPI template parameters.
 func joinOpenAPIPath(basePath, routePath string) string {
 	basePath = strings.TrimSpace(basePath)
 	routePath = strings.TrimSpace(routePath)
@@ -190,30 +191,44 @@ func joinOpenAPIPath(basePath, routePath string) string {
 	}
 
 	basePath = normaliseOpenAPIPath(basePath)
-	routePath = strings.TrimLeft(routePath, "/")
+	routePath = normaliseOpenAPIPath(routePath)
 
 	if basePath == "/" {
-		return "/" + routePath
+		return routePath
 	}
 
-	return basePath + "/" + routePath
+	return strings.TrimRight(basePath, "/") + "/" + strings.TrimPrefix(routePath, "/")
 }
 
 // normaliseOpenAPIPath trims whitespace and collapses trailing separators
-// while preserving the root path.
+// while preserving the root path and converting Gin-style path parameters.
 func normaliseOpenAPIPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "/"
 	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
+
+	segments := strings.Split(path, "/")
+	cleaned := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(segment, ":") && len(segment) > 1:
+			segment = "{" + segment[1:] + "}"
+		case strings.HasPrefix(segment, "*") && len(segment) > 1:
+			segment = "{" + segment[1:] + "}"
+		}
+		cleaned = append(cleaned, segment)
 	}
-	path = strings.TrimRight(path, "/")
-	if path == "" {
+
+	if len(cleaned) == 0 {
 		return "/"
 	}
-	return path
+
+	return "/" + strings.Join(cleaned, "/")
 }
 
 // operationResponses builds the standard response set for a documented API

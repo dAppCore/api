@@ -661,6 +661,66 @@ func TestSpecBuilder_Good_PathNormalisation(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_GinPathParameters(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "users",
+		basePath: "/api/",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "users/:id",
+				Summary: "Get user",
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+			{
+				Method:  "GET",
+				Path:    "files/*path",
+				Summary: "Get file",
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+
+	userOp := paths["/api/users/{id}"].(map[string]any)["get"].(map[string]any)
+	userParams := userOp["parameters"].([]any)
+	if len(userParams) != 1 {
+		t.Fatalf("expected 1 parameter for gin path, got %d", len(userParams))
+	}
+	if userParams[0].(map[string]any)["name"] != "id" {
+		t.Fatalf("expected gin path parameter name=id, got %v", userParams[0])
+	}
+
+	fileOp := paths["/api/files/{path}"].(map[string]any)["get"].(map[string]any)
+	fileParams := fileOp["parameters"].([]any)
+	if len(fileParams) != 1 {
+		t.Fatalf("expected 1 parameter for wildcard path, got %d", len(fileParams))
+	}
+	if fileParams[0].(map[string]any)["name"] != "path" {
+		t.Fatalf("expected wildcard parameter name=path, got %v", fileParams[0])
+	}
+}
+
 func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
