@@ -10,6 +10,7 @@ use Core\Api\Documentation\Attributes\ApiTag;
 use Core\Api\Documentation\Extension;
 use Core\Api\Documentation\Extensions\ApiKeyAuthExtension;
 use Core\Api\Documentation\Extensions\RateLimitExtension;
+use Core\Api\Documentation\Extensions\SunsetExtension;
 use Core\Api\Documentation\Extensions\WorkspaceHeaderExtension;
 use Core\Api\Documentation\OpenApiBuilder;
 use Core\Api\RateLimit\RateLimit;
@@ -783,6 +784,46 @@ describe('Error Response Documentation', function () {
 
         expect($result['responses'])->toHaveKey('401')
             ->toHaveKey('403');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sunset Documentation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Sunset Documentation', function () {
+    it('registers deprecation headers in components', function () {
+        $extension = new SunsetExtension;
+        $spec = ['components' => []];
+
+        $result = $extension->extend($spec, []);
+
+        expect($result['components']['headers'])->toHaveKey('deprecation')
+            ->toHaveKey('sunset')
+            ->toHaveKey('link')
+            ->toHaveKey('xapiwarn');
+    });
+
+    it('marks sunset routes as deprecated and documents their response headers', function () {
+        RouteFacade::prefix('api')
+            ->middleware(['api', 'api.sunset:2025-06-01,/api/v2/legacy'])
+            ->group(function () {
+                RouteFacade::get('/sunset-test/legacy', fn () => response()->json(['ok' => true]))
+                    ->name('sunset-test.legacy');
+            });
+
+        config(['api-docs.routes.include' => ['api/*']]);
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/sunset-test/legacy']['get'];
+
+        expect($operation['deprecated'])->toBeTrue();
+        expect($operation['responses']['200']['headers'])->toHaveKey('Deprecation')
+            ->toHaveKey('Sunset')
+            ->toHaveKey('X-API-Warn')
+            ->toHaveKey('Link');
     });
 });
 
