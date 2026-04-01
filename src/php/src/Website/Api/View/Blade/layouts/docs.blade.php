@@ -81,7 +81,7 @@
                         <div class="relative" x-data="{ open: false }" @click.outside="open = false">
                             <button
                                 @click="open = !open"
-                                class="text-sm flex items-center gap-1 {{ request()->routeIs('api.swagger', 'api.scalar', 'api.redoc') ? 'font-medium text-cyan-600 dark:text-cyan-400' : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200' }}"
+                                class="text-sm flex items-center gap-1 {{ request()->routeIs('api.swagger', 'api.scalar', 'api.redoc', 'api.stoplight') ? 'font-medium text-cyan-600 dark:text-cyan-400' : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200' }}"
                             >
                                 API Explorer
                                 <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': open }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -108,6 +108,9 @@
                                     </a>
                                     <a href="{{ route('api.redoc') }}" class="block px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700 {{ request()->routeIs('api.redoc') ? 'bg-zinc-100 dark:bg-zinc-700' : '' }}">
                                         <i class="fa-solid fa-book w-4 mr-2 text-zinc-400"></i>ReDoc
+                                    </a>
+                                    <a href="{{ route('api.stoplight') }}" class="block px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700 {{ request()->routeIs('api.stoplight') ? 'bg-zinc-100 dark:bg-zinc-700' : '' }}">
+                                        <i class="fa-solid fa-layer-group w-4 mr-2 text-zinc-400"></i>Stoplight
                                     </a>
                                 </div>
                             </div>

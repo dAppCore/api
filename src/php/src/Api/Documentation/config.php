@@ -268,6 +268,13 @@ return [
             'hide_download_button' => false,
             'hide_models' => false,
         ],
+
+        // Stoplight Elements specific options
+        'stoplight' => [
+            'theme' => 'dark', // 'dark' or 'light'
+            'layout' => 'sidebar', // 'sidebar' or 'stacked'
+            'hide_try_it' => false,
+        ],
     ],
 
     /*

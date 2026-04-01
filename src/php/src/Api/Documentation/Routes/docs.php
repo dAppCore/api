@@ -20,6 +20,7 @@ Route::get('/', [DocumentationController::class, 'index'])->name('api.docs');
 Route::get('/swagger', [DocumentationController::class, 'swagger'])->name('api.docs.swagger');
 Route::get('/scalar', [DocumentationController::class, 'scalar'])->name('api.docs.scalar');
 Route::get('/redoc', [DocumentationController::class, 'redoc'])->name('api.docs.redoc');
+Route::get('/stoplight', [DocumentationController::class, 'stoplight'])->name('api.docs.stoplight');
 
 // OpenAPI specification routes
 Route::get('/openapi.json', [DocumentationController::class, 'openApiJson'])

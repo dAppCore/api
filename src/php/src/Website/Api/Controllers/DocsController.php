@@ -65,6 +65,11 @@ class DocsController
         return view('api::redoc');
     }
 
+    public function stoplight(): View
+    {
+        return view('api::stoplight');
+    }
+
     public function openapi(OpenApiGenerator $generator): JsonResponse
     {
         return response()->json($generator->generate());
