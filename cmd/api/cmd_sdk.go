@@ -31,6 +31,7 @@ func addSDKCommand(parent *cli.Command) {
 		title        string
 		description  string
 		version      string
+		termsURL     string
 		contactName  string
 		contactURL   string
 		contactEmail string
@@ -47,7 +48,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, contactName, contactURL, contactEmail, licenseName, licenseURL, servers)
+			builder := sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, servers)
 			groups := sdkSpecGroups()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -96,6 +97,7 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", defaultSDKTitle, "API title in generated spec")
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
 	cli.StringFlag(cmd, &version, "version", "V", defaultSDKVersion, "API version in generated spec")
+	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in generated spec")
 	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in generated spec")
 	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in generated spec")
 	cli.StringFlag(cmd, &contactEmail, "contact-email", "", "", "OpenAPI contact email in generated spec")
@@ -106,17 +108,18 @@ func addSDKCommand(parent *cli.Command) {
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, contactName, contactURL, contactEmail, licenseName, licenseURL, servers string) *goapi.SpecBuilder {
+func sdkSpecBuilder(title, description, version, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, servers string) *goapi.SpecBuilder {
 	return &goapi.SpecBuilder{
-		Title:        title,
-		Description:  description,
-		Version:      version,
-		ContactName:  contactName,
-		ContactURL:   contactURL,
-		ContactEmail: contactEmail,
-		Servers:      parseServers(servers),
-		LicenseName:  licenseName,
-		LicenseURL:   licenseURL,
+		Title:          title,
+		Description:    description,
+		Version:        version,
+		TermsOfService: termsURL,
+		ContactName:    contactName,
+		ContactURL:     contactURL,
+		ContactEmail:   contactEmail,
+		Servers:        parseServers(servers),
+		LicenseName:    licenseName,
+		LicenseURL:     licenseURL,
 	}
 }
 

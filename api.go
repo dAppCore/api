@@ -25,24 +25,25 @@ const shutdownTimeout = 10 * time.Second
 
 // Engine is the central API server managing route groups and middleware.
 type Engine struct {
-	addr                string
-	groups              []RouteGroup
-	middlewares         []gin.HandlerFunc
-	wsHandler           http.Handler
-	sseBroker           *SSEBroker
-	swaggerEnabled      bool
-	swaggerTitle        string
-	swaggerDesc         string
-	swaggerVersion      string
-	swaggerServers      []string
-	swaggerContactName  string
-	swaggerContactURL   string
-	swaggerContactEmail string
-	swaggerLicenseName  string
-	swaggerLicenseURL   string
-	pprofEnabled        bool
-	expvarEnabled       bool
-	graphql             *graphqlConfig
+	addr                  string
+	groups                []RouteGroup
+	middlewares           []gin.HandlerFunc
+	wsHandler             http.Handler
+	sseBroker             *SSEBroker
+	swaggerEnabled        bool
+	swaggerTitle          string
+	swaggerDesc           string
+	swaggerVersion        string
+	swaggerTermsOfService string
+	swaggerServers        []string
+	swaggerContactName    string
+	swaggerContactURL     string
+	swaggerContactEmail   string
+	swaggerLicenseName    string
+	swaggerLicenseURL     string
+	pprofEnabled          bool
+	expvarEnabled         bool
+	graphql               *graphqlConfig
 }
 
 // New creates an Engine with the given options.
@@ -195,6 +196,7 @@ func (e *Engine) build() *gin.Engine {
 			e.swaggerTitle,
 			e.swaggerDesc,
 			e.swaggerVersion,
+			e.swaggerTermsOfService,
 			e.swaggerContactName,
 			e.swaggerContactURL,
 			e.swaggerContactEmail,

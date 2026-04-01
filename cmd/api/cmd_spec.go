@@ -18,6 +18,7 @@ func addSpecCommand(parent *cli.Command) {
 		title        string
 		description  string
 		version      string
+		termsURL     string
 		contactName  string
 		contactURL   string
 		contactEmail string
@@ -29,15 +30,16 @@ func addSpecCommand(parent *cli.Command) {
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
 		// Build spec from all route groups registered for CLI generation.
 		builder := &goapi.SpecBuilder{
-			Title:        title,
-			Description:  description,
-			Version:      version,
-			ContactName:  contactName,
-			ContactURL:   contactURL,
-			ContactEmail: contactEmail,
-			Servers:      parseServers(servers),
-			LicenseName:  licenseName,
-			LicenseURL:   licenseURL,
+			Title:          title,
+			Description:    description,
+			Version:        version,
+			TermsOfService: termsURL,
+			ContactName:    contactName,
+			ContactURL:     contactURL,
+			ContactEmail:   contactEmail,
+			Servers:        parseServers(servers),
+			LicenseName:    licenseName,
+			LicenseURL:     licenseURL,
 		}
 
 		bridge := goapi.NewToolBridge("/tools")
@@ -59,6 +61,7 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
+	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
 	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in spec")
 	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")
 	cli.StringFlag(cmd, &contactEmail, "contact-email", "", "", "OpenAPI contact email in spec")

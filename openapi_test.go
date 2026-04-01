@@ -214,6 +214,30 @@ func TestSpecBuilder_Good_InfoIncludesContactMetadata(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_InfoIncludesTermsOfService(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:          "Test",
+		Description:    "Terms test API",
+		Version:        "1.2.3",
+		TermsOfService: "https://example.com/terms",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := spec["info"].(map[string]any)
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService to be preserved, got %v", info["termsOfService"])
+	}
+}
+
 func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

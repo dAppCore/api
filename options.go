@@ -129,6 +129,14 @@ func WithSwagger(title, description, version string) Option {
 	}
 }
 
+// WithSwaggerTermsOfService adds the terms of service URL to the generated Swagger spec.
+// Empty strings are ignored.
+func WithSwaggerTermsOfService(url string) Option {
+	return func(e *Engine) {
+		e.swaggerTermsOfService = url
+	}
+}
+
 // WithSwaggerContact adds contact metadata to the generated Swagger spec.
 // Empty fields are ignored. Multiple calls replace the previous contact data.
 func WithSwaggerContact(name, url, email string) Option {

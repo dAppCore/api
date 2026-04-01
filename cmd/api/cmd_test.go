@@ -82,6 +82,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
 	}
+	if specCmd.Flag("terms-of-service") == nil {
+		t.Fatal("expected --terms-of-service flag on spec command")
+	}
 	if specCmd.Flag("contact-name") == nil {
 		t.Fatal("expected --contact-name flag on spec command")
 	}
@@ -177,6 +180,41 @@ func TestAPISpecCmd_Good_ContactFlagsPopulateSpecInfo(t *testing.T) {
 	}
 	if contact["email"] != "support@example.com" {
 		t.Fatalf("expected contact email to be preserved, got %v", contact["email"])
+	}
+}
+
+func TestAPISpecCmd_Good_TermsOfServiceFlagPopulatesSpecInfo(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--terms-of-service", "https://example.com/terms",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService to be preserved, got %v", info["termsOfService"])
 	}
 }
 
@@ -361,6 +399,9 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on sdk command")
 	}
+	if sdkCmd.Flag("terms-of-service") == nil {
+		t.Fatal("expected --terms-of-service flag on sdk command")
+	}
 	if sdkCmd.Flag("contact-name") == nil {
 		t.Fatal("expected --contact-name flag on sdk command")
 	}
@@ -395,6 +436,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"Custom SDK API",
 		"Custom SDK description",
 		"9.9.9",
+		"https://example.com/terms",
 		"SDK Support",
 		"https://example.com/support",
 		"support@example.com",
@@ -431,6 +473,10 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if info["version"] != "9.9.9" {
 		t.Fatalf("expected custom version, got %v", info["version"])
+	}
+
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService to be preserved, got %v", info["termsOfService"])
 	}
 
 	contact, ok := info["contact"].(map[string]any)
