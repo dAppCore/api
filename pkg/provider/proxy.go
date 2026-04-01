@@ -1,4 +1,4 @@
-// SPDX-Licence-Identifier: EUPL-1.2
+// SPDX-License-Identifier: EUPL-1.2
 
 package provider
 
@@ -59,17 +59,44 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 	proxy.Director = func(req *http.Request) {
 		defaultDirector(req)
 		// Strip the base path prefix from the request path.
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, basePath)
-		if req.URL.Path == "" {
-			req.URL.Path = "/"
+		req.URL.Path = stripBasePath(req.URL.Path, basePath)
+		if req.URL.RawPath != "" {
+			req.URL.RawPath = stripBasePath(req.URL.RawPath, basePath)
 		}
-		req.URL.RawPath = strings.TrimPrefix(req.URL.RawPath, basePath)
 	}
 
 	return &ProxyProvider{
 		config: cfg,
 		proxy:  proxy,
 	}
+}
+
+// stripBasePath removes an exact base path prefix from a request path.
+// It only strips when the path matches the base path itself or lives under
+// the base path boundary, so "/api" will not accidentally trim "/api-v2".
+func stripBasePath(path, basePath string) string {
+	basePath = strings.TrimSuffix(strings.TrimSpace(basePath), "/")
+	if basePath == "" || basePath == "/" {
+		if path == "" {
+			return "/"
+		}
+		return path
+	}
+
+	if path == basePath {
+		return "/"
+	}
+
+	prefix := basePath + "/"
+	if strings.HasPrefix(path, prefix) {
+		trimmed := strings.TrimPrefix(path, basePath)
+		if trimmed == "" {
+			return "/"
+		}
+		return trimmed
+	}
+
+	return path
 }
 
 // Name returns the provider identity.
