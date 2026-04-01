@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -182,12 +183,34 @@ func timeUntilFull(tokens float64, limit int) time.Duration {
 	return time.Duration(math.Ceil(seconds * float64(time.Second)))
 }
 
+// clientRateLimitKey prefers caller-provided credentials for bucket
+// isolation, then falls back to the network address.
 func clientRateLimitKey(c *gin.Context) string {
+	if apiKey := strings.TrimSpace(c.GetHeader("X-API-Key")); apiKey != "" {
+		return "api_key:" + apiKey
+	}
+	if bearer := bearerTokenFromHeader(c.GetHeader("Authorization")); bearer != "" {
+		return "bearer:" + bearer
+	}
 	if ip := c.ClientIP(); ip != "" {
-		return ip
+		return "ip:" + ip
 	}
 	if c.Request != nil && c.Request.RemoteAddr != "" {
-		return c.Request.RemoteAddr
+		return "ip:" + c.Request.RemoteAddr
 	}
-	return "unknown"
+	return "ip:unknown"
+}
+
+func bearerTokenFromHeader(header string) string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return ""
+	}
+
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+
+	return strings.TrimSpace(parts[1])
 }

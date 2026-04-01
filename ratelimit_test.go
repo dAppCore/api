@@ -116,6 +116,76 @@ func TestWithRateLimit_Good_IsolatesPerIP(t *testing.T) {
 	}
 }
 
+func TestWithRateLimit_Good_IsolatesPerAPIKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRateLimit(1))
+	e.Register(&rateLimitTestGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req1.RemoteAddr = "203.0.113.20:1234"
+	req1.Header.Set("X-API-Key", "key-a")
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected first API key request to succeed, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req2.RemoteAddr = "203.0.113.20:1234"
+	req2.Header.Set("X-API-Key", "key-b")
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected second API key to have its own bucket, got %d", w2.Code)
+	}
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req3.RemoteAddr = "203.0.113.20:1234"
+	req3.Header.Set("X-API-Key", "key-a")
+	h.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected repeated API key to be rate limited, got %d", w3.Code)
+	}
+}
+
+func TestWithRateLimit_Good_UsesBearerTokenWhenPresent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRateLimit(1))
+	e.Register(&rateLimitTestGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req1.RemoteAddr = "203.0.113.30:1234"
+	req1.Header.Set("Authorization", "Bearer token-a")
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected first bearer token request to succeed, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req2.RemoteAddr = "203.0.113.30:1234"
+	req2.Header.Set("Authorization", "Bearer token-b")
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected second bearer token to have its own bucket, got %d", w2.Code)
+	}
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req3.RemoteAddr = "203.0.113.30:1234"
+	req3.Header.Set("Authorization", "Bearer token-a")
+	h.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected repeated bearer token to be rate limited, got %d", w3.Code)
+	}
+}
+
 func TestWithRateLimit_Good_RefillsOverTime(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e, _ := api.New(api.WithRateLimit(1))
