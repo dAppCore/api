@@ -398,7 +398,7 @@ describe('ApiResponse Attribute Rendering', function () {
             201 => 'Resource created',
             204 => 'No content',
             400 => 'Bad request',
-            401 => 'Unauthorized',
+            401 => 'Unauthorised',
             403 => 'Forbidden',
             404 => 'Not found',
             422 => 'Validation error',
@@ -724,7 +724,7 @@ describe('Extension System', function () {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Error Response Documentation', function () {
-    it('documents 401 Unauthorized response', function () {
+    it('documents 401 Unauthorised response', function () {
         $extension = new ApiKeyAuthExtension;
         $spec = [
             'info' => [],

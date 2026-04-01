@@ -53,7 +53,7 @@ class ApiKeyAuthExtension implements Extension
             'properties' => [
                 'message' => [
                     'type' => 'string',
-                    'example' => 'This action is unauthorized.',
+                    'example' => 'This action is unauthorised.',
                 ],
             ],
         ];

@@ -116,7 +116,7 @@ class AuthenticateApiKey
     }
 
     /**
-     * Return 401 Unauthorized response.
+     * Return 401 Unauthorised response.
      */
     protected function unauthorized(string $message): Response
     {
