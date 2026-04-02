@@ -3,7 +3,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"iter"
 	"os"
@@ -86,7 +85,7 @@ func addSDKCommand(parent *cli.Command) {
 		// Generate for each language.
 		for _, l := range languages {
 			fmt.Fprintf(os.Stderr, "Generating %s SDK...\n", l)
-			if err := gen.Generate(context.Background(), l); err != nil {
+			if err := gen.Generate(cli.Context(), l); err != nil {
 				return coreerr.E("sdk.Generate", "generate "+l, err)
 			}
 			fmt.Fprintf(os.Stderr, "  Done: %s/%s/\n", output, l)
