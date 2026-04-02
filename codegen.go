@@ -95,6 +95,12 @@ func (g *SDKGenerator) buildArgs(generator, outputDir string) []string {
 }
 
 // Available checks if openapi-generator-cli is installed and accessible.
+//
+// Example:
+//
+//	if !gen.Available() {
+//		t.Fatal("openapi-generator-cli is required")
+//	}
 func (g *SDKGenerator) Available() bool {
 	_, err := exec.LookPath("openapi-generator-cli")
 	return err == nil
