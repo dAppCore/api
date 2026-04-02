@@ -35,7 +35,7 @@ type SwaggerConfig struct {
 }
 
 // OpenAPISpecBuilder returns a SpecBuilder populated from the engine's current
-// Swagger and transport metadata.
+// Swagger, transport, cache, and i18n metadata.
 //
 // Example:
 //
@@ -75,6 +75,18 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	builder.SSEEnabled = transport.SSEEnabled
 	builder.PprofEnabled = transport.PprofEnabled
 	builder.ExpvarEnabled = transport.ExpvarEnabled
+
+	cache := e.CacheConfig()
+	builder.CacheEnabled = cache.Enabled
+	if cache.TTL > 0 {
+		builder.CacheTTL = cache.TTL.String()
+	}
+	builder.CacheMaxEntries = cache.MaxEntries
+	builder.CacheMaxBytes = cache.MaxBytes
+
+	i18n := e.I18nConfig()
+	builder.I18nDefaultLocale = i18n.DefaultLocale
+	builder.I18nSupportedLocales = slices.Clone(i18n.Supported)
 
 	return builder
 }

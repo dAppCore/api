@@ -7,6 +7,7 @@ import (
 	"iter"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -361,6 +362,54 @@ func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
 
 	if got := spec["x-swagger-ui-path"]; got != "/docs" {
 		t.Fatalf("expected x-swagger-ui-path=/docs, got %v", got)
+	}
+}
+
+func TestSpecBuilder_Good_CacheAndI18nExtensions(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                "Test",
+		Description:          "Runtime config test",
+		Version:              "1.0.0",
+		CacheEnabled:         true,
+		CacheTTL:             (5 * time.Minute).String(),
+		CacheMaxEntries:      42,
+		CacheMaxBytes:        8192,
+		I18nDefaultLocale:    "en-GB",
+		I18nSupportedLocales: []string{"en-GB", "fr"},
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-cache-enabled"]; got != true {
+		t.Fatalf("expected x-cache-enabled=true, got %v", got)
+	}
+	if got := spec["x-cache-ttl"]; got != "5m0s" {
+		t.Fatalf("expected x-cache-ttl=5m0s, got %v", got)
+	}
+	if got := spec["x-cache-max-entries"]; got != float64(42) {
+		t.Fatalf("expected x-cache-max-entries=42, got %v", got)
+	}
+	if got := spec["x-cache-max-bytes"]; got != float64(8192) {
+		t.Fatalf("expected x-cache-max-bytes=8192, got %v", got)
+	}
+
+	if got := spec["x-i18n-default-locale"]; got != "en-GB" {
+		t.Fatalf("expected x-i18n-default-locale=en-GB, got %v", got)
+	}
+	locales, ok := spec["x-i18n-supported-locales"].([]any)
+	if !ok {
+		t.Fatalf("expected x-i18n-supported-locales array, got %T", spec["x-i18n-supported-locales"])
+	}
+	if len(locales) != 2 || locales[0] != "en-GB" || locales[1] != "fr" {
+		t.Fatalf("expected supported locales [en-GB fr], got %v", locales)
 	}
 }
 

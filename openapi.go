@@ -10,11 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"slices"
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
 // Title, Summary, Description, Version, and optional contact/licence/terms metadata populate the
-// OpenAPI info block. Top-level external documentation metadata is also supported.
+// OpenAPI info block. Top-level external documentation metadata is also supported, along with
+// additive extension fields that describe runtime transport, cache, and i18n settings.
 //
 // Example:
 //
@@ -46,6 +49,12 @@ type SpecBuilder struct {
 	ExternalDocsURL         string
 	PprofEnabled            bool
 	ExpvarEnabled           bool
+	CacheEnabled            bool
+	CacheTTL                string
+	CacheMaxEntries         int
+	CacheMaxBytes           int
+	I18nDefaultLocale       string
+	I18nSupportedLocales    []string
 }
 
 type preparedRouteGroup struct {
@@ -128,6 +137,24 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	}
 	if sb.ExpvarEnabled {
 		spec["x-expvar-enabled"] = true
+	}
+	if sb.CacheEnabled {
+		spec["x-cache-enabled"] = true
+	}
+	if ttl := strings.TrimSpace(sb.CacheTTL); ttl != "" {
+		spec["x-cache-ttl"] = ttl
+	}
+	if sb.CacheMaxEntries > 0 {
+		spec["x-cache-max-entries"] = sb.CacheMaxEntries
+	}
+	if sb.CacheMaxBytes > 0 {
+		spec["x-cache-max-bytes"] = sb.CacheMaxBytes
+	}
+	if locale := strings.TrimSpace(sb.I18nDefaultLocale); locale != "" {
+		spec["x-i18n-default-locale"] = locale
+	}
+	if len(sb.I18nSupportedLocales) > 0 {
+		spec["x-i18n-supported-locales"] = slices.Clone(sb.I18nSupportedLocales)
 	}
 
 	if sb.TermsOfService != "" {

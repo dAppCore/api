@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -32,6 +33,11 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 			},
 		}),
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+		api.WithCacheLimits(5*time.Minute, 42, 8192),
+		api.WithI18n(api.I18nConfig{
+			DefaultLocale: "en-GB",
+			Supported:     []string{"en-GB", "fr"},
+		}),
 		api.WithWSPath("/socket"),
 		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
 		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
@@ -104,6 +110,28 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 	if got := spec["x-expvar-enabled"]; got != true {
 		t.Fatalf("expected x-expvar-enabled=true, got %v", got)
+	}
+	if got := spec["x-cache-enabled"]; got != true {
+		t.Fatalf("expected x-cache-enabled=true, got %v", got)
+	}
+	if got := spec["x-cache-ttl"]; got != "5m0s" {
+		t.Fatalf("expected x-cache-ttl=5m0s, got %v", got)
+	}
+	if got := spec["x-cache-max-entries"]; got != float64(42) {
+		t.Fatalf("expected x-cache-max-entries=42, got %v", got)
+	}
+	if got := spec["x-cache-max-bytes"]; got != float64(8192) {
+		t.Fatalf("expected x-cache-max-bytes=8192, got %v", got)
+	}
+	if got := spec["x-i18n-default-locale"]; got != "en-GB" {
+		t.Fatalf("expected x-i18n-default-locale=en-GB, got %v", got)
+	}
+	locales, ok := spec["x-i18n-supported-locales"].([]any)
+	if !ok {
+		t.Fatalf("expected x-i18n-supported-locales array, got %T", spec["x-i18n-supported-locales"])
+	}
+	if len(locales) != 2 || locales[0] != "en-GB" || locales[1] != "fr" {
+		t.Fatalf("expected supported locales [en-GB fr], got %v", locales)
 	}
 
 	contact, ok := info["contact"].(map[string]any)
@@ -244,7 +272,6 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	if cfg.ExternalDocsURL != "https://example.com/docs" {
 		t.Fatalf("expected external docs URL https://example.com/docs, got %q", cfg.ExternalDocsURL)
 	}
-
 	if len(cfg.Servers) != 2 {
 		t.Fatalf("expected 2 normalised servers, got %d", len(cfg.Servers))
 	}
