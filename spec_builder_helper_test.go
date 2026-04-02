@@ -299,6 +299,9 @@ func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 	}
 
 	cfg := e.TransportConfig()
+	if !cfg.SwaggerEnabled {
+		t.Fatal("expected Swagger to be enabled")
+	}
 	if cfg.SwaggerPath != "/docs" {
 		t.Fatalf("expected swagger path /docs, got %q", cfg.SwaggerPath)
 	}
@@ -322,6 +325,23 @@ func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 	}
 	if !cfg.ExpvarEnabled {
 		t.Fatal("expected expvar to be enabled")
+	}
+}
+
+func TestEngine_Good_TransportConfigReportsDisabledSwaggerWithoutUI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwaggerPath("/docs"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if cfg.SwaggerEnabled {
+		t.Fatal("expected Swagger to remain disabled when only the path is configured")
+	}
+	if cfg.SwaggerPath != "/docs" {
+		t.Fatalf("expected swagger path /docs, got %q", cfg.SwaggerPath)
 	}
 }
 

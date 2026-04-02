@@ -13,9 +13,10 @@ import "strings"
 //
 //	cfg := api.TransportConfig{SwaggerPath: "/swagger", WSPath: "/ws"}
 type TransportConfig struct {
+	SwaggerEnabled    bool
 	SwaggerPath       string
 	GraphQLPath       string
-	GraphQLEnabled     bool
+	GraphQLEnabled    bool
 	GraphQLPlayground bool
 	WSPath            string
 	SSEPath           string
@@ -37,6 +38,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 
 	cfg := TransportConfig{
+		SwaggerEnabled:    e.swaggerEnabled,
 		GraphQLEnabled:    e.graphql != nil,
 		GraphQLPlayground: e.graphql != nil && e.graphql.playground,
 		PprofEnabled:      e.pprofEnabled,
