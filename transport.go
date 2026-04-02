@@ -40,20 +40,21 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 
 	cfg := TransportConfig{
-		SwaggerEnabled:    e.swaggerEnabled,
-		GraphQLEnabled:    e.graphql != nil,
-		GraphQLPlayground: e.graphql != nil && e.graphql.playground,
-		WSEnabled:         e.wsHandler != nil,
-		SSEEnabled:        e.sseBroker != nil,
-		PprofEnabled:      e.pprofEnabled,
-		ExpvarEnabled:     e.expvarEnabled,
+		SwaggerEnabled: e.swaggerEnabled,
+		WSEnabled:      e.wsHandler != nil,
+		SSEEnabled:     e.sseBroker != nil,
+		PprofEnabled:   e.pprofEnabled,
+		ExpvarEnabled:  e.expvarEnabled,
 	}
+	gql := e.GraphQLConfig()
+	cfg.GraphQLEnabled = gql.Enabled
+	cfg.GraphQLPlayground = gql.Playground
 
 	if e.swaggerEnabled || strings.TrimSpace(e.swaggerPath) != "" {
 		cfg.SwaggerPath = resolveSwaggerPath(e.swaggerPath)
 	}
-	if e.graphql != nil {
-		cfg.GraphQLPath = normaliseGraphQLPath(e.graphql.path)
+	if gql.Path != "" {
+		cfg.GraphQLPath = gql.Path
 	}
 	if e.wsHandler != nil || strings.TrimSpace(e.wsPath) != "" {
 		cfg.WSPath = resolveWSPath(e.wsPath)

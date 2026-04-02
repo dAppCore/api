@@ -22,6 +22,45 @@ type graphqlConfig struct {
 	playground bool
 }
 
+// GraphQLConfig captures the configured GraphQL endpoint settings for an Engine.
+//
+// It is intentionally small and serialisable so callers can inspect the active
+// GraphQL surface without reaching into the internal handler configuration.
+//
+// Example:
+//
+//	cfg := api.GraphQLConfig{Enabled: true, Path: "/graphql", Playground: true}
+type GraphQLConfig struct {
+	Enabled    bool
+	Path       string
+	Playground bool
+}
+
+// GraphQLConfig returns the currently configured GraphQL settings for the engine.
+//
+// The result snapshots the Engine state at call time and normalises any configured
+// URL path using the same rules as the runtime handlers.
+//
+// Example:
+//
+//	cfg := engine.GraphQLConfig()
+func (e *Engine) GraphQLConfig() GraphQLConfig {
+	if e == nil {
+		return GraphQLConfig{}
+	}
+
+	cfg := GraphQLConfig{
+		Enabled:    e.graphql != nil,
+		Playground: e.graphql != nil && e.graphql.playground,
+	}
+
+	if e.graphql != nil {
+		cfg.Path = normaliseGraphQLPath(e.graphql.path)
+	}
+
+	return cfg
+}
+
 // GraphQLOption configures a GraphQL endpoint.
 //
 // Example:
