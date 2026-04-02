@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -286,5 +287,87 @@ func TestWithI18n_Good_FallsBackToParentLocaleMessage(t *testing.T) {
 	}
 	if !resp.Data.Found {
 		t.Fatal("expected found=true")
+	}
+}
+
+func TestEngine_I18nConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
+	e, _ := api.New(api.WithI18n(api.I18nConfig{
+		DefaultLocale: "en",
+		Supported:     []string{"en", "fr"},
+		Messages: map[string]map[string]string{
+			"en": {"greeting": "Hello"},
+			"fr": {"greeting": "Bonjour"},
+		},
+	}))
+
+	snap := e.I18nConfig()
+	if snap.DefaultLocale != "en" {
+		t.Fatalf("expected default locale en, got %q", snap.DefaultLocale)
+	}
+	if !slices.Equal(snap.Supported, []string{"en", "fr"}) {
+		t.Fatalf("expected supported locales [en fr], got %v", snap.Supported)
+	}
+	if snap.Messages["fr"]["greeting"] != "Bonjour" {
+		t.Fatalf("expected cloned French greeting, got %q", snap.Messages["fr"]["greeting"])
+	}
+}
+
+func TestEngine_I18nConfig_Good_ClonesMutableInputs(t *testing.T) {
+	supported := []string{"en", "fr"}
+	messages := map[string]map[string]string{
+		"en": {"greeting": "Hello"},
+		"fr": {"greeting": "Bonjour"},
+	}
+
+	e, _ := api.New(api.WithI18n(api.I18nConfig{
+		DefaultLocale: "en",
+		Supported:     supported,
+		Messages:      messages,
+	}))
+
+	supported[0] = "de"
+	messages["fr"]["greeting"] = "Salut"
+
+	snap := e.I18nConfig()
+	if !slices.Equal(snap.Supported, []string{"en", "fr"}) {
+		t.Fatalf("expected engine supported locales to be cloned, got %v", snap.Supported)
+	}
+	if snap.Messages["fr"]["greeting"] != "Bonjour" {
+		t.Fatalf("expected engine message catalogue to be cloned, got %q", snap.Messages["fr"]["greeting"])
+	}
+}
+
+func TestWithI18n_Good_SnapshotsMutableInputs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	messages := map[string]map[string]string{
+		"en": {"greeting": "Hello"},
+		"fr": {"greeting": "Bonjour"},
+	}
+
+	e, _ := api.New(api.WithI18n(api.I18nConfig{
+		DefaultLocale: "en",
+		Supported:     []string{"en", "fr"},
+		Messages:      messages,
+	}))
+	e.Register(&i18nTestGroup{})
+
+	messages["fr"]["greeting"] = "Salut"
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/i18n/greeting", nil)
+	req.Header.Set("Accept-Language", "fr")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp i18nMessageResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Data.Message != "Bonjour" {
+		t.Fatalf("expected cloned greeting %q, got %q", "Bonjour", resp.Data.Message)
 	}
 }

@@ -63,6 +63,7 @@ type Engine struct {
 	expvarEnabled                  bool
 	ssePath                        string
 	graphql                        *graphqlConfig
+	i18nConfig                     I18nConfig
 }
 
 // New creates an Engine with the given options.

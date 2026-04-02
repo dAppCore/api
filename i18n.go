@@ -3,6 +3,7 @@
 package api
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -46,6 +47,23 @@ type I18nConfig struct {
 	Messages map[string]map[string]string
 }
 
+// I18nConfig returns the configured locale and message catalogue settings for
+// the engine.
+//
+// The result snapshots the Engine state at call time and clones slices/maps so
+// callers can safely reuse or modify the returned value.
+//
+// Example:
+//
+//	cfg := engine.I18nConfig()
+func (e *Engine) I18nConfig() I18nConfig {
+	if e == nil {
+		return I18nConfig{}
+	}
+
+	return cloneI18nConfig(e.i18nConfig)
+}
+
 // WithI18n adds Accept-Language header parsing and locale detection middleware.
 // The middleware uses golang.org/x/text/language for RFC 5646 language matching
 // with quality weighting support. The detected locale is stored in the Gin
@@ -77,9 +95,11 @@ func WithI18n(cfg ...I18nConfig) Option {
 				tags = append(tags, tag)
 			}
 		}
+		snapshot := cloneI18nConfig(config)
+		e.i18nConfig = snapshot
 		matcher := language.NewMatcher(tags)
 
-		e.middlewares = append(e.middlewares, i18nMiddleware(matcher, config))
+		e.middlewares = append(e.middlewares, i18nMiddleware(matcher, snapshot))
 	}
 }
 
@@ -196,4 +216,31 @@ func localeFallbacks(locale string) []string {
 	}
 
 	return fallbacks
+}
+
+func cloneI18nConfig(cfg I18nConfig) I18nConfig {
+	out := cfg
+	out.Supported = slices.Clone(cfg.Supported)
+	out.Messages = cloneI18nMessages(cfg.Messages)
+	return out
+}
+
+func cloneI18nMessages(messages map[string]map[string]string) map[string]map[string]string {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	out := make(map[string]map[string]string, len(messages))
+	for locale, msgs := range messages {
+		if len(msgs) == 0 {
+			out[locale] = nil
+			continue
+		}
+		cloned := make(map[string]string, len(msgs))
+		for key, value := range msgs {
+			cloned[key] = value
+		}
+		out[locale] = cloned
+	}
+	return out
 }
