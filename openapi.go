@@ -89,6 +89,22 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if swaggerPath := strings.TrimSpace(sb.SwaggerPath); swaggerPath != "" {
 		spec["x-swagger-ui-path"] = normaliseSwaggerPath(swaggerPath)
 	}
+	if graphqlPath := sb.effectiveGraphQLPath(); graphqlPath != "" {
+		spec["x-graphql-path"] = normaliseOpenAPIPath(graphqlPath)
+		spec["x-graphql-playground"] = sb.GraphQLPlayground
+	}
+	if wsPath := strings.TrimSpace(sb.WSPath); wsPath != "" {
+		spec["x-ws-path"] = normaliseOpenAPIPath(wsPath)
+	}
+	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
+		spec["x-sse-path"] = normaliseOpenAPIPath(ssePath)
+	}
+	if sb.PprofEnabled {
+		spec["x-pprof-enabled"] = true
+	}
+	if sb.ExpvarEnabled {
+		spec["x-expvar-enabled"] = true
+	}
 
 	if sb.TermsOfService != "" {
 		spec["info"].(map[string]any)["termsOfService"] = sb.TermsOfService

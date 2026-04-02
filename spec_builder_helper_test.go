@@ -64,6 +64,24 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if got := spec["x-swagger-ui-path"]; got != "/docs" {
 		t.Fatalf("expected x-swagger-ui-path=/docs, got %v", got)
 	}
+	if got := spec["x-graphql-path"]; got != "/gql" {
+		t.Fatalf("expected x-graphql-path=/gql, got %v", got)
+	}
+	if got := spec["x-graphql-playground"]; got != true {
+		t.Fatalf("expected x-graphql-playground=true, got %v", got)
+	}
+	if got := spec["x-ws-path"]; got != "/socket" {
+		t.Fatalf("expected x-ws-path=/socket, got %v", got)
+	}
+	if got := spec["x-sse-path"]; got != "/events" {
+		t.Fatalf("expected x-sse-path=/events, got %v", got)
+	}
+	if got := spec["x-pprof-enabled"]; got != true {
+		t.Fatalf("expected x-pprof-enabled=true, got %v", got)
+	}
+	if got := spec["x-expvar-enabled"]; got != true {
+		t.Fatalf("expected x-expvar-enabled=true, got %v", got)
+	}
 
 	contact, ok := info["contact"].(map[string]any)
 	if !ok {
