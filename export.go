@@ -75,21 +75,7 @@ func writeSpec(w io.Writer, format string, data []byte, op string) error {
 //
 //	_ = api.ExportSpecToFile("./api/openapi.yaml", "yaml", builder, engine.Groups())
 func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup) error {
-	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
-		return coreerr.E("ExportSpecToFile", "create directory", err)
-	}
-	f, err := os.Create(path)
-	if err != nil {
-		return coreerr.E("ExportSpecToFile", "create file", err)
-	}
-	if err := ExportSpec(f, format, builder, groups); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return coreerr.E("ExportSpecToFile", "close file", err)
-	}
-	return nil
+	return exportSpecToFile(path, format, builder, groups, "ExportSpecToFile")
 }
 
 // ExportSpecToFileIter writes the OpenAPI spec from an iterator to the given path.
@@ -99,19 +85,23 @@ func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 //
 //	_ = api.ExportSpecToFileIter("./api/openapi.json", "json", builder, api.RegisteredSpecGroupsIter())
 func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
+	return exportSpecToFile(path, format, builder, collectRouteGroups(groups), "ExportSpecToFileIter")
+}
+
+func exportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup, op string) error {
 	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
-		return coreerr.E("ExportSpecToFileIter", "create directory", err)
+		return coreerr.E(op, "create directory", err)
 	}
 	f, err := os.Create(path)
 	if err != nil {
-		return coreerr.E("ExportSpecToFileIter", "create file", err)
+		return coreerr.E(op, "create file", err)
 	}
-	if err := ExportSpecIter(f, format, builder, groups); err != nil {
-		_ = f.Close()
+	if err := ExportSpec(f, format, builder, groups); err != nil {
 		return err
 	}
+
 	if err := f.Close(); err != nil {
-		return coreerr.E("ExportSpecToFileIter", "close file", err)
+		return coreerr.E(op, "close file", err)
 	}
 	return nil
 }
