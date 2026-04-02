@@ -15,68 +15,18 @@ import (
 
 func addSpecCommand(parent *cli.Command) {
 	var (
-		output                  string
-		format                  string
-		title                   string
-		summary                 string
-		description             string
-		version                 string
-		swaggerPath             string
-		graphqlPath             string
-		graphqlPlayground       bool
-		ssePath                 string
-		wsPath                  string
-		pprofEnabled            bool
-		expvarEnabled           bool
-		cacheEnabled            bool
-		cacheTTL                string
-		cacheMaxEntries         int
-		cacheMaxBytes           int
-		i18nDefaultLocale       string
-		i18nSupportedLocales    string
-		termsURL                string
-		contactName             string
-		contactURL              string
-		contactEmail            string
-		licenseName             string
-		licenseURL              string
-		externalDocsDescription string
-		externalDocsURL         string
-		servers                 string
-		securitySchemes         string
+		output string
+		format string
+		cfg    specBuilderConfig
 	)
+
+	cfg.title = "Lethean Core API"
+	cfg.description = "Lethean Core API"
+	cfg.version = "1.0.0"
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
 		// Build spec from all route groups registered for CLI generation.
-		builder, err := newSpecBuilder(specBuilderConfig{
-			title:                   title,
-			summary:                 summary,
-			description:             description,
-			version:                 version,
-			swaggerPath:             swaggerPath,
-			graphqlPath:             graphqlPath,
-			graphqlPlayground:       graphqlPlayground,
-			ssePath:                 ssePath,
-			wsPath:                  wsPath,
-			pprofEnabled:            pprofEnabled,
-			expvarEnabled:           expvarEnabled,
-			cacheEnabled:            cacheEnabled,
-			cacheTTL:                cacheTTL,
-			cacheMaxEntries:         cacheMaxEntries,
-			cacheMaxBytes:           cacheMaxBytes,
-			i18nDefaultLocale:       i18nDefaultLocale,
-			i18nSupportedLocales:    i18nSupportedLocales,
-			termsURL:                termsURL,
-			contactName:             contactName,
-			contactURL:              contactURL,
-			contactEmail:            contactEmail,
-			licenseName:             licenseName,
-			licenseURL:              licenseURL,
-			externalDocsDescription: externalDocsDescription,
-			externalDocsURL:         externalDocsURL,
-			servers:                 servers,
-			securitySchemes:         securitySchemes,
-		})
+		builder, err := newSpecBuilder(cfg)
 		if err != nil {
 			return err
 		}
@@ -97,33 +47,7 @@ func addSpecCommand(parent *cli.Command) {
 
 	cli.StringFlag(cmd, &output, "output", "o", "", "Write spec to file instead of stdout")
 	cli.StringFlag(cmd, &format, "format", "f", "json", "Output format: json or yaml")
-	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
-	cli.StringFlag(cmd, &summary, "summary", "", "", "OpenAPI info summary in spec")
-	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
-	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
-	cli.StringFlag(cmd, &swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
-	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
-	cli.BoolFlag(cmd, &graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
-	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
-	cli.StringFlag(cmd, &wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
-	cli.BoolFlag(cmd, &pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")
-	cli.BoolFlag(cmd, &expvarEnabled, "expvar", "", false, "Include expvar endpoint in generated spec")
-	cli.BoolFlag(cmd, &cacheEnabled, "cache", "", false, "Include cache metadata in generated spec")
-	cli.StringFlag(cmd, &cacheTTL, "cache-ttl", "", "", "Cache TTL in generated spec")
-	cli.IntFlag(cmd, &cacheMaxEntries, "cache-max-entries", "", 0, "Cache max entries in generated spec")
-	cli.IntFlag(cmd, &cacheMaxBytes, "cache-max-bytes", "", 0, "Cache max bytes in generated spec")
-	cli.StringFlag(cmd, &i18nDefaultLocale, "i18n-default-locale", "", "", "Default locale in generated spec")
-	cli.StringFlag(cmd, &i18nSupportedLocales, "i18n-supported-locales", "", "", "Comma-separated supported locales in generated spec")
-	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
-	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in spec")
-	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")
-	cli.StringFlag(cmd, &contactEmail, "contact-email", "", "", "OpenAPI contact email in spec")
-	cli.StringFlag(cmd, &licenseName, "license-name", "", "", "OpenAPI licence name in spec")
-	cli.StringFlag(cmd, &licenseURL, "license-url", "", "", "OpenAPI licence URL in spec")
-	cli.StringFlag(cmd, &externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in spec")
-	cli.StringFlag(cmd, &externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in spec")
-	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
-	cli.StringFlag(cmd, &securitySchemes, "security-schemes", "", "", "JSON object of custom OpenAPI security schemes")
+	registerSpecBuilderFlags(cmd, &cfg)
 
 	parent.AddCommand(cmd)
 }
@@ -143,4 +67,34 @@ func parseSecuritySchemes(raw string) (map[string]any, error) {
 		return nil, cli.Err("invalid security schemes JSON: %w", err)
 	}
 	return schemes, nil
+}
+
+func registerSpecBuilderFlags(cmd *cli.Command, cfg *specBuilderConfig) {
+	cli.StringFlag(cmd, &cfg.title, "title", "t", cfg.title, "API title in spec")
+	cli.StringFlag(cmd, &cfg.summary, "summary", "", cfg.summary, "OpenAPI info summary in spec")
+	cli.StringFlag(cmd, &cfg.description, "description", "d", cfg.description, "API description in spec")
+	cli.StringFlag(cmd, &cfg.version, "version", "V", cfg.version, "API version in spec")
+	cli.StringFlag(cmd, &cfg.swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
+	cli.StringFlag(cmd, &cfg.graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
+	cli.BoolFlag(cmd, &cfg.graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
+	cli.StringFlag(cmd, &cfg.ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
+	cli.StringFlag(cmd, &cfg.wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
+	cli.BoolFlag(cmd, &cfg.pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")
+	cli.BoolFlag(cmd, &cfg.expvarEnabled, "expvar", "", false, "Include expvar endpoint in generated spec")
+	cli.BoolFlag(cmd, &cfg.cacheEnabled, "cache", "", false, "Include cache metadata in generated spec")
+	cli.StringFlag(cmd, &cfg.cacheTTL, "cache-ttl", "", "", "Cache TTL in generated spec")
+	cli.IntFlag(cmd, &cfg.cacheMaxEntries, "cache-max-entries", "", 0, "Cache max entries in generated spec")
+	cli.IntFlag(cmd, &cfg.cacheMaxBytes, "cache-max-bytes", "", 0, "Cache max bytes in generated spec")
+	cli.StringFlag(cmd, &cfg.i18nDefaultLocale, "i18n-default-locale", "", "", "Default locale in generated spec")
+	cli.StringFlag(cmd, &cfg.i18nSupportedLocales, "i18n-supported-locales", "", "", "Comma-separated supported locales in generated spec")
+	cli.StringFlag(cmd, &cfg.termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
+	cli.StringFlag(cmd, &cfg.contactName, "contact-name", "", "", "OpenAPI contact name in spec")
+	cli.StringFlag(cmd, &cfg.contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")
+	cli.StringFlag(cmd, &cfg.contactEmail, "contact-email", "", "", "OpenAPI contact email in spec")
+	cli.StringFlag(cmd, &cfg.licenseName, "license-name", "", "", "OpenAPI licence name in spec")
+	cli.StringFlag(cmd, &cfg.licenseURL, "license-url", "", "", "OpenAPI licence URL in spec")
+	cli.StringFlag(cmd, &cfg.externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in spec")
+	cli.StringFlag(cmd, &cfg.externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in spec")
+	cli.StringFlag(cmd, &cfg.servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
+	cli.StringFlag(cmd, &cfg.securitySchemes, "security-schemes", "", "", "JSON object of custom OpenAPI security schemes")
 }
