@@ -208,6 +208,32 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_NilReceiverIsZeroValueSafe(t *testing.T) {
+	var sb *api.SpecBuilder
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if spec["openapi"] != "3.1.0" {
+		t.Fatalf("expected openapi=3.1.0, got %v", spec["openapi"])
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object, got %T", spec["paths"])
+	}
+	if _, ok := paths["/health"]; !ok {
+		t.Fatal("expected /health path to be present")
+	}
+}
+
 func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
