@@ -4,6 +4,7 @@ package api
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -17,6 +18,9 @@ import (
 // swaggerSeq provides unique instance names so multiple Engine instances
 // (common in tests) do not collide in the global swag registry.
 var swaggerSeq atomic.Uint64
+
+// defaultSwaggerPath is the URL path where the Swagger UI is mounted.
+const defaultSwaggerPath = "/swagger"
 
 // swaggerSpec wraps SpecBuilder to satisfy the swag.Spec interface.
 // The spec is built once on first access and cached.
@@ -48,7 +52,8 @@ func (s *swaggerSpec) ReadDoc() string {
 }
 
 // registerSwagger mounts the Swagger UI and doc.json endpoint.
-func registerSwagger(g *gin.Engine, title, description, version, graphqlPath, ssePath, termsOfService, contactName, contactURL, contactEmail string, servers []string, licenseName, licenseURL, externalDocsDescription, externalDocsURL string, groups []RouteGroup) {
+func registerSwagger(g *gin.Engine, swaggerPath, title, description, version, graphqlPath, ssePath, termsOfService, contactName, contactURL, contactEmail string, servers []string, licenseName, licenseURL, externalDocsDescription, externalDocsURL string, groups []RouteGroup) {
+	swaggerPath = resolveSwaggerPath(swaggerPath)
 	spec := newSwaggerSpec(&SpecBuilder{
 		Title:                   title,
 		Description:             description,
@@ -67,5 +72,30 @@ func registerSwagger(g *gin.Engine, title, description, version, graphqlPath, ss
 	}, groups)
 	name := fmt.Sprintf("swagger_%d", swaggerSeq.Add(1))
 	swag.Register(name, spec)
-	g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.NewHandler(), ginSwagger.InstanceName(name)))
+	g.GET(swaggerPath+"/*any", ginSwagger.WrapHandler(swaggerFiles.NewHandler(), ginSwagger.InstanceName(name)))
+}
+
+// normaliseSwaggerPath coerces custom Swagger paths into a stable form.
+// The path always begins with a single slash and never ends with one.
+func normaliseSwaggerPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return defaultSwaggerPath
+	}
+
+	path = "/" + strings.Trim(path, "/")
+	if path == "/" {
+		return defaultSwaggerPath
+	}
+
+	return path
+}
+
+// resolveSwaggerPath returns the configured Swagger path or the default path
+// when no override has been provided.
+func resolveSwaggerPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return defaultSwaggerPath
+	}
+	return normaliseSwaggerPath(path)
 }

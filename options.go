@@ -40,11 +40,16 @@ func WithAddr(addr string) Option {
 }
 
 // WithBearerAuth adds bearer token authentication middleware.
-// Requests to /health and paths starting with /swagger are exempt.
+// Requests to /health and the Swagger UI path are exempt.
 func WithBearerAuth(token string) Option {
 	return func(e *Engine) {
-		skip := []string{"/health", "/swagger"}
-		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, skip))
+		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, func() []string {
+			skip := []string{"/health"}
+			if swaggerPath := resolveSwaggerPath(e.swaggerPath); swaggerPath != "" {
+				skip = append(skip, swaggerPath)
+			}
+			return skip
+		}))
 	}
 }
 
@@ -140,7 +145,7 @@ func WithSunset(sunsetDate, replacement string) Option {
 	}
 }
 
-// WithSwagger enables the Swagger UI at /swagger/.
+// WithSwagger enables the Swagger UI at /swagger/ by default.
 // The title, description, and version populate the OpenAPI info block.
 func WithSwagger(title, description, version string) Option {
 	return func(e *Engine) {
@@ -148,6 +153,14 @@ func WithSwagger(title, description, version string) Option {
 		e.swaggerDesc = description
 		e.swaggerVersion = version
 		e.swaggerEnabled = true
+	}
+}
+
+// WithSwaggerPath sets a custom URL path for the Swagger UI.
+// The default path is "/swagger".
+func WithSwaggerPath(path string) Option {
+	return func(e *Engine) {
+		e.swaggerPath = normaliseSwaggerPath(path)
 	}
 }
 

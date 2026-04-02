@@ -65,6 +65,52 @@ func TestSwaggerEndpoint_Good(t *testing.T) {
 	}
 }
 
+func TestSwaggerEndpoint_Good_CustomPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/docs/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+	if len(body) == 0 {
+		t.Fatal("expected non-empty response body")
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("expected valid JSON, got unmarshal error: %v", err)
+	}
+
+	info, ok := doc["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected 'info' object in swagger doc")
+	}
+	if info["title"] != "Test API" {
+		t.Fatalf("expected title=%q, got %q", "Test API", info["title"])
+	}
+}
+
 func TestSwaggerDisabledByDefault_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -78,6 +124,32 @@ func TestSwaggerDisabledByDefault_Good(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for /swagger/doc.json without WithSwagger, got %d", w.Code)
+	}
+}
+
+func TestSwaggerAuth_Good_CustomPathBypassesBearerAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithBearerAuth("secret"),
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/docs/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for custom swagger path without auth, got %d", resp.StatusCode)
 	}
 }
 

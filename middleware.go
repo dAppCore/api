@@ -38,10 +38,10 @@ func recoveryMiddleware() gin.HandlerFunc {
 // bearerAuthMiddleware validates the Authorization: Bearer <token> header.
 // Requests to paths in the skip list are allowed through without authentication.
 // Returns 401 with Fail("unauthorised", ...) on missing or invalid tokens.
-func bearerAuthMiddleware(token string, skip []string) gin.HandlerFunc {
+func bearerAuthMiddleware(token string, skip func() []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check whether the request path should bypass authentication.
-		for _, path := range skip {
+		for _, path := range skip() {
 			if isPublicPath(c.Request.URL.Path, path) {
 				c.Next()
 				return

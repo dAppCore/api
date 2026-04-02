@@ -43,6 +43,7 @@ type Engine struct {
 	swaggerTitle                   string
 	swaggerDesc                    string
 	swaggerVersion                 string
+	swaggerPath                    string
 	swaggerTermsOfService          string
 	swaggerServers                 []string
 	swaggerContactName             string
@@ -243,6 +244,7 @@ func (e *Engine) build() *gin.Engine {
 		}
 		registerSwagger(
 			r,
+			resolveSwaggerPath(e.swaggerPath),
 			e.swaggerTitle,
 			e.swaggerDesc,
 			e.swaggerVersion,
