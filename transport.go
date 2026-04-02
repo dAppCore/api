@@ -15,6 +15,7 @@ import "strings"
 type TransportConfig struct {
 	SwaggerPath       string
 	GraphQLPath       string
+	GraphQLEnabled     bool
 	GraphQLPlayground bool
 	WSPath            string
 	SSEPath           string
@@ -36,6 +37,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 
 	cfg := TransportConfig{
+		GraphQLEnabled:    e.graphql != nil,
 		GraphQLPlayground: e.graphql != nil && e.graphql.playground,
 		PprofEnabled:      e.pprofEnabled,
 		ExpvarEnabled:     e.expvarEnabled,

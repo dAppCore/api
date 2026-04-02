@@ -305,6 +305,9 @@ func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 	if cfg.GraphQLPath != "/gql" {
 		t.Fatalf("expected graphql path /gql, got %q", cfg.GraphQLPath)
 	}
+	if !cfg.GraphQLEnabled {
+		t.Fatal("expected GraphQL to be enabled")
+	}
 	if !cfg.GraphQLPlayground {
 		t.Fatal("expected GraphQL playground to be enabled")
 	}
