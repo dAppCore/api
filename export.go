@@ -9,6 +9,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -47,7 +48,7 @@ func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups ite
 }
 
 func writeSpec(w io.Writer, format string, data []byte, op string) error {
-	switch format {
+	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
 		_, err := w.Write(data)
 		return err

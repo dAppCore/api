@@ -66,6 +66,24 @@ func TestExportSpec_Good_YAML(t *testing.T) {
 	}
 }
 
+func TestExportSpec_Good_NormalisesFormatInput(t *testing.T) {
+	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+
+	var buf bytes.Buffer
+	if err := api.ExportSpec(&buf, " YAML ", builder, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := yaml.Unmarshal(buf.Bytes(), &spec); err != nil {
+		t.Fatalf("output is not valid YAML: %v", err)
+	}
+
+	if spec["openapi"] != "3.1.0" {
+		t.Fatalf("expected openapi=3.1.0, got %v", spec["openapi"])
+	}
+}
+
 func TestExportSpec_Bad_InvalidFormat(t *testing.T) {
 	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
 

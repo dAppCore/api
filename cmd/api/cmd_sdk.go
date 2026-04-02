@@ -108,7 +108,7 @@ func addSDKCommand(parent *cli.Command) {
 
 	cli.StringFlag(cmd, &lang, "lang", "l", "", "Target language(s), comma-separated (e.g. go,python,typescript-fetch)")
 	cli.StringFlag(cmd, &output, "output", "o", "./sdk", "Output directory for generated SDKs")
-	cli.StringFlag(cmd, &specFile, "spec", "s", "", "Path to existing OpenAPI spec (generates from MCP tools if not provided)")
+	cli.StringFlag(cmd, &specFile, "spec", "s", "", "Path to an existing OpenAPI spec (generates a temporary spec from registered route groups and the built-in tool bridge if not provided)")
 	cli.StringFlag(cmd, &packageName, "package", "p", "lethean", "Package name for generated SDK")
 	cli.StringFlag(cmd, &title, "title", "t", defaultSDKTitle, "API title in generated spec")
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
