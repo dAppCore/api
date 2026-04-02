@@ -120,6 +120,7 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 		api.WithSwagger("Runtime API", "Runtime snapshot", "1.2.3"),
 		api.WithSwaggerPath("/docs"),
 		api.WithCacheLimits(5*time.Minute, 10, 1024),
+		api.WithGraphQL(newTestSchema(), api.WithPlayground()),
 		api.WithI18n(api.I18nConfig{
 			DefaultLocale: "en-GB",
 			Supported:     []string{"en-GB", "fr"},
@@ -152,6 +153,15 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if !cfg.Cache.Enabled || cfg.Cache.TTL != 5*time.Minute {
 		t.Fatalf("expected cache snapshot to be populated, got %+v", cfg.Cache)
 	}
+	if !cfg.GraphQL.Enabled {
+		t.Fatal("expected GraphQL snapshot to be enabled")
+	}
+	if cfg.GraphQL.Path != "/graphql" {
+		t.Fatalf("expected GraphQL path /graphql, got %q", cfg.GraphQL.Path)
+	}
+	if !cfg.GraphQL.Playground {
+		t.Fatal("expected GraphQL playground snapshot to be enabled")
+	}
 	if cfg.I18n.DefaultLocale != "en-GB" {
 		t.Fatalf("expected default locale en-GB, got %q", cfg.I18n.DefaultLocale)
 	}
@@ -176,7 +186,7 @@ func TestEngine_RuntimeConfig_Good_EmptyOnNilEngine(t *testing.T) {
 	var e *api.Engine
 
 	cfg := e.RuntimeConfig()
-	if cfg.Swagger.Enabled || cfg.Transport.SwaggerEnabled || cfg.Cache.Enabled || cfg.I18n.DefaultLocale != "" || cfg.Authentik.Issuer != "" {
+	if cfg.Swagger.Enabled || cfg.Transport.SwaggerEnabled || cfg.GraphQL.Enabled || cfg.Cache.Enabled || cfg.I18n.DefaultLocale != "" || cfg.Authentik.Issuer != "" {
 		t.Fatalf("expected zero-value runtime config, got %+v", cfg)
 	}
 }

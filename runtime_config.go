@@ -5,8 +5,8 @@ package api
 // RuntimeConfig captures the engine's current runtime-facing configuration in
 // a single snapshot.
 //
-// It groups the existing Swagger, transport, cache, and i18n snapshots so
-// callers can inspect the active engine surface without joining multiple
+// It groups the existing Swagger, transport, GraphQL, cache, and i18n snapshots
+// so callers can inspect the active engine surface without joining multiple
 // method results themselves.
 //
 // Example:
@@ -15,6 +15,7 @@ package api
 type RuntimeConfig struct {
 	Swagger    SwaggerConfig
 	Transport  TransportConfig
+	GraphQL    GraphQLConfig
 	Cache      CacheConfig
 	I18n       I18nConfig
 	Authentik  AuthentikConfig
@@ -37,6 +38,7 @@ func (e *Engine) RuntimeConfig() RuntimeConfig {
 	return RuntimeConfig{
 		Swagger:   e.SwaggerConfig(),
 		Transport: e.TransportConfig(),
+		GraphQL:   e.GraphQLConfig(),
 		Cache:     e.CacheConfig(),
 		I18n:      e.I18nConfig(),
 		Authentik: e.AuthentikConfig(),

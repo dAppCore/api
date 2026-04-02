@@ -66,9 +66,9 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	}
 
 	builder.SwaggerPath = runtime.Transport.SwaggerPath
-	builder.GraphQLEnabled = runtime.Transport.GraphQLEnabled
-	builder.GraphQLPath = runtime.Transport.GraphQLPath
-	builder.GraphQLPlayground = runtime.Transport.GraphQLPlayground
+	builder.GraphQLEnabled = runtime.GraphQL.Enabled
+	builder.GraphQLPath = runtime.GraphQL.Path
+	builder.GraphQLPlayground = runtime.GraphQL.Playground
 	builder.WSPath = runtime.Transport.WSPath
 	builder.WSEnabled = runtime.Transport.WSEnabled
 	builder.SSEPath = runtime.Transport.SSEPath
