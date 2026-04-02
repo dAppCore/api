@@ -205,6 +205,9 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	if !cfg.Enabled {
 		t.Fatal("expected Swagger to be enabled")
 	}
+	if cfg.Path != "" {
+		t.Fatalf("expected empty Swagger path when none is configured, got %q", cfg.Path)
+	}
 	if cfg.Title != "Engine API" {
 		t.Fatalf("expected title Engine API, got %q", cfg.Title)
 	}
@@ -238,6 +241,18 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	}
 	if cfg.Servers[1] != "/" {
 		t.Fatalf("expected second server to be /, got %q", cfg.Servers[1])
+	}
+
+	cfgWithPath, err := api.New(
+		api.WithSwagger("Engine API", "Engine metadata", "2.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	snap := cfgWithPath.SwaggerConfig()
+	if snap.Path != "/docs" {
+		t.Fatalf("expected Swagger path /docs, got %q", snap.Path)
 	}
 
 	apiKeyAuth, ok := cfg.SecuritySchemes["apiKeyAuth"].(map[string]any)

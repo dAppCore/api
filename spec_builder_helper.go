@@ -17,6 +17,7 @@ import (
 //	cfg := api.SwaggerConfig{Title: "Service", Summary: "Public API"}
 type SwaggerConfig struct {
 	Enabled                 bool
+	Path                    string
 	Title                   string
 	Summary                 string
 	Description             string
@@ -89,6 +90,7 @@ func (e *Engine) SwaggerConfig() SwaggerConfig {
 
 	return SwaggerConfig{
 		Enabled:                 e.swaggerEnabled,
+		Path:                    e.swaggerPath,
 		Title:                   e.swaggerTitle,
 		Summary:                 e.swaggerSummary,
 		Description:             e.swaggerDesc,
