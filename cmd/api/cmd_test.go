@@ -700,6 +700,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"Custom SDK API",
 		"Custom SDK description",
 		"9.9.9",
+		"/docs",
 		"/gql",
 		true,
 		"/events",
@@ -753,6 +754,9 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if _, ok := paths["/gql"]; !ok {
 		t.Fatal("expected GraphQL path to be included in generated spec")
+	}
+	if got := builder.SwaggerPath; got != "/docs" {
+		t.Fatalf("expected swagger path to be preserved in sdk spec builder, got %v", got)
 	}
 	if _, ok := paths["/gql/playground"]; !ok {
 		t.Fatal("expected GraphQL playground path to be included in generated spec")

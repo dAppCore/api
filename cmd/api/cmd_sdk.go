@@ -57,8 +57,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
-			builder.SwaggerPath = swaggerPath
+			builder := sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
 			groups := sdkSpecGroupsIter()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -127,11 +126,12 @@ func addSDKCommand(parent *cli.Command) {
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
+func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
 	return &goapi.SpecBuilder{
 		Title:                   title,
 		Description:             description,
 		Version:                 version,
+		SwaggerPath:             swaggerPath,
 		GraphQLPath:             graphqlPath,
 		GraphQLPlayground:       graphqlPlayground,
 		SSEPath:                 ssePath,
