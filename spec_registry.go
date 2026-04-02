@@ -25,10 +25,27 @@ var specRegistry struct {
 //
 //	api.RegisterSpecGroups(api.NewToolBridge("/mcp"))
 func RegisterSpecGroups(groups ...RouteGroup) {
+	RegisterSpecGroupsIter(slices.Values(groups))
+}
+
+// RegisterSpecGroupsIter adds route groups from an iterator to the package-level
+// spec registry.
+//
+// Nil groups are ignored. Registered groups are returned by RegisteredSpecGroups
+// in the order they were added.
+//
+// Example:
+//
+//	api.RegisterSpecGroupsIter(api.RegisteredSpecGroupsIter())
+func RegisterSpecGroupsIter(groups iter.Seq[RouteGroup]) {
+	if groups == nil {
+		return
+	}
+
 	specRegistry.mu.Lock()
 	defer specRegistry.mu.Unlock()
 
-	for _, group := range groups {
+	for group := range groups {
 		if group == nil {
 			continue
 		}

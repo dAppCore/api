@@ -3,6 +3,7 @@
 package api_test
 
 import (
+	"iter"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -73,5 +74,39 @@ func TestRegisterSpecGroups_Good_IteratorReturnsSnapshot(t *testing.T) {
 	}
 	if groups[0].Name() != "alpha" || groups[0].BasePath() != "/alpha" {
 		t.Fatalf("expected iterator snapshot to preserve alpha at /alpha, got %s at %s", groups[0].Name(), groups[0].BasePath())
+	}
+}
+
+func TestRegisterSpecGroupsIter_Good_DeduplicatesAndRegisters(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
+	first := &specRegistryStubGroup{name: "alpha", basePath: "/alpha"}
+	second := &specRegistryStubGroup{name: "alpha", basePath: "/alpha"}
+	third := &specRegistryStubGroup{name: "gamma", basePath: "/gamma"}
+
+	groups := iter.Seq[api.RouteGroup](func(yield func(api.RouteGroup) bool) {
+		for _, group := range []api.RouteGroup{first, second, nil, third, first} {
+			if !yield(group) {
+				return
+			}
+		}
+	})
+
+	api.RegisterSpecGroupsIter(groups)
+
+	registered := api.RegisteredSpecGroups()
+	if len(registered) != 2 {
+		t.Fatalf("expected 2 unique groups, got %d", len(registered))
+	}
+	if registered[0].Name() != "alpha" || registered[0].BasePath() != "/alpha" {
+		t.Fatalf("expected first group to be alpha at /alpha, got %s at %s", registered[0].Name(), registered[0].BasePath())
+	}
+	if registered[1].Name() != "gamma" || registered[1].BasePath() != "/gamma" {
+		t.Fatalf("expected second group to be gamma at /gamma, got %s at %s", registered[1].Name(), registered[1].BasePath())
 	}
 }
