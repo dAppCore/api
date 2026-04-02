@@ -398,8 +398,8 @@ func TestAPISpecCmd_Good_AuthentikPublicPathsAreNormalised(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
 	}
-	if len(paths) != 2 || paths[0] != "/public" || paths[1] != "/docs" {
-		t.Fatalf("expected normalised public paths [/public /docs], got %v", paths)
+	if len(paths) != 4 || paths[0] != "/health" || paths[1] != "/swagger" || paths[2] != "/public" || paths[3] != "/docs" {
+		t.Fatalf("expected normalised public paths [/health /swagger /public /docs], got %v", paths)
 	}
 }
 
@@ -867,8 +867,8 @@ func TestAPISpecCmd_Good_AuthentikFlagsPopulateSpecMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
 	}
-	if len(publicPaths) != 2 || publicPaths[0] != "/public" || publicPaths[1] != "/docs" {
-		t.Fatalf("expected public paths [/public /docs], got %v", publicPaths)
+	if len(publicPaths) != 4 || publicPaths[0] != "/health" || publicPaths[1] != "/swagger" || publicPaths[2] != "/public" || publicPaths[3] != "/docs" {
+		t.Fatalf("expected public paths [/health /swagger /public /docs], got %v", publicPaths)
 	}
 }
 
@@ -1151,8 +1151,8 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
 	}
-	if len(publicPaths) != 2 || publicPaths[0] != "/public" || publicPaths[1] != "/docs" {
-		t.Fatalf("expected public paths [/public /docs], got %v", publicPaths)
+	if len(publicPaths) != 4 || publicPaths[0] != "/health" || publicPaths[1] != "/swagger" || publicPaths[2] != "/docs" || publicPaths[3] != "/public" {
+		t.Fatalf("expected public paths [/health /swagger /docs /public], got %v", publicPaths)
 	}
 
 	if info["termsOfService"] != "https://example.com/terms" {

@@ -169,8 +169,8 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if sb.AuthentikTrustedProxy {
 		spec["x-authentik-trusted-proxy"] = true
 	}
-	if len(sb.AuthentikPublicPaths) > 0 {
-		spec["x-authentik-public-paths"] = slices.Clone(sb.AuthentikPublicPaths)
+	if paths := sb.effectiveAuthentikPublicPaths(); len(paths) > 0 {
+		spec["x-authentik-public-paths"] = paths
 	}
 
 	if sb.TermsOfService != "" {
@@ -1903,6 +1903,31 @@ func (sb *SpecBuilder) effectiveSSEPath() string {
 		return defaultSSEPath
 	}
 	return ssePath
+}
+
+// effectiveAuthentikPublicPaths returns the public paths that Authentik skips
+// in practice, including the always-public health and Swagger endpoints.
+func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
+	if !sb.hasAuthentikMetadata() {
+		return nil
+	}
+
+	paths := []string{"/health", "/swagger", resolveSwaggerPath(sb.SwaggerPath)}
+	paths = append(paths, sb.AuthentikPublicPaths...)
+	return normalisePublicPaths(paths)
+}
+
+// hasAuthentikMetadata reports whether the spec carries any Authentik-related
+// configuration worth surfacing.
+func (sb *SpecBuilder) hasAuthentikMetadata() bool {
+	if sb == nil {
+		return false
+	}
+
+	return strings.TrimSpace(sb.AuthentikIssuer) != "" ||
+		strings.TrimSpace(sb.AuthentikClientID) != "" ||
+		sb.AuthentikTrustedProxy ||
+		len(sb.AuthentikPublicPaths) > 0
 }
 
 // documentedResponseHeaders converts route-specific response header metadata

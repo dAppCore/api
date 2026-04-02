@@ -152,8 +152,8 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
 	}
-	if len(publicPaths) != 2 || publicPaths[0] != "/public" || publicPaths[1] != "/docs" {
-		t.Fatalf("expected public paths [/public /docs], got %v", publicPaths)
+	if len(publicPaths) != 4 || publicPaths[0] != "/health" || publicPaths[1] != "/swagger" || publicPaths[2] != "/docs" || publicPaths[3] != "/public" {
+		t.Fatalf("expected public paths [/health /swagger /docs /public], got %v", publicPaths)
 	}
 
 	contact, ok := info["contact"].(map[string]any)
