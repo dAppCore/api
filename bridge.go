@@ -143,8 +143,8 @@ func (b *ToolBridge) snapshotTools() []boundTool {
 }
 
 func describeTool(desc ToolDescriptor, defaultTag string) RouteDescription {
-	tags := []string{desc.Group}
-	if desc.Group == "" {
+	tags := cleanTags([]string{desc.Group})
+	if len(tags) == 0 {
 		tags = []string{defaultTag}
 	}
 	return RouteDescription{

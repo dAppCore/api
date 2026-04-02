@@ -154,6 +154,23 @@ func TestToolBridge_Good_Describe(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Good_DescribeTrimsBlankGroup(t *testing.T) {
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "   ",
+	}, func(c *gin.Context) {})
+
+	descs := bridge.Describe()
+	if len(descs) != 1 {
+		t.Fatalf("expected 1 description, got %d", len(descs))
+	}
+	if len(descs[0].Tags) != 1 || descs[0].Tags[0] != "tools" {
+		t.Fatalf("expected blank group to fall back to bridge tag, got %v", descs[0].Tags)
+	}
+}
+
 func TestToolBridge_Good_ValidatesRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
