@@ -36,7 +36,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		builder.GraphQLPlayground = e.graphql.playground
 	}
 	if e.wsHandler != nil {
-		builder.WSPath = "/ws"
+		builder.WSPath = resolveWSPath(e.wsPath)
 	}
 	if e.sseBroker != nil {
 		builder.SSEPath = resolveSSEPath(e.ssePath)

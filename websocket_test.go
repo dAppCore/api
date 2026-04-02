@@ -78,6 +78,46 @@ func TestWSEndpoint_Good(t *testing.T) {
 	}
 }
 
+func TestWSEndpoint_Good_CustomPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	wsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Logf("upgrade error: %v", err)
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("custom"))
+	})
+
+	e, err := api.New(api.WithWSPath("/socket"), api.WithWSHandler(wsHandler))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/socket"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to dial custom WebSocket: %v", err)
+	}
+	defer conn.Close()
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read custom WebSocket message: %v", err)
+	}
+	if string(msg) != "custom" {
+		t.Fatalf("expected message=%q, got %q", "custom", string(msg))
+	}
+}
+
 func TestNoWSHandler_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

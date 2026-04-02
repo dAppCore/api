@@ -115,6 +115,7 @@ func WithStatic(urlPrefix, root string) Option {
 }
 
 // WithWSHandler registers a WebSocket handler at GET /ws.
+// Use WithWSPath to customise the route before mounting the handler.
 // Typically this wraps a go-ws Hub.Handler().
 //
 // Example:
@@ -123,6 +124,14 @@ func WithStatic(urlPrefix, root string) Option {
 func WithWSHandler(h http.Handler) Option {
 	return func(e *Engine) {
 		e.wsHandler = h
+	}
+}
+
+// WithWSPath sets a custom URL path for the WebSocket endpoint.
+// The default path is "/ws".
+func WithWSPath(path string) Option {
+	return func(e *Engine) {
+		e.wsPath = normaliseWSPath(path)
 	}
 }
 

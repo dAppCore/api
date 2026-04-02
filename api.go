@@ -38,6 +38,7 @@ type Engine struct {
 	groups                         []RouteGroup
 	middlewares                    []gin.HandlerFunc
 	wsHandler                      http.Handler
+	wsPath                         string
 	sseBroker                      *SSEBroker
 	swaggerEnabled                 bool
 	swaggerTitle                   string
@@ -223,7 +224,7 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount WebSocket handler if configured.
 	if e.wsHandler != nil {
-		r.GET("/ws", wrapWSHandler(e.wsHandler))
+		r.GET(resolveWSPath(e.wsPath), wrapWSHandler(e.wsHandler))
 	}
 
 	// Mount SSE endpoint if configured.
