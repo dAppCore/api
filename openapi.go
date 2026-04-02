@@ -853,7 +853,9 @@ func isDescribableRouteGroup(g RouteGroup) bool {
 // can avoid slice allocation.
 func routeDescriptions(g RouteGroup) iter.Seq[RouteDescription] {
 	if dg, ok := g.(DescribableGroupIter); ok {
-		return dg.DescribeIter()
+		if descIter := dg.DescribeIter(); descIter != nil {
+			return descIter
+		}
 	}
 	if dg, ok := g.(DescribableGroup); ok {
 		descs := dg.Describe()

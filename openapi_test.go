@@ -54,6 +54,20 @@ func (s *iterStubGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	}
 }
 
+type iterNilFallbackGroup struct {
+	name     string
+	basePath string
+	descs    []api.RouteDescription
+}
+
+func (s *iterNilFallbackGroup) Name() string                       { return s.name }
+func (s *iterNilFallbackGroup) BasePath() string                   { return s.basePath }
+func (s *iterNilFallbackGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (s *iterNilFallbackGroup) Describe() []api.RouteDescription   { return s.descs }
+func (s *iterNilFallbackGroup) DescribeIter() iter.Seq[api.RouteDescription] {
+	return nil
+}
+
 type countingIterGroup struct {
 	name          string
 	basePath      string
@@ -562,6 +576,44 @@ func TestSpecBuilder_Good_DescribeIterSnapshotOnce(t *testing.T) {
 	op := spec["paths"].(map[string]any)["/api/count/status"].(map[string]any)["get"].(map[string]any)
 	if op["summary"] != "Counted status" {
 		t.Fatalf("expected summary='Counted status', got %v", op["summary"])
+	}
+}
+
+func TestSpecBuilder_Good_DescribeIterNilFallsBackToDescribe(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &iterNilFallbackGroup{
+		name:     "fallback-iter",
+		basePath: "/api/fallback-iter",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Fallback status",
+				Tags:    []string{"fallback-iter"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/fallback-iter/status"].(map[string]any)["get"].(map[string]any)
+	if op["summary"] != "Fallback status" {
+		t.Fatalf("expected summary='Fallback status', got %v", op["summary"])
 	}
 }
 
