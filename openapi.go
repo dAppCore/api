@@ -24,6 +24,7 @@ type SpecBuilder struct {
 	Title                   string
 	Description             string
 	Version                 string
+	SwaggerPath             string
 	GraphQLPath             string
 	GraphQLPlayground       bool
 	WSPath                  string
@@ -83,6 +84,10 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 			license["url"] = sb.LicenseURL
 		}
 		spec["info"].(map[string]any)["license"] = license
+	}
+
+	if swaggerPath := strings.TrimSpace(sb.SwaggerPath); swaggerPath != "" {
+		spec["x-swagger-ui-path"] = normaliseSwaggerPath(swaggerPath)
 	}
 
 	if sb.TermsOfService != "" {

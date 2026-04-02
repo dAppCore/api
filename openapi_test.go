@@ -208,6 +208,29 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:       "Test",
+		Description: "Swagger path test",
+		Version:     "1.0.0",
+		SwaggerPath: "/docs/",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-swagger-ui-path"]; got != "/docs" {
+		t.Fatalf("expected x-swagger-ui-path=/docs, got %v", got)
+	}
+}
+
 func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

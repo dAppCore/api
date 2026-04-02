@@ -19,6 +19,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		Title:                   e.swaggerTitle,
 		Description:             e.swaggerDesc,
 		Version:                 e.swaggerVersion,
+		SwaggerPath:             e.swaggerPath,
 		TermsOfService:          e.swaggerTermsOfService,
 		ContactName:             e.swaggerContactName,
 		ContactURL:              e.swaggerContactURL,

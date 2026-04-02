@@ -31,6 +31,7 @@ func addSDKCommand(parent *cli.Command) {
 		title                   string
 		description             string
 		version                 string
+		swaggerPath             string
 		graphqlPath             string
 		graphqlPlayground       bool
 		ssePath                 string
@@ -57,6 +58,7 @@ func addSDKCommand(parent *cli.Command) {
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
 			builder := sdkSpecBuilder(title, description, version, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
+			builder.SwaggerPath = swaggerPath
 			groups := sdkSpecGroupsIter()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -105,6 +107,7 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", defaultSDKTitle, "API title in generated spec")
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
 	cli.StringFlag(cmd, &version, "version", "V", defaultSDKVersion, "API version in generated spec")
+	cli.StringFlag(cmd, &swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
 	cli.BoolFlag(cmd, &graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
 	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")

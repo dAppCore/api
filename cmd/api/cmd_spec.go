@@ -18,6 +18,7 @@ func addSpecCommand(parent *cli.Command) {
 		title                   string
 		description             string
 		version                 string
+		swaggerPath             string
 		graphqlPath             string
 		graphqlPlayground       bool
 		ssePath                 string
@@ -41,6 +42,7 @@ func addSpecCommand(parent *cli.Command) {
 			Title:                   title,
 			Description:             description,
 			Version:                 version,
+			SwaggerPath:             swaggerPath,
 			GraphQLPath:             graphqlPath,
 			GraphQLPlayground:       graphqlPlayground,
 			SSEPath:                 ssePath,
@@ -77,6 +79,7 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
+	cli.StringFlag(cmd, &swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
 	cli.BoolFlag(cmd, &graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
 	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")

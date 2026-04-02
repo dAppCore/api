@@ -82,6 +82,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
 	}
+	if specCmd.Flag("swagger-path") == nil {
+		t.Fatal("expected --swagger-path flag on spec command")
+	}
 	if specCmd.Flag("graphql-path") == nil {
 		t.Fatal("expected --graphql-path flag on spec command")
 	}
@@ -134,7 +137,7 @@ func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
 	AddAPICommands(root)
 
 	outputFile := t.TempDir() + "/spec.json"
-	root.SetArgs([]string{"api", "spec", "--description", "Custom API description", "--output", outputFile})
+	root.SetArgs([]string{"api", "spec", "--description", "Custom API description", "--swagger-path", "/docs", "--output", outputFile})
 	root.SetErr(new(bytes.Buffer))
 
 	if err := root.Execute(); err != nil {
@@ -148,6 +151,10 @@ func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
 	}
 	if err := json.Unmarshal(data, &spec); err != nil {
 		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	if got := spec["x-swagger-ui-path"]; got != "/docs" {
+		t.Fatalf("expected x-swagger-ui-path=/docs, got %v", got)
 	}
 
 	info, ok := spec["info"].(map[string]any)
@@ -637,6 +644,9 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	}
 	if sdkCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on sdk command")
+	}
+	if sdkCmd.Flag("swagger-path") == nil {
+		t.Fatal("expected --swagger-path flag on sdk command")
 	}
 	if sdkCmd.Flag("graphql-path") == nil {
 		t.Fatal("expected --graphql-path flag on sdk command")

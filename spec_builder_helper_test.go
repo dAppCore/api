@@ -18,6 +18,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(
 		api.WithSwagger("Engine API", "Engine metadata", "2.0.0"),
+		api.WithSwaggerPath("/docs"),
 		api.WithSwaggerTermsOfService("https://example.com/terms"),
 		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
 		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
@@ -57,6 +58,10 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 	if info["version"] != "2.0.0" {
 		t.Fatalf("expected version 2.0.0, got %v", info["version"])
+	}
+
+	if got := spec["x-swagger-ui-path"]; got != "/docs" {
+		t.Fatalf("expected x-swagger-ui-path=/docs, got %v", got)
 	}
 
 	contact, ok := info["contact"].(map[string]any)
