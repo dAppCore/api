@@ -1582,7 +1582,7 @@ func collectRouteDescriptions(g RouteGroup) []RouteDescription {
 		if rd.Hidden {
 			continue
 		}
-		descs = append(descs, rd)
+		descs = append(descs, cloneRouteDescription(rd))
 	}
 
 	return descs

@@ -143,6 +143,90 @@ func cloneSecuritySchemes(schemes map[string]any) map[string]any {
 	return out
 }
 
+func cloneRouteDescription(rd RouteDescription) RouteDescription {
+	out := rd
+
+	out.Tags = slices.Clone(rd.Tags)
+	out.Security = cloneSecurityRequirements(rd.Security)
+	out.Parameters = cloneParameterDescriptions(rd.Parameters)
+	out.RequestBody = cloneOpenAPIObject(rd.RequestBody)
+	out.RequestExample = cloneOpenAPIValue(rd.RequestExample)
+	out.Response = cloneOpenAPIObject(rd.Response)
+	out.ResponseExample = cloneOpenAPIValue(rd.ResponseExample)
+	out.ResponseHeaders = cloneStringMap(rd.ResponseHeaders)
+
+	return out
+}
+
+func cloneParameterDescriptions(params []ParameterDescription) []ParameterDescription {
+	if params == nil {
+		return nil
+	}
+	if len(params) == 0 {
+		return []ParameterDescription{}
+	}
+
+	out := make([]ParameterDescription, len(params))
+	for i, param := range params {
+		out[i] = param
+		out[i].Schema = cloneOpenAPIObject(param.Schema)
+		out[i].Example = cloneOpenAPIValue(param.Example)
+	}
+
+	return out
+}
+
+func cloneSecurityRequirements(security []map[string][]string) []map[string][]string {
+	if security == nil {
+		return nil
+	}
+	if len(security) == 0 {
+		return []map[string][]string{}
+	}
+
+	out := make([]map[string][]string, len(security))
+	for i, requirement := range security {
+		if len(requirement) == 0 {
+			continue
+		}
+
+		cloned := make(map[string][]string, len(requirement))
+		for name, scopes := range requirement {
+			cloned[name] = slices.Clone(scopes)
+		}
+		out[i] = cloned
+	}
+
+	return out
+}
+
+func cloneOpenAPIObject(v map[string]any) map[string]any {
+	if v == nil {
+		return nil
+	}
+	if len(v) == 0 {
+		return map[string]any{}
+	}
+
+	cloned, _ := cloneOpenAPIValue(v).(map[string]any)
+	return cloned
+}
+
+func cloneStringMap(v map[string]string) map[string]string {
+	if v == nil {
+		return nil
+	}
+	if len(v) == 0 {
+		return map[string]string{}
+	}
+
+	out := make(map[string]string, len(v))
+	for key, value := range v {
+		out[key] = value
+	}
+	return out
+}
+
 // cloneOpenAPIValue recursively copies JSON-like OpenAPI values so callers can
 // safely retain and reuse their original maps after configuring an engine.
 func cloneOpenAPIValue(v any) any {

@@ -91,6 +91,30 @@ func (s *countingIterGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	}
 }
 
+type mutatingIterGroup struct {
+	name     string
+	basePath string
+	descs    []api.RouteDescription
+}
+
+func (s *mutatingIterGroup) Name() string                       { return s.name }
+func (s *mutatingIterGroup) BasePath() string                   { return s.basePath }
+func (s *mutatingIterGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (s *mutatingIterGroup) Describe() []api.RouteDescription   { return nil }
+func (s *mutatingIterGroup) DescribeIter() iter.Seq[api.RouteDescription] {
+	return func(yield func(api.RouteDescription) bool) {
+		for i, rd := range s.descs {
+			if !yield(rd) {
+				return
+			}
+			s.descs[i].Response["mutated"] = true
+			s.descs[i].RequestBody["mutated"] = true
+			s.descs[i].Parameters[0].Schema["mutated"] = true
+			s.descs[i].ResponseHeaders["X-Mutated"] = "yes"
+		}
+	}
+}
+
 type snapshottingGroup struct {
 	nameCalls     int
 	basePathCalls int
@@ -1205,6 +1229,80 @@ func TestSpecBuilder_Good_GroupMetadataIsSnapshottedOnce(t *testing.T) {
 	}
 	if group.basePathCalls != 1 {
 		t.Fatalf("expected BasePath to be called once, got %d", group.basePathCalls)
+	}
+}
+
+func TestSpecBuilder_Good_DeepClonesRouteMetadata(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &mutatingIterGroup{
+		name:     "alpha",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "POST",
+				Path:    "/items",
+				Summary: "Create item",
+				Tags:    []string{"items"},
+				Parameters: []api.ParameterDescription{
+					{
+						Name: "id",
+						In:   "path",
+						Schema: map[string]any{
+							"type": "string",
+						},
+					},
+				},
+				RequestBody: map[string]any{
+					"type": "object",
+				},
+				Response: map[string]any{
+					"type": "object",
+				},
+				ResponseHeaders: map[string]string{
+					"X-Test": "Original header",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/items"].(map[string]any)["post"].(map[string]any)
+	requestSchema := op["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	if _, ok := requestSchema["mutated"]; ok {
+		t.Fatal("did not expect request body mutation to leak into the spec")
+	}
+
+	responses := op["responses"].(map[string]any)
+	resp201 := responses["200"].(map[string]any)
+	appJSON := resp201["content"].(map[string]any)["application/json"].(map[string]any)
+	responseSchema := appJSON["schema"].(map[string]any)["properties"].(map[string]any)["data"].(map[string]any)
+	if _, ok := responseSchema["mutated"]; ok {
+		t.Fatal("did not expect response mutation to leak into the spec")
+	}
+
+	headers := resp201["headers"].(map[string]any)
+	if _, ok := headers["X-Mutated"]; ok {
+		t.Fatal("did not expect response header mutation to leak into the spec")
+	}
+
+	params := op["parameters"].([]any)
+	pathParam := params[0].(map[string]any)
+	schema := pathParam["schema"].(map[string]any)
+	if _, ok := schema["mutated"]; ok {
+		t.Fatal("did not expect parameter schema mutation to leak into the spec")
 	}
 }
 
