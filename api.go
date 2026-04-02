@@ -238,34 +238,7 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount Swagger UI if enabled.
 	if e.swaggerEnabled {
-		ssePath := ""
-		if e.sseBroker != nil {
-			ssePath = resolveSSEPath(e.ssePath)
-		}
-		registerSwagger(
-			r,
-			resolveSwaggerPath(e.swaggerPath),
-			e.swaggerTitle,
-			e.swaggerDesc,
-			e.swaggerVersion,
-			func() string {
-				if e.graphql == nil {
-					return ""
-				}
-				return e.graphql.path
-			}(),
-			ssePath,
-			e.swaggerTermsOfService,
-			e.swaggerContactName,
-			e.swaggerContactURL,
-			e.swaggerContactEmail,
-			e.swaggerServers,
-			e.swaggerLicenseName,
-			e.swaggerLicenseURL,
-			e.swaggerExternalDocsDescription,
-			e.swaggerExternalDocsURL,
-			e.groups,
-		)
+		registerSwagger(r, e, e.groups)
 	}
 
 	// Mount pprof profiling endpoints if enabled.

@@ -52,24 +52,9 @@ func (s *swaggerSpec) ReadDoc() string {
 }
 
 // registerSwagger mounts the Swagger UI and doc.json endpoint.
-func registerSwagger(g *gin.Engine, swaggerPath, title, description, version, graphqlPath, ssePath, termsOfService, contactName, contactURL, contactEmail string, servers []string, licenseName, licenseURL, externalDocsDescription, externalDocsURL string, groups []RouteGroup) {
-	swaggerPath = resolveSwaggerPath(swaggerPath)
-	spec := newSwaggerSpec(&SpecBuilder{
-		Title:                   title,
-		Description:             description,
-		Version:                 version,
-		GraphQLPath:             graphqlPath,
-		SSEPath:                 ssePath,
-		TermsOfService:          termsOfService,
-		ContactName:             contactName,
-		ContactURL:              contactURL,
-		ContactEmail:            contactEmail,
-		Servers:                 servers,
-		LicenseName:             licenseName,
-		LicenseURL:              licenseURL,
-		ExternalDocsDescription: externalDocsDescription,
-		ExternalDocsURL:         externalDocsURL,
-	}, groups)
+func registerSwagger(g *gin.Engine, e *Engine, groups []RouteGroup) {
+	swaggerPath := resolveSwaggerPath(e.swaggerPath)
+	spec := newSwaggerSpec(e.OpenAPISpecBuilder(), groups)
 	name := fmt.Sprintf("swagger_%d", swaggerSeq.Add(1))
 	swag.Register(name, spec)
 	g.GET(swaggerPath+"/*any", ginSwagger.WrapHandler(swaggerFiles.NewHandler(), ginSwagger.InstanceName(name)))
