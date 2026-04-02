@@ -23,6 +23,13 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
 		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
 		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
+		api.WithSwaggerSecuritySchemes(map[string]any{
+			"apiKeyAuth": map[string]any{
+				"type": "apiKey",
+				"in":   "header",
+				"name": "X-API-Key",
+			},
+		}),
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
 		api.WithWSPath("/socket"),
 		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
@@ -101,6 +108,24 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 
 	if info["termsOfService"] != "https://example.com/terms" {
 		t.Fatalf("expected termsOfService to be preserved, got %v", info["termsOfService"])
+	}
+
+	securitySchemes, ok := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	if !ok {
+		t.Fatal("expected securitySchemes metadata in generated spec")
+	}
+	apiKeyAuth, ok := securitySchemes["apiKeyAuth"].(map[string]any)
+	if !ok {
+		t.Fatal("expected apiKeyAuth security scheme in generated spec")
+	}
+	if apiKeyAuth["type"] != "apiKey" {
+		t.Fatalf("expected apiKeyAuth.type=apiKey, got %v", apiKeyAuth["type"])
+	}
+	if apiKeyAuth["in"] != "header" {
+		t.Fatalf("expected apiKeyAuth.in=header, got %v", apiKeyAuth["in"])
+	}
+	if apiKeyAuth["name"] != "X-API-Key" {
+		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
 	}
 
 	externalDocs, ok := spec["externalDocs"].(map[string]any)

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -235,6 +236,37 @@ func WithSwaggerLicense(name, url string) Option {
 		}
 		if url != "" {
 			e.swaggerLicenseURL = url
+		}
+	}
+}
+
+// WithSwaggerSecuritySchemes merges custom OpenAPI security schemes into the
+// generated Swagger spec. Existing schemes are preserved unless the new map
+// defines the same key, in which case the later definition wins.
+//
+// Example:
+//
+//	api.WithSwaggerSecuritySchemes(map[string]any{
+//		"apiKeyAuth": map[string]any{
+//			"type": "apiKey",
+//			"in":   "header",
+//			"name": "X-API-Key",
+//		},
+//	})
+func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
+	return func(e *Engine) {
+		if len(schemes) == 0 {
+			return
+		}
+		if e.swaggerSecuritySchemes == nil {
+			e.swaggerSecuritySchemes = make(map[string]any, len(schemes))
+		}
+		for name, scheme := range schemes {
+			name = strings.TrimSpace(name)
+			if name == "" || scheme == nil {
+				continue
+			}
+			e.swaggerSecuritySchemes[name] = scheme
 		}
 	}
 }

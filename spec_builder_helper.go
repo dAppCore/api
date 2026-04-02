@@ -29,6 +29,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		Servers:                 slices.Clone(e.swaggerServers),
 		LicenseName:             e.swaggerLicenseName,
 		LicenseURL:              e.swaggerLicenseURL,
+		SecuritySchemes:         cloneSecuritySchemes(e.swaggerSecuritySchemes),
 		ExternalDocsDescription: e.swaggerExternalDocsDescription,
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
@@ -42,4 +43,16 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	builder.ExpvarEnabled = transport.ExpvarEnabled
 
 	return builder
+}
+
+func cloneSecuritySchemes(schemes map[string]any) map[string]any {
+	if len(schemes) == 0 {
+		return nil
+	}
+
+	out := make(map[string]any, len(schemes))
+	for name, scheme := range schemes {
+		out[name] = scheme
+	}
+	return out
 }

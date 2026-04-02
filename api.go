@@ -52,6 +52,7 @@ type Engine struct {
 	swaggerContactEmail            string
 	swaggerLicenseName             string
 	swaggerLicenseURL              string
+	swaggerSecuritySchemes         map[string]any
 	swaggerExternalDocsDescription string
 	swaggerExternalDocsURL         string
 	pprofEnabled                   bool
