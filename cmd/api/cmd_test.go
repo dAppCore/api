@@ -289,6 +289,22 @@ func TestAPISpecCmd_Good_CacheAndI18nFlagsPopulateSpec(t *testing.T) {
 	}
 }
 
+func TestNewSpecBuilder_Good_IgnoresNonPositiveCacheTTL(t *testing.T) {
+	builder, err := newSpecBuilder(specBuilderConfig{
+		cacheTTL: "0s",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if builder.CacheEnabled {
+		t.Fatal("expected non-positive cache TTL to keep cache disabled")
+	}
+	if builder.CacheTTL != "0s" {
+		t.Fatalf("expected cache TTL metadata to be preserved, got %q", builder.CacheTTL)
+	}
+}
+
 func TestAPISpecCmd_Good_GraphQLPlaygroundFlagPopulatesSpecPaths(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)

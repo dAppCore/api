@@ -4,6 +4,7 @@ package api
 
 import (
 	"strings"
+	"time"
 
 	goapi "dappco.re/go/core/api"
 )
@@ -48,6 +49,7 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 	ssePath := strings.TrimSpace(cfg.ssePath)
 	wsPath := strings.TrimSpace(cfg.wsPath)
 	cacheTTL := strings.TrimSpace(cfg.cacheTTL)
+	cacheTTLValid := parsePositiveDuration(cacheTTL)
 
 	builder := &goapi.SpecBuilder{
 		Title:                   cfg.title,
@@ -65,7 +67,7 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		WSPath:                  wsPath,
 		PprofEnabled:            cfg.pprofEnabled,
 		ExpvarEnabled:           cfg.expvarEnabled,
-		CacheEnabled:            cfg.cacheEnabled || cacheTTL != "" || cfg.cacheMaxEntries > 0 || cfg.cacheMaxBytes > 0,
+		CacheEnabled:            cfg.cacheEnabled || cacheTTLValid || cfg.cacheMaxEntries > 0 || cfg.cacheMaxBytes > 0,
 		CacheTTL:                cacheTTL,
 		CacheMaxEntries:         cfg.cacheMaxEntries,
 		CacheMaxBytes:           cfg.cacheMaxBytes,
@@ -103,4 +105,18 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 
 func parseLocales(raw string) []string {
 	return splitUniqueCSV(raw)
+}
+
+func parsePositiveDuration(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return false
+	}
+
+	return true
 }
