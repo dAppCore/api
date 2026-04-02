@@ -191,10 +191,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		},
 	}
 
-	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
-	if graphqlPath == "" && sb.GraphQLPlayground {
-		graphqlPath = defaultGraphQLPath
-	}
+	graphqlPath := sb.effectiveGraphQLPath()
 	if graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
 		paths[graphqlPath] = graphqlPathItem(graphqlPath, operationIDs)
@@ -619,7 +616,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 	}
 	seen := map[string]bool{"system": true}
 
-	if graphqlPath := strings.TrimSpace(sb.GraphQLPath); graphqlPath != "" && !seen["graphql"] {
+	if graphqlPath := sb.effectiveGraphQLPath(); graphqlPath != "" && !seen["graphql"] {
 		tags = append(tags, map[string]any{
 			"name":        "graphql",
 			"description": "GraphQL endpoints",
@@ -1622,6 +1619,16 @@ func sseResponseHeaders() map[string]any {
 			},
 		},
 	}
+}
+
+// effectiveGraphQLPath returns the configured GraphQL path, or the default
+// GraphQL path when playground mode is enabled without an explicit path.
+func (sb *SpecBuilder) effectiveGraphQLPath() string {
+	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
+	if graphqlPath == "" && sb.GraphQLPlayground {
+		return defaultGraphQLPath
+	}
+	return graphqlPath
 }
 
 // documentedResponseHeaders converts route-specific response header metadata
