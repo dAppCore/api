@@ -268,6 +268,10 @@ func normalisePublicPaths(paths []string) []string {
 		out = append(out, path)
 	}
 
+	if len(out) == 0 {
+		return nil
+	}
+
 	return out
 }
 

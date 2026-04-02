@@ -231,6 +231,17 @@ func TestEngine_AuthentikConfig_Good_NormalisesPublicPaths(t *testing.T) {
 	}
 }
 
+func TestEngine_AuthentikConfig_Good_BlankPublicPathsRemainNil(t *testing.T) {
+	e, _ := api.New(api.WithAuthentik(api.AuthentikConfig{
+		PublicPaths: []string{" ", "\t", ""},
+	}))
+
+	cfg := e.AuthentikConfig()
+	if cfg.PublicPaths != nil {
+		t.Fatalf("expected blank public paths to collapse to nil, got %v", cfg.PublicPaths)
+	}
+}
+
 func TestEngine_Register_Good_IgnoresNilGroups(t *testing.T) {
 	e, _ := api.New()
 
