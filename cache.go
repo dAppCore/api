@@ -138,7 +138,7 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 					continue
 				}
 				for _, v := range vals {
-					c.Writer.Header().Set(k, v)
+					c.Writer.Header().Add(k, v)
 				}
 			}
 			if requestID := GetRequestID(c); requestID != "" {

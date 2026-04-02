@@ -327,6 +327,51 @@ func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
 	}
 }
 
+type cacheHeaderGroup struct{}
+
+func (cacheHeaderGroup) Name() string     { return "cache-headers" }
+func (cacheHeaderGroup) BasePath() string { return "/cache" }
+func (cacheHeaderGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/multi", func(c *gin.Context) {
+		c.Writer.Header().Add("Link", "</next?page=2>; rel=\"next\"")
+		c.Writer.Header().Add("Link", "</prev?page=0>; rel=\"prev\"")
+		c.JSON(http.StatusOK, api.OK("cached"))
+	})
+}
+
+func TestWithCache_Good_PreservesMultiValueHeadersOnHit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithCache(5 * time.Second))
+	e.Register(cacheHeaderGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/cache/multi", nil)
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/cache/multi", nil)
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200 on cache hit, got %d", w2.Code)
+	}
+
+	linkHeaders := w2.Header().Values("Link")
+	if len(linkHeaders) != 2 {
+		t.Fatalf("expected 2 Link headers on cache hit, got %v", linkHeaders)
+	}
+	if linkHeaders[0] != "</next?page=2>; rel=\"next\"" {
+		t.Fatalf("expected first Link header to be preserved, got %q", linkHeaders[0])
+	}
+	if linkHeaders[1] != "</prev?page=0>; rel=\"prev\"" {
+		t.Fatalf("expected second Link header to be preserved, got %q", linkHeaders[1])
+	}
+}
+
 func TestWithCache_Ugly_NonPositiveTTLDisablesMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	grp := &cacheCounterGroup{}
