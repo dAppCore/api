@@ -586,7 +586,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 
 	for _, g := range groups {
 		name := strings.TrimSpace(g.group.Name())
-		if name != "" && !seen[name] && (!g.describable || len(g.descs) > 0) {
+		if name != "" && !seen[name] {
 			tags = append(tags, map[string]any{
 				"name":        name,
 				"description": name + " endpoints",

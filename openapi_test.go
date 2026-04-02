@@ -1469,6 +1469,50 @@ func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_EmptyDescribableGroupStillAddsTag(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "empty",
+		basePath: "/api/empty",
+		descs:    nil,
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tags := spec["tags"].([]any)
+	foundEmpty := false
+	for _, tag := range tags {
+		tm := tag.(map[string]any)
+		if tm["name"] == "empty" {
+			foundEmpty = true
+			break
+		}
+	}
+	if !foundEmpty {
+		t.Fatal("expected empty describable group to appear in spec tags")
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if len(paths) != 1 {
+		t.Fatalf("expected only /health path, got %d paths", len(paths))
+	}
+	if _, ok := paths["/health"]; !ok {
+		t.Fatal("expected /health path in spec")
+	}
+}
+
 func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
