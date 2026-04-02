@@ -49,8 +49,9 @@ type SpecBuilder struct {
 }
 
 type preparedRouteGroup struct {
-	group RouteGroup
-	descs []RouteDescription
+	name     string
+	basePath string
+	descs    []RouteDescription
 }
 
 const openAPIDialect = "https://spec.openapis.org/oas/3.1/dialect/base"
@@ -271,7 +272,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 
 	for _, g := range groups {
 		for _, rd := range g.descs {
-			fullPath := joinOpenAPIPath(g.group.BasePath(), rd.Path)
+			fullPath := joinOpenAPIPath(g.basePath, rd.Path)
 			method := strings.ToLower(rd.Method)
 			deprecated := rd.Deprecated || strings.TrimSpace(rd.SunsetDate) != "" || strings.TrimSpace(rd.Replacement) != ""
 			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
@@ -294,7 +295,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 					},
 				}
 			}
-			if tags := resolvedOperationTags(g.group, rd); len(tags) > 0 {
+			if tags := resolvedOperationTags(g.name, rd); len(tags) > 0 {
 				operation["tags"] = tags
 			}
 
@@ -789,7 +790,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 	}
 
 	for _, g := range groups {
-		name := strings.TrimSpace(g.group.Name())
+		name := strings.TrimSpace(g.name)
 		if name != "" && !seen[name] {
 			tags = append(tags, map[string]any{
 				"name":        name,
@@ -1473,8 +1474,9 @@ func prepareRouteGroups(groups []RouteGroup) []preparedRouteGroup {
 			continue
 		}
 		out = append(out, preparedRouteGroup{
-			group: g,
-			descs: collectRouteDescriptions(g),
+			name:     g.Name(),
+			basePath: g.BasePath(),
+			descs:    collectRouteDescriptions(g),
 		})
 	}
 
@@ -1659,12 +1661,12 @@ func mergeOperationParameters(existing any, explicit []map[string]any) []map[str
 
 // resolvedOperationTags returns the explicit route tags when provided, or a
 // stable fallback derived from the group's name when the route omits tags.
-func resolvedOperationTags(g RouteGroup, rd RouteDescription) []string {
+func resolvedOperationTags(groupName string, rd RouteDescription) []string {
 	if tags := cleanTags(rd.Tags); len(tags) > 0 {
 		return tags
 	}
 
-	if name := strings.TrimSpace(g.Name()); name != "" {
+	if name := strings.TrimSpace(groupName); name != "" {
 		return []string{name}
 	}
 

@@ -90,6 +90,31 @@ func (s *countingIterGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	}
 }
 
+type snapshottingGroup struct {
+	nameCalls     int
+	basePathCalls int
+	descs         []api.RouteDescription
+}
+
+func (s *snapshottingGroup) Name() string {
+	s.nameCalls++
+	if s.nameCalls == 1 {
+		return "alpha"
+	}
+	return "beta"
+}
+
+func (s *snapshottingGroup) BasePath() string {
+	s.basePathCalls++
+	if s.basePathCalls == 1 {
+		return "/alpha"
+	}
+	return "/beta"
+}
+
+func (s *snapshottingGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (s *snapshottingGroup) Describe() []api.RouteDescription   { return s.descs }
+
 // ── SpecBuilder tests ─────────────────────────────────────────────────────
 
 func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
@@ -1004,6 +1029,73 @@ func TestSpecBuilder_Good_DescribeIterNilFallsBackToDescribe(t *testing.T) {
 	op := spec["paths"].(map[string]any)["/api/fallback-iter/status"].(map[string]any)["get"].(map[string]any)
 	if op["summary"] != "Fallback status" {
 		t.Fatalf("expected summary='Fallback status', got %v", op["summary"])
+	}
+}
+
+func TestSpecBuilder_Good_GroupMetadataIsSnapshottedOnce(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &snapshottingGroup{
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Snapshot status",
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/alpha/status"]; !ok {
+		t.Fatalf("expected snapshotted path /alpha/status, got %v", paths)
+	}
+	if _, ok := paths["/beta/status"]; ok {
+		t.Fatal("did not expect mutated base path to leak into the spec")
+	}
+
+	tags := spec["tags"].([]any)
+	foundAlpha := false
+	for _, tag := range tags {
+		tm := tag.(map[string]any)
+		if tm["name"] == "alpha" {
+			foundAlpha = true
+			break
+		}
+		if tm["name"] == "beta" {
+			t.Fatal("did not expect mutated group name to leak into the spec")
+		}
+	}
+	if !foundAlpha {
+		t.Fatal("expected snapshotted group name in spec tags")
+	}
+
+	op := paths["/alpha/status"].(map[string]any)["get"].(map[string]any)
+	opTags, ok := op["tags"].([]any)
+	if !ok || len(opTags) != 1 || opTags[0] != "alpha" {
+		t.Fatalf("expected snapshotted operation tag alpha, got %v", op["tags"])
+	}
+
+	if group.nameCalls != 1 {
+		t.Fatalf("expected Name to be called once, got %d", group.nameCalls)
+	}
+	if group.basePathCalls != 1 {
+		t.Fatalf("expected BasePath to be called once, got %d", group.basePathCalls)
 	}
 }
 
