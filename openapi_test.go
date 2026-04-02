@@ -366,6 +366,78 @@ func TestSpecBuilder_Good_CommonResponseComponentsArePublished(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_NormalisesMetadataAtBuild(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                   "  Test API  ",
+		Summary:                 "   ",
+		Description:             "  Trimmed description  ",
+		Version:                 "  1.2.3  ",
+		TermsOfService:          "  https://example.com/terms  ",
+		ContactName:             "  API Support  ",
+		ContactURL:              "  https://example.com/support  ",
+		ContactEmail:            "  support@example.com  ",
+		LicenseName:             "  EUPL-1.2  ",
+		LicenseURL:              "  https://eupl.eu/1.2/en/  ",
+		ExternalDocsURL:         "  https://example.com/docs  ",
+		ExternalDocsDescription: "  Developer guide  ",
+		SwaggerPath:             "  /docs/  ",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := spec["info"].(map[string]any)
+	if info["title"] != "Test API" {
+		t.Fatalf("expected trimmed title, got %v", info["title"])
+	}
+	if _, ok := info["summary"]; ok {
+		t.Fatal("expected blank summary to be omitted")
+	}
+	if info["description"] != "Trimmed description" {
+		t.Fatalf("expected trimmed description, got %v", info["description"])
+	}
+	if info["version"] != "1.2.3" {
+		t.Fatalf("expected trimmed version, got %v", info["version"])
+	}
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected trimmed termsOfService, got %v", info["termsOfService"])
+	}
+	contact := info["contact"].(map[string]any)
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected trimmed contact name, got %v", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected trimmed contact url, got %v", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected trimmed contact email, got %v", contact["email"])
+	}
+	license := info["license"].(map[string]any)
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected trimmed licence name, got %v", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected trimmed licence url, got %v", license["url"])
+	}
+	externalDocs := spec["externalDocs"].(map[string]any)
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected trimmed external docs description, got %v", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected trimmed external docs url, got %v", externalDocs["url"])
+	}
+	if got := spec["x-swagger-ui-path"]; got != "/docs" {
+		t.Fatalf("expected trimmed swagger path, got %v", got)
+	}
+}
+
 func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

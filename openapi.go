@@ -81,20 +81,25 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if sb == nil {
 		sb = &SpecBuilder{}
 	}
+	sb = sb.snapshot()
 
 	prepared := prepareRouteGroups(groups)
+
+	info := map[string]any{
+		"title":       sb.Title,
+		"description": sb.Description,
+		"version":     sb.Version,
+	}
+	if sb.Summary != "" {
+		info["summary"] = sb.Summary
+	}
 
 	spec := map[string]any{
 		"openapi":           "3.1.0",
 		"jsonSchemaDialect": openAPIDialect,
-		"info": map[string]any{
-			"title":       sb.Title,
-			"summary":     sb.Summary,
-			"description": sb.Description,
-			"version":     sb.Version,
-		},
-		"paths": sb.buildPaths(prepared),
-		"tags":  sb.buildTags(prepared),
+		"info":              info,
+		"paths":             sb.buildPaths(prepared),
+		"tags":              sb.buildTags(prepared),
 	}
 
 	if sb.LicenseName != "" {
@@ -106,12 +111,6 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		}
 		spec["info"].(map[string]any)["license"] = license
 	}
-	if sb.Summary != "" {
-		spec["info"].(map[string]any)["summary"] = sb.Summary
-	} else {
-		delete(spec["info"].(map[string]any), "summary")
-	}
-
 	if swaggerPath := sb.effectiveSwaggerPath(); swaggerPath != "" {
 		spec["x-swagger-ui-path"] = normaliseSwaggerPath(swaggerPath)
 	}
@@ -1964,6 +1963,40 @@ func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
 	paths := []string{"/health", "/swagger", resolveSwaggerPath(sb.SwaggerPath)}
 	paths = append(paths, sb.AuthentikPublicPaths...)
 	return normalisePublicPaths(paths)
+}
+
+// snapshot returns a trimmed copy of the builder so Build operates on stable
+// input even when callers reuse or mutate their original configuration.
+func (sb *SpecBuilder) snapshot() *SpecBuilder {
+	if sb == nil {
+		return &SpecBuilder{}
+	}
+
+	out := *sb
+	out.Title = strings.TrimSpace(out.Title)
+	out.Summary = strings.TrimSpace(out.Summary)
+	out.Description = strings.TrimSpace(out.Description)
+	out.Version = strings.TrimSpace(out.Version)
+	out.SwaggerPath = strings.TrimSpace(out.SwaggerPath)
+	out.GraphQLPath = strings.TrimSpace(out.GraphQLPath)
+	out.WSPath = strings.TrimSpace(out.WSPath)
+	out.SSEPath = strings.TrimSpace(out.SSEPath)
+	out.TermsOfService = strings.TrimSpace(out.TermsOfService)
+	out.ContactName = strings.TrimSpace(out.ContactName)
+	out.ContactURL = strings.TrimSpace(out.ContactURL)
+	out.ContactEmail = strings.TrimSpace(out.ContactEmail)
+	out.LicenseName = strings.TrimSpace(out.LicenseName)
+	out.LicenseURL = strings.TrimSpace(out.LicenseURL)
+	out.ExternalDocsDescription = strings.TrimSpace(out.ExternalDocsDescription)
+	out.ExternalDocsURL = strings.TrimSpace(out.ExternalDocsURL)
+	out.CacheTTL = strings.TrimSpace(out.CacheTTL)
+	out.I18nDefaultLocale = strings.TrimSpace(out.I18nDefaultLocale)
+	out.Servers = slices.Clone(sb.Servers)
+	out.I18nSupportedLocales = slices.Clone(sb.I18nSupportedLocales)
+	out.AuthentikPublicPaths = normalisePublicPaths(sb.AuthentikPublicPaths)
+	out.SecuritySchemes = cloneSecuritySchemes(sb.SecuritySchemes)
+
+	return &out
 }
 
 // isPublicOperationPath reports whether an OpenAPI path should be documented
