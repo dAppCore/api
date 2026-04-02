@@ -75,6 +75,12 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if got := spec["x-swagger-ui-path"]; got != "/docs" {
 		t.Fatalf("expected x-swagger-ui-path=/docs, got %v", got)
 	}
+	if got := spec["x-swagger-enabled"]; got != true {
+		t.Fatalf("expected x-swagger-enabled=true, got %v", got)
+	}
+	if got := spec["x-graphql-enabled"]; got != true {
+		t.Fatalf("expected x-graphql-enabled=true, got %v", got)
+	}
 	if got := spec["x-graphql-path"]; got != "/gql" {
 		t.Fatalf("expected x-graphql-path=/gql, got %v", got)
 	}

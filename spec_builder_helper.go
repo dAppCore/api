@@ -52,6 +52,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		Summary:                 swagger.Summary,
 		Description:             swagger.Description,
 		Version:                 swagger.Version,
+		SwaggerEnabled:          swagger.Enabled,
 		TermsOfService:          swagger.TermsOfService,
 		ContactName:             swagger.ContactName,
 		ContactURL:              swagger.ContactURL,
@@ -65,6 +66,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	}
 
 	builder.SwaggerPath = transport.SwaggerPath
+	builder.GraphQLEnabled = transport.GraphQLEnabled
 	builder.GraphQLPath = transport.GraphQLPath
 	builder.GraphQLPlayground = transport.GraphQLPlayground
 	builder.WSPath = transport.WSPath

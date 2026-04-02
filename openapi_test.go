@@ -200,6 +200,12 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := spec["security"]; ok {
 		t.Fatal("expected no global security requirement in the document")
 	}
+	if _, ok := spec["x-swagger-enabled"]; ok {
+		t.Fatal("expected no swagger enabled flag in the document when swagger is disabled")
+	}
+	if _, ok := spec["x-graphql-enabled"]; ok {
+		t.Fatal("expected no graphql enabled flag in the document when graphql is disabled")
+	}
 }
 
 func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {

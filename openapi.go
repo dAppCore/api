@@ -25,7 +25,9 @@ type SpecBuilder struct {
 	Summary                 string
 	Description             string
 	Version                 string
+	SwaggerEnabled          bool
 	SwaggerPath             string
+	GraphQLEnabled          bool
 	GraphQLPath             string
 	GraphQLPlayground       bool
 	WSPath                  string
@@ -93,6 +95,12 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 
 	if swaggerPath := strings.TrimSpace(sb.SwaggerPath); swaggerPath != "" {
 		spec["x-swagger-ui-path"] = normaliseSwaggerPath(swaggerPath)
+	}
+	if sb.SwaggerEnabled {
+		spec["x-swagger-enabled"] = true
+	}
+	if sb.GraphQLEnabled {
+		spec["x-graphql-enabled"] = true
 	}
 	if graphqlPath := sb.effectiveGraphQLPath(); graphqlPath != "" {
 		spec["x-graphql-path"] = normaliseOpenAPIPath(graphqlPath)
