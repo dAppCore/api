@@ -1873,6 +1873,23 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 		}
 	}
 
+	gone, ok := responses["410"].(map[string]any)
+	if !ok {
+		t.Fatal("expected 410 Gone response for sunsetted operation")
+	}
+	if got := gone["description"]; got != "Gone" {
+		t.Fatalf("expected 410 response description Gone, got %v", got)
+	}
+	goneHeaders, ok := gone["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected 410 response headers map, got %T", gone["headers"])
+	}
+	for _, name := range []string{"Deprecation", "Sunset", "Link", "X-API-Warn"} {
+		if _, ok := goneHeaders[name]; !ok {
+			t.Fatalf("expected deprecation header %q in 410 response headers", name)
+		}
+	}
+
 	components := spec["components"].(map[string]any)
 	headerComponents := components["headers"].(map[string]any)
 	for _, name := range []string{"deprecation", "sunset", "link", "xapiwarn"} {
