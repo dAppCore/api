@@ -1465,6 +1465,102 @@ func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_AuthentikPublicPathsMakeMatchingOperationsPublic(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                "Test",
+		Version:              "1.0.0",
+		AuthentikPublicPaths: []string{"/api/public"},
+	}
+
+	group := &specStubGroup{
+		name:     "security",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:   "GET",
+				Path:     "/public",
+				Summary:  "Public endpoint",
+				Security: []map[string][]string{{"bearerAuth": []string{}}},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	op := spec["paths"].(map[string]any)["/api/public"].(map[string]any)["get"].(map[string]any)
+	security, ok := op["security"].([]any)
+	if !ok {
+		t.Fatalf("expected public route security array, got %T", op["security"])
+	}
+	if len(security) != 0 {
+		t.Fatalf("expected public route to be documented without auth, got %v", security)
+	}
+
+	responses := op["responses"].(map[string]any)
+	if _, ok := responses["401"]; ok {
+		t.Fatal("expected public route to omit 401 response documentation")
+	}
+	if _, ok := responses["403"]; ok {
+		t.Fatal("expected public route to omit 403 response documentation")
+	}
+
+	paths := spec["x-authentik-public-paths"].([]any)
+	if len(paths) == 0 || paths[0] != "/health" {
+		t.Fatalf("expected public path extension to include /health first, got %v", paths)
+	}
+}
+
+func TestSpecBuilder_Good_AuthentikPublicPathsMakeBuiltInEndpointsPublic(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                "Test",
+		Version:              "1.0.0",
+		GraphQLEnabled:       true,
+		GraphQLPath:          "/graphql",
+		AuthentikPublicPaths: []string{"/graphql"},
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	pathItem := spec["paths"].(map[string]any)["/graphql"].(map[string]any)
+	for _, method := range []string{"get", "post"} {
+		op := pathItem[method].(map[string]any)
+		security, ok := op["security"].([]any)
+		if !ok {
+			t.Fatalf("expected %s security array, got %T", method, op["security"])
+		}
+		if len(security) != 0 {
+			t.Fatalf("expected %s operation to be documented without auth, got %v", method, security)
+		}
+
+		responses := op["responses"].(map[string]any)
+		if _, ok := responses["401"]; ok {
+			t.Fatalf("expected %s operation to omit 401 response documentation", method)
+		}
+		if _, ok := responses["403"]; ok {
+			t.Fatalf("expected %s operation to omit 403 response documentation", method)
+		}
+	}
+}
+
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

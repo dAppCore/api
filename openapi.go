@@ -288,29 +288,53 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	graphqlPath := sb.effectiveGraphQLPath()
 	if graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
-		paths[graphqlPath] = graphqlPathItem(graphqlPath, operationIDs)
+		item := graphqlPathItem(graphqlPath, operationIDs)
+		if sb.isPublicOperationPath(graphqlPath) {
+			makePathItemPublic(item)
+		}
+		paths[graphqlPath] = item
 		if sb.GraphQLPlayground {
 			playgroundPath := normaliseOpenAPIPath(graphqlPath + "/playground")
-			paths[playgroundPath] = graphqlPlaygroundPathItem(playgroundPath, operationIDs)
+			item := graphqlPlaygroundPathItem(playgroundPath, operationIDs)
+			if sb.isPublicOperationPath(playgroundPath) {
+				makePathItemPublic(item)
+			}
+			paths[playgroundPath] = item
 		}
 	}
 
 	if wsPath := sb.effectiveWSPath(); wsPath != "" {
 		wsPath = normaliseOpenAPIPath(wsPath)
-		paths[wsPath] = wsPathItem(wsPath, operationIDs)
+		item := wsPathItem(wsPath, operationIDs)
+		if sb.isPublicOperationPath(wsPath) {
+			makePathItemPublic(item)
+		}
+		paths[wsPath] = item
 	}
 
 	if ssePath := sb.effectiveSSEPath(); ssePath != "" {
 		ssePath = normaliseOpenAPIPath(ssePath)
-		paths[ssePath] = ssePathItem(ssePath, operationIDs)
+		item := ssePathItem(ssePath, operationIDs)
+		if sb.isPublicOperationPath(ssePath) {
+			makePathItemPublic(item)
+		}
+		paths[ssePath] = item
 	}
 
 	if sb.PprofEnabled {
-		paths["/debug/pprof"] = pprofPathItem(operationIDs)
+		item := pprofPathItem(operationIDs)
+		if sb.isPublicOperationPath("/debug/pprof") {
+			makePathItemPublic(item)
+		}
+		paths["/debug/pprof"] = item
 	}
 
 	if sb.ExpvarEnabled {
-		paths["/debug/vars"] = expvarPathItem(operationIDs)
+		item := expvarPathItem(operationIDs)
+		if sb.isPublicOperationPath("/debug/vars") {
+			makePathItemPublic(item)
+		}
+		paths["/debug/vars"] = item
 	}
 
 	for _, g := range groups {
@@ -319,18 +343,25 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			method := strings.ToLower(rd.Method)
 			deprecated := rd.Deprecated || strings.TrimSpace(rd.SunsetDate) != "" || strings.TrimSpace(rd.Replacement) != ""
 			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
+			isPublic := sb.isPublicOperationPath(fullPath)
+			security := rd.Security
+			if isPublic {
+				security = []map[string][]string{}
+			}
 
 			operation := map[string]any{
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, rd.Security, deprecated, rd.SunsetDate, rd.Replacement, deprecationHeaders),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, rd.Replacement, deprecationHeaders),
 			}
 			if deprecated {
 				operation["deprecated"] = true
 			}
-			if rd.Security != nil {
-				operation["security"] = rd.Security
+			if isPublic {
+				operation["security"] = []any{}
+			} else if security != nil {
+				operation["security"] = security
 			} else {
 				operation["security"] = []any{
 					map[string]any{
@@ -1917,6 +1948,17 @@ func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
 	return normalisePublicPaths(paths)
 }
 
+// isPublicOperationPath reports whether an OpenAPI path should be documented
+// as public because Authentik bypasses it in the running engine.
+func (sb *SpecBuilder) isPublicOperationPath(path string) bool {
+	for _, publicPath := range sb.effectiveAuthentikPublicPaths() {
+		if isPublicPath(path, publicPath) {
+			return true
+		}
+	}
+	return false
+}
+
 // hasAuthentikMetadata reports whether the spec carries any Authentik-related
 // configuration worth surfacing.
 func (sb *SpecBuilder) hasAuthentikMetadata() bool {
@@ -1928,6 +1970,25 @@ func (sb *SpecBuilder) hasAuthentikMetadata() bool {
 		strings.TrimSpace(sb.AuthentikClientID) != "" ||
 		sb.AuthentikTrustedProxy ||
 		len(sb.AuthentikPublicPaths) > 0
+}
+
+// makePathItemPublic strips auth-specific responses and marks every operation
+// within the path item as public.
+func makePathItemPublic(pathItem map[string]any) {
+	for _, rawOperation := range pathItem {
+		operation, ok := rawOperation.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		operation["security"] = []any{}
+		responses, ok := operation["responses"].(map[string]any)
+		if !ok {
+			continue
+		}
+		delete(responses, "401")
+		delete(responses, "403")
+	}
 }
 
 // documentedResponseHeaders converts route-specific response header metadata
