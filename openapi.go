@@ -25,6 +25,7 @@ type SpecBuilder struct {
 	Description             string
 	Version                 string
 	GraphQLPath             string
+	SSEPath                 string
 	TermsOfService          string
 	ContactName             string
 	ContactURL              string
@@ -189,6 +190,11 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	if graphqlPath := strings.TrimSpace(sb.GraphQLPath); graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
 		paths[graphqlPath] = graphqlPathItem(graphqlPath, operationIDs)
+	}
+
+	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
+		ssePath = normaliseOpenAPIPath(ssePath)
+		paths[ssePath] = ssePathItem(ssePath, operationIDs)
 	}
 
 	for _, g := range groups {
@@ -584,6 +590,14 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		seen["graphql"] = true
 	}
 
+	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" && !seen["events"] {
+		tags = append(tags, map[string]any{
+			"name":        "events",
+			"description": "Server-Sent Events endpoints",
+		})
+		seen["events"] = true
+	}
+
 	for _, g := range groups {
 		name := strings.TrimSpace(g.group.Name())
 		if name != "" && !seen[name] {
@@ -661,6 +675,34 @@ func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 	}
 }
 
+func ssePathItem(path string, operationIDs map[string]int) map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"summary":     "Server-Sent Events stream",
+			"description": "Streams published events as text/event-stream",
+			"tags":        []string{"events"},
+			"operationId": operationID("get", path, operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"parameters": []map[string]any{
+				{
+					"name":        "channel",
+					"in":          "query",
+					"required":    false,
+					"description": "Restrict the stream to a specific channel",
+					"schema": map[string]any{
+						"type": "string",
+					},
+				},
+			},
+			"responses": sseResponses(),
+		},
+	}
+}
+
 func graphqlRequestSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -708,6 +750,89 @@ func graphqlResponses() map[string]any {
 				},
 			},
 			"headers": errorHeaders,
+		},
+		"401": map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"403": map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"429": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
+		},
+		"500": map[string]any{
+			"description": "Internal server error",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"504": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+	}
+}
+
+func sseResponses() map[string]any {
+	successHeaders := mergeHeaders(
+		standardResponseHeaders(),
+		rateLimitSuccessHeaders(),
+		sseResponseHeaders(),
+	)
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
+	return map[string]any{
+		"200": map[string]any{
+			"description": "Event stream",
+			"content": map[string]any{
+				"text/event-stream": map[string]any{
+					"schema": map[string]any{
+						"type": "string",
+					},
+				},
+			},
+			"headers": successHeaders,
 		},
 		"401": map[string]any{
 			"description": "Unauthorised",
@@ -1104,6 +1229,30 @@ func cacheSuccessHeaders() map[string]any {
 	return map[string]any{
 		"X-Cache": map[string]any{
 			"description": "Indicates the response was served from the in-memory cache",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+	}
+}
+
+// sseResponseHeaders documents the response headers emitted by the SSE stream.
+func sseResponseHeaders() map[string]any {
+	return map[string]any{
+		"Cache-Control": map[string]any{
+			"description": "Prevents intermediaries from caching the event stream",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"Connection": map[string]any{
+			"description": "Keeps the HTTP connection open for streaming",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"X-Accel-Buffering": map[string]any{
+			"description": "Disables buffering in compatible reverse proxies",
 			"schema": map[string]any{
 				"type": "string",
 			},

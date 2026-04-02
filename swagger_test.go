@@ -200,6 +200,46 @@ func TestSwagger_Good_WithToolBridge(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_IncludesSSEEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSwagger("SSE API", "SSE test", "1.0.0"), api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := doc["paths"].(map[string]any)
+	pathItem, ok := paths["/events"].(map[string]any)
+	if !ok {
+		t.Fatal("expected /events path in swagger doc")
+	}
+
+	getOp := pathItem["get"].(map[string]any)
+	if getOp["operationId"] != "get_events" {
+		t.Fatalf("expected SSE operationId to be get_events, got %v", getOp["operationId"])
+	}
+}
+
 func TestSwagger_Good_CachesSpec(t *testing.T) {
 	spec := &swaggerSpecHelper{
 		title:   "Cache Test",

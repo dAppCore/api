@@ -236,6 +236,10 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount Swagger UI if enabled.
 	if e.swaggerEnabled {
+		ssePath := ""
+		if e.sseBroker != nil {
+			ssePath = "/events"
+		}
 		registerSwagger(
 			r,
 			e.swaggerTitle,
@@ -247,6 +251,7 @@ func (e *Engine) build() *gin.Engine {
 				}
 				return e.graphql.path
 			}(),
+			ssePath,
 			e.swaggerTermsOfService,
 			e.swaggerContactName,
 			e.swaggerContactURL,

@@ -267,6 +267,70 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+		SSEPath: "/events",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tags := spec["tags"].([]any)
+	found := false
+	for _, tag := range tags {
+		tm := tag.(map[string]any)
+		if tm["name"] == "events" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected events tag in spec")
+	}
+
+	paths := spec["paths"].(map[string]any)
+	pathItem, ok := paths["/events"].(map[string]any)
+	if !ok {
+		t.Fatal("expected /events path in spec")
+	}
+
+	getOp := pathItem["get"].(map[string]any)
+	if getOp["operationId"] != "get_events" {
+		t.Fatalf("expected SSE operationId to be get_events, got %v", getOp["operationId"])
+	}
+
+	params := getOp["parameters"].([]any)
+	if len(params) != 1 {
+		t.Fatalf("expected one SSE query parameter, got %d", len(params))
+	}
+	param := params[0].(map[string]any)
+	if param["name"] != "channel" || param["in"] != "query" {
+		t.Fatalf("expected channel query parameter, got %+v", param)
+	}
+
+	responses := getOp["responses"].(map[string]any)
+	success := responses["200"].(map[string]any)
+	content := success["content"].(map[string]any)
+	if _, ok := content["text/event-stream"]; !ok {
+		t.Fatal("expected text/event-stream content type for SSE response")
+	}
+	headers := success["headers"].(map[string]any)
+	for _, name := range []string{"Cache-Control", "Connection", "X-Accel-Buffering"} {
+		if _, ok := headers[name]; !ok {
+			t.Fatalf("expected %s header in SSE response", name)
+		}
+	}
+}
+
 func TestSpecBuilder_Good_InfoIncludesLicenseMetadata(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",
