@@ -247,6 +247,12 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 		t.Fatalf("expected GraphQL operationId to be post_graphql, got %v", postOp["operationId"])
 	}
 
+	responses := postOp["responses"].(map[string]any)
+	successHeaders := responses["200"].(map[string]any)["headers"].(map[string]any)
+	if _, ok := successHeaders["X-Cache"]; !ok {
+		t.Fatal("expected X-Cache header on GraphQL 200 response")
+	}
+
 	requestBody := postOp["requestBody"].(map[string]any)
 	schema := requestBody["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
 	properties := schema["properties"].(map[string]any)

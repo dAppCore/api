@@ -681,7 +681,7 @@ func graphqlRequestSchema() map[string]any {
 }
 
 func graphqlResponses() map[string]any {
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), cacheSuccessHeaders())
 	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
 
 	return map[string]any{
