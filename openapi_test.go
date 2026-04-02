@@ -437,6 +437,29 @@ func TestSpecBuilder_Good_CacheAndI18nExtensions(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_OmitsNonPositiveCacheTTLExtension(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:       "Test",
+		Description: "Cache TTL test",
+		Version:     "1.0.0",
+		CacheTTL:    "0s",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if _, ok := spec["x-cache-ttl"]; ok {
+		t.Fatal("expected non-positive cache TTL to be omitted from spec")
+	}
+}
+
 func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

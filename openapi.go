@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"slices"
@@ -145,7 +146,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if sb.CacheEnabled {
 		spec["x-cache-enabled"] = true
 	}
-	if ttl := strings.TrimSpace(sb.CacheTTL); ttl != "" {
+	if ttl := sb.effectiveCacheTTL(); ttl != "" {
 		spec["x-cache-ttl"] = ttl
 	}
 	if sb.CacheMaxEntries > 0 {
@@ -1935,6 +1936,22 @@ func (sb *SpecBuilder) effectiveSSEPath() string {
 		return defaultSSEPath
 	}
 	return ssePath
+}
+
+// effectiveCacheTTL returns a normalised cache TTL when it parses to a
+// positive duration.
+func (sb *SpecBuilder) effectiveCacheTTL() string {
+	ttl := strings.TrimSpace(sb.CacheTTL)
+	if ttl == "" {
+		return ""
+	}
+
+	d, err := time.ParseDuration(ttl)
+	if err != nil || d <= 0 {
+		return ""
+	}
+
+	return ttl
 }
 
 // effectiveAuthentikPublicPaths returns the public paths that Authentik skips

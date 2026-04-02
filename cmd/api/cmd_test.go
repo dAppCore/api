@@ -386,6 +386,40 @@ func TestNewSpecBuilder_Good_IgnoresCacheLimitsWithoutPositiveTTL(t *testing.T) 
 	}
 }
 
+func TestAPISpecCmd_Good_OmitsNonPositiveCacheTTLExtension(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--cache-ttl", "0s",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	if _, ok := spec["x-cache-ttl"]; ok {
+		t.Fatal("expected non-positive cache TTL to be omitted from generated spec")
+	}
+	if got := spec["x-cache-enabled"]; got != nil && got != false {
+		t.Fatalf("expected cache to remain disabled, got %v", got)
+	}
+}
+
 func TestAPISpecCmd_Good_GraphQLPlaygroundFlagPopulatesSpecPaths(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
