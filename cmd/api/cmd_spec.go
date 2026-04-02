@@ -28,6 +28,12 @@ func addSpecCommand(parent *cli.Command) {
 		wsPath                  string
 		pprofEnabled            bool
 		expvarEnabled           bool
+		cacheEnabled            bool
+		cacheTTL                string
+		cacheMaxEntries         int
+		cacheMaxBytes           int
+		i18nDefaultLocale       string
+		i18nSupportedLocales    string
 		termsURL                string
 		contactName             string
 		contactURL              string
@@ -54,6 +60,12 @@ func addSpecCommand(parent *cli.Command) {
 			wsPath:                  wsPath,
 			pprofEnabled:            pprofEnabled,
 			expvarEnabled:           expvarEnabled,
+			cacheEnabled:            cacheEnabled,
+			cacheTTL:                cacheTTL,
+			cacheMaxEntries:         cacheMaxEntries,
+			cacheMaxBytes:           cacheMaxBytes,
+			i18nDefaultLocale:       i18nDefaultLocale,
+			i18nSupportedLocales:    i18nSupportedLocales,
 			termsURL:                termsURL,
 			contactName:             contactName,
 			contactURL:              contactURL,
@@ -96,6 +108,12 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
 	cli.BoolFlag(cmd, &pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")
 	cli.BoolFlag(cmd, &expvarEnabled, "expvar", "", false, "Include expvar endpoint in generated spec")
+	cli.BoolFlag(cmd, &cacheEnabled, "cache", "", false, "Include cache metadata in generated spec")
+	cli.StringFlag(cmd, &cacheTTL, "cache-ttl", "", "", "Cache TTL in generated spec")
+	cli.IntFlag(cmd, &cacheMaxEntries, "cache-max-entries", "", 0, "Cache max entries in generated spec")
+	cli.IntFlag(cmd, &cacheMaxBytes, "cache-max-bytes", "", 0, "Cache max bytes in generated spec")
+	cli.StringFlag(cmd, &i18nDefaultLocale, "i18n-default-locale", "", "", "Default locale in generated spec")
+	cli.StringFlag(cmd, &i18nSupportedLocales, "i18n-supported-locales", "", "", "Comma-separated supported locales in generated spec")
 	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
 	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in spec")
 	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")

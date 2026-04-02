@@ -2,7 +2,11 @@
 
 package api
 
-import goapi "dappco.re/go/core/api"
+import (
+	"strings"
+
+	goapi "dappco.re/go/core/api"
+)
 
 type specBuilderConfig struct {
 	title                   string
@@ -16,6 +20,12 @@ type specBuilderConfig struct {
 	wsPath                  string
 	pprofEnabled            bool
 	expvarEnabled           bool
+	cacheEnabled            bool
+	cacheTTL                string
+	cacheMaxEntries         int
+	cacheMaxBytes           int
+	i18nDefaultLocale       string
+	i18nSupportedLocales    string
 	termsURL                string
 	contactName             string
 	contactURL              string
@@ -41,6 +51,11 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		WSPath:                  cfg.wsPath,
 		PprofEnabled:            cfg.pprofEnabled,
 		ExpvarEnabled:           cfg.expvarEnabled,
+		CacheEnabled:            cfg.cacheEnabled || strings.TrimSpace(cfg.cacheTTL) != "" || cfg.cacheMaxEntries > 0 || cfg.cacheMaxBytes > 0,
+		CacheTTL:                strings.TrimSpace(cfg.cacheTTL),
+		CacheMaxEntries:         cfg.cacheMaxEntries,
+		CacheMaxBytes:           cfg.cacheMaxBytes,
+		I18nDefaultLocale:       strings.TrimSpace(cfg.i18nDefaultLocale),
 		TermsOfService:          cfg.termsURL,
 		ContactName:             cfg.contactName,
 		ContactURL:              cfg.contactURL,
@@ -52,6 +67,11 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		ExternalDocsURL:         cfg.externalDocsURL,
 	}
 
+	builder.I18nSupportedLocales = parseLocales(cfg.i18nSupportedLocales)
+	if builder.I18nDefaultLocale == "" && len(builder.I18nSupportedLocales) > 0 {
+		builder.I18nDefaultLocale = "en"
+	}
+
 	if cfg.securitySchemes != "" {
 		schemes, err := parseSecuritySchemes(cfg.securitySchemes)
 		if err != nil {
@@ -61,4 +81,8 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 	}
 
 	return builder, nil
+}
+
+func parseLocales(raw string) []string {
+	return splitUniqueCSV(raw)
 }

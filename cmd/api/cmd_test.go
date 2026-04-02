@@ -115,6 +115,24 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("expvar") == nil {
 		t.Fatal("expected --expvar flag on spec command")
 	}
+	if specCmd.Flag("cache") == nil {
+		t.Fatal("expected --cache flag on spec command")
+	}
+	if specCmd.Flag("cache-ttl") == nil {
+		t.Fatal("expected --cache-ttl flag on spec command")
+	}
+	if specCmd.Flag("cache-max-entries") == nil {
+		t.Fatal("expected --cache-max-entries flag on spec command")
+	}
+	if specCmd.Flag("cache-max-bytes") == nil {
+		t.Fatal("expected --cache-max-bytes flag on spec command")
+	}
+	if specCmd.Flag("i18n-default-locale") == nil {
+		t.Fatal("expected --i18n-default-locale flag on spec command")
+	}
+	if specCmd.Flag("i18n-supported-locales") == nil {
+		t.Fatal("expected --i18n-supported-locales flag on spec command")
+	}
 	if specCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on spec command")
 	}
@@ -213,6 +231,61 @@ func TestAPISpecCmd_Good_SummaryPopulatesSpecInfo(t *testing.T) {
 	}
 	if info["summary"] != "Short API overview" {
 		t.Fatalf("expected summary to be preserved, got %v", info["summary"])
+	}
+}
+
+func TestAPISpecCmd_Good_CacheAndI18nFlagsPopulateSpec(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--cache",
+		"--cache-ttl", "5m0s",
+		"--cache-max-entries", "42",
+		"--cache-max-bytes", "8192",
+		"--i18n-default-locale", "en-GB",
+		"--i18n-supported-locales", "en-GB,fr,en-GB",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	if got := spec["x-cache-enabled"]; got != true {
+		t.Fatalf("expected x-cache-enabled=true, got %v", got)
+	}
+	if got := spec["x-cache-ttl"]; got != "5m0s" {
+		t.Fatalf("expected x-cache-ttl=5m0s, got %v", got)
+	}
+	if got := spec["x-cache-max-entries"]; got != float64(42) {
+		t.Fatalf("expected x-cache-max-entries=42, got %v", got)
+	}
+	if got := spec["x-cache-max-bytes"]; got != float64(8192) {
+		t.Fatalf("expected x-cache-max-bytes=8192, got %v", got)
+	}
+	if got := spec["x-i18n-default-locale"]; got != "en-GB" {
+		t.Fatalf("expected x-i18n-default-locale=en-GB, got %v", got)
+	}
+	locales, ok := spec["x-i18n-supported-locales"].([]any)
+	if !ok {
+		t.Fatalf("expected x-i18n-supported-locales array, got %T", spec["x-i18n-supported-locales"])
+	}
+	if len(locales) != 2 || locales[0] != "en-GB" || locales[1] != "fr" {
+		t.Fatalf("expected supported locales [en-GB fr], got %v", locales)
 	}
 }
 
@@ -758,6 +831,24 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("expvar") == nil {
 		t.Fatal("expected --expvar flag on sdk command")
 	}
+	if sdkCmd.Flag("cache") == nil {
+		t.Fatal("expected --cache flag on sdk command")
+	}
+	if sdkCmd.Flag("cache-ttl") == nil {
+		t.Fatal("expected --cache-ttl flag on sdk command")
+	}
+	if sdkCmd.Flag("cache-max-entries") == nil {
+		t.Fatal("expected --cache-max-entries flag on sdk command")
+	}
+	if sdkCmd.Flag("cache-max-bytes") == nil {
+		t.Fatal("expected --cache-max-bytes flag on sdk command")
+	}
+	if sdkCmd.Flag("i18n-default-locale") == nil {
+		t.Fatal("expected --i18n-default-locale flag on sdk command")
+	}
+	if sdkCmd.Flag("i18n-supported-locales") == nil {
+		t.Fatal("expected --i18n-supported-locales flag on sdk command")
+	}
 	if sdkCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on sdk command")
 	}
@@ -795,25 +886,31 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	api.RegisterSpecGroups(specCmdStubGroup{})
 
 	builder, err := sdkSpecBuilder(specBuilderConfig{
-		title:             "Custom SDK API",
-		summary:           "Custom SDK overview",
-		description:       "Custom SDK description",
-		version:           "9.9.9",
-		swaggerPath:       "/docs",
-		graphqlPath:       "/gql",
-		graphqlPlayground: true,
-		ssePath:           "/events",
-		wsPath:            "/ws",
-		pprofEnabled:      true,
-		expvarEnabled:     true,
-		termsURL:          "https://example.com/terms",
-		contactName:       "SDK Support",
-		contactURL:        "https://example.com/support",
-		contactEmail:      "support@example.com",
-		licenseName:       "EUPL-1.2",
-		licenseURL:        "https://eupl.eu/1.2/en/",
-		servers:           "https://api.example.com, /, https://api.example.com",
-		securitySchemes:   `{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
+		title:                "Custom SDK API",
+		summary:              "Custom SDK overview",
+		description:          "Custom SDK description",
+		version:              "9.9.9",
+		swaggerPath:          "/docs",
+		graphqlPath:          "/gql",
+		graphqlPlayground:    true,
+		ssePath:              "/events",
+		wsPath:               "/ws",
+		pprofEnabled:         true,
+		expvarEnabled:        true,
+		cacheEnabled:         true,
+		cacheTTL:             "5m0s",
+		cacheMaxEntries:      42,
+		cacheMaxBytes:        8192,
+		i18nDefaultLocale:    "en-GB",
+		i18nSupportedLocales: "en-GB,fr,en-GB",
+		termsURL:             "https://example.com/terms",
+		contactName:          "SDK Support",
+		contactURL:           "https://example.com/support",
+		contactEmail:         "support@example.com",
+		licenseName:          "EUPL-1.2",
+		licenseURL:           "https://eupl.eu/1.2/en/",
+		servers:              "https://api.example.com, /, https://api.example.com",
+		securitySchemes:      `{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error building sdk spec: %v", err)
@@ -876,6 +973,29 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if _, ok := paths["/debug/vars"]; !ok {
 		t.Fatal("expected expvar path to be included in generated spec")
+	}
+
+	if got := spec["x-cache-enabled"]; got != true {
+		t.Fatalf("expected x-cache-enabled=true, got %v", got)
+	}
+	if got := spec["x-cache-ttl"]; got != "5m0s" {
+		t.Fatalf("expected x-cache-ttl=5m0s, got %v", got)
+	}
+	if got := spec["x-cache-max-entries"]; got != float64(42) {
+		t.Fatalf("expected x-cache-max-entries=42, got %v", got)
+	}
+	if got := spec["x-cache-max-bytes"]; got != float64(8192) {
+		t.Fatalf("expected x-cache-max-bytes=8192, got %v", got)
+	}
+	if got := spec["x-i18n-default-locale"]; got != "en-GB" {
+		t.Fatalf("expected x-i18n-default-locale=en-GB, got %v", got)
+	}
+	locales, ok := spec["x-i18n-supported-locales"].([]any)
+	if !ok {
+		t.Fatalf("expected x-i18n-supported-locales array, got %T", spec["x-i18n-supported-locales"])
+	}
+	if len(locales) != 2 || locales[0] != "en-GB" || locales[1] != "fr" {
+		t.Fatalf("expected supported locales [en-GB fr], got %v", locales)
 	}
 
 	if info["termsOfService"] != "https://example.com/terms" {
