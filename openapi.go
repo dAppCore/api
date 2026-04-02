@@ -394,6 +394,9 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
 
 	code := successStatusCode(statusCode)
+	if dataSchema == nil && example != nil {
+		dataSchema = map[string]any{}
+	}
 	successResponse := map[string]any{
 		"description": successResponseDescription(code),
 		"headers":     successHeaders,

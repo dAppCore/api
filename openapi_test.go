@@ -1427,6 +1427,57 @@ func TestSpecBuilder_Good_RequestExampleWithoutSchema(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_ResponseExampleWithoutSchema(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "resources",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/resources/{id}",
+				Summary: "Fetch resource",
+				Tags:    []string{"resources"},
+				ResponseExample: map[string]any{
+					"name": "Example resource",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	getOp := spec["paths"].(map[string]any)["/api/resources/{id}"].(map[string]any)["get"].(map[string]any)
+	responses := getOp["responses"].(map[string]any)
+	resp200 := responses["200"].(map[string]any)
+	appJSON := resp200["content"].(map[string]any)["application/json"].(map[string]any)
+
+	if appJSON["example"].(map[string]any)["name"] != "Example resource" {
+		t.Fatalf("expected response example to be preserved, got %v", appJSON["example"])
+	}
+
+	schema := appJSON["schema"].(map[string]any)
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected envelope schema properties, got %v", schema)
+	}
+	if _, ok := properties["data"]; !ok {
+		t.Fatal("expected example-only response to expose an empty data schema")
+	}
+}
+
 func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
