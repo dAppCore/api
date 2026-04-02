@@ -118,6 +118,53 @@ func TestWSEndpoint_Good_CustomPath(t *testing.T) {
 	}
 }
 
+func TestWSEndpoint_Good_WithResponseMeta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	wsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Logf("upgrade error: %v", err)
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("meta"))
+	})
+
+	e, err := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+		api.WithWSHandler(wsHandler),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		if resp != nil {
+			t.Fatalf("failed to dial WebSocket: %v (status=%d)", err, resp.StatusCode)
+		}
+		t.Fatalf("failed to dial WebSocket: %v", err)
+	}
+	defer conn.Close()
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read message: %v", err)
+	}
+	if string(msg) != "meta" {
+		t.Fatalf("expected message=%q, got %q", "meta", string(msg))
+	}
+}
+
 func TestNoWSHandler_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

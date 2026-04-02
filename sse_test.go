@@ -242,6 +242,67 @@ func TestWithSSE_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 }
 
+func TestWithSSE_Good_WithResponseMetaStillStreamsEvents(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+		api.WithSSE(broker),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
+	}
+	if reqID := resp.Header.Get("X-Request-ID"); reqID == "" {
+		t.Fatal("expected X-Request-ID header from RequestID middleware")
+	}
+
+	waitForClients(t, broker, 1)
+
+	broker.Publish("test", "greeting", map[string]string{"msg": "hello"})
+
+	scanner := bufio.NewScanner(resp.Body)
+	var eventLine string
+
+	deadline := time.After(3 * time.Second)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if after, ok := strings.CutPrefix(line, "event: "); ok {
+				eventLine = after
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-deadline:
+		t.Fatal("timed out waiting for SSE event with response meta enabled")
+	}
+
+	if eventLine != "greeting" {
+		t.Fatalf("expected event=%q, got %q", "greeting", eventLine)
+	}
+}
+
 func TestWithSSE_Good_MultipleClients(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

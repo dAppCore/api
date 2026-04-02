@@ -25,6 +25,8 @@ type responseMetaRecorder struct {
 	body        bytes.Buffer
 	status      int
 	wroteHeader bool
+	committed   bool
+	passthrough bool
 }
 
 func newResponseMetaRecorder(w gin.ResponseWriter) *responseMetaRecorder {
@@ -45,15 +47,32 @@ func (w *responseMetaRecorder) Header() http.Header {
 }
 
 func (w *responseMetaRecorder) WriteHeader(code int) {
+	if w.passthrough {
+		w.status = code
+		w.wroteHeader = true
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
 	w.status = code
 	w.wroteHeader = true
 }
 
 func (w *responseMetaRecorder) WriteHeaderNow() {
+	if w.passthrough {
+		w.wroteHeader = true
+		w.ResponseWriter.WriteHeaderNow()
+		return
+	}
 	w.wroteHeader = true
 }
 
 func (w *responseMetaRecorder) Write(data []byte) (int, error) {
+	if w.passthrough {
+		if !w.wroteHeader {
+			w.WriteHeader(http.StatusOK)
+		}
+		return w.ResponseWriter.Write(data)
+	}
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
@@ -61,6 +80,12 @@ func (w *responseMetaRecorder) Write(data []byte) (int, error) {
 }
 
 func (w *responseMetaRecorder) WriteString(s string) (int, error) {
+	if w.passthrough {
+		if !w.wroteHeader {
+			w.WriteHeader(http.StatusOK)
+		}
+		return w.ResponseWriter.WriteString(s)
+	}
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
@@ -68,6 +93,23 @@ func (w *responseMetaRecorder) WriteString(s string) (int, error) {
 }
 
 func (w *responseMetaRecorder) Flush() {
+	if w.passthrough {
+		if f, ok := w.ResponseWriter.(http.Flusher); ok {
+			f.Flush()
+		}
+		return
+	}
+
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	w.commit(true)
+	w.passthrough = true
+
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (w *responseMetaRecorder) Status() int {
@@ -87,10 +129,27 @@ func (w *responseMetaRecorder) Written() bool {
 }
 
 func (w *responseMetaRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if w.passthrough {
+		if h, ok := w.ResponseWriter.(http.Hijacker); ok {
+			return h.Hijack()
+		}
+		return nil, nil, io.ErrClosedPipe
+	}
+
+	w.wroteHeader = true
+	w.passthrough = true
+
+	if h, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
 	return nil, nil, io.ErrClosedPipe
 }
 
-func (w *responseMetaRecorder) commit() {
+func (w *responseMetaRecorder) commit(writeBody bool) {
+	if w.committed {
+		return
+	}
+
 	for k := range w.ResponseWriter.Header() {
 		w.ResponseWriter.Header().Del(k)
 	}
@@ -102,7 +161,11 @@ func (w *responseMetaRecorder) commit() {
 	}
 
 	w.ResponseWriter.WriteHeader(w.Status())
-	_, _ = w.ResponseWriter.Write(w.body.Bytes())
+	if writeBody {
+		_, _ = w.ResponseWriter.Write(w.body.Bytes())
+		w.body.Reset()
+	}
+	w.committed = true
 }
 
 // responseMetaMiddleware injects request metadata into JSON envelope
@@ -118,6 +181,10 @@ func responseMetaMiddleware() gin.HandlerFunc {
 
 		c.Next()
 
+		if recorder.passthrough {
+			return
+		}
+
 		body := recorder.body.Bytes()
 		if meta := GetRequestMeta(c); meta != nil && shouldAttachResponseMeta(recorder.Header().Get("Content-Type"), body) {
 			if refreshed := refreshResponseMetaBody(body, meta); refreshed != nil {
@@ -128,7 +195,7 @@ func responseMetaMiddleware() gin.HandlerFunc {
 		recorder.body.Reset()
 		_, _ = recorder.body.Write(body)
 		recorder.Header().Set("Content-Length", strconv.Itoa(len(body)))
-		recorder.commit()
+		recorder.commit(true)
 	}
 }
 
