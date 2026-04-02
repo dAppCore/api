@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"iter"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -609,7 +610,31 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		}
 	}
 
+	sortTags(tags)
+
 	return tags
+}
+
+// sortTags keeps system first and orders the remaining tags alphabetically so
+// generated specs stay stable across registration order changes.
+func sortTags(tags []map[string]any) {
+	if len(tags) < 2 {
+		return
+	}
+
+	sort.SliceStable(tags, func(i, j int) bool {
+		left, _ := tags[i]["name"].(string)
+		right, _ := tags[j]["name"].(string)
+
+		switch {
+		case left == "system":
+			return true
+		case right == "system":
+			return false
+		default:
+			return left < right
+		}
+	})
 }
 
 func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {

@@ -1554,6 +1554,61 @@ func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_TagsAreSortedDeterministically(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	group := &specStubGroup{
+		name:     "gamma",
+		basePath: "/api/gamma",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Check status",
+				Tags:    []string{"zeta", "alpha", "beta"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tags, ok := spec["tags"].([]any)
+	if !ok {
+		t.Fatalf("expected tags array, got %T", spec["tags"])
+	}
+
+	names := make([]string, 0, len(tags))
+	for _, raw := range tags {
+		tag := raw.(map[string]any)
+		name, _ := tag["name"].(string)
+		names = append(names, name)
+	}
+
+	expected := []string{"system", "alpha", "beta", "gamma", "zeta"}
+	if len(names) != len(expected) {
+		t.Fatalf("expected %d tags, got %d: %v", len(expected), len(names), names)
+	}
+	for i := range expected {
+		if names[i] != expected[i] {
+			t.Fatalf("expected tag order %v, got %v", expected, names)
+		}
+	}
+}
+
 func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
