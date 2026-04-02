@@ -305,6 +305,26 @@ func TestNewSpecBuilder_Good_IgnoresNonPositiveCacheTTL(t *testing.T) {
 	}
 }
 
+func TestNewSpecBuilder_Good_IgnoresCacheLimitsWithoutPositiveTTL(t *testing.T) {
+	builder, err := newSpecBuilder(specBuilderConfig{
+		cacheMaxEntries: 42,
+		cacheMaxBytes:   8192,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if builder.CacheEnabled {
+		t.Fatal("expected cache limits without a positive TTL to keep cache disabled")
+	}
+	if builder.CacheMaxEntries != 42 {
+		t.Fatalf("expected cache max entries metadata to be preserved, got %d", builder.CacheMaxEntries)
+	}
+	if builder.CacheMaxBytes != 8192 {
+		t.Fatalf("expected cache max bytes metadata to be preserved, got %d", builder.CacheMaxBytes)
+	}
+}
+
 func TestAPISpecCmd_Good_GraphQLPlaygroundFlagPopulatesSpecPaths(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)

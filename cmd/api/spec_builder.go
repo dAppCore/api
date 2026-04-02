@@ -67,7 +67,7 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		WSPath:                  wsPath,
 		PprofEnabled:            cfg.pprofEnabled,
 		ExpvarEnabled:           cfg.expvarEnabled,
-		CacheEnabled:            cfg.cacheEnabled || cacheTTLValid || cfg.cacheMaxEntries > 0 || cfg.cacheMaxBytes > 0,
+		CacheEnabled:            cfg.cacheEnabled || cacheTTLValid,
 		CacheTTL:                cacheTTL,
 		CacheMaxEntries:         cfg.cacheMaxEntries,
 		CacheMaxBytes:           cfg.cacheMaxBytes,
