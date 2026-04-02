@@ -135,37 +135,28 @@ func addSDKCommand(parent *cli.Command) {
 }
 
 func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes string) (*goapi.SpecBuilder, error) {
-	builder := &goapi.SpecBuilder{
-		Title:                   title,
-		Description:             description,
-		Version:                 version,
-		SwaggerPath:             swaggerPath,
-		GraphQLPath:             graphqlPath,
-		GraphQLPlayground:       graphqlPlayground,
-		SSEPath:                 ssePath,
-		WSPath:                  wsPath,
-		PprofEnabled:            pprofEnabled,
-		ExpvarEnabled:           expvarEnabled,
-		TermsOfService:          termsURL,
-		ContactName:             contactName,
-		ContactURL:              contactURL,
-		ContactEmail:            contactEmail,
-		Servers:                 parseServers(servers),
-		LicenseName:             licenseName,
-		LicenseURL:              licenseURL,
-		ExternalDocsDescription: externalDocsDescription,
-		ExternalDocsURL:         externalDocsURL,
-	}
-
-	if securitySchemes != "" {
-		schemes, err := parseSecuritySchemes(securitySchemes)
-		if err != nil {
-			return nil, err
-		}
-		builder.SecuritySchemes = schemes
-	}
-
-	return builder, nil
+	return newSpecBuilder(specBuilderConfig{
+		title:                   title,
+		description:             description,
+		version:                 version,
+		swaggerPath:             swaggerPath,
+		graphqlPath:             graphqlPath,
+		graphqlPlayground:       graphqlPlayground,
+		ssePath:                 ssePath,
+		wsPath:                  wsPath,
+		pprofEnabled:            pprofEnabled,
+		expvarEnabled:           expvarEnabled,
+		termsURL:                termsURL,
+		contactName:             contactName,
+		contactURL:              contactURL,
+		contactEmail:            contactEmail,
+		licenseName:             licenseName,
+		licenseURL:              licenseURL,
+		externalDocsDescription: externalDocsDescription,
+		externalDocsURL:         externalDocsURL,
+		servers:                 servers,
+		securitySchemes:         securitySchemes,
+	})
 }
 
 func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {
