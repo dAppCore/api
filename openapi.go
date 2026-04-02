@@ -36,8 +36,9 @@ type SpecBuilder struct {
 }
 
 type preparedRouteGroup struct {
-	group RouteGroup
-	descs []RouteDescription
+	group       RouteGroup
+	descs       []RouteDescription
+	describable bool
 }
 
 // Build generates the complete OpenAPI 3.1 JSON spec.
@@ -585,7 +586,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 
 	for _, g := range groups {
 		name := strings.TrimSpace(g.group.Name())
-		if name != "" && !seen[name] {
+		if name != "" && !seen[name] && (!g.describable || len(g.descs) > 0) {
 			tags = append(tags, map[string]any{
 				"name":        name,
 				"description": name + " endpoints",
@@ -759,9 +760,14 @@ func prepareRouteGroups(groups []RouteGroup) []preparedRouteGroup {
 		if g == nil {
 			continue
 		}
+		if isHiddenRouteGroup(g) {
+			continue
+		}
+		describable := isDescribableRouteGroup(g)
 		out = append(out, preparedRouteGroup{
-			group: g,
-			descs: collectRouteDescriptions(g),
+			group:       g,
+			descs:       collectRouteDescriptions(g),
+			describable: describable,
 		})
 	}
 
@@ -789,10 +795,32 @@ func collectRouteDescriptions(g RouteGroup) []RouteDescription {
 
 	descs := make([]RouteDescription, 0)
 	for rd := range descIter {
+		if rd.Hidden {
+			continue
+		}
 		descs = append(descs, rd)
 	}
 
 	return descs
+}
+
+func isHiddenRouteGroup(g RouteGroup) bool {
+	type hiddenRouteGroup interface {
+		Hidden() bool
+	}
+
+	hg, ok := g.(hiddenRouteGroup)
+	return ok && hg.Hidden()
+}
+
+func isDescribableRouteGroup(g RouteGroup) bool {
+	if _, ok := g.(DescribableGroupIter); ok {
+		return true
+	}
+	if _, ok := g.(DescribableGroup); ok {
+		return true
+	}
+	return false
 }
 
 // routeDescriptions returns OpenAPI route descriptions for a group.

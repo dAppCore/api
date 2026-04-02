@@ -64,6 +64,8 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// Hidden omits the route from generated documentation.
+	Hidden bool
 	// Deprecated marks the operation as deprecated in OpenAPI.
 	Deprecated bool
 	// SunsetDate marks when a deprecated operation will be removed.

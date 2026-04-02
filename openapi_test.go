@@ -18,6 +18,7 @@ import (
 type specStubGroup struct {
 	name     string
 	basePath string
+	hidden   bool
 	descs    []api.RouteDescription
 }
 
@@ -25,6 +26,7 @@ func (s *specStubGroup) Name() string                       { return s.name }
 func (s *specStubGroup) BasePath() string                   { return s.basePath }
 func (s *specStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
 func (s *specStubGroup) Describe() []api.RouteDescription   { return s.descs }
+func (s *specStubGroup) Hidden() bool                       { return s.hidden }
 
 type plainStubGroup struct{}
 
@@ -1671,6 +1673,116 @@ func TestSpecBuilder_Good_BlankRouteTagsFallBackToGroupName(t *testing.T) {
 	}
 	if len(tags) != 1 || tags[0] != "fallback" {
 		t.Fatalf("expected blank route tags to fall back to group name, got %v", tags)
+	}
+}
+
+func TestSpecBuilder_Good_HiddenRoutesAreOmitted(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	visible := &specStubGroup{
+		name:     "visible",
+		basePath: "/api",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/public",
+				Summary: "Public endpoint",
+				Tags:    []string{"public"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+			{
+				Method:  "GET",
+				Path:    "/internal",
+				Summary: "Internal endpoint",
+				Tags:    []string{"internal"},
+				Hidden:  true,
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	hidden := &specStubGroup{
+		name:     "hidden-group",
+		basePath: "/api/internal",
+		hidden:   true,
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/status",
+				Summary: "Hidden group endpoint",
+				Tags:    []string{"hidden"},
+				Response: map[string]any{
+					"type": "object",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{visible, hidden})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/api/public"]; !ok {
+		t.Fatal("expected visible route to remain in the spec")
+	}
+	if _, ok := paths["/api/internal"]; ok {
+		t.Fatal("did not expect hidden route to appear in the spec")
+	}
+	if _, ok := paths["/api/internal/status"]; ok {
+		t.Fatal("did not expect hidden group routes to appear in the spec")
+	}
+
+	tags := spec["tags"].([]any)
+	foundPublic := false
+	foundInternal := false
+	foundHidden := false
+	foundVisibleGroup := false
+	foundHiddenGroup := false
+	for _, raw := range tags {
+		tag := raw.(map[string]any)
+		name, _ := tag["name"].(string)
+		switch name {
+		case "public":
+			foundPublic = true
+		case "internal":
+			foundInternal = true
+		case "hidden":
+			foundHidden = true
+		case "visible":
+			foundVisibleGroup = true
+		case "hidden-group":
+			foundHiddenGroup = true
+		}
+	}
+
+	if !foundPublic {
+		t.Fatal("expected public tag to remain in the spec")
+	}
+	if !foundVisibleGroup {
+		t.Fatal("expected visible group tag to remain in the spec")
+	}
+	if foundInternal {
+		t.Fatal("did not expect hidden route tag to appear in the spec")
+	}
+	if foundHidden {
+		t.Fatal("did not expect hidden group route tag to appear in the spec")
+	}
+	if foundHiddenGroup {
+		t.Fatal("did not expect hidden group tag to appear in the spec")
 	}
 }
 
