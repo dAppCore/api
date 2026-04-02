@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -54,20 +55,40 @@ type SDKGenerator struct {
 //
 //	err := gen.Generate(context.Background(), "go")
 func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
+	if g == nil {
+		return coreerr.E("SDKGenerator.Generate", "generator is nil", nil)
+	}
+	if ctx == nil {
+		return coreerr.E("SDKGenerator.Generate", "context is nil", nil)
+	}
+
+	language = strings.TrimSpace(language)
 	generator, ok := supportedLanguages[language]
 	if !ok {
 		return coreerr.E("SDKGenerator.Generate", fmt.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
 	}
 
-	if _, err := os.Stat(g.SpecPath); os.IsNotExist(err) {
-		return coreerr.E("SDKGenerator.Generate", "spec file not found: "+g.SpecPath, nil)
+	specPath := strings.TrimSpace(g.SpecPath)
+	if specPath == "" {
+		return coreerr.E("SDKGenerator.Generate", "spec path is required", nil)
+	}
+	if _, err := os.Stat(specPath); err != nil {
+		if os.IsNotExist(err) {
+			return coreerr.E("SDKGenerator.Generate", "spec file not found: "+specPath, nil)
+		}
+		return coreerr.E("SDKGenerator.Generate", "stat spec file", err)
+	}
+
+	outputBase := strings.TrimSpace(g.OutputDir)
+	if outputBase == "" {
+		return coreerr.E("SDKGenerator.Generate", "output directory is required", nil)
 	}
 
 	if !g.Available() {
 		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli not installed", nil)
 	}
 
-	outputDir := filepath.Join(g.OutputDir, language)
+	outputDir := filepath.Join(outputBase, language)
 	if err := coreio.Local.EnsureDir(outputDir); err != nil {
 		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
 	}
