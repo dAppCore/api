@@ -59,7 +59,29 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder, err := sdkSpecBuilder(title, summary, description, version, swaggerPath, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes)
+			builder, err := sdkSpecBuilder(specBuilderConfig{
+				title:                   title,
+				summary:                 summary,
+				description:             description,
+				version:                 version,
+				swaggerPath:             swaggerPath,
+				graphqlPath:             graphqlPath,
+				graphqlPlayground:       graphqlPlayground,
+				ssePath:                 ssePath,
+				wsPath:                  wsPath,
+				pprofEnabled:            pprofEnabled,
+				expvarEnabled:           expvarEnabled,
+				termsURL:                termsURL,
+				contactName:             contactName,
+				contactURL:              contactURL,
+				contactEmail:            contactEmail,
+				licenseName:             licenseName,
+				licenseURL:              licenseURL,
+				externalDocsDescription: externalDocsDescription,
+				externalDocsURL:         externalDocsURL,
+				servers:                 servers,
+				securitySchemes:         securitySchemes,
+			})
 			if err != nil {
 				return err
 			}
@@ -136,29 +158,29 @@ func addSDKCommand(parent *cli.Command) {
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, summary, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes string) (*goapi.SpecBuilder, error) {
+func sdkSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 	return newSpecBuilder(specBuilderConfig{
-		title:                   title,
-		summary:                 summary,
-		description:             description,
-		version:                 version,
-		swaggerPath:             swaggerPath,
-		graphqlPath:             graphqlPath,
-		graphqlPlayground:       graphqlPlayground,
-		ssePath:                 ssePath,
-		wsPath:                  wsPath,
-		pprofEnabled:            pprofEnabled,
-		expvarEnabled:           expvarEnabled,
-		termsURL:                termsURL,
-		contactName:             contactName,
-		contactURL:              contactURL,
-		contactEmail:            contactEmail,
-		licenseName:             licenseName,
-		licenseURL:              licenseURL,
-		externalDocsDescription: externalDocsDescription,
-		externalDocsURL:         externalDocsURL,
-		servers:                 servers,
-		securitySchemes:         securitySchemes,
+		title:                   cfg.title,
+		summary:                 cfg.summary,
+		description:             cfg.description,
+		version:                 cfg.version,
+		swaggerPath:             cfg.swaggerPath,
+		graphqlPath:             cfg.graphqlPath,
+		graphqlPlayground:       cfg.graphqlPlayground,
+		ssePath:                 cfg.ssePath,
+		wsPath:                  cfg.wsPath,
+		pprofEnabled:            cfg.pprofEnabled,
+		expvarEnabled:           cfg.expvarEnabled,
+		termsURL:                cfg.termsURL,
+		contactName:             cfg.contactName,
+		contactURL:              cfg.contactURL,
+		contactEmail:            cfg.contactEmail,
+		licenseName:             cfg.licenseName,
+		licenseURL:              cfg.licenseURL,
+		externalDocsDescription: cfg.externalDocsDescription,
+		externalDocsURL:         cfg.externalDocsURL,
+		servers:                 cfg.servers,
+		securitySchemes:         cfg.securitySchemes,
 	})
 }
 

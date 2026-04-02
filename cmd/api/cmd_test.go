@@ -794,29 +794,27 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 
 	api.RegisterSpecGroups(specCmdStubGroup{})
 
-	builder, err := sdkSpecBuilder(
-		"Custom SDK API",
-		"Custom SDK overview",
-		"Custom SDK description",
-		"9.9.9",
-		"/docs",
-		"/gql",
-		true,
-		"/events",
-		"/ws",
-		true,
-		true,
-		"https://example.com/terms",
-		"SDK Support",
-		"https://example.com/support",
-		"support@example.com",
-		"EUPL-1.2",
-		"https://eupl.eu/1.2/en/",
-		"",
-		"",
-		"https://api.example.com, /, https://api.example.com",
-		`{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
-	)
+	builder, err := sdkSpecBuilder(specBuilderConfig{
+		title:             "Custom SDK API",
+		summary:           "Custom SDK overview",
+		description:       "Custom SDK description",
+		version:           "9.9.9",
+		swaggerPath:       "/docs",
+		graphqlPath:       "/gql",
+		graphqlPlayground: true,
+		ssePath:           "/events",
+		wsPath:            "/ws",
+		pprofEnabled:      true,
+		expvarEnabled:     true,
+		termsURL:          "https://example.com/terms",
+		contactName:       "SDK Support",
+		contactURL:        "https://example.com/support",
+		contactEmail:      "support@example.com",
+		licenseName:       "EUPL-1.2",
+		licenseURL:        "https://eupl.eu/1.2/en/",
+		servers:           "https://api.example.com, /, https://api.example.com",
+		securitySchemes:   `{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
+	})
 	if err != nil {
 		t.Fatalf("unexpected error building sdk spec: %v", err)
 	}
