@@ -41,10 +41,10 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		builder.GraphQLPath = e.graphql.path
 		builder.GraphQLPlayground = e.graphql.playground
 	}
-	if e.wsHandler != nil {
+	if e.wsHandler != nil || strings.TrimSpace(e.wsPath) != "" {
 		builder.WSPath = resolveWSPath(e.wsPath)
 	}
-	if e.sseBroker != nil {
+	if e.sseBroker != nil || strings.TrimSpace(e.ssePath) != "" {
 		builder.SSEPath = resolveSSEPath(e.ssePath)
 	}
 	builder.PprofEnabled = e.pprofEnabled

@@ -196,3 +196,51 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesExplicitSwaggerPathWithoutUI(t *te
 		t.Fatalf("expected explicit x-swagger-ui-path=/docs, got %v", got)
 	}
 }
+
+func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredWSPathWithoutHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithWSPath("/socket"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	builder := e.OpenAPISpecBuilder()
+	data, err := builder.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-ws-path"]; got != "/socket" {
+		t.Fatalf("expected x-ws-path=/socket, got %v", got)
+	}
+}
+
+func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredSSEPathWithoutBroker(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSSE(nil), api.WithSSEPath("/events"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	builder := e.OpenAPISpecBuilder()
+	data, err := builder.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-sse-path"]; got != "/events" {
+		t.Fatalf("expected x-sse-path=/events, got %v", got)
+	}
+}
