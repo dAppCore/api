@@ -4,6 +4,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,6 +58,9 @@ func registerSwagger(g *gin.Engine, e *Engine, groups []RouteGroup) {
 	spec := newSwaggerSpec(e.OpenAPISpecBuilder(), groups)
 	name := fmt.Sprintf("swagger_%d", swaggerSeq.Add(1))
 	swag.Register(name, spec)
+	g.GET(swaggerPath, func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, swaggerPath+"/")
+	})
 	g.GET(swaggerPath+"/*any", ginSwagger.WrapHandler(swaggerFiles.NewHandler(), ginSwagger.InstanceName(name)))
 }
 

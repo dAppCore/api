@@ -111,6 +111,71 @@ func TestSwaggerEndpoint_Good_CustomPath(t *testing.T) {
 	}
 }
 
+func TestSwaggerEndpoint_Good_BasePathRedirect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwagger("Test API", "A test API service", "1.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(srv.URL + "/swagger")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 redirect, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/swagger/" {
+		t.Fatalf("expected Location=/swagger/, got %q", got)
+	}
+}
+
+func TestSwaggerEndpoint_Good_CustomBasePathRedirect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(srv.URL + "/docs")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 redirect, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/docs/" {
+		t.Fatalf("expected Location=/docs/, got %q", got)
+	}
+}
+
 func TestSwaggerDisabledByDefault_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
