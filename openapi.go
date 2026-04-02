@@ -35,6 +35,8 @@ type SpecBuilder struct {
 	LicenseURL              string
 	ExternalDocsDescription string
 	ExternalDocsURL         string
+	PprofEnabled            bool
+	ExpvarEnabled           bool
 }
 
 type preparedRouteGroup struct {
@@ -195,6 +197,14 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
 		ssePath = normaliseOpenAPIPath(ssePath)
 		paths[ssePath] = ssePathItem(ssePath, operationIDs)
+	}
+
+	if sb.PprofEnabled {
+		paths["/debug/pprof"] = pprofPathItem(operationIDs)
+	}
+
+	if sb.ExpvarEnabled {
+		paths["/debug/vars"] = expvarPathItem(operationIDs)
 	}
 
 	for _, g := range groups {
@@ -598,6 +608,14 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		seen["events"] = true
 	}
 
+	if (sb.PprofEnabled || sb.ExpvarEnabled) && !seen["debug"] {
+		tags = append(tags, map[string]any{
+			"name":        "debug",
+			"description": "Runtime debug endpoints",
+		})
+		seen["debug"] = true
+	}
+
 	for _, g := range groups {
 		name := strings.TrimSpace(g.group.Name())
 		if name != "" && !seen[name] {
@@ -699,6 +717,113 @@ func ssePathItem(path string, operationIDs map[string]int) map[string]any {
 				},
 			},
 			"responses": sseResponses(),
+		},
+	}
+}
+
+func pprofPathItem(operationIDs map[string]int) map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"summary":     "pprof index",
+			"description": "Lists the available Go runtime profiles",
+			"tags":        []string{"debug"},
+			"operationId": operationID("get", "/debug/pprof", operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "pprof index",
+					"content": map[string]any{
+						"text/html": map[string]any{
+							"schema": map[string]any{
+								"type": "string",
+							},
+						},
+					},
+					"headers": standardResponseHeaders(),
+				},
+				"401": map[string]any{
+					"description": "Unauthorised",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": standardResponseHeaders(),
+				},
+				"403": map[string]any{
+					"description": "Forbidden",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": standardResponseHeaders(),
+				},
+			},
+		},
+	}
+}
+
+func expvarPathItem(operationIDs map[string]int) map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"summary":     "Runtime metrics",
+			"description": "Returns expvar metrics as JSON",
+			"tags":        []string{"debug"},
+			"operationId": operationID("get", "/debug/vars", operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Runtime metrics",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": standardResponseHeaders(),
+				},
+				"401": map[string]any{
+					"description": "Unauthorised",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": standardResponseHeaders(),
+				},
+				"403": map[string]any{
+					"description": "Forbidden",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": standardResponseHeaders(),
+				},
+			},
 		},
 	}
 }

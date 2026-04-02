@@ -36,6 +36,8 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	if e.sseBroker != nil {
 		builder.SSEPath = resolveSSEPath(e.ssePath)
 	}
+	builder.PprofEnabled = e.pprofEnabled
+	builder.ExpvarEnabled = e.expvarEnabled
 
 	return builder
 }

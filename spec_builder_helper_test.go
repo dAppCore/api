@@ -25,6 +25,8 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 		api.WithGraphQL(newTestSchema(), api.WithGraphQLPath("/gql")),
 		api.WithSSE(broker),
 		api.WithSSEPath("/events"),
+		api.WithPprof(),
+		api.WithExpvar(),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -106,5 +108,11 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 	if _, ok := paths["/events"]; !ok {
 		t.Fatal("expected SSE path from engine metadata in generated spec")
+	}
+	if _, ok := paths["/debug/pprof"]; !ok {
+		t.Fatal("expected pprof path from engine metadata in generated spec")
+	}
+	if _, ok := paths["/debug/vars"]; !ok {
+		t.Fatal("expected expvar path from engine metadata in generated spec")
 	}
 }
