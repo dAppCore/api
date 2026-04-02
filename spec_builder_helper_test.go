@@ -178,6 +178,92 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 }
 
+func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Engine API", "Engine metadata", "2.0.0"),
+		api.WithSwaggerSummary("Engine overview"),
+		api.WithSwaggerTermsOfService("https://example.com/terms"),
+		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
+		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
+		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
+		api.WithSwaggerSecuritySchemes(map[string]any{
+			"apiKeyAuth": map[string]any{
+				"type": "apiKey",
+				"in":   "header",
+				"name": "X-API-Key",
+			},
+		}),
+		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.SwaggerConfig()
+	if !cfg.Enabled {
+		t.Fatal("expected Swagger to be enabled")
+	}
+	if cfg.Title != "Engine API" {
+		t.Fatalf("expected title Engine API, got %q", cfg.Title)
+	}
+	if cfg.Description != "Engine metadata" {
+		t.Fatalf("expected description Engine metadata, got %q", cfg.Description)
+	}
+	if cfg.Version != "2.0.0" {
+		t.Fatalf("expected version 2.0.0, got %q", cfg.Version)
+	}
+	if cfg.Summary != "Engine overview" {
+		t.Fatalf("expected summary Engine overview, got %q", cfg.Summary)
+	}
+	if cfg.TermsOfService != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService to be preserved, got %q", cfg.TermsOfService)
+	}
+	if cfg.ContactName != "API Support" {
+		t.Fatalf("expected contact name API Support, got %q", cfg.ContactName)
+	}
+	if cfg.LicenseName != "EUPL-1.2" {
+		t.Fatalf("expected licence name EUPL-1.2, got %q", cfg.LicenseName)
+	}
+	if cfg.ExternalDocsURL != "https://example.com/docs" {
+		t.Fatalf("expected external docs URL https://example.com/docs, got %q", cfg.ExternalDocsURL)
+	}
+
+	if len(cfg.Servers) != 2 {
+		t.Fatalf("expected 2 normalised servers, got %d", len(cfg.Servers))
+	}
+	if cfg.Servers[0] != "https://api.example.com" {
+		t.Fatalf("expected first server to be https://api.example.com, got %q", cfg.Servers[0])
+	}
+	if cfg.Servers[1] != "/" {
+		t.Fatalf("expected second server to be /, got %q", cfg.Servers[1])
+	}
+
+	apiKeyAuth, ok := cfg.SecuritySchemes["apiKeyAuth"].(map[string]any)
+	if !ok {
+		t.Fatal("expected apiKeyAuth security scheme in Swagger config")
+	}
+	if apiKeyAuth["name"] != "X-API-Key" {
+		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
+	}
+
+	cfg.Servers[0] = "https://mutated.example.com"
+	apiKeyAuth["name"] = "Changed"
+
+	reshot := e.SwaggerConfig()
+	if reshot.Servers[0] != "https://api.example.com" {
+		t.Fatalf("expected engine servers to be cloned, got %q", reshot.Servers[0])
+	}
+	reshotScheme, ok := reshot.SecuritySchemes["apiKeyAuth"].(map[string]any)
+	if !ok {
+		t.Fatal("expected apiKeyAuth security scheme in cloned Swagger config")
+	}
+	if reshotScheme["name"] != "X-API-Key" {
+		t.Fatalf("expected cloned security scheme name X-API-Key, got %v", reshotScheme["name"])
+	}
+}
+
 func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

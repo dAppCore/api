@@ -7,6 +7,32 @@ import (
 	"slices"
 )
 
+// SwaggerConfig captures the configured Swagger/OpenAPI metadata for an Engine.
+//
+// It is intentionally small and serialisable so callers can inspect the active
+// documentation surface without rebuilding an OpenAPI document.
+//
+// Example:
+//
+//	cfg := api.SwaggerConfig{Title: "Service", Summary: "Public API"}
+type SwaggerConfig struct {
+	Enabled                 bool
+	Title                   string
+	Summary                 string
+	Description             string
+	Version                 string
+	TermsOfService          string
+	ContactName             string
+	ContactURL              string
+	ContactEmail            string
+	Servers                 []string
+	LicenseName             string
+	LicenseURL              string
+	SecuritySchemes         map[string]any
+	ExternalDocsDescription string
+	ExternalDocsURL         string
+}
+
 // OpenAPISpecBuilder returns a SpecBuilder populated from the engine's current
 // Swagger and transport metadata.
 //
@@ -18,8 +44,51 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		return &SpecBuilder{}
 	}
 
+	swagger := e.SwaggerConfig()
 	transport := e.TransportConfig()
 	builder := &SpecBuilder{
+		Title:                   swagger.Title,
+		Summary:                 swagger.Summary,
+		Description:             swagger.Description,
+		Version:                 swagger.Version,
+		TermsOfService:          swagger.TermsOfService,
+		ContactName:             swagger.ContactName,
+		ContactURL:              swagger.ContactURL,
+		ContactEmail:            swagger.ContactEmail,
+		Servers:                 slices.Clone(swagger.Servers),
+		LicenseName:             swagger.LicenseName,
+		LicenseURL:              swagger.LicenseURL,
+		SecuritySchemes:         cloneSecuritySchemes(swagger.SecuritySchemes),
+		ExternalDocsDescription: swagger.ExternalDocsDescription,
+		ExternalDocsURL:         swagger.ExternalDocsURL,
+	}
+
+	builder.SwaggerPath = transport.SwaggerPath
+	builder.GraphQLPath = transport.GraphQLPath
+	builder.GraphQLPlayground = transport.GraphQLPlayground
+	builder.WSPath = transport.WSPath
+	builder.SSEPath = transport.SSEPath
+	builder.PprofEnabled = transport.PprofEnabled
+	builder.ExpvarEnabled = transport.ExpvarEnabled
+
+	return builder
+}
+
+// SwaggerConfig returns the currently configured Swagger metadata for the engine.
+//
+// The result snapshots the Engine state at call time and clones slices/maps so
+// callers can safely reuse or modify the returned value.
+//
+// Example:
+//
+//	cfg := engine.SwaggerConfig()
+func (e *Engine) SwaggerConfig() SwaggerConfig {
+	if e == nil {
+		return SwaggerConfig{}
+	}
+
+	return SwaggerConfig{
+		Enabled:                 e.swaggerEnabled,
 		Title:                   e.swaggerTitle,
 		Summary:                 e.swaggerSummary,
 		Description:             e.swaggerDesc,
@@ -35,16 +104,6 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		ExternalDocsDescription: e.swaggerExternalDocsDescription,
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
-
-	builder.SwaggerPath = transport.SwaggerPath
-	builder.GraphQLPath = transport.GraphQLPath
-	builder.GraphQLPlayground = transport.GraphQLPlayground
-	builder.WSPath = transport.WSPath
-	builder.SSEPath = transport.SSEPath
-	builder.PprofEnabled = transport.PprofEnabled
-	builder.ExpvarEnabled = transport.ExpvarEnabled
-
-	return builder
 }
 
 func cloneSecuritySchemes(schemes map[string]any) map[string]any {
