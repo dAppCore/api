@@ -17,7 +17,7 @@ import (
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
 // Title, Summary, Description, Version, and optional contact/licence/terms metadata populate the
 // OpenAPI info block. Top-level external documentation metadata is also supported, along with
-// additive extension fields that describe runtime transport, cache, and i18n settings.
+// additive extension fields that describe runtime transport, cache, i18n, and Authentik settings.
 //
 // Example:
 //
@@ -55,6 +55,10 @@ type SpecBuilder struct {
 	CacheMaxBytes           int
 	I18nDefaultLocale       string
 	I18nSupportedLocales    []string
+	AuthentikIssuer         string
+	AuthentikClientID       string
+	AuthentikTrustedProxy   bool
+	AuthentikPublicPaths    []string
 }
 
 type preparedRouteGroup struct {
@@ -155,6 +159,18 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	}
 	if len(sb.I18nSupportedLocales) > 0 {
 		spec["x-i18n-supported-locales"] = slices.Clone(sb.I18nSupportedLocales)
+	}
+	if issuer := strings.TrimSpace(sb.AuthentikIssuer); issuer != "" {
+		spec["x-authentik-issuer"] = issuer
+	}
+	if clientID := strings.TrimSpace(sb.AuthentikClientID); clientID != "" {
+		spec["x-authentik-client-id"] = clientID
+	}
+	if sb.AuthentikTrustedProxy {
+		spec["x-authentik-trusted-proxy"] = true
+	}
+	if len(sb.AuthentikPublicPaths) > 0 {
+		spec["x-authentik-public-paths"] = slices.Clone(sb.AuthentikPublicPaths)
 	}
 
 	if sb.TermsOfService != "" {

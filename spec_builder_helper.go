@@ -36,7 +36,7 @@ type SwaggerConfig struct {
 }
 
 // OpenAPISpecBuilder returns a SpecBuilder populated from the engine's current
-// Swagger, transport, cache, and i18n metadata.
+// Swagger, transport, cache, i18n, and Authentik metadata.
 //
 // Example:
 //
@@ -85,6 +85,10 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 
 	builder.I18nDefaultLocale = runtime.I18n.DefaultLocale
 	builder.I18nSupportedLocales = slices.Clone(runtime.I18n.Supported)
+	builder.AuthentikIssuer = runtime.Authentik.Issuer
+	builder.AuthentikClientID = runtime.Authentik.ClientID
+	builder.AuthentikTrustedProxy = runtime.Authentik.TrustedProxy
+	builder.AuthentikPublicPaths = slices.Clone(runtime.Authentik.PublicPaths)
 
 	return builder
 }

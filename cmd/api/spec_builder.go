@@ -26,6 +26,10 @@ type specBuilderConfig struct {
 	cacheMaxBytes           int
 	i18nDefaultLocale       string
 	i18nSupportedLocales    string
+	authentikIssuer         string
+	authentikClientID       string
+	authentikTrustedProxy   bool
+	authentikPublicPaths    string
 	termsURL                string
 	contactName             string
 	contactURL              string
@@ -75,6 +79,10 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		LicenseURL:              cfg.licenseURL,
 		ExternalDocsDescription: cfg.externalDocsDescription,
 		ExternalDocsURL:         cfg.externalDocsURL,
+		AuthentikIssuer:         strings.TrimSpace(cfg.authentikIssuer),
+		AuthentikClientID:       strings.TrimSpace(cfg.authentikClientID),
+		AuthentikTrustedProxy:   cfg.authentikTrustedProxy,
+		AuthentikPublicPaths:    splitUniqueCSV(cfg.authentikPublicPaths),
 	}
 
 	builder.I18nSupportedLocales = parseLocales(cfg.i18nSupportedLocales)

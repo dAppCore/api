@@ -38,6 +38,12 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 			DefaultLocale: "en-GB",
 			Supported:     []string{"en-GB", "fr"},
 		}),
+		api.WithAuthentik(api.AuthentikConfig{
+			Issuer:       "https://auth.example.com",
+			ClientID:     "core-client",
+			TrustedProxy: true,
+			PublicPaths:  []string{"/public", "/docs"},
+		}),
 		api.WithWSPath("/socket"),
 		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
 		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
@@ -132,6 +138,22 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 	if len(locales) != 2 || locales[0] != "en-GB" || locales[1] != "fr" {
 		t.Fatalf("expected supported locales [en-GB fr], got %v", locales)
+	}
+	if got := spec["x-authentik-issuer"]; got != "https://auth.example.com" {
+		t.Fatalf("expected x-authentik-issuer=https://auth.example.com, got %v", got)
+	}
+	if got := spec["x-authentik-client-id"]; got != "core-client" {
+		t.Fatalf("expected x-authentik-client-id=core-client, got %v", got)
+	}
+	if got := spec["x-authentik-trusted-proxy"]; got != true {
+		t.Fatalf("expected x-authentik-trusted-proxy=true, got %v", got)
+	}
+	publicPaths, ok := spec["x-authentik-public-paths"].([]any)
+	if !ok {
+		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
+	}
+	if len(publicPaths) != 2 || publicPaths[0] != "/public" || publicPaths[1] != "/docs" {
+		t.Fatalf("expected public paths [/public /docs], got %v", publicPaths)
 	}
 
 	contact, ok := info["contact"].(map[string]any)

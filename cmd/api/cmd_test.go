@@ -790,6 +790,53 @@ func TestAPISpecCmd_Good_RuntimePathsPopulatedSpec(t *testing.T) {
 	}
 }
 
+func TestAPISpecCmd_Good_AuthentikFlagsPopulateSpecMetadata(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--authentik-issuer", "https://auth.example.com",
+		"--authentik-client-id", "core-client",
+		"--authentik-trusted-proxy",
+		"--authentik-public-paths", "/public, /docs, /public",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	if got := spec["x-authentik-issuer"]; got != "https://auth.example.com" {
+		t.Fatalf("expected x-authentik-issuer=https://auth.example.com, got %v", got)
+	}
+	if got := spec["x-authentik-client-id"]; got != "core-client" {
+		t.Fatalf("expected x-authentik-client-id=core-client, got %v", got)
+	}
+	if got := spec["x-authentik-trusted-proxy"]; got != true {
+		t.Fatalf("expected x-authentik-trusted-proxy=true, got %v", got)
+	}
+	publicPaths, ok := spec["x-authentik-public-paths"].([]any)
+	if !ok {
+		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
+	}
+	if len(publicPaths) != 2 || publicPaths[0] != "/public" || publicPaths[1] != "/docs" {
+		t.Fatalf("expected public paths [/public /docs], got %v", publicPaths)
+	}
+}
+
 func TestAPISDKCmd_Bad_EmptyLanguages(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
@@ -892,6 +939,18 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("i18n-supported-locales") == nil {
 		t.Fatal("expected --i18n-supported-locales flag on sdk command")
 	}
+	if sdkCmd.Flag("authentik-issuer") == nil {
+		t.Fatal("expected --authentik-issuer flag on sdk command")
+	}
+	if sdkCmd.Flag("authentik-client-id") == nil {
+		t.Fatal("expected --authentik-client-id flag on sdk command")
+	}
+	if sdkCmd.Flag("authentik-trusted-proxy") == nil {
+		t.Fatal("expected --authentik-trusted-proxy flag on sdk command")
+	}
+	if sdkCmd.Flag("authentik-public-paths") == nil {
+		t.Fatal("expected --authentik-public-paths flag on sdk command")
+	}
 	if sdkCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on sdk command")
 	}
@@ -929,31 +988,35 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	api.RegisterSpecGroups(specCmdStubGroup{})
 
 	builder, err := sdkSpecBuilder(specBuilderConfig{
-		title:                "Custom SDK API",
-		summary:              "Custom SDK overview",
-		description:          "Custom SDK description",
-		version:              "9.9.9",
-		swaggerPath:          "/docs",
-		graphqlPath:          "/gql",
-		graphqlPlayground:    true,
-		ssePath:              "/events",
-		wsPath:               "/ws",
-		pprofEnabled:         true,
-		expvarEnabled:        true,
-		cacheEnabled:         true,
-		cacheTTL:             "5m0s",
-		cacheMaxEntries:      42,
-		cacheMaxBytes:        8192,
-		i18nDefaultLocale:    "en-GB",
-		i18nSupportedLocales: "en-GB,fr,en-GB",
-		termsURL:             "https://example.com/terms",
-		contactName:          "SDK Support",
-		contactURL:           "https://example.com/support",
-		contactEmail:         "support@example.com",
-		licenseName:          "EUPL-1.2",
-		licenseURL:           "https://eupl.eu/1.2/en/",
-		servers:              "https://api.example.com, /, https://api.example.com",
-		securitySchemes:      `{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
+		title:                 "Custom SDK API",
+		summary:               "Custom SDK overview",
+		description:           "Custom SDK description",
+		version:               "9.9.9",
+		swaggerPath:           "/docs",
+		graphqlPath:           "/gql",
+		graphqlPlayground:     true,
+		ssePath:               "/events",
+		wsPath:                "/ws",
+		pprofEnabled:          true,
+		expvarEnabled:         true,
+		cacheEnabled:          true,
+		cacheTTL:              "5m0s",
+		cacheMaxEntries:       42,
+		cacheMaxBytes:         8192,
+		i18nDefaultLocale:     "en-GB",
+		i18nSupportedLocales:  "en-GB,fr,en-GB",
+		authentikIssuer:       "https://auth.example.com",
+		authentikClientID:     "core-client",
+		authentikTrustedProxy: true,
+		authentikPublicPaths:  "/public, /docs, /public",
+		termsURL:              "https://example.com/terms",
+		contactName:           "SDK Support",
+		contactURL:            "https://example.com/support",
+		contactEmail:          "support@example.com",
+		licenseName:           "EUPL-1.2",
+		licenseURL:            "https://eupl.eu/1.2/en/",
+		servers:               "https://api.example.com, /, https://api.example.com",
+		securitySchemes:       `{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error building sdk spec: %v", err)
@@ -1039,6 +1102,22 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if len(locales) != 2 || locales[0] != "en-GB" || locales[1] != "fr" {
 		t.Fatalf("expected supported locales [en-GB fr], got %v", locales)
+	}
+	if got := spec["x-authentik-issuer"]; got != "https://auth.example.com" {
+		t.Fatalf("expected x-authentik-issuer=https://auth.example.com, got %v", got)
+	}
+	if got := spec["x-authentik-client-id"]; got != "core-client" {
+		t.Fatalf("expected x-authentik-client-id=core-client, got %v", got)
+	}
+	if got := spec["x-authentik-trusted-proxy"]; got != true {
+		t.Fatalf("expected x-authentik-trusted-proxy=true, got %v", got)
+	}
+	publicPaths, ok := spec["x-authentik-public-paths"].([]any)
+	if !ok {
+		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
+	}
+	if len(publicPaths) != 2 || publicPaths[0] != "/public" || publicPaths[1] != "/docs" {
+		t.Fatalf("expected public paths [/public /docs], got %v", publicPaths)
 	}
 
 	if info["termsOfService"] != "https://example.com/terms" {
