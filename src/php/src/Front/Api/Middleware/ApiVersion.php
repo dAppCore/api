@@ -188,7 +188,9 @@ class ApiVersion
             return null;
         }
 
-        // Strip 'v' prefix if present
+        // Strip 'v' prefix and any optional parameters if present.
+        $header = trim($header);
+        $header = explode(';', $header, 2)[0];
         $version = ltrim($header, 'vV');
 
         if (is_numeric($version)) {
@@ -207,9 +209,14 @@ class ApiVersion
     {
         $accept = $request->header('Accept', '');
 
-        // Match vendor media type: application/vnd.{name}.v{n}+json
-        if (preg_match('#application/vnd\.[^.]+\.v(\d+)\+#', $accept, $matches)) {
-            return (int) $matches[1];
+        foreach (preg_split('/\s*,\s*/', $accept, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $mediaType) {
+            // Strip media-type parameters before matching the vendor suffix.
+            $mediaType = explode(';', trim($mediaType), 2)[0];
+
+            // Match vendor media type: application/vnd.{name}.v{n}+json
+            if (preg_match('#^application/vnd\.[^.]+\.v(\d+)\+#i', $mediaType, $matches)) {
+                return (int) $matches[1];
+            }
         }
 
         return null;
