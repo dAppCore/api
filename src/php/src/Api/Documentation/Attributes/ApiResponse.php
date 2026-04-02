@@ -85,6 +85,7 @@ readonly class ApiResponse
             403 => 'Forbidden',
             404 => 'Not found',
             405 => 'Method not allowed',
+            410 => 'Gone',
             409 => 'Conflict',
             422 => 'Validation error',
             429 => 'Too many requests',

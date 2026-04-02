@@ -457,6 +457,7 @@ describe('ApiResponse Attribute Rendering', function () {
             401 => 'Unauthorised',
             403 => 'Forbidden',
             404 => 'Not found',
+            410 => 'Gone',
             422 => 'Validation error',
             429 => 'Too many requests',
             500 => 'Internal server error',
