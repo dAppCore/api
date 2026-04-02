@@ -195,6 +195,7 @@ func WithSunset(sunsetDate, replacement string) Option {
 
 // WithSwagger enables the Swagger UI at /swagger/ by default.
 // The title, description, and version populate the OpenAPI info block.
+// Use WithSwaggerSummary() to set the optional info.summary field.
 //
 // Example:
 //
@@ -205,6 +206,19 @@ func WithSwagger(title, description, version string) Option {
 		e.swaggerDesc = description
 		e.swaggerVersion = version
 		e.swaggerEnabled = true
+	}
+}
+
+// WithSwaggerSummary adds the OpenAPI info.summary field to generated specs.
+//
+// Example:
+//
+//	api.WithSwaggerSummary("Service overview")
+func WithSwaggerSummary(summary string) Option {
+	return func(e *Engine) {
+		if summary != "" {
+			e.swaggerSummary = summary
+		}
 	}
 }
 

@@ -29,6 +29,7 @@ func addSDKCommand(parent *cli.Command) {
 		specFile                string
 		packageName             string
 		title                   string
+		summary                 string
 		description             string
 		version                 string
 		swaggerPath             string
@@ -58,7 +59,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder, err := sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes)
+			builder, err := sdkSpecBuilder(title, summary, description, version, swaggerPath, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes)
 			if err != nil {
 				return err
 			}
@@ -111,6 +112,7 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &specFile, "spec", "s", "", "Path to an existing OpenAPI spec (generates a temporary spec from registered route groups and the built-in tool bridge if not provided)")
 	cli.StringFlag(cmd, &packageName, "package", "p", "lethean", "Package name for generated SDK")
 	cli.StringFlag(cmd, &title, "title", "t", defaultSDKTitle, "API title in generated spec")
+	cli.StringFlag(cmd, &summary, "summary", "", "", "OpenAPI info summary in generated spec")
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
 	cli.StringFlag(cmd, &version, "version", "V", defaultSDKVersion, "API version in generated spec")
 	cli.StringFlag(cmd, &swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
@@ -134,9 +136,10 @@ func addSDKCommand(parent *cli.Command) {
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes string) (*goapi.SpecBuilder, error) {
+func sdkSpecBuilder(title, summary, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes string) (*goapi.SpecBuilder, error) {
 	return newSpecBuilder(specBuilderConfig{
 		title:                   title,
+		summary:                 summary,
 		description:             description,
 		version:                 version,
 		swaggerPath:             swaggerPath,

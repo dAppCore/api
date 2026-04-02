@@ -18,6 +18,7 @@ func addSpecCommand(parent *cli.Command) {
 		output                  string
 		format                  string
 		title                   string
+		summary                 string
 		description             string
 		version                 string
 		swaggerPath             string
@@ -43,6 +44,7 @@ func addSpecCommand(parent *cli.Command) {
 		// Build spec from all route groups registered for CLI generation.
 		builder, err := newSpecBuilder(specBuilderConfig{
 			title:                   title,
+			summary:                 summary,
 			description:             description,
 			version:                 version,
 			swaggerPath:             swaggerPath,
@@ -84,6 +86,7 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &output, "output", "o", "", "Write spec to file instead of stdout")
 	cli.StringFlag(cmd, &format, "format", "f", "json", "Output format: json or yaml")
 	cli.StringFlag(cmd, &title, "title", "t", "Lethean Core API", "API title in spec")
+	cli.StringFlag(cmd, &summary, "summary", "", "", "OpenAPI info summary in spec")
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
 	cli.StringFlag(cmd, &swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")

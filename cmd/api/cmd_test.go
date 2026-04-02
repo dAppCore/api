@@ -85,6 +85,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("title") == nil {
 		t.Fatal("expected --title flag on spec command")
 	}
+	if specCmd.Flag("summary") == nil {
+		t.Fatal("expected --summary flag on spec command")
+	}
 	if specCmd.Flag("description") == nil {
 		t.Fatal("expected --description flag on spec command")
 	}
@@ -175,6 +178,41 @@ func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
 	}
 	if info["description"] != "Custom API description" {
 		t.Fatalf("expected custom description, got %v", info["description"])
+	}
+}
+
+func TestAPISpecCmd_Good_SummaryPopulatesSpecInfo(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--summary", "Short API overview",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+	if info["summary"] != "Short API overview" {
+		t.Fatalf("expected summary to be preserved, got %v", info["summary"])
 	}
 }
 
@@ -758,6 +796,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 
 	builder, err := sdkSpecBuilder(
 		"Custom SDK API",
+		"Custom SDK overview",
 		"Custom SDK description",
 		"9.9.9",
 		"/docs",
@@ -807,6 +846,9 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if info["description"] != "Custom SDK description" {
 		t.Fatalf("expected custom description, got %v", info["description"])
+	}
+	if info["summary"] != "Custom SDK overview" {
+		t.Fatalf("expected custom summary, got %v", info["summary"])
 	}
 	if info["version"] != "9.9.9" {
 		t.Fatalf("expected custom version, got %v", info["version"])

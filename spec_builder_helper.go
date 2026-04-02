@@ -21,6 +21,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	transport := e.TransportConfig()
 	builder := &SpecBuilder{
 		Title:                   e.swaggerTitle,
+		Summary:                 e.swaggerSummary,
 		Description:             e.swaggerDesc,
 		Version:                 e.swaggerVersion,
 		TermsOfService:          e.swaggerTermsOfService,

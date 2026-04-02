@@ -42,6 +42,7 @@ type Engine struct {
 	sseBroker                      *SSEBroker
 	swaggerEnabled                 bool
 	swaggerTitle                   string
+	swaggerSummary                 string
 	swaggerDesc                    string
 	swaggerVersion                 string
 	swaggerPath                    string

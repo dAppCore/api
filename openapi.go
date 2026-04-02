@@ -13,7 +13,7 @@ import (
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
-// Title, Description, Version, and optional contact/licence/terms metadata populate the
+// Title, Summary, Description, Version, and optional contact/licence/terms metadata populate the
 // OpenAPI info block. Top-level external documentation metadata is also supported.
 //
 // Example:
@@ -22,6 +22,7 @@ import (
 //	spec, err := builder.Build(engine.Groups())
 type SpecBuilder struct {
 	Title                   string
+	Summary                 string
 	Description             string
 	Version                 string
 	SwaggerPath             string
@@ -65,6 +66,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		"jsonSchemaDialect": openAPIDialect,
 		"info": map[string]any{
 			"title":       sb.Title,
+			"summary":     sb.Summary,
 			"description": sb.Description,
 			"version":     sb.Version,
 		},
@@ -85,6 +87,11 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 			license["url"] = sb.LicenseURL
 		}
 		spec["info"].(map[string]any)["license"] = license
+	}
+	if sb.Summary != "" {
+		spec["info"].(map[string]any)["summary"] = sb.Summary
+	} else {
+		delete(spec["info"].(map[string]any), "summary")
 	}
 
 	if swaggerPath := strings.TrimSpace(sb.SwaggerPath); swaggerPath != "" {

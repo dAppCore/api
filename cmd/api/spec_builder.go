@@ -6,6 +6,7 @@ import goapi "dappco.re/go/core/api"
 
 type specBuilderConfig struct {
 	title                   string
+	summary                 string
 	description             string
 	version                 string
 	swaggerPath             string
@@ -30,6 +31,7 @@ type specBuilderConfig struct {
 func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 	builder := &goapi.SpecBuilder{
 		Title:                   cfg.title,
+		Summary:                 cfg.summary,
 		Description:             cfg.description,
 		Version:                 cfg.version,
 		SwaggerPath:             cfg.swaggerPath,
