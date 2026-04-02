@@ -267,6 +267,43 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:             "Test",
+		Version:           "1.0.0",
+		GraphQLPath:       "/graphql",
+		GraphQLPlayground: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	pathItem, ok := paths["/graphql/playground"].(map[string]any)
+	if !ok {
+		t.Fatal("expected /graphql/playground path in spec")
+	}
+
+	getOp := pathItem["get"].(map[string]any)
+	if getOp["operationId"] != "get_graphql_playground" {
+		t.Fatalf("expected playground operationId to be get_graphql_playground, got %v", getOp["operationId"])
+	}
+
+	responses := getOp["responses"].(map[string]any)
+	success := responses["200"].(map[string]any)
+	content := success["content"].(map[string]any)
+	if _, ok := content["text/html"]; !ok {
+		t.Fatal("expected text/html content type for GraphQL playground response")
+	}
+}
+
 func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",

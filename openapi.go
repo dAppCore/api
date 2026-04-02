@@ -25,6 +25,7 @@ type SpecBuilder struct {
 	Description             string
 	Version                 string
 	GraphQLPath             string
+	GraphQLPlayground       bool
 	SSEPath                 string
 	TermsOfService          string
 	ContactName             string
@@ -192,6 +193,10 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	if graphqlPath := strings.TrimSpace(sb.GraphQLPath); graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
 		paths[graphqlPath] = graphqlPathItem(graphqlPath, operationIDs)
+		if sb.GraphQLPlayground {
+			playgroundPath := normaliseOpenAPIPath(graphqlPath + "/playground")
+			paths[playgroundPath] = graphqlPlaygroundPathItem(playgroundPath, operationIDs)
+		}
 	}
 
 	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
@@ -693,6 +698,23 @@ func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 	}
 }
 
+func graphqlPlaygroundPathItem(path string, operationIDs map[string]int) map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"summary":     "GraphQL playground",
+			"description": "Interactive GraphQL IDE for the configured schema",
+			"tags":        []string{"graphql"},
+			"operationId": operationID("get", path, operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"responses": graphqlPlaygroundResponses(),
+		},
+	}
+}
+
 func ssePathItem(path string, operationIDs map[string]int) map[string]any {
 	return map[string]any{
 		"get": map[string]any{
@@ -875,6 +897,85 @@ func graphqlResponses() map[string]any {
 				},
 			},
 			"headers": errorHeaders,
+		},
+		"401": map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"403": map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"429": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
+		},
+		"500": map[string]any{
+			"description": "Internal server error",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"504": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+	}
+}
+
+func graphqlPlaygroundResponses() map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
+	return map[string]any{
+		"200": map[string]any{
+			"description": "GraphQL playground",
+			"content": map[string]any{
+				"text/html": map[string]any{
+					"schema": map[string]any{
+						"type": "string",
+					},
+				},
+			},
+			"headers": successHeaders,
 		},
 		"401": map[string]any{
 			"description": "Unauthorised",

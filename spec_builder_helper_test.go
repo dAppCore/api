@@ -22,7 +22,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
 		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
-		api.WithGraphQL(newTestSchema(), api.WithGraphQLPath("/gql")),
+		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
 		api.WithSSE(broker),
 		api.WithSSEPath("/events"),
 		api.WithPprof(),
@@ -105,6 +105,9 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 	if _, ok := paths["/gql"]; !ok {
 		t.Fatal("expected GraphQL path from engine metadata in generated spec")
+	}
+	if _, ok := paths["/gql/playground"]; !ok {
+		t.Fatal("expected GraphQL playground path from engine metadata in generated spec")
 	}
 	if _, ok := paths["/events"]; !ok {
 		t.Fatal("expected SSE path from engine metadata in generated spec")
