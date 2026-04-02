@@ -107,7 +107,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		delete(spec["info"].(map[string]any), "summary")
 	}
 
-	if swaggerPath := strings.TrimSpace(sb.SwaggerPath); swaggerPath != "" {
+	if swaggerPath := sb.effectiveSwaggerPath(); swaggerPath != "" {
 		spec["x-swagger-ui-path"] = normaliseSwaggerPath(swaggerPath)
 	}
 	if sb.SwaggerEnabled {
@@ -120,13 +120,13 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		spec["x-graphql-path"] = normaliseOpenAPIPath(graphqlPath)
 		spec["x-graphql-playground"] = sb.GraphQLPlayground
 	}
-	if wsPath := strings.TrimSpace(sb.WSPath); wsPath != "" {
+	if wsPath := sb.effectiveWSPath(); wsPath != "" {
 		spec["x-ws-path"] = normaliseOpenAPIPath(wsPath)
 	}
 	if sb.WSEnabled {
 		spec["x-ws-enabled"] = true
 	}
-	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
+	if ssePath := sb.effectiveSSEPath(); ssePath != "" {
 		spec["x-sse-path"] = normaliseOpenAPIPath(ssePath)
 	}
 	if sb.SSEEnabled {
@@ -279,12 +279,12 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		}
 	}
 
-	if wsPath := strings.TrimSpace(sb.WSPath); wsPath != "" {
+	if wsPath := sb.effectiveWSPath(); wsPath != "" {
 		wsPath = normaliseOpenAPIPath(wsPath)
 		paths[wsPath] = wsPathItem(wsPath, operationIDs)
 	}
 
-	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
+	if ssePath := sb.effectiveSSEPath(); ssePath != "" {
 		ssePath = normaliseOpenAPIPath(ssePath)
 		paths[ssePath] = ssePathItem(ssePath, operationIDs)
 	}
@@ -800,7 +800,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		seen["graphql"] = true
 	}
 
-	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" && !seen["events"] {
+	if ssePath := sb.effectiveSSEPath(); ssePath != "" && !seen["events"] {
 		tags = append(tags, map[string]any{
 			"name":        "events",
 			"description": "Server-Sent Events endpoints",
@@ -1849,14 +1849,44 @@ func sseResponseHeaders() map[string]any {
 	}
 }
 
-// effectiveGraphQLPath returns the configured GraphQL path, or the default
-// GraphQL path when playground mode is enabled without an explicit path.
+// effectiveGraphQLPath returns the configured GraphQL path or the default
+// GraphQL path when GraphQL is enabled without an explicit path.
 func (sb *SpecBuilder) effectiveGraphQLPath() string {
 	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
-	if graphqlPath == "" && sb.GraphQLPlayground {
+	if graphqlPath == "" && (sb.GraphQLEnabled || sb.GraphQLPlayground) {
 		return defaultGraphQLPath
 	}
 	return graphqlPath
+}
+
+// effectiveSwaggerPath returns the configured Swagger UI path or the default
+// path when Swagger is enabled without an explicit override.
+func (sb *SpecBuilder) effectiveSwaggerPath() string {
+	swaggerPath := strings.TrimSpace(sb.SwaggerPath)
+	if swaggerPath == "" && sb.SwaggerEnabled {
+		return defaultSwaggerPath
+	}
+	return swaggerPath
+}
+
+// effectiveWSPath returns the configured WebSocket path or the default path
+// when WebSockets are enabled without an explicit override.
+func (sb *SpecBuilder) effectiveWSPath() string {
+	wsPath := strings.TrimSpace(sb.WSPath)
+	if wsPath == "" && sb.WSEnabled {
+		return defaultWSPath
+	}
+	return wsPath
+}
+
+// effectiveSSEPath returns the configured SSE path or the default path when
+// SSE is enabled without an explicit override.
+func (sb *SpecBuilder) effectiveSSEPath() string {
+	ssePath := strings.TrimSpace(sb.SSEPath)
+	if ssePath == "" && sb.SSEEnabled {
+		return defaultSSEPath
+	}
+	return ssePath
 }
 
 // documentedResponseHeaders converts route-specific response header metadata

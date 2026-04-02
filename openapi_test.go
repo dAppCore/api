@@ -584,6 +584,66 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLTag(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_EnabledTransportsUseDefaultPaths(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:          "Test",
+		Version:        "1.0.0",
+		SwaggerEnabled: true,
+		GraphQLEnabled: true,
+		WSEnabled:      true,
+		SSEEnabled:     true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-swagger-ui-path"]; got != "/swagger" {
+		t.Fatalf("expected default swagger path, got %v", got)
+	}
+	if got := spec["x-graphql-path"]; got != "/graphql" {
+		t.Fatalf("expected default graphql path, got %v", got)
+	}
+	if got := spec["x-ws-path"]; got != "/ws" {
+		t.Fatalf("expected default websocket path, got %v", got)
+	}
+	if got := spec["x-sse-path"]; got != "/events" {
+		t.Fatalf("expected default sse path, got %v", got)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	for _, path := range []string{"/graphql", "/ws", "/events"} {
+		if _, ok := paths[path].(map[string]any); !ok {
+			t.Fatalf("expected %s path in spec", path)
+		}
+	}
+
+	tags := spec["tags"].([]any)
+	foundGraphQL := false
+	foundEvents := false
+	for _, tag := range tags {
+		tm := tag.(map[string]any)
+		switch tm["name"] {
+		case "graphql":
+			foundGraphQL = true
+		case "events":
+			foundEvents = true
+		}
+	}
+	if !foundGraphQL {
+		t.Fatal("expected graphql tag when GraphQL is enabled")
+	}
+	if !foundEvents {
+		t.Fatal("expected events tag when SSE is enabled")
+	}
+}
+
 func TestSpecBuilder_Good_WebSocketEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
