@@ -18,7 +18,9 @@ type TransportConfig struct {
 	GraphQLPath       string
 	GraphQLEnabled    bool
 	GraphQLPlayground bool
+	WSEnabled         bool
 	WSPath            string
+	SSEEnabled        bool
 	SSEPath           string
 	PprofEnabled      bool
 	ExpvarEnabled     bool
@@ -41,6 +43,8 @@ func (e *Engine) TransportConfig() TransportConfig {
 		SwaggerEnabled:    e.swaggerEnabled,
 		GraphQLEnabled:    e.graphql != nil,
 		GraphQLPlayground: e.graphql != nil && e.graphql.playground,
+		WSEnabled:         e.wsHandler != nil,
+		SSEEnabled:        e.sseBroker != nil,
 		PprofEnabled:      e.pprofEnabled,
 		ExpvarEnabled:     e.expvarEnabled,
 	}

@@ -68,7 +68,9 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	builder.GraphQLPath = transport.GraphQLPath
 	builder.GraphQLPlayground = transport.GraphQLPlayground
 	builder.WSPath = transport.WSPath
+	builder.WSEnabled = transport.WSEnabled
 	builder.SSEPath = transport.SSEPath
+	builder.SSEEnabled = transport.SSEEnabled
 	builder.PprofEnabled = transport.PprofEnabled
 	builder.ExpvarEnabled = transport.ExpvarEnabled
 

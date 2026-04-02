@@ -29,7 +29,9 @@ type SpecBuilder struct {
 	GraphQLPath             string
 	GraphQLPlayground       bool
 	WSPath                  string
+	WSEnabled               bool
 	SSEPath                 string
+	SSEEnabled              bool
 	TermsOfService          string
 	ContactName             string
 	ContactURL              string
@@ -104,8 +106,14 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if wsPath := strings.TrimSpace(sb.WSPath); wsPath != "" {
 		spec["x-ws-path"] = normaliseOpenAPIPath(wsPath)
 	}
+	if sb.WSEnabled {
+		spec["x-ws-enabled"] = true
+	}
 	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
 		spec["x-sse-path"] = normaliseOpenAPIPath(ssePath)
+	}
+	if sb.SSEEnabled {
+		spec["x-sse-enabled"] = true
 	}
 	if sb.PprofEnabled {
 		spec["x-pprof-enabled"] = true

@@ -84,8 +84,14 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if got := spec["x-ws-path"]; got != "/socket" {
 		t.Fatalf("expected x-ws-path=/socket, got %v", got)
 	}
+	if got := spec["x-ws-enabled"]; got != true {
+		t.Fatalf("expected x-ws-enabled=true, got %v", got)
+	}
 	if got := spec["x-sse-path"]; got != "/events" {
 		t.Fatalf("expected x-sse-path=/events, got %v", got)
+	}
+	if got := spec["x-sse-enabled"]; got != true {
+		t.Fatalf("expected x-sse-enabled=true, got %v", got)
 	}
 	if got := spec["x-pprof-enabled"]; got != true {
 		t.Fatalf("expected x-pprof-enabled=true, got %v", got)
@@ -314,8 +320,14 @@ func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 	if !cfg.GraphQLPlayground {
 		t.Fatal("expected GraphQL playground to be enabled")
 	}
+	if !cfg.WSEnabled {
+		t.Fatal("expected WebSocket to be enabled")
+	}
 	if cfg.WSPath != "/socket" {
 		t.Fatalf("expected ws path /socket, got %q", cfg.WSPath)
+	}
+	if !cfg.SSEEnabled {
+		t.Fatal("expected SSE to be enabled")
 	}
 	if cfg.SSEPath != "/events" {
 		t.Fatalf("expected sse path /events, got %q", cfg.SSEPath)
