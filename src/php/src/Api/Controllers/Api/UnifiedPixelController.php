@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core\Api\Controllers\Api;
 
+use Core\Api\Documentation\Attributes\ApiResponse;
+use Core\Api\Documentation\Attributes\ApiTag;
 use Core\Api\RateLimit\RateLimit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -15,6 +17,7 @@ use Illuminate\Routing\Controller;
  * GET /api/pixel/{pixelKey} returns a transparent 1x1 GIF for image embeds.
  * POST /api/pixel/{pixelKey} returns 204 No Content for fetch-based tracking.
  */
+#[ApiTag('Pixel', 'Unified tracking pixel endpoint')]
 class UnifiedPixelController extends Controller
 {
     /**
@@ -28,6 +31,17 @@ class UnifiedPixelController extends Controller
      * GET /api/pixel/abc12345 -> transparent GIF
      * POST /api/pixel/abc12345 -> 204 No Content
      */
+    #[ApiResponse(
+        200,
+        null,
+        'Transparent 1x1 GIF pixel response',
+        contentType: 'image/gif',
+        schema: [
+            'type' => 'string',
+            'format' => 'binary',
+        ],
+    )]
+    #[ApiResponse(204, null, 'Accepted without a response body')]
     #[RateLimit(limit: 10000, window: 60)]
     public function track(Request $request, string $pixelKey): Response
     {

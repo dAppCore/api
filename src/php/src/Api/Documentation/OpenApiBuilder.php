@@ -612,15 +612,23 @@ class OpenApiBuilder
             'description' => $response->getDescription(),
         ];
 
-        if ($response->resource !== null && class_exists($response->resource)) {
+        $schema = null;
+
+        if (is_array($response->schema) && ! empty($response->schema)) {
+            $schema = $response->schema;
+        } elseif ($response->resource !== null && class_exists($response->resource)) {
             $schema = $this->extractResourceSchema($response->resource);
 
             if ($response->paginated) {
                 $schema = $this->wrapPaginatedSchema($schema);
             }
+        }
+
+        if ($schema !== null) {
+            $contentType = $response->contentType ?: 'application/json';
 
             $result['content'] = [
-                'application/json' => [
+                $contentType => [
                     'schema' => $schema,
                 ],
             ];

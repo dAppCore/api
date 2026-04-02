@@ -214,6 +214,26 @@ describe('Application Endpoint Parameter Docs', function () {
         expect($urlParam['schema']['format'])->toBe('uri');
     });
 
+    it('documents the pixel endpoint as binary for GET and no-content for POST', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $getOperation = $spec['paths']['/api/pixel/{pixelKey}']['get'];
+        $getResponse = $getOperation['responses']['200'] ?? [];
+        $getContent = $getResponse['content']['image/gif']['schema'] ?? null;
+
+        expect($getContent)->toBe([
+            'type' => 'string',
+            'format' => 'binary',
+        ]);
+
+        $postOperation = $spec['paths']['/api/pixel/{pixelKey}']['post'];
+        $postResponse = $postOperation['responses']['204'] ?? [];
+
+        expect($postResponse['description'] ?? null)->toBe('Accepted without a response body');
+        expect($postResponse)->not->toHaveKey('content');
+    });
+
     it('documents MCP list query parameters', function () {
         $builder = new OpenApiBuilder;
         $spec = $builder->build();

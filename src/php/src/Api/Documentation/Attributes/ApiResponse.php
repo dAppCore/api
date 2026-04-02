@@ -27,6 +27,19 @@ use Attribute;
  *     {
  *         return UserResource::collection(User::paginate());
  *     }
+ *
+ *     // For non-JSON or binary responses
+ *     #[ApiResponse(
+ *         200,
+ *         null,
+ *         'Transparent tracking pixel',
+ *         contentType: 'image/gif',
+ *         schema: ['type' => 'string', 'format' => 'binary']
+ *     )]
+ *     public function pixel()
+ *     {
+ *         return response($gif, 200)->header('Content-Type', 'image/gif');
+ *     }
  */
 #[Attribute(Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 readonly class ApiResponse
@@ -37,6 +50,8 @@ readonly class ApiResponse
      * @param  string|null  $description  Description of the response
      * @param  bool  $paginated  Whether this is a paginated collection response
      * @param  array<string>  $headers  Additional response headers to document
+     * @param  string|null  $contentType  Explicit response media type for non-JSON responses
+     * @param  array<string, mixed>|null  $schema  Explicit response schema when the body is not inferred from a resource
      */
     public function __construct(
         public int $status,
@@ -44,6 +59,8 @@ readonly class ApiResponse
         public ?string $description = null,
         public bool $paginated = false,
         public array $headers = [],
+        public ?string $contentType = null,
+        public ?array $schema = null,
     ) {}
 
     /**
