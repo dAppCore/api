@@ -84,6 +84,18 @@ func (g autoErrorResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type plusJSONResponseMetaTestGroup struct{}
+
+func (g plusJSONResponseMetaTestGroup) Name() string     { return "plus-json-response-meta" }
+func (g plusJSONResponseMetaTestGroup) BasePath() string { return "/v1" }
+func (g plusJSONResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/plus-json", func(c *gin.Context) {
+		c.Header("Content-Type", "application/problem+json")
+		c.Status(http.StatusOK)
+		_, _ = c.Writer.Write([]byte(`{"success":true,"data":"ok"}`))
+	})
+}
+
 // ── Bearer auth ─────────────────────────────────────────────────────────
 
 func TestBearerAuth_Bad_MissingToken(t *testing.T) {
@@ -354,6 +366,43 @@ func TestResponseMeta_Good_AttachesMetaToErrorResponses(t *testing.T) {
 	}
 	if resp.Error == nil || resp.Error.Code != "bad_request" {
 		t.Fatalf("expected bad_request error, got %+v", resp.Error)
+	}
+}
+
+func TestResponseMeta_Good_AttachesMetaToPlusJSONContentType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+	)
+	e.Register(plusJSONResponseMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/plus-json", nil)
+	req.Header.Set("X-Request-ID", "client-id-plus-json-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if got := w.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Fatalf("expected Content-Type to be preserved, got %q", got)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-plus-json-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-plus-json-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
 	}
 }
 

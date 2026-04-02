@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"strconv"
@@ -184,10 +185,26 @@ func refreshResponseMetaBody(body []byte, meta *Meta) []byte {
 }
 
 func shouldAttachResponseMeta(contentType string, body []byte) bool {
-	if !strings.Contains(contentType, "application/json") {
+	if !isJSONContentType(contentType) {
 		return false
 	}
 
 	trimmed := bytes.TrimSpace(body)
 	return len(trimmed) > 0 && trimmed[0] == '{'
+}
+
+func isJSONContentType(contentType string) bool {
+	if strings.TrimSpace(contentType) == "" {
+		return false
+	}
+
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = strings.TrimSpace(contentType)
+	}
+	mediaType = strings.ToLower(mediaType)
+
+	return mediaType == "application/json" ||
+		strings.HasSuffix(mediaType, "+json") ||
+		strings.HasSuffix(mediaType, "/json")
 }
