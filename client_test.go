@@ -428,6 +428,99 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Bad_ValidatesQueryParameterAgainstSchema(t *testing.T) {
+	called := make(chan struct{}, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		called <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /search:
+    get:
+      operationId: search_items
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	if _, err := client.Call("search_items", map[string]any{
+		"page": "two",
+	}); err == nil {
+		t.Fatal("expected query parameter validation error, got nil")
+	}
+
+	select {
+	case <-called:
+		t.Fatal("expected validation to fail before the HTTP call")
+	default:
+	}
+}
+
+func TestOpenAPIClient_Bad_ValidatesPathParameterAgainstSchema(t *testing.T) {
+	called := make(chan struct{}, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
+		called <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /users/{id}:
+    get:
+      operationId: get_user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	if _, err := client.Call("get_user", map[string]any{
+		"path": map[string]any{
+			"id": "abc",
+		},
+	}); err == nil {
+		t.Fatal("expected path parameter validation error, got nil")
+	}
+
+	select {
+	case <-called:
+		t.Fatal("expected validation to fail before the HTTP call")
+	default:
+	}
+}
+
 func TestOpenAPIClient_Good_UsesHeaderAndCookieParameters(t *testing.T) {
 	errCh := make(chan error, 1)
 	mux := http.NewServeMux()

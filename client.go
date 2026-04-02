@@ -53,6 +53,7 @@ type openAPIParameter struct {
 	name     string
 	in       string
 	required bool
+	schema   map[string]any
 }
 
 // OpenAPIClientOption configures a runtime OpenAPI client.
@@ -358,6 +359,9 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	if err := validateRequiredParameters(op, params, pathKeys); err != nil {
 		return "", err
 	}
+	if err := validateParameterValues(op, params); err != nil {
+		return "", err
+	}
 
 	for _, key := range pathKeys {
 		if value, ok := pathValues[key]; ok {
@@ -583,7 +587,8 @@ func parseOperationParameters(operation map[string]any) []openAPIParameter {
 			continue
 		}
 		required, _ := param["required"].(bool)
-		params = append(params, openAPIParameter{name: name, in: in, required: required})
+		schema, _ := param["schema"].(map[string]any)
+		params = append(params, openAPIParameter{name: name, in: in, required: required, schema: schema})
 	}
 
 	return params
@@ -596,6 +601,49 @@ func operationParameterLocation(op openAPIOperation, name string) string {
 		}
 	}
 	return ""
+}
+
+func validateParameterValues(op openAPIOperation, params map[string]any) error {
+	pathKeys := pathParameterNames(op.pathTemplate)
+	for _, param := range op.parameters {
+		if len(param.schema) == 0 {
+			continue
+		}
+		if containsString(pathKeys, param.name) {
+			continue
+		}
+
+		if nested, ok := nestedMap(params, param.in); ok {
+			if value, exists := nested[param.name]; exists {
+				if err := validateParameterValue(param, value); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+
+		if value, exists := params[param.name]; exists {
+			if err := validateParameterValue(param, value); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateParameterValue(param openAPIParameter, value any) error {
+	if value == nil {
+		return nil
+	}
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return coreerr.E("OpenAPIClient.validateParameterValue", fmt.Sprintf("marshal %s parameter %q", param.in, param.name), err)
+	}
+	if err := validateOpenAPISchema(data, param.schema, fmt.Sprintf("%s parameter %q", param.in, param.name)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func validateRequiredParameters(op openAPIOperation, params map[string]any, pathKeys []string) error {
