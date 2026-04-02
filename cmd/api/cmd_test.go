@@ -234,6 +234,67 @@ func TestAPISpecCmd_Good_SummaryPopulatesSpecInfo(t *testing.T) {
 	}
 }
 
+func TestNewSpecBuilder_Good_TrimsMetadata(t *testing.T) {
+	builder, err := newSpecBuilder(specBuilderConfig{
+		title:                   "  API Title  ",
+		summary:                 "  API Summary  ",
+		description:             "  API Description  ",
+		version:                 "  1.2.3  ",
+		termsURL:                "  https://example.com/terms  ",
+		contactName:             "  API Support  ",
+		contactURL:              "  https://example.com/support  ",
+		contactEmail:            "  support@example.com  ",
+		licenseName:             "  EUPL-1.2  ",
+		licenseURL:              "  https://eupl.eu/1.2/en/  ",
+		externalDocsDescription: "  Developer guide  ",
+		externalDocsURL:         "  https://example.com/docs  ",
+		servers:                 "  https://api.example.com  ,  /  ",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if builder.Title != "API Title" {
+		t.Fatalf("expected trimmed title, got %q", builder.Title)
+	}
+	if builder.Summary != "API Summary" {
+		t.Fatalf("expected trimmed summary, got %q", builder.Summary)
+	}
+	if builder.Description != "API Description" {
+		t.Fatalf("expected trimmed description, got %q", builder.Description)
+	}
+	if builder.Version != "1.2.3" {
+		t.Fatalf("expected trimmed version, got %q", builder.Version)
+	}
+	if builder.TermsOfService != "https://example.com/terms" {
+		t.Fatalf("expected trimmed terms URL, got %q", builder.TermsOfService)
+	}
+	if builder.ContactName != "API Support" {
+		t.Fatalf("expected trimmed contact name, got %q", builder.ContactName)
+	}
+	if builder.ContactURL != "https://example.com/support" {
+		t.Fatalf("expected trimmed contact URL, got %q", builder.ContactURL)
+	}
+	if builder.ContactEmail != "support@example.com" {
+		t.Fatalf("expected trimmed contact email, got %q", builder.ContactEmail)
+	}
+	if builder.LicenseName != "EUPL-1.2" {
+		t.Fatalf("expected trimmed licence name, got %q", builder.LicenseName)
+	}
+	if builder.LicenseURL != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected trimmed licence URL, got %q", builder.LicenseURL)
+	}
+	if builder.ExternalDocsDescription != "Developer guide" {
+		t.Fatalf("expected trimmed external docs description, got %q", builder.ExternalDocsDescription)
+	}
+	if builder.ExternalDocsURL != "https://example.com/docs" {
+		t.Fatalf("expected trimmed external docs URL, got %q", builder.ExternalDocsURL)
+	}
+	if len(builder.Servers) != 2 || builder.Servers[0] != "https://api.example.com" || builder.Servers[1] != "/" {
+		t.Fatalf("expected trimmed servers, got %v", builder.Servers)
+	}
+}
+
 func TestAPISpecCmd_Good_CacheAndI18nFlagsPopulateSpec(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
