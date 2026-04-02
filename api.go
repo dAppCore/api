@@ -91,11 +91,21 @@ func (e *Engine) Addr() string {
 }
 
 // Groups returns a copy of all registered route groups.
+//
+// Example:
+//
+//	groups := engine.Groups()
 func (e *Engine) Groups() []RouteGroup {
 	return slices.Clone(e.groups)
 }
 
 // GroupsIter returns an iterator over all registered route groups.
+//
+// Example:
+//
+//	for group := range engine.GroupsIter() {
+//		_ = group
+//	}
 func (e *Engine) GroupsIter() iter.Seq[RouteGroup] {
 	groups := slices.Clone(e.groups)
 	return slices.Values(groups)
@@ -115,6 +125,10 @@ func (e *Engine) Register(group RouteGroup) {
 
 // Channels returns all WebSocket channel names from registered StreamGroups.
 // Groups that do not implement StreamGroup are silently skipped.
+//
+// Example:
+//
+//	channels := engine.Channels()
 func (e *Engine) Channels() []string {
 	var channels []string
 	for _, g := range e.groups {
@@ -126,6 +140,12 @@ func (e *Engine) Channels() []string {
 }
 
 // ChannelsIter returns an iterator over WebSocket channel names from registered StreamGroups.
+//
+// Example:
+//
+//	for channel := range engine.ChannelsIter() {
+//		_ = channel
+//	}
 func (e *Engine) ChannelsIter() iter.Seq[string] {
 	groups := slices.Clone(e.groups)
 	return func(yield func(string) bool) {

@@ -192,6 +192,10 @@ func (b *SSEBroker) Handler() gin.HandlerFunc {
 }
 
 // ClientCount returns the number of currently connected SSE clients.
+//
+// Example:
+//
+//	n := broker.ClientCount()
 func (b *SSEBroker) ClientCount() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

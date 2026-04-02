@@ -56,6 +56,10 @@ type openAPIParameter struct {
 }
 
 // OpenAPIClientOption configures a runtime OpenAPI client.
+//
+// Example:
+//
+//	client := api.NewOpenAPIClient(api.WithSpec("./openapi.yaml"))
 type OpenAPIClientOption func(*OpenAPIClient)
 
 // WithSpec sets the filesystem path to the OpenAPI document.

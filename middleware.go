@@ -110,6 +110,10 @@ func requestIDMiddleware() gin.HandlerFunc {
 
 // GetRequestID returns the request ID assigned by requestIDMiddleware.
 // Returns an empty string when the middleware was not applied.
+//
+// Example:
+//
+//	id := api.GetRequestID(c)
 func GetRequestID(c *gin.Context) string {
 	if v, ok := c.Get(requestIDContextKey); ok {
 		if s, ok := v.(string); ok {
@@ -121,6 +125,10 @@ func GetRequestID(c *gin.Context) string {
 
 // GetRequestDuration returns the elapsed time since requestIDMiddleware started
 // handling the request. Returns 0 when the middleware was not applied.
+//
+// Example:
+//
+//	d := api.GetRequestDuration(c)
 func GetRequestDuration(c *gin.Context) time.Duration {
 	if v, ok := c.Get(requestStartContextKey); ok {
 		if started, ok := v.(time.Time); ok && !started.IsZero() {
@@ -133,6 +141,10 @@ func GetRequestDuration(c *gin.Context) time.Duration {
 // GetRequestMeta returns request metadata collected by requestIDMiddleware.
 // The returned meta includes the request ID and elapsed duration when
 // available. It returns nil when neither value is available.
+//
+// Example:
+//
+//	meta := api.GetRequestMeta(c)
 func GetRequestMeta(c *gin.Context) *Meta {
 	meta := &Meta{}
 

@@ -191,6 +191,10 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 // BuildIter generates the complete OpenAPI 3.1 JSON spec from a route-group
 // iterator. The iterator is snapshotted before building so the result stays
 // stable even if the source changes during rendering.
+//
+// Example:
+//
+//	data, err := (&api.SpecBuilder{Title: "Service"}).BuildIter(api.RegisteredSpecGroupsIter())
 func (sb *SpecBuilder) BuildIter(groups iter.Seq[RouteGroup]) ([]byte, error) {
 	return sb.Build(collectRouteGroups(groups))
 }

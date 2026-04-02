@@ -8,6 +8,10 @@ import "strings"
 //
 // It is intentionally small and serialisable so callers can inspect the active HTTP
 // surface without rebuilding an OpenAPI document.
+//
+// Example:
+//
+//	cfg := api.TransportConfig{SwaggerPath: "/swagger", WSPath: "/ws"}
 type TransportConfig struct {
 	SwaggerPath       string
 	GraphQLPath       string
@@ -22,6 +26,10 @@ type TransportConfig struct {
 //
 // The result snapshots the Engine state at call time and normalises any configured
 // URL paths using the same rules as the runtime handlers.
+//
+// Example:
+//
+//	cfg := engine.TransportConfig()
 func (e *Engine) TransportConfig() TransportConfig {
 	if e == nil {
 		return TransportConfig{}

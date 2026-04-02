@@ -18,6 +18,10 @@ type Response[T any] struct {
 }
 
 // Error describes a failed API request.
+//
+// Example:
+//
+//	err := api.Error{Code: "invalid_input", Message: "Name is required"}
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -25,6 +29,10 @@ type Error struct {
 }
 
 // Meta carries pagination and request metadata.
+//
+// Example:
+//
+//	meta := api.Meta{RequestID: "req_123", Duration: "12ms"}
 type Meta struct {
 	RequestID string `json:"request_id,omitempty"`
 	Duration  string `json:"duration,omitempty"`

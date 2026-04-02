@@ -14,6 +14,10 @@ import (
 )
 
 // AuthentikConfig holds settings for the Authentik forward-auth integration.
+//
+// Example:
+//
+//	cfg := api.AuthentikConfig{Issuer: "https://auth.example.com/", ClientID: "core-api"}
 type AuthentikConfig struct {
 	// Issuer is the OIDC issuer URL (e.g. https://auth.example.com/application/o/my-app/).
 	Issuer string
@@ -32,6 +36,10 @@ type AuthentikConfig struct {
 
 // AuthentikUser represents an authenticated user extracted from Authentik
 // forward-auth headers or a validated JWT.
+//
+// Example:
+//
+//	user := &api.AuthentikUser{Username: "alice", Groups: []string{"admins"}}
 type AuthentikUser struct {
 	Username     string   `json:"username"`
 	Email        string   `json:"email"`
@@ -43,6 +51,10 @@ type AuthentikUser struct {
 }
 
 // HasGroup reports whether the user belongs to the named group.
+//
+// Example:
+//
+//	user.HasGroup("admins")
 func (u *AuthentikUser) HasGroup(group string) bool {
 	return slices.Contains(u.Groups, group)
 }
@@ -53,6 +65,10 @@ const authentikUserKey = "authentik_user"
 // GetUser retrieves the AuthentikUser from the Gin context.
 // Returns nil when no user has been set (unauthenticated request or
 // middleware not active).
+//
+// Example:
+//
+//	user := api.GetUser(c)
 func GetUser(c *gin.Context) *AuthentikUser {
 	val, exists := c.Get(authentikUserKey)
 	if !exists {
@@ -204,6 +220,10 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 // RequireAuth is Gin middleware that rejects unauthenticated requests.
 // It checks for a user set by the Authentik middleware and returns 401
 // when none is present.
+//
+// Example:
+//
+//	r.GET("/private", api.RequireAuth(), handler)
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if GetUser(c) == nil {
@@ -218,6 +238,10 @@ func RequireAuth() gin.HandlerFunc {
 // RequireGroup is Gin middleware that rejects requests from users who do
 // not belong to the specified group. Returns 401 when no user is present
 // and 403 when the user lacks the required group membership.
+//
+// Example:
+//
+//	r.GET("/admin", api.RequireGroup("admins"), handler)
 func RequireGroup(group string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := GetUser(c)

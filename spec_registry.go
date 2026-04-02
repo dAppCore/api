@@ -76,6 +76,12 @@ func RegisteredSpecGroups() []RouteGroup {
 //
 // The iterator snapshots the current registry contents so callers can range
 // over it without holding the registry lock.
+//
+// Example:
+//
+//	for g := range api.RegisteredSpecGroupsIter() {
+//		_ = g
+//	}
 func RegisteredSpecGroupsIter() iter.Seq[RouteGroup] {
 	specRegistry.mu.RLock()
 	groups := slices.Clone(specRegistry.groups)

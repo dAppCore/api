@@ -23,9 +23,17 @@ type graphqlConfig struct {
 }
 
 // GraphQLOption configures a GraphQL endpoint.
+//
+// Example:
+//
+//	opts := []api.GraphQLOption{api.WithPlayground(), api.WithGraphQLPath("/gql")}
 type GraphQLOption func(*graphqlConfig)
 
 // WithPlayground enables the GraphQL Playground UI at {path}/playground.
+//
+// Example:
+//
+//	api.WithGraphQL(schema, api.WithPlayground())
 func WithPlayground() GraphQLOption {
 	return func(cfg *graphqlConfig) {
 		cfg.playground = true
@@ -34,6 +42,10 @@ func WithPlayground() GraphQLOption {
 
 // WithGraphQLPath sets a custom URL path for the GraphQL endpoint.
 // The default path is "/graphql".
+//
+// Example:
+//
+//	api.WithGraphQL(schema, api.WithGraphQLPath("/gql"))
 func WithGraphQLPath(path string) GraphQLOption {
 	return func(cfg *graphqlConfig) {
 		cfg.path = normaliseGraphQLPath(path)

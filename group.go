@@ -10,6 +10,10 @@ import (
 
 // RouteGroup registers API routes onto a Gin router group.
 // Subsystems implement this interface to declare their endpoints.
+//
+// Example:
+//
+//	var g api.RouteGroup = &myGroup{}
 type RouteGroup interface {
 	// Name returns a human-readable identifier for the group.
 	Name() string
@@ -22,6 +26,10 @@ type RouteGroup interface {
 }
 
 // StreamGroup optionally declares WebSocket channels a subsystem publishes to.
+//
+// Example:
+//
+//	var sg api.StreamGroup = &myStreamGroup{}
 type StreamGroup interface {
 	// Channels returns the list of channel names this group streams on.
 	Channels() []string
@@ -30,6 +38,10 @@ type StreamGroup interface {
 // DescribableGroup extends RouteGroup with OpenAPI metadata.
 // RouteGroups that implement this will have their endpoints
 // included in the generated OpenAPI specification.
+//
+// Example:
+//
+//	var dg api.DescribableGroup = &myDescribableGroup{}
 type DescribableGroup interface {
 	RouteGroup
 	// Describe returns endpoint descriptions for OpenAPI generation.
@@ -38,6 +50,10 @@ type DescribableGroup interface {
 
 // DescribableGroupIter extends DescribableGroup with an iterator-based
 // description source for callers that want to avoid slice allocation.
+//
+// Example:
+//
+//	var dg api.DescribableGroupIter = &myDescribableGroup{}
 type DescribableGroupIter interface {
 	DescribableGroup
 	// DescribeIter returns endpoint descriptions for OpenAPI generation.

@@ -22,6 +22,14 @@ const i18nCatalogKey = "i18n.catalog"
 const i18nDefaultLocaleKey = "i18n.default_locale"
 
 // I18nConfig configures the internationalisation middleware.
+//
+// Example:
+//
+//	cfg := api.I18nConfig{
+//		DefaultLocale: "en",
+//		Supported:     []string{"en", "fr"},
+//		Messages:      map[string]map[string]string{"fr": {"greeting": "Bonjour"}},
+//	}
 type I18nConfig struct {
 	// DefaultLocale is the fallback locale when the Accept-Language header
 	// is absent or does not match any supported locale. Defaults to "en".
@@ -42,6 +50,10 @@ type I18nConfig struct {
 // The middleware uses golang.org/x/text/language for RFC 5646 language matching
 // with quality weighting support. The detected locale is stored in the Gin
 // context and can be retrieved by handlers via GetLocale().
+//
+// Example:
+//
+//	api.New(api.WithI18n(api.I18nConfig{Supported: []string{"en", "fr"}}))
 //
 // If messages are configured, handlers can look up localised strings via
 // GetMessage(). This is a lightweight bridge — the go-i18n grammar engine
@@ -103,6 +115,10 @@ func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 
 // GetLocale returns the detected locale for the current request.
 // Returns "en" if the i18n middleware was not applied.
+//
+// Example:
+//
+//	locale := api.GetLocale(c)
 func GetLocale(c *gin.Context) string {
 	if v, ok := c.Get(i18nContextKey); ok {
 		if s, ok := v.(string); ok {
@@ -115,6 +131,10 @@ func GetLocale(c *gin.Context) string {
 // GetMessage looks up a localised message by key for the current request.
 // Returns the message string and true if found, or empty string and false
 // if the key does not exist or the i18n middleware was not applied.
+//
+// Example:
+//
+//	msg, ok := api.GetMessage(c, "greeting")
 func GetMessage(c *gin.Context, key string) (string, bool) {
 	if v, ok := c.Get(i18nMessagesKey); ok {
 		if msgs, ok := v.(map[string]string); ok {

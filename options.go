@@ -27,6 +27,10 @@ import (
 )
 
 // Option configures an Engine during construction.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithAddr(":8080"))
 type Option func(*Engine)
 
 // WithAddr sets the listen address for the server.
@@ -42,6 +46,10 @@ func WithAddr(addr string) Option {
 
 // WithBearerAuth adds bearer token authentication middleware.
 // Requests to /health and the Swagger UI path are exempt.
+//
+// Example:
+//
+//	api.New(api.WithBearerAuth("secret"))
 func WithBearerAuth(token string) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, func() []string {
@@ -56,6 +64,10 @@ func WithBearerAuth(token string) Option {
 
 // WithRequestID adds middleware that assigns an X-Request-ID to every response.
 // Client-provided IDs are preserved; otherwise a random hex ID is generated.
+//
+// Example:
+//
+//	api.New(api.WithRequestID())
 func WithRequestID() Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, requestIDMiddleware())
@@ -80,6 +92,10 @@ func WithResponseMeta() Option {
 // Pass "*" to allow all origins, or supply specific origin URLs.
 // Standard methods (GET, POST, PUT, PATCH, DELETE, OPTIONS) and common
 // headers (Authorization, Content-Type, X-Request-ID) are permitted.
+//
+// Example:
+//
+//	api.New(api.WithCORS("*"))
 func WithCORS(allowOrigins ...string) Option {
 	return func(e *Engine) {
 		cfg := cors.Config{
@@ -100,6 +116,10 @@ func WithCORS(allowOrigins ...string) Option {
 }
 
 // WithMiddleware appends arbitrary Gin middleware to the engine.
+//
+// Example:
+//
+//	api.New(api.WithMiddleware(loggingMiddleware))
 func WithMiddleware(mw ...gin.HandlerFunc) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, mw...)
@@ -109,6 +129,10 @@ func WithMiddleware(mw ...gin.HandlerFunc) Option {
 // WithStatic serves static files from the given root directory at urlPrefix.
 // Directory listing is disabled; only individual files are served.
 // Internally this uses gin-contrib/static as Gin middleware.
+//
+// Example:
+//
+//	api.New(api.WithStatic("/assets", "./public"))
 func WithStatic(urlPrefix, root string) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, static.Serve(urlPrefix, static.LocalFile(root, false)))
@@ -130,6 +154,10 @@ func WithWSHandler(h http.Handler) Option {
 
 // WithWSPath sets a custom URL path for the WebSocket endpoint.
 // The default path is "/ws".
+//
+// Example:
+//
+//	api.New(api.WithWSPath("/socket"))
 func WithWSPath(path string) Option {
 	return func(e *Engine) {
 		e.wsPath = normaliseWSPath(path)
@@ -139,6 +167,10 @@ func WithWSPath(path string) Option {
 // WithAuthentik adds Authentik forward-auth middleware that extracts user
 // identity from X-authentik-* headers set by a trusted reverse proxy.
 // The middleware is permissive: unauthenticated requests are allowed through.
+//
+// Example:
+//
+//	api.New(api.WithAuthentik(api.AuthentikConfig{TrustedProxy: true}))
 func WithAuthentik(cfg AuthentikConfig) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, authentikMiddleware(cfg, func() []string {
@@ -151,6 +183,10 @@ func WithAuthentik(cfg AuthentikConfig) Option {
 // The middleware appends Deprecation, optional Sunset, optional Link, and
 // X-API-Warn headers without clobbering any existing header values. Use it to
 // deprecate an entire route group or API version.
+//
+// Example:
+//
+//	api.New(api.WithSunset("2026-12-31", "https://api.example.com/v2"))
 func WithSunset(sunsetDate, replacement string) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, ApiSunset(sunsetDate, replacement))
@@ -159,6 +195,10 @@ func WithSunset(sunsetDate, replacement string) Option {
 
 // WithSwagger enables the Swagger UI at /swagger/ by default.
 // The title, description, and version populate the OpenAPI info block.
+//
+// Example:
+//
+//	api.New(api.WithSwagger("Service", "Public API", "1.0.0"))
 func WithSwagger(title, description, version string) Option {
 	return func(e *Engine) {
 		e.swaggerTitle = title
@@ -170,6 +210,10 @@ func WithSwagger(title, description, version string) Option {
 
 // WithSwaggerPath sets a custom URL path for the Swagger UI.
 // The default path is "/swagger".
+//
+// Example:
+//
+//	api.New(api.WithSwaggerPath("/docs"))
 func WithSwaggerPath(path string) Option {
 	return func(e *Engine) {
 		e.swaggerPath = normaliseSwaggerPath(path)
@@ -296,6 +340,10 @@ func WithSwaggerExternalDocs(description, url string) Option {
 //
 // WARNING: pprof exposes sensitive runtime data and should only be
 // enabled in development or behind authentication in production.
+//
+// Example:
+//
+//	api.New(api.WithPprof())
 func WithPprof() Option {
 	return func(e *Engine) {
 		e.pprofEnabled = true
@@ -310,6 +358,10 @@ func WithPprof() Option {
 // WARNING: expvar exposes runtime internals (memory allocation,
 // goroutine counts, command-line arguments) and should only be
 // enabled in development or behind authentication in production.
+//
+// Example:
+//
+//	api.New(api.WithExpvar())
 func WithExpvar() Option {
 	return func(e *Engine) {
 		e.expvarEnabled = true
@@ -321,6 +373,10 @@ func WithExpvar() Option {
 // X-Content-Type-Options nosniff, and Referrer-Policy strict-origin-when-cross-origin.
 // SSL redirect is not enabled so the middleware works behind a reverse proxy
 // that terminates TLS.
+//
+// Example:
+//
+//	api.New(api.WithSecure())
 func WithSecure() Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, secure.New(secure.Config{
@@ -337,6 +393,10 @@ func WithSecure() Option {
 // WithGzip adds gzip response compression middleware via gin-contrib/gzip.
 // An optional compression level may be supplied (e.g. gzip.BestSpeed,
 // gzip.BestCompression). If omitted, gzip.DefaultCompression is used.
+//
+// Example:
+//
+//	api.New(api.WithGzip())
 func WithGzip(level ...int) Option {
 	return func(e *Engine) {
 		l := gzip.DefaultCompression
@@ -350,6 +410,10 @@ func WithGzip(level ...int) Option {
 // WithBrotli adds Brotli response compression middleware using andybalholm/brotli.
 // An optional compression level may be supplied (e.g. BrotliBestSpeed,
 // BrotliBestCompression). If omitted, BrotliDefaultCompression is used.
+//
+// Example:
+//
+//	api.New(api.WithBrotli())
 func WithBrotli(level ...int) Option {
 	return func(e *Engine) {
 		l := BrotliDefaultCompression
@@ -363,6 +427,10 @@ func WithBrotli(level ...int) Option {
 // WithSlog adds structured request logging middleware via gin-contrib/slog.
 // Each request is logged with method, path, status code, latency, and client IP.
 // If logger is nil, slog.Default() is used.
+//
+// Example:
+//
+//	api.New(api.WithSlog(nil))
 func WithSlog(logger *slog.Logger) Option {
 	return func(e *Engine) {
 		if logger == nil {
@@ -384,6 +452,10 @@ func WithSlog(logger *slog.Logger) Option {
 //
 // A zero or negative duration effectively disables the timeout (the handler
 // runs without a deadline) — this is safe and will not panic.
+//
+// Example:
+//
+//	api.New(api.WithTimeout(5 * time.Second))
 func WithTimeout(d time.Duration) Option {
 	return func(e *Engine) {
 		if d <= 0 {
@@ -456,6 +528,10 @@ func WithRateLimit(limit int) Option {
 // gin-contrib/sessions using a cookie-based store. The name parameter
 // sets the session cookie name (e.g. "session") and secret is the key
 // used for cookie signing and encryption.
+//
+// Example:
+//
+//	api.New(api.WithSessions("session", []byte("secret")))
 func WithSessions(name string, secret []byte) Option {
 	return func(e *Engine) {
 		store := cookie.NewStore(secret)
@@ -468,6 +544,10 @@ func WithSessions(name string, secret []byte) Option {
 // holding the desired model and policy rules. The middleware extracts the
 // subject from HTTP Basic Authentication, evaluates it against the request
 // method and path, and returns 403 Forbidden when the policy denies access.
+//
+// Example:
+//
+//	api.New(api.WithAuthz(enforcer))
 func WithAuthz(enforcer *casbin.Enforcer) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, authz.NewAuthorizer(enforcer))
@@ -487,6 +567,10 @@ func WithAuthz(enforcer *casbin.Enforcer) Option {
 //
 // Requests with a missing, malformed, or invalid signature are rejected with
 // 401 Unauthorised or 400 Bad Request.
+//
+// Example:
+//
+//	api.New(api.WithHTTPSign(secrets))
 func WithHTTPSign(secrets httpsign.Secrets, opts ...httpsign.Option) Option {
 	return func(e *Engine) {
 		auth := httpsign.NewAuthenticator(secrets, opts...)
@@ -512,6 +596,10 @@ func WithSSE(broker *SSEBroker) Option {
 
 // WithSSEPath sets a custom URL path for the SSE endpoint.
 // The default path is "/events".
+//
+// Example:
+//
+//	api.New(api.WithSSEPath("/stream"))
 func WithSSEPath(path string) Option {
 	return func(e *Engine) {
 		e.ssePath = normaliseSSEPath(path)

@@ -23,6 +23,10 @@ import (
 )
 
 // ToolDescriptor describes a tool that can be exposed as a REST endpoint.
+//
+// Example:
+//
+//	desc := api.ToolDescriptor{Name: "ping", Description: "Ping the service"}
 type ToolDescriptor struct {
 	Name         string         // Tool name, e.g. "file_read" (becomes POST path segment)
 	Description  string         // Human-readable description
@@ -33,6 +37,10 @@ type ToolDescriptor struct {
 
 // ToolBridge converts tool descriptors into REST endpoints and OpenAPI paths.
 // It implements both RouteGroup and DescribableGroup.
+//
+// Example:
+//
+//	bridge := api.NewToolBridge("/mcp")
 type ToolBridge struct {
 	basePath string
 	name     string
@@ -75,12 +83,24 @@ func (b *ToolBridge) Add(desc ToolDescriptor, handler gin.HandlerFunc) {
 }
 
 // Name returns the bridge identifier.
+//
+// Example:
+//
+//	name := bridge.Name()
 func (b *ToolBridge) Name() string { return b.name }
 
 // BasePath returns the URL prefix for all tool endpoints.
+//
+// Example:
+//
+//	path := bridge.BasePath()
 func (b *ToolBridge) BasePath() string { return b.basePath }
 
 // RegisterRoutes mounts POST /{tool_name} for each registered tool.
+//
+// Example:
+//
+//	bridge.RegisterRoutes(rg)
 func (b *ToolBridge) RegisterRoutes(rg *gin.RouterGroup) {
 	for _, t := range b.tools {
 		rg.POST("/"+t.descriptor.Name, t.handler)
@@ -88,6 +108,10 @@ func (b *ToolBridge) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 // Describe returns OpenAPI route descriptions for all registered tools.
+//
+// Example:
+//
+//	descs := bridge.Describe()
 func (b *ToolBridge) Describe() []RouteDescription {
 	tools := b.snapshotTools()
 	descs := make([]RouteDescription, 0, len(tools))
@@ -98,6 +122,12 @@ func (b *ToolBridge) Describe() []RouteDescription {
 }
 
 // DescribeIter returns an iterator over OpenAPI route descriptions for all registered tools.
+//
+// Example:
+//
+//	for rd := range bridge.DescribeIter() {
+//		_ = rd
+//	}
 func (b *ToolBridge) DescribeIter() iter.Seq[RouteDescription] {
 	tools := b.snapshotTools()
 	return func(yield func(RouteDescription) bool) {
@@ -124,6 +154,12 @@ func (b *ToolBridge) Tools() []ToolDescriptor {
 }
 
 // ToolsIter returns an iterator over all registered tool descriptors.
+//
+// Example:
+//
+//	for desc := range bridge.ToolsIter() {
+//		_ = desc
+//	}
 func (b *ToolBridge) ToolsIter() iter.Seq[ToolDescriptor] {
 	tools := b.snapshotTools()
 	return func(yield func(ToolDescriptor) bool) {
