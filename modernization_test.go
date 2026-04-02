@@ -114,6 +114,55 @@ func TestEngine_CacheConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	}
 }
 
+func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
+	broker := api.NewSSEBroker()
+	e, err := api.New(
+		api.WithSwagger("Runtime API", "Runtime snapshot", "1.2.3"),
+		api.WithSwaggerPath("/docs"),
+		api.WithCacheLimits(5*time.Minute, 10, 1024),
+		api.WithI18n(api.I18nConfig{
+			DefaultLocale: "en-GB",
+			Supported:     []string{"en-GB", "fr"},
+		}),
+		api.WithWSPath("/socket"),
+		api.WithSSE(broker),
+		api.WithSSEPath("/events"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.RuntimeConfig()
+
+	if !cfg.Swagger.Enabled {
+		t.Fatal("expected swagger snapshot to be enabled")
+	}
+	if cfg.Swagger.Path != "/docs" {
+		t.Fatalf("expected swagger path /docs, got %q", cfg.Swagger.Path)
+	}
+	if cfg.Transport.SwaggerPath != "/docs" {
+		t.Fatalf("expected transport swagger path /docs, got %q", cfg.Transport.SwaggerPath)
+	}
+	if !cfg.Cache.Enabled || cfg.Cache.TTL != 5*time.Minute {
+		t.Fatalf("expected cache snapshot to be populated, got %+v", cfg.Cache)
+	}
+	if cfg.I18n.DefaultLocale != "en-GB" {
+		t.Fatalf("expected default locale en-GB, got %q", cfg.I18n.DefaultLocale)
+	}
+	if !slices.Equal(cfg.I18n.Supported, []string{"en-GB", "fr"}) {
+		t.Fatalf("expected supported locales [en-GB fr], got %v", cfg.I18n.Supported)
+	}
+}
+
+func TestEngine_RuntimeConfig_Good_EmptyOnNilEngine(t *testing.T) {
+	var e *api.Engine
+
+	cfg := e.RuntimeConfig()
+	if cfg.Swagger.Enabled || cfg.Transport.SwaggerEnabled || cfg.Cache.Enabled || cfg.I18n.DefaultLocale != "" {
+		t.Fatalf("expected zero-value runtime config, got %+v", cfg)
+	}
+}
+
 func TestEngine_Register_Good_IgnoresNilGroups(t *testing.T) {
 	e, _ := api.New()
 

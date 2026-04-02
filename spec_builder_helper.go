@@ -46,48 +46,45 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		return &SpecBuilder{}
 	}
 
-	swagger := e.SwaggerConfig()
-	transport := e.TransportConfig()
+	runtime := e.RuntimeConfig()
 	builder := &SpecBuilder{
-		Title:                   swagger.Title,
-		Summary:                 swagger.Summary,
-		Description:             swagger.Description,
-		Version:                 swagger.Version,
-		SwaggerEnabled:          swagger.Enabled,
-		TermsOfService:          swagger.TermsOfService,
-		ContactName:             swagger.ContactName,
-		ContactURL:              swagger.ContactURL,
-		ContactEmail:            swagger.ContactEmail,
-		Servers:                 slices.Clone(swagger.Servers),
-		LicenseName:             swagger.LicenseName,
-		LicenseURL:              swagger.LicenseURL,
-		SecuritySchemes:         cloneSecuritySchemes(swagger.SecuritySchemes),
-		ExternalDocsDescription: swagger.ExternalDocsDescription,
-		ExternalDocsURL:         swagger.ExternalDocsURL,
+		Title:                   runtime.Swagger.Title,
+		Summary:                 runtime.Swagger.Summary,
+		Description:             runtime.Swagger.Description,
+		Version:                 runtime.Swagger.Version,
+		SwaggerEnabled:          runtime.Swagger.Enabled,
+		TermsOfService:          runtime.Swagger.TermsOfService,
+		ContactName:             runtime.Swagger.ContactName,
+		ContactURL:              runtime.Swagger.ContactURL,
+		ContactEmail:            runtime.Swagger.ContactEmail,
+		Servers:                 slices.Clone(runtime.Swagger.Servers),
+		LicenseName:             runtime.Swagger.LicenseName,
+		LicenseURL:              runtime.Swagger.LicenseURL,
+		SecuritySchemes:         cloneSecuritySchemes(runtime.Swagger.SecuritySchemes),
+		ExternalDocsDescription: runtime.Swagger.ExternalDocsDescription,
+		ExternalDocsURL:         runtime.Swagger.ExternalDocsURL,
 	}
 
-	builder.SwaggerPath = transport.SwaggerPath
-	builder.GraphQLEnabled = transport.GraphQLEnabled
-	builder.GraphQLPath = transport.GraphQLPath
-	builder.GraphQLPlayground = transport.GraphQLPlayground
-	builder.WSPath = transport.WSPath
-	builder.WSEnabled = transport.WSEnabled
-	builder.SSEPath = transport.SSEPath
-	builder.SSEEnabled = transport.SSEEnabled
-	builder.PprofEnabled = transport.PprofEnabled
-	builder.ExpvarEnabled = transport.ExpvarEnabled
+	builder.SwaggerPath = runtime.Transport.SwaggerPath
+	builder.GraphQLEnabled = runtime.Transport.GraphQLEnabled
+	builder.GraphQLPath = runtime.Transport.GraphQLPath
+	builder.GraphQLPlayground = runtime.Transport.GraphQLPlayground
+	builder.WSPath = runtime.Transport.WSPath
+	builder.WSEnabled = runtime.Transport.WSEnabled
+	builder.SSEPath = runtime.Transport.SSEPath
+	builder.SSEEnabled = runtime.Transport.SSEEnabled
+	builder.PprofEnabled = runtime.Transport.PprofEnabled
+	builder.ExpvarEnabled = runtime.Transport.ExpvarEnabled
 
-	cache := e.CacheConfig()
-	builder.CacheEnabled = cache.Enabled
-	if cache.TTL > 0 {
-		builder.CacheTTL = cache.TTL.String()
+	builder.CacheEnabled = runtime.Cache.Enabled
+	if runtime.Cache.TTL > 0 {
+		builder.CacheTTL = runtime.Cache.TTL.String()
 	}
-	builder.CacheMaxEntries = cache.MaxEntries
-	builder.CacheMaxBytes = cache.MaxBytes
+	builder.CacheMaxEntries = runtime.Cache.MaxEntries
+	builder.CacheMaxBytes = runtime.Cache.MaxBytes
 
-	i18n := e.I18nConfig()
-	builder.I18nDefaultLocale = i18n.DefaultLocale
-	builder.I18nSupportedLocales = slices.Clone(i18n.Supported)
+	builder.I18nDefaultLocale = runtime.I18n.DefaultLocale
+	builder.I18nSupportedLocales = slices.Clone(runtime.I18n.Supported)
 
 	return builder
 }
