@@ -50,8 +50,9 @@ type openAPIOperation struct {
 }
 
 type openAPIParameter struct {
-	name string
-	in   string
+	name     string
+	in       string
+	required bool
 }
 
 // OpenAPIClientOption configures a runtime OpenAPI client.
@@ -349,6 +350,11 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	} else {
 		pathValues = params
 	}
+
+	if err := validateRequiredParameters(op, params, pathKeys); err != nil {
+		return "", err
+	}
+
 	for _, key := range pathKeys {
 		if value, ok := pathValues[key]; ok {
 			placeholder := "{" + key + "}"
@@ -572,7 +578,8 @@ func parseOperationParameters(operation map[string]any) []openAPIParameter {
 		if name == "" || in == "" {
 			continue
 		}
-		params = append(params, openAPIParameter{name: name, in: in})
+		required, _ := param["required"].(bool)
+		params = append(params, openAPIParameter{name: name, in: in, required: required})
 	}
 
 	return params
@@ -585,6 +592,38 @@ func operationParameterLocation(op openAPIOperation, name string) string {
 		}
 	}
 	return ""
+}
+
+func validateRequiredParameters(op openAPIOperation, params map[string]any, pathKeys []string) error {
+	for _, param := range op.parameters {
+		if !param.required {
+			continue
+		}
+		if containsString(pathKeys, param.name) {
+			continue
+		}
+		if parameterProvided(params, param.name, param.in) {
+			continue
+		}
+		return coreerr.E("OpenAPIClient.buildURL", fmt.Sprintf("missing required %s parameter %q", param.in, param.name), nil)
+	}
+	return nil
+}
+
+func parameterProvided(params map[string]any, name, location string) bool {
+	if nested, ok := nestedMap(params, location); ok {
+		if _, exists := nested[name]; exists {
+			return true
+		}
+	}
+
+	if value, exists := params[name]; exists {
+		if value != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 func encodeJSONBody(v any) ([]byte, error) {

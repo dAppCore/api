@@ -384,6 +384,50 @@ paths:
 	}
 }
 
+func TestOpenAPIClient_Bad_MissingRequiredQueryParameter(t *testing.T) {
+	called := make(chan struct{}, 1)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
+		called <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /submit:
+    post:
+      operationId: submit_item
+      parameters:
+        - name: verbose
+          in: query
+          required: true
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+	)
+
+	if _, err := client.Call("submit_item", map[string]any{
+		"name": "Ada",
+	}); err == nil {
+		t.Fatal("expected required query parameter validation error, got nil")
+	}
+
+	select {
+	case <-called:
+		t.Fatal("expected validation to fail before the HTTP call")
+	default:
+	}
+}
+
 func TestOpenAPIClient_Good_UsesHeaderAndCookieParameters(t *testing.T) {
 	errCh := make(chan error, 1)
 	mux := http.NewServeMux()
