@@ -11,6 +11,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/swaggo/swag"
+	"slices"
 )
 
 // swaggerSeq provides unique instance names so multiple Engine instances
@@ -24,6 +25,13 @@ type swaggerSpec struct {
 	groups  []RouteGroup
 	once    sync.Once
 	doc     string
+}
+
+func newSwaggerSpec(builder *SpecBuilder, groups []RouteGroup) *swaggerSpec {
+	return &swaggerSpec{
+		builder: builder,
+		groups:  slices.Clone(groups),
+	}
 }
 
 // ReadDoc returns the OpenAPI 3.1 JSON document for this spec.
@@ -41,24 +49,21 @@ func (s *swaggerSpec) ReadDoc() string {
 
 // registerSwagger mounts the Swagger UI and doc.json endpoint.
 func registerSwagger(g *gin.Engine, title, description, version, graphqlPath, termsOfService, contactName, contactURL, contactEmail string, servers []string, licenseName, licenseURL, externalDocsDescription, externalDocsURL string, groups []RouteGroup) {
-	spec := &swaggerSpec{
-		builder: &SpecBuilder{
-			Title:                   title,
-			Description:             description,
-			Version:                 version,
-			GraphQLPath:             graphqlPath,
-			TermsOfService:          termsOfService,
-			ContactName:             contactName,
-			ContactURL:              contactURL,
-			ContactEmail:            contactEmail,
-			Servers:                 servers,
-			LicenseName:             licenseName,
-			LicenseURL:              licenseURL,
-			ExternalDocsDescription: externalDocsDescription,
-			ExternalDocsURL:         externalDocsURL,
-		},
-		groups: groups,
-	}
+	spec := newSwaggerSpec(&SpecBuilder{
+		Title:                   title,
+		Description:             description,
+		Version:                 version,
+		GraphQLPath:             graphqlPath,
+		TermsOfService:          termsOfService,
+		ContactName:             contactName,
+		ContactURL:              contactURL,
+		ContactEmail:            contactEmail,
+		Servers:                 servers,
+		LicenseName:             licenseName,
+		LicenseURL:              licenseURL,
+		ExternalDocsDescription: externalDocsDescription,
+		ExternalDocsURL:         externalDocsURL,
+	}, groups)
 	name := fmt.Sprintf("swagger_%d", swaggerSeq.Add(1))
 	swag.Register(name, spec)
 	g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.NewHandler(), ginSwagger.InstanceName(name)))
