@@ -13,10 +13,11 @@ package api
 //
 //	cfg := engine.RuntimeConfig()
 type RuntimeConfig struct {
-	Swagger   SwaggerConfig
-	Transport TransportConfig
-	Cache     CacheConfig
-	I18n      I18nConfig
+	Swagger    SwaggerConfig
+	Transport  TransportConfig
+	Cache      CacheConfig
+	I18n       I18nConfig
+	Authentik  AuthentikConfig
 }
 
 // RuntimeConfig returns a stable snapshot of the engine's current runtime
@@ -38,5 +39,6 @@ func (e *Engine) RuntimeConfig() RuntimeConfig {
 		Transport: e.TransportConfig(),
 		Cache:     e.CacheConfig(),
 		I18n:      e.I18nConfig(),
+		Authentik: e.AuthentikConfig(),
 	}
 }

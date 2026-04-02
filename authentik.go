@@ -34,6 +34,22 @@ type AuthentikConfig struct {
 	PublicPaths []string
 }
 
+// AuthentikConfig returns the configured Authentik settings for the engine.
+//
+// The result snapshots the Engine state at call time and clones slices so
+// callers can safely reuse or modify the returned value.
+//
+// Example:
+//
+//	cfg := engine.AuthentikConfig()
+func (e *Engine) AuthentikConfig() AuthentikConfig {
+	if e == nil {
+		return AuthentikConfig{}
+	}
+
+	return cloneAuthentikConfig(e.authentikConfig)
+}
+
 // AuthentikUser represents an authenticated user extracted from Authentik
 // forward-auth headers or a validated JWT.
 //
@@ -215,6 +231,12 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 
 		c.Next()
 	}
+}
+
+func cloneAuthentikConfig(cfg AuthentikConfig) AuthentikConfig {
+	out := cfg
+	out.PublicPaths = slices.Clone(cfg.PublicPaths)
+	return out
 }
 
 // RequireAuth is Gin middleware that rejects unauthenticated requests.

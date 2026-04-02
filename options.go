@@ -173,7 +173,9 @@ func WithWSPath(path string) Option {
 //	api.New(api.WithAuthentik(api.AuthentikConfig{TrustedProxy: true}))
 func WithAuthentik(cfg AuthentikConfig) Option {
 	return func(e *Engine) {
-		e.middlewares = append(e.middlewares, authentikMiddleware(cfg, func() []string {
+		snapshot := cloneAuthentikConfig(cfg)
+		e.authentikConfig = snapshot
+		e.middlewares = append(e.middlewares, authentikMiddleware(snapshot, func() []string {
 			return []string{resolveSwaggerPath(e.swaggerPath)}
 		}))
 	}

@@ -59,6 +59,7 @@ type Engine struct {
 	swaggerSecuritySchemes         map[string]any
 	swaggerExternalDocsDescription string
 	swaggerExternalDocsURL         string
+	authentikConfig                AuthentikConfig
 	pprofEnabled                   bool
 	expvarEnabled                  bool
 	ssePath                        string

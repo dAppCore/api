@@ -127,6 +127,12 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 		api.WithWSPath("/socket"),
 		api.WithSSE(broker),
 		api.WithSSEPath("/events"),
+		api.WithAuthentik(api.AuthentikConfig{
+			Issuer:       "https://auth.example.com",
+			ClientID:     "runtime-client",
+			TrustedProxy: true,
+			PublicPaths:  []string{"/public", "/docs"},
+		}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -152,14 +158,64 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if !slices.Equal(cfg.I18n.Supported, []string{"en-GB", "fr"}) {
 		t.Fatalf("expected supported locales [en-GB fr], got %v", cfg.I18n.Supported)
 	}
+	if cfg.Authentik.Issuer != "https://auth.example.com" {
+		t.Fatalf("expected Authentik issuer https://auth.example.com, got %q", cfg.Authentik.Issuer)
+	}
+	if cfg.Authentik.ClientID != "runtime-client" {
+		t.Fatalf("expected Authentik client ID runtime-client, got %q", cfg.Authentik.ClientID)
+	}
+	if !cfg.Authentik.TrustedProxy {
+		t.Fatal("expected Authentik trusted proxy to be enabled")
+	}
+	if !slices.Equal(cfg.Authentik.PublicPaths, []string{"/public", "/docs"}) {
+		t.Fatalf("expected Authentik public paths [/public /docs], got %v", cfg.Authentik.PublicPaths)
+	}
 }
 
 func TestEngine_RuntimeConfig_Good_EmptyOnNilEngine(t *testing.T) {
 	var e *api.Engine
 
 	cfg := e.RuntimeConfig()
-	if cfg.Swagger.Enabled || cfg.Transport.SwaggerEnabled || cfg.Cache.Enabled || cfg.I18n.DefaultLocale != "" {
+	if cfg.Swagger.Enabled || cfg.Transport.SwaggerEnabled || cfg.Cache.Enabled || cfg.I18n.DefaultLocale != "" || cfg.Authentik.Issuer != "" {
 		t.Fatalf("expected zero-value runtime config, got %+v", cfg)
+	}
+}
+
+func TestEngine_AuthentikConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
+	e, _ := api.New(api.WithAuthentik(api.AuthentikConfig{
+		Issuer:       "https://auth.example.com",
+		ClientID:     "client",
+		TrustedProxy: true,
+		PublicPaths:  []string{"/public", "/docs"},
+	}))
+
+	cfg := e.AuthentikConfig()
+	if cfg.Issuer != "https://auth.example.com" {
+		t.Fatalf("expected issuer https://auth.example.com, got %q", cfg.Issuer)
+	}
+	if cfg.ClientID != "client" {
+		t.Fatalf("expected client ID client, got %q", cfg.ClientID)
+	}
+	if !cfg.TrustedProxy {
+		t.Fatal("expected trusted proxy to be enabled")
+	}
+	if !slices.Equal(cfg.PublicPaths, []string{"/public", "/docs"}) {
+		t.Fatalf("expected public paths [/public /docs], got %v", cfg.PublicPaths)
+	}
+}
+
+func TestEngine_AuthentikConfig_Good_ClonesPublicPaths(t *testing.T) {
+	publicPaths := []string{"/public", "/docs"}
+	e, _ := api.New(api.WithAuthentik(api.AuthentikConfig{
+		Issuer:      "https://auth.example.com",
+		PublicPaths: publicPaths,
+	}))
+
+	cfg := e.AuthentikConfig()
+	publicPaths[0] = "/mutated"
+
+	if cfg.PublicPaths[0] != "/public" {
+		t.Fatalf("expected snapshot to preserve original public paths, got %v", cfg.PublicPaths)
 	}
 }
 
