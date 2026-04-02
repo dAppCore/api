@@ -140,7 +140,9 @@ func WithWSPath(path string) Option {
 // The middleware is permissive: unauthenticated requests are allowed through.
 func WithAuthentik(cfg AuthentikConfig) Option {
 	return func(e *Engine) {
-		e.middlewares = append(e.middlewares, authentikMiddleware(cfg))
+		e.middlewares = append(e.middlewares, authentikMiddleware(cfg, func() []string {
+			return []string{resolveSwaggerPath(e.swaggerPath)}
+		}))
 	}
 }
 

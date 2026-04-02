@@ -343,6 +343,33 @@ func TestBearerAndAuthentikCoexist_Good(t *testing.T) {
 	}
 }
 
+func TestAuthentik_Good_CustomSwaggerPathBypassesAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := api.AuthentikConfig{TrustedProxy: true}
+	e, err := api.New(
+		api.WithAuthentik(cfg),
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/docs/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for custom swagger path without auth, got %d", resp.StatusCode)
+	}
+}
+
 // ── RequireAuth / RequireGroup ────────────────────────────────────────
 
 func TestRequireAuth_Good(t *testing.T) {

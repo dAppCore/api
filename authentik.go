@@ -26,7 +26,7 @@ type AuthentikConfig struct {
 	TrustedProxy bool
 
 	// PublicPaths lists additional paths that do not require authentication.
-	// /health and /swagger are always public.
+	// /health and the configured Swagger UI path are always public.
 	PublicPaths []string
 }
 
@@ -134,7 +134,7 @@ func validateJWT(ctx context.Context, cfg AuthentikConfig, rawToken string) (*Au
 // The middleware is PERMISSIVE: it populates the context when credentials are
 // present but never rejects unauthenticated requests. Downstream handlers
 // use GetUser to check authentication.
-func authentikMiddleware(cfg AuthentikConfig) gin.HandlerFunc {
+func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.HandlerFunc {
 	// Build the set of public paths that skip header extraction entirely.
 	public := map[string]bool{
 		"/health":  true,
@@ -151,6 +151,14 @@ func authentikMiddleware(cfg AuthentikConfig) gin.HandlerFunc {
 			if isPublicPath(path, p) {
 				c.Next()
 				return
+			}
+		}
+		if publicPaths != nil {
+			for _, p := range publicPaths() {
+				if isPublicPath(path, p) {
+					c.Next()
+					return
+				}
 			}
 		}
 
