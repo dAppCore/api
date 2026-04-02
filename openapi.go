@@ -191,7 +191,11 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		},
 	}
 
-	if graphqlPath := strings.TrimSpace(sb.GraphQLPath); graphqlPath != "" {
+	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
+	if graphqlPath == "" && sb.GraphQLPlayground {
+		graphqlPath = defaultGraphQLPath
+	}
+	if graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
 		paths[graphqlPath] = graphqlPathItem(graphqlPath, operationIDs)
 		if sb.GraphQLPlayground {

@@ -304,6 +304,32 @@ func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLPath(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:             "Test",
+		Version:           "1.0.0",
+		GraphQLPlayground: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/graphql"].(map[string]any); !ok {
+		t.Fatal("expected default /graphql path when playground is enabled")
+	}
+	if _, ok := paths["/graphql/playground"].(map[string]any); !ok {
+		t.Fatal("expected default /graphql/playground path when playground is enabled")
+	}
+}
+
 func TestSpecBuilder_Good_WebSocketEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
