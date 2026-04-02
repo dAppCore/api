@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"iter"
 	"os"
@@ -27,25 +28,7 @@ func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []Route
 		return coreerr.E("ExportSpec", "build spec", err)
 	}
 
-	switch format {
-	case "json":
-		_, err = w.Write(data)
-		return err
-	case "yaml":
-		// Unmarshal JSON then re-marshal as YAML.
-		var obj any
-		if err := json.Unmarshal(data, &obj); err != nil {
-			return coreerr.E("ExportSpec", "unmarshal spec", err)
-		}
-		enc := yaml.NewEncoder(w)
-		enc.SetIndent(2)
-		if err := enc.Encode(obj); err != nil {
-			return coreerr.E("ExportSpec", "encode yaml", err)
-		}
-		return enc.Close()
-	default:
-		return coreerr.E("ExportSpec", "unsupported format "+format+": use \"json\" or \"yaml\"", nil)
-	}
+	return writeSpec(w, format, data, "ExportSpec")
 }
 
 // ExportSpecIter generates the OpenAPI spec from an iterator and writes it to w.
@@ -60,23 +43,28 @@ func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups ite
 		return coreerr.E("ExportSpecIter", "build spec", err)
 	}
 
+	return writeSpec(w, format, data, "ExportSpecIter")
+}
+
+func writeSpec(w io.Writer, format string, data []byte, op string) error {
 	switch format {
 	case "json":
-		_, err = w.Write(data)
+		_, err := w.Write(data)
 		return err
 	case "yaml":
+		// Unmarshal JSON then re-marshal as YAML.
 		var obj any
 		if err := json.Unmarshal(data, &obj); err != nil {
-			return coreerr.E("ExportSpecIter", "unmarshal spec", err)
+			return coreerr.E(op, "unmarshal spec", err)
 		}
 		enc := yaml.NewEncoder(w)
 		enc.SetIndent(2)
 		if err := enc.Encode(obj); err != nil {
-			return coreerr.E("ExportSpecIter", "encode yaml", err)
+			return coreerr.E(op, "encode yaml", err)
 		}
 		return enc.Close()
 	default:
-		return coreerr.E("ExportSpecIter", "unsupported format "+format+": use \"json\" or \"yaml\"", nil)
+		return coreerr.E(op, fmt.Sprintf("unsupported format %s: use %q or %q", format, "json", "yaml"), nil)
 	}
 }
 
@@ -94,8 +82,14 @@ func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 	if err != nil {
 		return coreerr.E("ExportSpecToFile", "create file", err)
 	}
-	defer f.Close()
-	return ExportSpec(f, format, builder, groups)
+	if err := ExportSpec(f, format, builder, groups); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return coreerr.E("ExportSpecToFile", "close file", err)
+	}
+	return nil
 }
 
 // ExportSpecToFileIter writes the OpenAPI spec from an iterator to the given path.
@@ -112,6 +106,12 @@ func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter
 	if err != nil {
 		return coreerr.E("ExportSpecToFileIter", "create file", err)
 	}
-	defer f.Close()
-	return ExportSpecIter(f, format, builder, groups)
+	if err := ExportSpecIter(f, format, builder, groups); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return coreerr.E("ExportSpecToFileIter", "close file", err)
+	}
+	return nil
 }
