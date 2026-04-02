@@ -325,6 +325,49 @@ func TestAPISpecCmd_Good_GraphQLPlaygroundFlagPopulatesSpecPaths(t *testing.T) {
 	}
 }
 
+func TestAPISpecCmd_Good_EnabledExtensionsFollowProvidedPaths(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--swagger-path", "/docs",
+		"--graphql-path", "/graphql",
+		"--ws-path", "/socket",
+		"--sse-path", "/events",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	if got := spec["x-swagger-enabled"]; got != true {
+		t.Fatalf("expected x-swagger-enabled=true, got %v", got)
+	}
+	if got := spec["x-graphql-enabled"]; got != true {
+		t.Fatalf("expected x-graphql-enabled=true, got %v", got)
+	}
+	if got := spec["x-ws-enabled"]; got != true {
+		t.Fatalf("expected x-ws-enabled=true, got %v", got)
+	}
+	if got := spec["x-sse-enabled"]; got != true {
+		t.Fatalf("expected x-sse-enabled=true, got %v", got)
+	}
+}
+
 func TestAPISpecCmd_Good_ContactFlagsPopulateSpecInfo(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)

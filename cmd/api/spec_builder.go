@@ -39,20 +39,30 @@ type specBuilderConfig struct {
 }
 
 func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
+	swaggerPath := strings.TrimSpace(cfg.swaggerPath)
+	graphqlPath := strings.TrimSpace(cfg.graphqlPath)
+	ssePath := strings.TrimSpace(cfg.ssePath)
+	wsPath := strings.TrimSpace(cfg.wsPath)
+	cacheTTL := strings.TrimSpace(cfg.cacheTTL)
+
 	builder := &goapi.SpecBuilder{
 		Title:                   cfg.title,
 		Summary:                 cfg.summary,
 		Description:             cfg.description,
 		Version:                 cfg.version,
-		SwaggerPath:             cfg.swaggerPath,
-		GraphQLPath:             cfg.graphqlPath,
+		SwaggerEnabled:          swaggerPath != "",
+		SwaggerPath:             swaggerPath,
+		GraphQLEnabled:          graphqlPath != "" || cfg.graphqlPlayground,
+		GraphQLPath:             graphqlPath,
 		GraphQLPlayground:       cfg.graphqlPlayground,
-		SSEPath:                 cfg.ssePath,
-		WSPath:                  cfg.wsPath,
+		SSEEnabled:              ssePath != "",
+		SSEPath:                 ssePath,
+		WSEnabled:               wsPath != "",
+		WSPath:                  wsPath,
 		PprofEnabled:            cfg.pprofEnabled,
 		ExpvarEnabled:           cfg.expvarEnabled,
-		CacheEnabled:            cfg.cacheEnabled || strings.TrimSpace(cfg.cacheTTL) != "" || cfg.cacheMaxEntries > 0 || cfg.cacheMaxBytes > 0,
-		CacheTTL:                strings.TrimSpace(cfg.cacheTTL),
+		CacheEnabled:            cfg.cacheEnabled || cacheTTL != "" || cfg.cacheMaxEntries > 0 || cfg.cacheMaxBytes > 0,
+		CacheTTL:                cacheTTL,
 		CacheMaxEntries:         cfg.cacheMaxEntries,
 		CacheMaxBytes:           cfg.cacheMaxBytes,
 		I18nDefaultLocale:       strings.TrimSpace(cfg.i18nDefaultLocale),
