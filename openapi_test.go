@@ -268,6 +268,21 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 		t.Fatal("expected /graphql path in spec")
 	}
 
+	getOp := pathItem["get"].(map[string]any)
+	if getOp["operationId"] != "get_graphql" {
+		t.Fatalf("expected GraphQL GET operationId to be get_graphql, got %v", getOp["operationId"])
+	}
+	getParams := getOp["parameters"].([]any)
+	if len(getParams) != 3 {
+		t.Fatalf("expected 3 GraphQL GET query parameters, got %d", len(getParams))
+	}
+	if getParams[0].(map[string]any)["name"] != "query" {
+		t.Fatalf("expected first GraphQL GET parameter to be query, got %v", getParams[0])
+	}
+	if getParams[0].(map[string]any)["required"] != true {
+		t.Fatal("expected GraphQL GET query parameter to be required")
+	}
+
 	postOp := pathItem["post"].(map[string]any)
 	if postOp["operationId"] != "post_graphql" {
 		t.Fatalf("expected GraphQL operationId to be post_graphql, got %v", postOp["operationId"])

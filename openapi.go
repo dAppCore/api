@@ -702,6 +702,19 @@ func sortTags(tags []map[string]any) {
 
 func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 	return map[string]any{
+		"get": map[string]any{
+			"summary":     "GraphQL query",
+			"description": "Executes GraphQL queries over GET using query parameters",
+			"tags":        []string{"graphql"},
+			"operationId": operationID("get", path, operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"parameters": graphqlQueryParameters(),
+			"responses":  graphqlResponses(),
+		},
 		"post": map[string]any{
 			"summary":     "GraphQL query",
 			"description": "Executes GraphQL queries and mutations",
@@ -1009,6 +1022,38 @@ func graphqlRequestSchema() map[string]any {
 			},
 		},
 		"required": []string{"query"},
+	}
+}
+
+func graphqlQueryParameters() []map[string]any {
+	return []map[string]any{
+		{
+			"name":        "query",
+			"in":          "query",
+			"required":    true,
+			"description": "GraphQL query or mutation document",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		{
+			"name":        "variables",
+			"in":          "query",
+			"required":    false,
+			"description": "JSON-encoded GraphQL variables",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		{
+			"name":        "operationName",
+			"in":          "query",
+			"required":    false,
+			"description": "Operation name to execute",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
 	}
 }
 
