@@ -57,7 +57,20 @@ func addSDKCommand(parent *cli.Command) {
 			return coreerr.E("sdk.Generate", "--lang is required and must include at least one non-empty language. Supported: "+strings.Join(goapi.SupportedLanguages(), ", "), nil)
 		}
 
-		// If no spec file provided, generate one to a temp file.
+		gen := &goapi.SDKGenerator{
+			OutputDir:   output,
+			PackageName: packageName,
+		}
+
+		if !gen.Available() {
+			fmt.Fprintln(os.Stderr, "openapi-generator-cli not found. Install with:")
+			fmt.Fprintln(os.Stderr, "  brew install openapi-generator    (macOS)")
+			fmt.Fprintln(os.Stderr, "  npm install @openapitools/openapi-generator-cli -g")
+			return coreerr.E("sdk.Generate", "openapi-generator-cli not installed", nil)
+		}
+
+		// If no spec file was provided, generate one only after confirming the
+		// generator is available.
 		if specFile == "" {
 			builder, err := sdkSpecBuilder(specBuilderConfig{
 				title:                   title,
@@ -104,18 +117,7 @@ func addSDKCommand(parent *cli.Command) {
 			specFile = tmpPath
 		}
 
-		gen := &goapi.SDKGenerator{
-			SpecPath:    specFile,
-			OutputDir:   output,
-			PackageName: packageName,
-		}
-
-		if !gen.Available() {
-			fmt.Fprintln(os.Stderr, "openapi-generator-cli not found. Install with:")
-			fmt.Fprintln(os.Stderr, "  brew install openapi-generator    (macOS)")
-			fmt.Fprintln(os.Stderr, "  npm install @openapitools/openapi-generator-cli -g")
-			return coreerr.E("sdk.Generate", "openapi-generator-cli not installed", nil)
-		}
+		gen.SpecPath = specFile
 
 		// Generate for each language.
 		for _, l := range languages {
