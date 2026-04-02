@@ -46,6 +46,8 @@ type preparedRouteGroup struct {
 	descs []RouteDescription
 }
 
+const openAPIDialect = "https://spec.openapis.org/oas/3.1/dialect/base"
+
 // Build generates the complete OpenAPI 3.1 JSON spec.
 // Groups implementing DescribableGroup contribute endpoint documentation.
 // Other groups are listed as tags only.
@@ -57,7 +59,8 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	prepared := prepareRouteGroups(groups)
 
 	spec := map[string]any{
-		"openapi": "3.1.0",
+		"openapi":           "3.1.0",
+		"jsonSchemaDialect": openAPIDialect,
 		"info": map[string]any{
 			"title":       sb.Title,
 			"description": sb.Description,

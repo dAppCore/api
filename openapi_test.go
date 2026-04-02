@@ -113,6 +113,9 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if spec["openapi"] != "3.1.0" {
 		t.Fatalf("expected openapi=3.1.0, got %v", spec["openapi"])
 	}
+	if spec["jsonSchemaDialect"] != "https://spec.openapis.org/oas/3.1/dialect/base" {
+		t.Fatalf("expected jsonSchemaDialect to use the OpenAPI 3.1 base dialect, got %v", spec["jsonSchemaDialect"])
+	}
 
 	// Verify /health path exists.
 	paths := spec["paths"].(map[string]any)
