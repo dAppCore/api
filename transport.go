@@ -53,7 +53,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 		cfg.SwaggerPath = resolveSwaggerPath(e.swaggerPath)
 	}
 	if e.graphql != nil {
-		cfg.GraphQLPath = e.graphql.path
+		cfg.GraphQLPath = normaliseGraphQLPath(e.graphql.path)
 	}
 	if e.wsHandler != nil || strings.TrimSpace(e.wsPath) != "" {
 		cfg.WSPath = resolveWSPath(e.wsPath)

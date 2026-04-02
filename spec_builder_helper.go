@@ -5,6 +5,7 @@ package api
 import (
 	"reflect"
 	"slices"
+	"strings"
 )
 
 // SwaggerConfig captures the configured Swagger/OpenAPI metadata for an Engine.
@@ -104,9 +105,8 @@ func (e *Engine) SwaggerConfig() SwaggerConfig {
 		return SwaggerConfig{}
 	}
 
-	return SwaggerConfig{
+	cfg := SwaggerConfig{
 		Enabled:                 e.swaggerEnabled,
-		Path:                    e.swaggerPath,
 		Title:                   e.swaggerTitle,
 		Summary:                 e.swaggerSummary,
 		Description:             e.swaggerDesc,
@@ -122,6 +122,12 @@ func (e *Engine) SwaggerConfig() SwaggerConfig {
 		ExternalDocsDescription: e.swaggerExternalDocsDescription,
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
+
+	if strings.TrimSpace(e.swaggerPath) != "" {
+		cfg.Path = normaliseSwaggerPath(e.swaggerPath)
+	}
+
+	return cfg
 }
 
 func cloneSecuritySchemes(schemes map[string]any) map[string]any {
