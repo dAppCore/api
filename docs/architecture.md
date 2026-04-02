@@ -176,7 +176,8 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithBrotli(level...)` | Brotli response compression | Writer pool for efficiency; default compression if level omitted |
 | `WithSlog(logger)` | Structured request logging | Falls back to `slog.Default()` if nil |
 | `WithTimeout(d)` | Per-request deadline | 504 with standard error envelope on timeout |
-| `WithCache(ttl)` | In-memory GET response caching | `X-Cache: HIT` header on cache hits; 2xx only |
+| `WithCache(ttl)` | In-memory GET response caching | Compatibility wrapper for `WithCacheLimits(ttl, 0, 0)`; `X-Cache: HIT` header on cache hits; 2xx only |
+| `WithCacheLimits(ttl, maxEntries, maxBytes)` | In-memory GET response caching with explicit bounds | Clearer cache configuration when eviction policy should be self-documenting |
 | `WithSessions(name, secret)` | Cookie-backed server sessions | gin-contrib/sessions with cookie store |
 | `WithAuthz(enforcer)` | Casbin policy-based authorisation | Subject from HTTP Basic Auth; 403 on deny |
 | `WithHTTPSign(secrets, opts...)` | HTTP Signatures verification | draft-cavage-http-signatures; 401/400 on failure |
@@ -383,14 +384,19 @@ redirects and introspection). The GraphQL handler is created via gqlgen's
 
 ## 8. Response Caching
 
-`WithCache(ttl)` installs a URL-keyed in-memory response cache scoped to GET requests:
+`WithCacheLimits(ttl, maxEntries, maxBytes)` installs a URL-keyed in-memory response cache scoped to GET requests:
+
+```go
+engine, _ := api.New(api.WithCacheLimits(5*time.Minute, 100, 10<<20))
+```
 
 - Only successful 2xx responses are cached.
 - Non-GET methods pass through uncached.
 - Cached responses are served with an `X-Cache: HIT` header.
 - Expired entries are evicted lazily on the next access for the same key.
 - The cache is not shared across `Engine` instances.
-- There is no size limit on the cache.
+- `WithCache(ttl)` remains available as a compatibility wrapper for callers that do not need to spell out the bounds.
+- Passing non-positive values to `WithCacheLimits` leaves that limit unbounded.
 
 The implementation uses a `cacheWriter` that wraps `gin.ResponseWriter` to intercept and
 capture the response body and status code for storage.

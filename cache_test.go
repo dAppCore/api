@@ -106,6 +106,36 @@ func TestWithCache_Good_CachesGETResponse(t *testing.T) {
 	}
 }
 
+func TestWithCacheLimits_Good_CachesGETResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	grp := &cacheCounterGroup{}
+	e, _ := api.New(api.WithCacheLimits(5*time.Second, 1, 0))
+	e.Register(grp)
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w2.Code)
+	}
+
+	if got := w2.Header().Get("X-Cache"); got != "HIT" {
+		t.Fatalf("expected X-Cache=HIT, got %q", got)
+	}
+	if grp.counter.Load() != 1 {
+		t.Fatalf("expected counter=1 (cached), got %d", grp.counter.Load())
+	}
+}
+
 func TestWithCache_Good_POSTNotCached(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	grp := &cacheCounterGroup{}
