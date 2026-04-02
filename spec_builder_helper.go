@@ -19,7 +19,6 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		Title:                   e.swaggerTitle,
 		Description:             e.swaggerDesc,
 		Version:                 e.swaggerVersion,
-		SwaggerPath:             e.swaggerPath,
 		TermsOfService:          e.swaggerTermsOfService,
 		ContactName:             e.swaggerContactName,
 		ContactURL:              e.swaggerContactURL,
@@ -29,6 +28,10 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		LicenseURL:              e.swaggerLicenseURL,
 		ExternalDocsDescription: e.swaggerExternalDocsDescription,
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
+	}
+
+	if e.swaggerEnabled {
+		builder.SwaggerPath = resolveSwaggerPath(e.swaggerPath)
 	}
 
 	if e.graphql != nil {

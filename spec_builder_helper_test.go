@@ -130,3 +130,27 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 		t.Fatal("expected expvar path from engine metadata in generated spec")
 	}
 }
+
+func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwagger("Engine API", "Engine metadata", "2.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	builder := e.OpenAPISpecBuilder()
+	data, err := builder.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-swagger-ui-path"]; got != "/swagger" {
+		t.Fatalf("expected default x-swagger-ui-path=/swagger, got %v", got)
+	}
+}
