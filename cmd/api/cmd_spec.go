@@ -19,6 +19,7 @@ func addSpecCommand(parent *cli.Command) {
 		description             string
 		version                 string
 		graphqlPath             string
+		ssePath                 string
 		termsURL                string
 		contactName             string
 		contactURL              string
@@ -37,6 +38,7 @@ func addSpecCommand(parent *cli.Command) {
 			Description:             description,
 			Version:                 version,
 			GraphQLPath:             graphqlPath,
+			SSEPath:                 ssePath,
 			TermsOfService:          termsURL,
 			ContactName:             contactName,
 			ContactURL:              contactURL,
@@ -68,6 +70,7 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
+	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
 	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
 	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in spec")
 	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")

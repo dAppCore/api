@@ -33,6 +33,7 @@ func addSDKCommand(parent *cli.Command) {
 		description             string
 		version                 string
 		graphqlPath             string
+		ssePath                 string
 		termsURL                string
 		contactName             string
 		contactURL              string
@@ -52,7 +53,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, graphqlPath, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
+			builder := sdkSpecBuilder(title, description, version, graphqlPath, ssePath, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
 			groups := sdkSpecGroupsIter()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -102,6 +103,7 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
 	cli.StringFlag(cmd, &version, "version", "V", defaultSDKVersion, "API version in generated spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
+	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
 	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in generated spec")
 	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in generated spec")
 	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in generated spec")
@@ -115,12 +117,13 @@ func addSDKCommand(parent *cli.Command) {
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, graphqlPath, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
+func sdkSpecBuilder(title, description, version, graphqlPath, ssePath, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
 	return &goapi.SpecBuilder{
 		Title:                   title,
 		Description:             description,
 		Version:                 version,
 		GraphQLPath:             graphqlPath,
+		SSEPath:                 ssePath,
 		TermsOfService:          termsURL,
 		ContactName:             contactName,
 		ContactURL:              contactURL,
