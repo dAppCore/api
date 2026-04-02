@@ -25,6 +25,14 @@ const defaultAddr = ":8080"
 const shutdownTimeout = 10 * time.Second
 
 // Engine is the central API server managing route groups and middleware.
+//
+// Example:
+//
+//	engine, err := api.New(api.WithAddr(":8081"))
+//	if err != nil {
+//		panic(err)
+//	}
+//	_ = engine.Handler()
 type Engine struct {
 	addr                           string
 	groups                         []RouteGroup
@@ -51,6 +59,13 @@ type Engine struct {
 
 // New creates an Engine with the given options.
 // The default listen address is ":8080".
+//
+// Example:
+//
+//	engine, err := api.New(api.WithAddr(":8081"), api.WithResponseMeta())
+//	if err != nil {
+//		panic(err)
+//	}
 func New(opts ...Option) (*Engine, error) {
 	e := &Engine{
 		addr: defaultAddr,
@@ -62,6 +77,11 @@ func New(opts ...Option) (*Engine, error) {
 }
 
 // Addr returns the configured listen address.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithAddr(":9090"))
+//	addr := engine.Addr()
 func (e *Engine) Addr() string {
 	return e.addr
 }
@@ -78,6 +98,10 @@ func (e *Engine) GroupsIter() iter.Seq[RouteGroup] {
 }
 
 // Register adds a route group to the engine.
+//
+// Example:
+//
+//	engine.Register(myGroup)
 func (e *Engine) Register(group RouteGroup) {
 	if isNilRouteGroup(group) {
 		return
@@ -115,12 +139,22 @@ func (e *Engine) ChannelsIter() iter.Seq[string] {
 
 // Handler builds the Gin engine and returns it as an http.Handler.
 // Each call produces a fresh handler reflecting the current set of groups.
+//
+// Example:
+//
+//	handler := engine.Handler()
 func (e *Engine) Handler() http.Handler {
 	return e.build()
 }
 
 // Serve starts the HTTP server and blocks until the context is cancelled,
 // then performs a graceful shutdown allowing in-flight requests to complete.
+//
+// Example:
+//
+//	ctx, cancel := context.WithCancel(context.Background())
+//	defer cancel()
+//	_ = engine.Serve(ctx)
 func (e *Engine) Serve(ctx context.Context) error {
 	srv := &http.Server{
 		Addr:    e.addr,

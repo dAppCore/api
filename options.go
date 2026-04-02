@@ -29,6 +29,10 @@ import (
 type Option func(*Engine)
 
 // WithAddr sets the listen address for the server.
+//
+// Example:
+//
+//	api.New(api.WithAddr(":8443"))
 func WithAddr(addr string) Option {
 	return func(e *Engine) {
 		e.addr = addr
@@ -56,6 +60,10 @@ func WithRequestID() Option {
 // It preserves any existing pagination metadata and merges in request_id
 // and duration when available from the request context. Combine it with
 // WithRequestID() to populate both fields automatically.
+//
+// Example:
+//
+//	api.New(api.WithRequestID(), api.WithResponseMeta())
 func WithResponseMeta() Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, responseMetaMiddleware())
@@ -103,6 +111,10 @@ func WithStatic(urlPrefix, root string) Option {
 
 // WithWSHandler registers a WebSocket handler at GET /ws.
 // Typically this wraps a go-ws Hub.Handler().
+//
+// Example:
+//
+//	api.New(api.WithWSHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
 func WithWSHandler(h http.Handler) Option {
 	return func(e *Engine) {
 		e.wsHandler = h
