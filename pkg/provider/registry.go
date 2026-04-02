@@ -88,6 +88,24 @@ func (r *Registry) Streamable() []Streamable {
 	return result
 }
 
+// StreamableIter returns an iterator over all registered providers that
+// implement the Streamable interface.
+func (r *Registry) StreamableIter() iter.Seq[Streamable] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(Streamable) bool) {
+		for _, p := range providers {
+			if s, ok := p.(Streamable); ok {
+				if !yield(s) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // Describable returns all providers that implement the Describable interface.
 func (r *Registry) Describable() []Describable {
 	r.mu.RLock()
@@ -101,6 +119,24 @@ func (r *Registry) Describable() []Describable {
 	return result
 }
 
+// DescribableIter returns an iterator over all registered providers that
+// implement the Describable interface.
+func (r *Registry) DescribableIter() iter.Seq[Describable] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(Describable) bool) {
+		for _, p := range providers {
+			if d, ok := p.(Describable); ok {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // Renderable returns all providers that implement the Renderable interface.
 func (r *Registry) Renderable() []Renderable {
 	r.mu.RLock()
@@ -112,6 +148,24 @@ func (r *Registry) Renderable() []Renderable {
 		}
 	}
 	return result
+}
+
+// RenderableIter returns an iterator over all registered providers that
+// implement the Renderable interface.
+func (r *Registry) RenderableIter() iter.Seq[Renderable] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(Renderable) bool) {
+		for _, p := range providers {
+			if rv, ok := p.(Renderable); ok {
+				if !yield(rv) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // ProviderInfo is a serialisable summary of a registered provider.

@@ -119,6 +119,36 @@ func TestRegistry_Streamable_Good(t *testing.T) {
 	assert.Equal(t, []string{"stub.event"}, s[0].Channels())
 }
 
+func TestRegistry_StreamableIter_Good(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&stubProvider{})
+	reg.Add(&streamableProvider{})
+
+	var streamables []provider.Streamable
+	for s := range reg.StreamableIter() {
+		streamables = append(streamables, s)
+	}
+
+	assert.Len(t, streamables, 1)
+	assert.Equal(t, []string{"stub.event"}, streamables[0].Channels())
+}
+
+func TestRegistry_StreamableIter_Good_SnapshotCurrentProviders(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&streamableProvider{})
+
+	iter := reg.StreamableIter()
+	reg.Add(&streamableProvider{})
+
+	var streamables []provider.Streamable
+	for s := range iter {
+		streamables = append(streamables, s)
+	}
+
+	assert.Len(t, streamables, 1)
+	assert.Equal(t, []string{"stub.event"}, streamables[0].Channels())
+}
+
 func TestRegistry_Describable_Good(t *testing.T) {
 	reg := provider.NewRegistry()
 	reg.Add(&stubProvider{})        // not describable
@@ -129,6 +159,36 @@ func TestRegistry_Describable_Good(t *testing.T) {
 	assert.Len(t, d[0].Describe(), 1)
 }
 
+func TestRegistry_DescribableIter_Good(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&stubProvider{})
+	reg.Add(&describableProvider{})
+
+	var describables []provider.Describable
+	for d := range reg.DescribableIter() {
+		describables = append(describables, d)
+	}
+
+	assert.Len(t, describables, 1)
+	assert.Len(t, describables[0].Describe(), 1)
+}
+
+func TestRegistry_DescribableIter_Good_SnapshotCurrentProviders(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&describableProvider{})
+
+	iter := reg.DescribableIter()
+	reg.Add(&describableProvider{})
+
+	var describables []provider.Describable
+	for d := range iter {
+		describables = append(describables, d)
+	}
+
+	assert.Len(t, describables, 1)
+	assert.Len(t, describables[0].Describe(), 1)
+}
+
 func TestRegistry_Renderable_Good(t *testing.T) {
 	reg := provider.NewRegistry()
 	reg.Add(&stubProvider{})       // not renderable
@@ -137,6 +197,36 @@ func TestRegistry_Renderable_Good(t *testing.T) {
 	r := reg.Renderable()
 	assert.Len(t, r, 1)
 	assert.Equal(t, "core-stub-panel", r[0].Element().Tag)
+}
+
+func TestRegistry_RenderableIter_Good(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&stubProvider{})
+	reg.Add(&renderableProvider{})
+
+	var renderables []provider.Renderable
+	for r := range reg.RenderableIter() {
+		renderables = append(renderables, r)
+	}
+
+	assert.Len(t, renderables, 1)
+	assert.Equal(t, "core-stub-panel", renderables[0].Element().Tag)
+}
+
+func TestRegistry_RenderableIter_Good_SnapshotCurrentProviders(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Add(&renderableProvider{})
+
+	iter := reg.RenderableIter()
+	reg.Add(&renderableProvider{})
+
+	var renderables []provider.Renderable
+	for r := range iter {
+		renderables = append(renderables, r)
+	}
+
+	assert.Len(t, renderables, 1)
+	assert.Equal(t, "core-stub-panel", renderables[0].Element().Tag)
 }
 
 func TestRegistry_Info_Good(t *testing.T) {
