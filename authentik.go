@@ -235,7 +235,39 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 
 func cloneAuthentikConfig(cfg AuthentikConfig) AuthentikConfig {
 	out := cfg
-	out.PublicPaths = slices.Clone(cfg.PublicPaths)
+	out.PublicPaths = normalisePublicPaths(cfg.PublicPaths)
+	return out
+}
+
+// normalisePublicPaths trims whitespace, ensures a leading slash, and removes
+// duplicate entries while preserving the first occurrence of each path.
+func normalisePublicPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		path = strings.TrimRight(path, "/")
+		if path == "" {
+			path = "/"
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+
 	return out
 }
 

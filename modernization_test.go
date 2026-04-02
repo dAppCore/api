@@ -219,6 +219,18 @@ func TestEngine_AuthentikConfig_Good_ClonesPublicPaths(t *testing.T) {
 	}
 }
 
+func TestEngine_AuthentikConfig_Good_NormalisesPublicPaths(t *testing.T) {
+	e, _ := api.New(api.WithAuthentik(api.AuthentikConfig{
+		PublicPaths: []string{" /public/ ", "docs", "/public"},
+	}))
+
+	cfg := e.AuthentikConfig()
+	expected := []string{"/public", "/docs"}
+	if !slices.Equal(cfg.PublicPaths, expected) {
+		t.Fatalf("expected normalised public paths %v, got %v", expected, cfg.PublicPaths)
+	}
+}
+
 func TestEngine_Register_Good_IgnoresNilGroups(t *testing.T) {
 	e, _ := api.New()
 

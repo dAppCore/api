@@ -42,7 +42,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 			Issuer:       "https://auth.example.com",
 			ClientID:     "core-client",
 			TrustedProxy: true,
-			PublicPaths:  []string{"/public", "/docs"},
+			PublicPaths:  []string{" /public/ ", "docs", "/public"},
 		}),
 		api.WithWSPath("/socket"),
 		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
