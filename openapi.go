@@ -182,6 +182,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		},
 		"securitySchemes": securitySchemeComponents(sb.SecuritySchemes),
 		"headers":         deprecationHeaderComponents(),
+		"responses":       responseComponents(),
 	}
 
 	return json.MarshalIndent(spec, "", "  ")
@@ -627,6 +628,78 @@ func deprecationHeaderComponents() map[string]any {
 			"schema": map[string]any{
 				"type": "string",
 			},
+		},
+	}
+}
+
+// responseComponents returns reusable OpenAPI response objects for the
+// common error cases exposed by the framework. The path operations still
+// inline their concrete headers so existing callers keep the same output,
+// but these components make the response catalogue available for reuse.
+func responseComponents() map[string]any {
+	return map[string]any{
+		"BadRequest": map[string]any{
+			"description": "Bad request",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": standardResponseHeaders(),
+		},
+		"Unauthorized": map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": standardResponseHeaders(),
+		},
+		"Forbidden": map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": standardResponseHeaders(),
+		},
+		"RateLimitExceeded": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
+		},
+		"GatewayTimeout": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": standardResponseHeaders(),
+		},
+		"InternalServerError": map[string]any{
+			"description": "Internal server error",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": standardResponseHeaders(),
+		},
+		"Gone": map[string]any{
+			"description": "Gone",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": envelopeSchema(nil),
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), deprecationResponseHeaders(true, "", "")),
 		},
 	}
 }

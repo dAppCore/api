@@ -257,6 +257,39 @@ func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_CommonResponseComponentsArePublished(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	components := spec["components"].(map[string]any)
+	responses := components["responses"].(map[string]any)
+	for _, name := range []string{
+		"BadRequest",
+		"Unauthorized",
+		"Forbidden",
+		"RateLimitExceeded",
+		"GatewayTimeout",
+		"InternalServerError",
+		"Gone",
+	} {
+		if _, ok := responses[name]; !ok {
+			t.Fatalf("expected %s response component in spec", name)
+		}
+	}
+}
+
 func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",
