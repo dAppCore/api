@@ -63,6 +63,10 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "spec file not found: "+g.SpecPath, nil)
 	}
 
+	if !g.Available() {
+		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli not installed", nil)
+	}
+
 	outputDir := filepath.Join(g.OutputDir, language)
 	if err := coreio.Local.EnsureDir(outputDir); err != nil {
 		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
