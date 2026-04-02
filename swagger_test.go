@@ -258,6 +258,46 @@ func TestSwagger_Good_InfoFromOptions(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_IncludesGraphQLEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithGraphQL(newTestSchema()), api.WithSwagger("Graph API", "GraphQL docs", "1.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("expected paths object in swagger doc")
+	}
+	if _, ok := paths["/graphql"]; !ok {
+		t.Fatal("expected /graphql path in swagger doc")
+	}
+}
+
 func TestSwagger_Good_UsesLicenseMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

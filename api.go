@@ -241,6 +241,12 @@ func (e *Engine) build() *gin.Engine {
 			e.swaggerTitle,
 			e.swaggerDesc,
 			e.swaggerVersion,
+			func() string {
+				if e.graphql == nil {
+					return ""
+				}
+				return e.graphql.path
+			}(),
 			e.swaggerTermsOfService,
 			e.swaggerContactName,
 			e.swaggerContactURL,

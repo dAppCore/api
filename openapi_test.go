@@ -189,6 +189,62 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:       "Test",
+		Description: "GraphQL test",
+		Version:     "1.0.0",
+		GraphQLPath: "/graphql",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tags := spec["tags"].([]any)
+	found := false
+	for _, tag := range tags {
+		tm := tag.(map[string]any)
+		if tm["name"] == "graphql" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected graphql tag in spec")
+	}
+
+	paths := spec["paths"].(map[string]any)
+	pathItem, ok := paths["/graphql"].(map[string]any)
+	if !ok {
+		t.Fatal("expected /graphql path in spec")
+	}
+
+	postOp := pathItem["post"].(map[string]any)
+	if postOp["operationId"] != "post_graphql" {
+		t.Fatalf("expected GraphQL operationId to be post_graphql, got %v", postOp["operationId"])
+	}
+
+	requestBody := postOp["requestBody"].(map[string]any)
+	schema := requestBody["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	if _, ok := properties["query"]; !ok {
+		t.Fatal("expected GraphQL request schema to include query field")
+	}
+	if _, ok := properties["variables"]; !ok {
+		t.Fatal("expected GraphQL request schema to include variables field")
+	}
+	if _, ok := properties["operationName"]; !ok {
+		t.Fatal("expected GraphQL request schema to include operationName field")
+	}
+}
+
 func TestSpecBuilder_Good_InfoIncludesLicenseMetadata(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",

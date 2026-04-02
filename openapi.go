@@ -23,6 +23,7 @@ type SpecBuilder struct {
 	Title                   string
 	Description             string
 	Version                 string
+	GraphQLPath             string
 	TermsOfService          string
 	ContactName             string
 	ContactURL              string
@@ -182,6 +183,11 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"responses":   healthResponses(),
 			},
 		},
+	}
+
+	if graphqlPath := strings.TrimSpace(sb.GraphQLPath); graphqlPath != "" {
+		graphqlPath = normaliseOpenAPIPath(graphqlPath)
+		paths[graphqlPath] = graphqlPathItem(graphqlPath, operationIDs)
 	}
 
 	for _, g := range groups {
@@ -569,6 +575,14 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 	}
 	seen := map[string]bool{"system": true}
 
+	if graphqlPath := strings.TrimSpace(sb.GraphQLPath); graphqlPath != "" && !seen["graphql"] {
+		tags = append(tags, map[string]any{
+			"name":        "graphql",
+			"description": "GraphQL endpoints",
+		})
+		seen["graphql"] = true
+	}
+
 	for _, g := range groups {
 		name := strings.TrimSpace(g.group.Name())
 		if name != "" && !seen[name] {
@@ -595,6 +609,142 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 	}
 
 	return tags
+}
+
+func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"summary":     "GraphQL query",
+			"description": "Executes GraphQL queries and mutations",
+			"tags":        []string{"graphql"},
+			"operationId": operationID("post", path, operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": graphqlRequestSchema(),
+					},
+				},
+			},
+			"responses": graphqlResponses(),
+		},
+	}
+}
+
+func graphqlRequestSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"query": map[string]any{
+				"type": "string",
+			},
+			"variables": map[string]any{
+				"type":                 "object",
+				"additionalProperties": true,
+			},
+			"operationName": map[string]any{
+				"type": "string",
+			},
+		},
+		"required": []string{"query"},
+	}
+}
+
+func graphqlResponses() map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
+	return map[string]any{
+		"200": map[string]any{
+			"description": "GraphQL response",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": successHeaders,
+		},
+		"400": map[string]any{
+			"description": "Bad request",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"401": map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"403": map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"429": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
+		},
+		"500": map[string]any{
+			"description": "Internal server error",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"504": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+	}
 }
 
 // prepareRouteGroups snapshots route descriptions once per group so iterator-
