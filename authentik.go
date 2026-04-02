@@ -235,6 +235,8 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 
 func cloneAuthentikConfig(cfg AuthentikConfig) AuthentikConfig {
 	out := cfg
+	out.Issuer = strings.TrimSpace(out.Issuer)
+	out.ClientID = strings.TrimSpace(out.ClientID)
 	out.PublicPaths = normalisePublicPaths(cfg.PublicPaths)
 	return out
 }

@@ -204,9 +204,9 @@ func WithSunset(sunsetDate, replacement string) Option {
 //	api.New(api.WithSwagger("Service", "Public API", "1.0.0"))
 func WithSwagger(title, description, version string) Option {
 	return func(e *Engine) {
-		e.swaggerTitle = title
-		e.swaggerDesc = description
-		e.swaggerVersion = version
+		e.swaggerTitle = strings.TrimSpace(title)
+		e.swaggerDesc = strings.TrimSpace(description)
+		e.swaggerVersion = strings.TrimSpace(version)
 		e.swaggerEnabled = true
 	}
 }
@@ -218,7 +218,7 @@ func WithSwagger(title, description, version string) Option {
 //	api.WithSwaggerSummary("Service overview")
 func WithSwaggerSummary(summary string) Option {
 	return func(e *Engine) {
-		if summary != "" {
+		if summary = strings.TrimSpace(summary); summary != "" {
 			e.swaggerSummary = summary
 		}
 	}
@@ -244,7 +244,7 @@ func WithSwaggerPath(path string) Option {
 //	api.WithSwaggerTermsOfService("https://example.com/terms")
 func WithSwaggerTermsOfService(url string) Option {
 	return func(e *Engine) {
-		if url != "" {
+		if url = strings.TrimSpace(url); url != "" {
 			e.swaggerTermsOfService = url
 		}
 	}
@@ -258,13 +258,13 @@ func WithSwaggerTermsOfService(url string) Option {
 //	api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com")
 func WithSwaggerContact(name, url, email string) Option {
 	return func(e *Engine) {
-		if name != "" {
+		if name = strings.TrimSpace(name); name != "" {
 			e.swaggerContactName = name
 		}
-		if url != "" {
+		if url = strings.TrimSpace(url); url != "" {
 			e.swaggerContactURL = url
 		}
-		if email != "" {
+		if email = strings.TrimSpace(email); email != "" {
 			e.swaggerContactEmail = email
 		}
 	}
@@ -291,10 +291,10 @@ func WithSwaggerServers(servers ...string) Option {
 //	api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/")
 func WithSwaggerLicense(name, url string) Option {
 	return func(e *Engine) {
-		if name != "" {
+		if name = strings.TrimSpace(name); name != "" {
 			e.swaggerLicenseName = name
 		}
-		if url != "" {
+		if url = strings.TrimSpace(url); url != "" {
 			e.swaggerLicenseURL = url
 		}
 	}
@@ -340,10 +340,10 @@ func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
 //	api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs")
 func WithSwaggerExternalDocs(description, url string) Option {
 	return func(e *Engine) {
-		if description != "" {
+		if description = strings.TrimSpace(description); description != "" {
 			e.swaggerExternalDocsDescription = description
 		}
-		if url != "" {
+		if url = strings.TrimSpace(url); url != "" {
 			e.swaggerExternalDocsURL = url
 		}
 	}

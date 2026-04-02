@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"slices"
 
 	api "dappco.re/go/core/api"
 )
@@ -337,6 +338,87 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	}
 	if reshotScheme["name"] != "X-API-Key" {
 		t.Fatalf("expected cloned security scheme name X-API-Key, got %v", reshotScheme["name"])
+	}
+}
+
+func TestEngine_Good_SwaggerConfigTrimsRuntimeMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("  Engine API  ", "  Engine metadata  ", "  2.0.0  "),
+		api.WithSwaggerSummary("  Engine overview  "),
+		api.WithSwaggerTermsOfService("  https://example.com/terms  "),
+		api.WithSwaggerContact("  API Support  ", "  https://example.com/support  ", "  support@example.com  "),
+		api.WithSwaggerLicense("  EUPL-1.2  ", "  https://eupl.eu/1.2/en/  "),
+		api.WithSwaggerExternalDocs("  Developer guide  ", "  https://example.com/docs  "),
+		api.WithAuthentik(api.AuthentikConfig{
+			Issuer:       "  https://auth.example.com  ",
+			ClientID:     "  core-client  ",
+			TrustedProxy: true,
+			PublicPaths:  []string{" /public/ ", " docs ", "/public"},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	swagger := e.SwaggerConfig()
+	if swagger.Title != "Engine API" {
+		t.Fatalf("expected trimmed title Engine API, got %q", swagger.Title)
+	}
+	if swagger.Description != "Engine metadata" {
+		t.Fatalf("expected trimmed description Engine metadata, got %q", swagger.Description)
+	}
+	if swagger.Version != "2.0.0" {
+		t.Fatalf("expected trimmed version 2.0.0, got %q", swagger.Version)
+	}
+	if swagger.Summary != "Engine overview" {
+		t.Fatalf("expected trimmed summary Engine overview, got %q", swagger.Summary)
+	}
+	if swagger.TermsOfService != "https://example.com/terms" {
+		t.Fatalf("expected trimmed termsOfService, got %q", swagger.TermsOfService)
+	}
+	if swagger.ContactName != "API Support" || swagger.ContactURL != "https://example.com/support" || swagger.ContactEmail != "support@example.com" {
+		t.Fatalf("expected trimmed contact metadata, got %+v", swagger)
+	}
+	if swagger.LicenseName != "EUPL-1.2" || swagger.LicenseURL != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected trimmed licence metadata, got %+v", swagger)
+	}
+	if swagger.ExternalDocsDescription != "Developer guide" || swagger.ExternalDocsURL != "https://example.com/docs" {
+		t.Fatalf("expected trimmed external docs metadata, got %+v", swagger)
+	}
+
+	auth := e.AuthentikConfig()
+	if auth.Issuer != "https://auth.example.com" {
+		t.Fatalf("expected trimmed issuer, got %q", auth.Issuer)
+	}
+	if auth.ClientID != "core-client" {
+		t.Fatalf("expected trimmed client ID, got %q", auth.ClientID)
+	}
+	if want := []string{"/public", "/docs"}; !slices.Equal(auth.PublicPaths, want) {
+		t.Fatalf("expected trimmed public paths %v, got %v", want, auth.PublicPaths)
+	}
+
+	builder := e.OpenAPISpecBuilder()
+	data, err := builder.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in generated spec")
+	}
+	if info["title"] != "Engine API" || info["description"] != "Engine metadata" || info["version"] != "2.0.0" || info["summary"] != "Engine overview" {
+		t.Fatalf("expected trimmed OpenAPI info block, got %+v", info)
+	}
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected trimmed termsOfService in spec, got %v", info["termsOfService"])
 	}
 }
 
