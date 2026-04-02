@@ -272,6 +272,7 @@ func (sb *SpecBuilder) BuildIter(groups iter.Seq[RouteGroup]) ([]byte, error) {
 // buildPaths generates the paths object from all DescribableGroups.
 func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	operationIDs := map[string]int{}
+	publicPaths := sb.effectiveAuthentikPublicPaths()
 	paths := map[string]any{
 		// Built-in health endpoint.
 		"/health": map[string]any{
@@ -289,14 +290,14 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	if graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
 		item := graphqlPathItem(graphqlPath, operationIDs)
-		if sb.isPublicOperationPath(graphqlPath) {
+		if isPublicPathForList(graphqlPath, publicPaths) {
 			makePathItemPublic(item)
 		}
 		paths[graphqlPath] = item
 		if sb.GraphQLPlayground {
 			playgroundPath := normaliseOpenAPIPath(graphqlPath + "/playground")
 			item := graphqlPlaygroundPathItem(playgroundPath, operationIDs)
-			if sb.isPublicOperationPath(playgroundPath) {
+			if isPublicPathForList(playgroundPath, publicPaths) {
 				makePathItemPublic(item)
 			}
 			paths[playgroundPath] = item
@@ -306,7 +307,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	if wsPath := sb.effectiveWSPath(); wsPath != "" {
 		wsPath = normaliseOpenAPIPath(wsPath)
 		item := wsPathItem(wsPath, operationIDs)
-		if sb.isPublicOperationPath(wsPath) {
+		if isPublicPathForList(wsPath, publicPaths) {
 			makePathItemPublic(item)
 		}
 		paths[wsPath] = item
@@ -315,7 +316,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	if ssePath := sb.effectiveSSEPath(); ssePath != "" {
 		ssePath = normaliseOpenAPIPath(ssePath)
 		item := ssePathItem(ssePath, operationIDs)
-		if sb.isPublicOperationPath(ssePath) {
+		if isPublicPathForList(ssePath, publicPaths) {
 			makePathItemPublic(item)
 		}
 		paths[ssePath] = item
@@ -323,7 +324,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 
 	if sb.PprofEnabled {
 		item := pprofPathItem(operationIDs)
-		if sb.isPublicOperationPath("/debug/pprof") {
+		if isPublicPathForList("/debug/pprof", publicPaths) {
 			makePathItemPublic(item)
 		}
 		paths["/debug/pprof"] = item
@@ -331,7 +332,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 
 	if sb.ExpvarEnabled {
 		item := expvarPathItem(operationIDs)
-		if sb.isPublicOperationPath("/debug/vars") {
+		if isPublicPathForList("/debug/vars", publicPaths) {
 			makePathItemPublic(item)
 		}
 		paths["/debug/vars"] = item
@@ -343,7 +344,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			method := strings.ToLower(rd.Method)
 			deprecated := rd.Deprecated || strings.TrimSpace(rd.SunsetDate) != "" || strings.TrimSpace(rd.Replacement) != ""
 			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
-			isPublic := sb.isPublicOperationPath(fullPath)
+			isPublic := isPublicPathForList(fullPath, publicPaths)
 			security := rd.Security
 			if isPublic {
 				security = []map[string][]string{}
@@ -1951,12 +1952,7 @@ func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
 // isPublicOperationPath reports whether an OpenAPI path should be documented
 // as public because Authentik bypasses it in the running engine.
 func (sb *SpecBuilder) isPublicOperationPath(path string) bool {
-	for _, publicPath := range sb.effectiveAuthentikPublicPaths() {
-		if isPublicPath(path, publicPath) {
-			return true
-		}
-	}
-	return false
+	return isPublicPathForList(path, sb.effectiveAuthentikPublicPaths())
 }
 
 // hasAuthentikMetadata reports whether the spec carries any Authentik-related
@@ -1989,6 +1985,17 @@ func makePathItemPublic(pathItem map[string]any) {
 		delete(responses, "401")
 		delete(responses, "403")
 	}
+}
+
+// isPublicPathForList reports whether path should be documented as public
+// when compared against a precomputed list of public paths.
+func isPublicPathForList(path string, publicPaths []string) bool {
+	for _, publicPath := range publicPaths {
+		if isPublicPath(path, publicPath) {
+			return true
+		}
+	}
+	return false
 }
 
 // documentedResponseHeaders converts route-specific response header metadata
