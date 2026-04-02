@@ -82,6 +82,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on spec command")
 	}
+	if specCmd.Flag("graphql-path") == nil {
+		t.Fatal("expected --graphql-path flag on spec command")
+	}
 	if specCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on spec command")
 	}
@@ -402,6 +405,42 @@ func TestAPISpecCmd_Good_LicenseFlagsPopulateSpecInfo(t *testing.T) {
 	}
 }
 
+func TestAPISpecCmd_Good_GraphQLPathPopulatesSpec(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--graphql-path", "/gql",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object in generated spec, got %T", spec["paths"])
+	}
+
+	if _, ok := paths["/gql"]; !ok {
+		t.Fatal("expected GraphQL path to be included in generated spec")
+	}
+}
+
 func TestAPISDKCmd_Bad_EmptyLanguages(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
@@ -468,6 +507,9 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("version") == nil {
 		t.Fatal("expected --version flag on sdk command")
 	}
+	if sdkCmd.Flag("graphql-path") == nil {
+		t.Fatal("expected --graphql-path flag on sdk command")
+	}
 	if sdkCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on sdk command")
 	}
@@ -505,6 +547,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"Custom SDK API",
 		"Custom SDK description",
 		"9.9.9",
+		"/gql",
 		"https://example.com/terms",
 		"SDK Support",
 		"https://example.com/support",
@@ -544,6 +587,14 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if info["version"] != "9.9.9" {
 		t.Fatalf("expected custom version, got %v", info["version"])
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object in generated spec, got %T", spec["paths"])
+	}
+	if _, ok := paths["/gql"]; !ok {
+		t.Fatal("expected GraphQL path to be included in generated spec")
 	}
 
 	if info["termsOfService"] != "https://example.com/terms" {
