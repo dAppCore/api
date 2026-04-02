@@ -32,6 +32,8 @@ type swaggerSpec struct {
 	doc     string
 }
 
+var _ swag.Swagger = (*swaggerSpec)(nil)
+
 func newSwaggerSpec(builder *SpecBuilder, groups []RouteGroup) *swaggerSpec {
 	return &swaggerSpec{
 		builder: builder,
