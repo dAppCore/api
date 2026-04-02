@@ -350,23 +350,31 @@ func timeoutResponse(c *gin.Context) {
 // with an X-Cache: HIT header on subsequent requests. Non-GET methods
 // and error responses pass through uncached.
 //
-// An optional maxEntries limit enables LRU eviction when the cache reaches
-// capacity. A value <= 0 keeps the cache unbounded for backward compatibility.
-// A non-positive TTL disables the middleware entirely.
+// Optional integer limits enable LRU eviction:
+//   - maxEntries limits the number of cached responses
+//   - maxBytes limits the approximate total cached payload size
+//
+// Pass a non-positive value to either limit to leave that dimension
+// unbounded for backward compatibility. A non-positive TTL disables the
+// middleware entirely.
 //
 // Example:
 //
-//	engine, _ := api.New(api.WithCache(5*time.Minute, 100))
+//	engine, _ := api.New(api.WithCache(5*time.Minute, 100, 10<<20))
 func WithCache(ttl time.Duration, maxEntries ...int) Option {
 	return func(e *Engine) {
 		if ttl <= 0 {
 			return
 		}
-		limit := 0
+		entryLimit := 0
+		byteLimit := 0
 		if len(maxEntries) > 0 {
-			limit = maxEntries[0]
+			entryLimit = maxEntries[0]
 		}
-		store := newCacheStore(limit)
+		if len(maxEntries) > 1 {
+			byteLimit = maxEntries[1]
+		}
+		store := newCacheStore(entryLimit, byteLimit)
 		e.middlewares = append(e.middlewares, cacheMiddleware(store, ttl))
 	}
 }

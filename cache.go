@@ -19,25 +19,29 @@ type cacheEntry struct {
 	status  int
 	headers http.Header
 	body    []byte
+	size    int
 	expires time.Time
 }
 
 // cacheStore is a simple thread-safe in-memory cache keyed by request URL.
 type cacheStore struct {
-	mu         sync.RWMutex
-	entries    map[string]*cacheEntry
-	order      *list.List
-	index      map[string]*list.Element
-	maxEntries int
+	mu           sync.RWMutex
+	entries      map[string]*cacheEntry
+	order        *list.List
+	index        map[string]*list.Element
+	maxEntries   int
+	maxBytes     int
+	currentBytes int
 }
 
 // newCacheStore creates an empty cache store.
-func newCacheStore(maxEntries int) *cacheStore {
+func newCacheStore(maxEntries, maxBytes int) *cacheStore {
 	return &cacheStore{
 		entries:    make(map[string]*cacheEntry),
 		order:      list.New(),
 		index:      make(map[string]*list.Element),
 		maxEntries: maxEntries,
+		maxBytes:   maxBytes,
 	}
 }
 
@@ -62,6 +66,10 @@ func (s *cacheStore) get(key string) *cacheEntry {
 			s.order.Remove(elem)
 			delete(s.index, key)
 		}
+		s.currentBytes -= entry.size
+		if s.currentBytes < 0 {
+			s.currentBytes = 0
+		}
 		delete(s.entries, key)
 		s.mu.Unlock()
 		return nil
@@ -72,27 +80,79 @@ func (s *cacheStore) get(key string) *cacheEntry {
 // set stores a cache entry with the given TTL.
 func (s *cacheStore) set(key string, entry *cacheEntry) {
 	s.mu.Lock()
+	if entry.size <= 0 {
+		entry.size = cacheEntrySize(entry.headers, entry.body)
+	}
+
 	if elem, ok := s.index[key]; ok {
+		if existing, exists := s.entries[key]; exists {
+			s.currentBytes -= existing.size
+			if s.currentBytes < 0 {
+				s.currentBytes = 0
+			}
+		}
 		s.order.MoveToFront(elem)
 		s.entries[key] = entry
+		s.currentBytes += entry.size
+		s.evictBySizeLocked()
 		s.mu.Unlock()
 		return
 	}
 
-	if s.maxEntries > 0 && len(s.entries) >= s.maxEntries {
-		back := s.order.Back()
-		if back != nil {
-			oldKey := back.Value.(string)
-			delete(s.entries, oldKey)
-			delete(s.index, oldKey)
-			s.order.Remove(back)
+	if s.maxBytes > 0 && entry.size > s.maxBytes {
+		s.mu.Unlock()
+		return
+	}
+
+	for (s.maxEntries > 0 && len(s.entries) >= s.maxEntries) || s.wouldExceedBytesLocked(entry.size) {
+		if !s.evictOldestLocked() {
+			break
 		}
+	}
+
+	if s.maxBytes > 0 && s.wouldExceedBytesLocked(entry.size) {
+		s.mu.Unlock()
+		return
 	}
 
 	s.entries[key] = entry
 	elem := s.order.PushFront(key)
 	s.index[key] = elem
+	s.currentBytes += entry.size
 	s.mu.Unlock()
+}
+
+func (s *cacheStore) wouldExceedBytesLocked(nextSize int) bool {
+	if s.maxBytes <= 0 {
+		return false
+	}
+	return s.currentBytes+nextSize > s.maxBytes
+}
+
+func (s *cacheStore) evictBySizeLocked() {
+	for s.maxBytes > 0 && s.currentBytes > s.maxBytes {
+		if !s.evictOldestLocked() {
+			return
+		}
+	}
+}
+
+func (s *cacheStore) evictOldestLocked() bool {
+	back := s.order.Back()
+	if back == nil {
+		return false
+	}
+	oldKey := back.Value.(string)
+	if existing, ok := s.entries[oldKey]; ok {
+		s.currentBytes -= existing.size
+		if s.currentBytes < 0 {
+			s.currentBytes = 0
+		}
+	}
+	delete(s.entries, oldKey)
+	delete(s.index, oldKey)
+	s.order.Remove(back)
+	return true
 }
 
 // cacheWriter intercepts writes to capture the response body and status.
@@ -172,6 +232,7 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 				status:  status,
 				headers: headers,
 				body:    cw.body.Bytes(),
+				size:    cacheEntrySize(headers, cw.body.Bytes()),
 				expires: time.Now().Add(ttl),
 			})
 		}
@@ -184,4 +245,15 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 // returned unchanged.
 func refreshCachedResponseMeta(body []byte, meta *Meta) []byte {
 	return refreshResponseMetaBody(body, meta)
+}
+
+func cacheEntrySize(headers http.Header, body []byte) int {
+	size := len(body)
+	for key, vals := range headers {
+		size += len(key)
+		for _, val := range vals {
+			size += len(val)
+		}
+	}
+	return size
 }

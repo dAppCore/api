@@ -40,6 +40,23 @@ func (g *cacheCounterGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type cacheSizedGroup struct {
+	counter atomic.Int64
+}
+
+func (g *cacheSizedGroup) Name() string     { return "cache-sized" }
+func (g *cacheSizedGroup) BasePath() string { return "/cache" }
+func (g *cacheSizedGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/small", func(c *gin.Context) {
+		n := g.counter.Add(1)
+		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("small-%d-%s", n, strings.Repeat("a", 96))))
+	})
+	rg.GET("/large", func(c *gin.Context) {
+		n := g.counter.Add(1)
+		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("large-%d-%s", n, strings.Repeat("b", 96))))
+	})
+}
+
 // ── WithCache ───────────────────────────────────────────────────────────
 
 func TestWithCache_Good_CachesGETResponse(t *testing.T) {
@@ -465,5 +482,43 @@ func TestWithCache_Good_EvictsWhenCapacityReached(t *testing.T) {
 
 	if grp.counter.Load() != 3 {
 		t.Fatalf("expected counter=3 after eviction, got %d", grp.counter.Load())
+	}
+}
+
+func TestWithCache_Good_EvictsWhenSizeLimitReached(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	grp := &cacheSizedGroup{}
+	e, _ := api.New(api.WithCache(5*time.Second, 10, 250))
+	e.Register(grp)
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/cache/small", nil)
+	h.ServeHTTP(w1, req1)
+	if !strings.Contains(w1.Body.String(), "small-1") {
+		t.Fatalf("expected first response to contain %q, got %q", "small-1", w1.Body.String())
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/cache/large", nil)
+	h.ServeHTTP(w2, req2)
+	if !strings.Contains(w2.Body.String(), "large-2") {
+		t.Fatalf("expected second response to contain %q, got %q", "large-2", w2.Body.String())
+	}
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodGet, "/cache/small", nil)
+	h.ServeHTTP(w3, req3)
+	if !strings.Contains(w3.Body.String(), "small-3") {
+		t.Fatalf("expected size-limited cache to evict the oldest entry, got %q", w3.Body.String())
+	}
+
+	if got := w3.Header().Get("X-Cache"); got != "" {
+		t.Fatalf("expected re-executed response to miss the cache, got X-Cache=%q", got)
+	}
+
+	if grp.counter.Load() != 3 {
+		t.Fatalf("expected counter=3 after size-based eviction, got %d", grp.counter.Load())
 	}
 }
