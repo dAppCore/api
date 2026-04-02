@@ -20,6 +20,9 @@ func addSpecCommand(parent *cli.Command) {
 		version                 string
 		graphqlPath             string
 		ssePath                 string
+		wsPath                  string
+		pprofEnabled            bool
+		expvarEnabled           bool
 		termsURL                string
 		contactName             string
 		contactURL              string
@@ -39,6 +42,9 @@ func addSpecCommand(parent *cli.Command) {
 			Version:                 version,
 			GraphQLPath:             graphqlPath,
 			SSEPath:                 ssePath,
+			WSPath:                  wsPath,
+			PprofEnabled:            pprofEnabled,
+			ExpvarEnabled:           expvarEnabled,
 			TermsOfService:          termsURL,
 			ContactName:             contactName,
 			ContactURL:              contactURL,
@@ -71,6 +77,9 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
 	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
+	cli.StringFlag(cmd, &wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
+	cli.BoolFlag(cmd, &pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")
+	cli.BoolFlag(cmd, &expvarEnabled, "expvar", "", false, "Include expvar endpoint in generated spec")
 	cli.StringFlag(cmd, &termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
 	cli.StringFlag(cmd, &contactName, "contact-name", "", "", "OpenAPI contact name in spec")
 	cli.StringFlag(cmd, &contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")

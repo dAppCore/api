@@ -88,6 +88,15 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("sse-path") == nil {
 		t.Fatal("expected --sse-path flag on spec command")
 	}
+	if specCmd.Flag("ws-path") == nil {
+		t.Fatal("expected --ws-path flag on spec command")
+	}
+	if specCmd.Flag("pprof") == nil {
+		t.Fatal("expected --pprof flag on spec command")
+	}
+	if specCmd.Flag("expvar") == nil {
+		t.Fatal("expected --expvar flag on spec command")
+	}
 	if specCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on spec command")
 	}
@@ -480,6 +489,50 @@ func TestAPISpecCmd_Good_SSEPathPopulatesSpec(t *testing.T) {
 	}
 }
 
+func TestAPISpecCmd_Good_RuntimePathsPopulatedSpec(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--ws-path", "/ws",
+		"--pprof",
+		"--expvar",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object in generated spec, got %T", spec["paths"])
+	}
+
+	if _, ok := paths["/ws"]; !ok {
+		t.Fatal("expected WebSocket path to be included in generated spec")
+	}
+	if _, ok := paths["/debug/pprof"]; !ok {
+		t.Fatal("expected pprof path to be included in generated spec")
+	}
+	if _, ok := paths["/debug/vars"]; !ok {
+		t.Fatal("expected expvar path to be included in generated spec")
+	}
+}
+
 func TestAPISDKCmd_Bad_EmptyLanguages(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)
@@ -552,6 +605,15 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("sse-path") == nil {
 		t.Fatal("expected --sse-path flag on sdk command")
 	}
+	if sdkCmd.Flag("ws-path") == nil {
+		t.Fatal("expected --ws-path flag on sdk command")
+	}
+	if sdkCmd.Flag("pprof") == nil {
+		t.Fatal("expected --pprof flag on sdk command")
+	}
+	if sdkCmd.Flag("expvar") == nil {
+		t.Fatal("expected --expvar flag on sdk command")
+	}
 	if sdkCmd.Flag("terms-of-service") == nil {
 		t.Fatal("expected --terms-of-service flag on sdk command")
 	}
@@ -591,6 +653,9 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"9.9.9",
 		"/gql",
 		"/events",
+		"/ws",
+		true,
+		true,
 		"https://example.com/terms",
 		"SDK Support",
 		"https://example.com/support",
@@ -641,6 +706,15 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if _, ok := paths["/events"]; !ok {
 		t.Fatal("expected SSE path to be included in generated spec")
+	}
+	if _, ok := paths["/ws"]; !ok {
+		t.Fatal("expected WebSocket path to be included in generated spec")
+	}
+	if _, ok := paths["/debug/pprof"]; !ok {
+		t.Fatal("expected pprof path to be included in generated spec")
+	}
+	if _, ok := paths["/debug/vars"]; !ok {
+		t.Fatal("expected expvar path to be included in generated spec")
 	}
 
 	if info["termsOfService"] != "https://example.com/terms" {
