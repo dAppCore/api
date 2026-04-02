@@ -368,6 +368,41 @@ func TestAPISpecCmd_Good_EnabledExtensionsFollowProvidedPaths(t *testing.T) {
 	}
 }
 
+func TestAPISpecCmd_Good_AuthentikPublicPathsAreNormalised(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--authentik-public-paths", " /public/ ,docs,/public",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	paths, ok := spec["x-authentik-public-paths"].([]any)
+	if !ok {
+		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
+	}
+	if len(paths) != 2 || paths[0] != "/public" || paths[1] != "/docs" {
+		t.Fatalf("expected normalised public paths [/public /docs], got %v", paths)
+	}
+}
+
 func TestAPISpecCmd_Good_ContactFlagsPopulateSpecInfo(t *testing.T) {
 	root := &cli.Command{Use: "root"}
 	AddAPICommands(root)

@@ -82,7 +82,7 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		AuthentikIssuer:         strings.TrimSpace(cfg.authentikIssuer),
 		AuthentikClientID:       strings.TrimSpace(cfg.authentikClientID),
 		AuthentikTrustedProxy:   cfg.authentikTrustedProxy,
-		AuthentikPublicPaths:    splitUniqueCSV(cfg.authentikPublicPaths),
+		AuthentikPublicPaths:    normalisePublicPaths(splitUniqueCSV(cfg.authentikPublicPaths)),
 	}
 
 	builder.I18nSupportedLocales = parseLocales(cfg.i18nSupportedLocales)
