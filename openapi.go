@@ -36,6 +36,7 @@ type SpecBuilder struct {
 	Servers                 []string
 	LicenseName             string
 	LicenseURL              string
+	SecuritySchemes         map[string]any
 	ExternalDocsDescription string
 	ExternalDocsURL         string
 	PprofEnabled            bool
@@ -179,14 +180,8 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 				},
 			},
 		},
-		"securitySchemes": map[string]any{
-			"bearerAuth": map[string]any{
-				"type":         "http",
-				"scheme":       "bearer",
-				"bearerFormat": "JWT",
-			},
-		},
-		"headers": deprecationHeaderComponents(),
+		"securitySchemes": securitySchemeComponents(sb.SecuritySchemes),
+		"headers":         deprecationHeaderComponents(),
 	}
 
 	return json.MarshalIndent(spec, "", "  ")
@@ -634,6 +629,29 @@ func deprecationHeaderComponents() map[string]any {
 			},
 		},
 	}
+}
+
+// securitySchemeComponents builds the OpenAPI security scheme registry.
+// bearerAuth stays available by default, while callers can add or override
+// additional scheme definitions for custom security requirements.
+func securitySchemeComponents(overrides map[string]any) map[string]any {
+	schemes := map[string]any{
+		"bearerAuth": map[string]any{
+			"type":         "http",
+			"scheme":       "bearer",
+			"bearerFormat": "JWT",
+		},
+	}
+
+	for name, scheme := range overrides {
+		name = strings.TrimSpace(name)
+		if name == "" || scheme == nil {
+			continue
+		}
+		schemes[name] = scheme
+	}
+
+	return schemes
 }
 
 // buildTags generates the tags array from all RouteGroups.

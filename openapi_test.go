@@ -208,6 +208,55 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+		SecuritySchemes: map[string]any{
+			"apiKeyAuth": map[string]any{
+				"type": "apiKey",
+				"in":   "header",
+				"name": "X-API-Key",
+			},
+		},
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	components := spec["components"].(map[string]any)
+	schemes := components["securitySchemes"].(map[string]any)
+
+	bearerAuth, ok := schemes["bearerAuth"].(map[string]any)
+	if !ok {
+		t.Fatal("expected default bearerAuth security scheme to remain present")
+	}
+	if bearerAuth["scheme"] != "bearer" {
+		t.Fatalf("expected bearerAuth scheme to stay bearer, got %v", bearerAuth["scheme"])
+	}
+
+	apiKeyAuth, ok := schemes["apiKeyAuth"].(map[string]any)
+	if !ok {
+		t.Fatal("expected custom apiKeyAuth security scheme to be merged")
+	}
+	if apiKeyAuth["type"] != "apiKey" {
+		t.Fatalf("expected apiKeyAuth.type=apiKey, got %v", apiKeyAuth["type"])
+	}
+	if apiKeyAuth["in"] != "header" {
+		t.Fatalf("expected apiKeyAuth.in=header, got %v", apiKeyAuth["in"])
+	}
+	if apiKeyAuth["name"] != "X-API-Key" {
+		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
+	}
+}
+
 func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:       "Test",
