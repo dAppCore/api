@@ -5,6 +5,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"iter"
 	"os"
 	"testing"
 
@@ -32,6 +33,14 @@ func (specCmdStubGroup) Describe() []api.RouteDescription {
 			},
 		},
 	}
+}
+
+func collectRouteGroups(groups iter.Seq[api.RouteGroup]) []api.RouteGroup {
+	out := make([]api.RouteGroup, 0)
+	for group := range groups {
+		out = append(out, group)
+	}
+	return out
 }
 
 func TestAPISpecCmd_Good_CommandStructure(t *testing.T) {
@@ -717,7 +726,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"",
 		"https://api.example.com, /, https://api.example.com",
 	)
-	groups := sdkSpecGroups()
+	groups := collectRouteGroups(sdkSpecGroupsIter())
 
 	outputFile := t.TempDir() + "/spec.json"
 	if err := api.ExportSpecToFile(outputFile, "json", builder, groups); err != nil {
@@ -828,7 +837,7 @@ func TestAPISDKCmd_Good_SpecGroupsDeduplicateToolBridge(t *testing.T) {
 
 	api.RegisterSpecGroups(api.NewToolBridge("/tools"))
 
-	groups := sdkSpecGroups()
+	groups := collectRouteGroups(sdkSpecGroupsIter())
 	if len(groups) != 1 {
 		t.Fatalf("expected the built-in tools bridge to be deduplicated, got %d groups", len(groups))
 	}

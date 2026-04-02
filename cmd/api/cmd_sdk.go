@@ -150,14 +150,6 @@ func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string
 	}
 }
 
-func sdkSpecGroups() []goapi.RouteGroup {
-	groups := make([]goapi.RouteGroup, 0)
-	for group := range sdkSpecGroupsIter() {
-		groups = append(groups, group)
-	}
-	return groups
-}
-
 func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {
 	return specGroupsIter(goapi.NewToolBridge("/tools"))
 }
