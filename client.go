@@ -604,12 +604,8 @@ func operationParameterLocation(op openAPIOperation, name string) string {
 }
 
 func validateParameterValues(op openAPIOperation, params map[string]any) error {
-	pathKeys := pathParameterNames(op.pathTemplate)
 	for _, param := range op.parameters {
 		if len(param.schema) == 0 {
-			continue
-		}
-		if containsString(pathKeys, param.name) {
 			continue
 		}
 
@@ -651,9 +647,6 @@ func validateRequiredParameters(op openAPIOperation, params map[string]any, path
 		if !param.required {
 			continue
 		}
-		if containsString(pathKeys, param.name) {
-			continue
-		}
 		if parameterProvided(params, param.name, param.in) {
 			continue
 		}
@@ -664,7 +657,7 @@ func validateRequiredParameters(op openAPIOperation, params map[string]any, path
 
 func parameterProvided(params map[string]any, name, location string) bool {
 	if nested, ok := nestedMap(params, location); ok {
-		if _, exists := nested[name]; exists {
+		if value, exists := nested[name]; exists && value != nil {
 			return true
 		}
 	}
