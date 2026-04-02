@@ -154,3 +154,27 @@ func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 		t.Fatalf("expected default x-swagger-ui-path=/swagger, got %v", got)
 	}
 }
+
+func TestEngine_Good_OpenAPISpecBuilderCarriesExplicitSwaggerPathWithoutUI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwaggerPath("/docs"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	builder := e.OpenAPISpecBuilder()
+	data, err := builder.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-swagger-ui-path"]; got != "/docs" {
+		t.Fatalf("expected explicit x-swagger-ui-path=/docs, got %v", got)
+	}
+}

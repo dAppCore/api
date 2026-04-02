@@ -2,7 +2,10 @@
 
 package api
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 // OpenAPISpecBuilder returns a SpecBuilder populated from the engine's current
 // Swagger and transport metadata.
@@ -30,7 +33,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
 
-	if e.swaggerEnabled {
+	if e.swaggerEnabled || strings.TrimSpace(e.swaggerPath) != "" {
 		builder.SwaggerPath = resolveSwaggerPath(e.swaggerPath)
 	}
 
