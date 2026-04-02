@@ -4,7 +4,6 @@ package api
 
 import (
 	"slices"
-	"strings"
 )
 
 // OpenAPISpecBuilder returns a SpecBuilder populated from the engine's current
@@ -18,6 +17,7 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		return &SpecBuilder{}
 	}
 
+	transport := e.TransportConfig()
 	builder := &SpecBuilder{
 		Title:                   e.swaggerTitle,
 		Description:             e.swaggerDesc,
@@ -33,22 +33,13 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
 
-	if e.swaggerEnabled || strings.TrimSpace(e.swaggerPath) != "" {
-		builder.SwaggerPath = resolveSwaggerPath(e.swaggerPath)
-	}
-
-	if e.graphql != nil {
-		builder.GraphQLPath = e.graphql.path
-		builder.GraphQLPlayground = e.graphql.playground
-	}
-	if e.wsHandler != nil || strings.TrimSpace(e.wsPath) != "" {
-		builder.WSPath = resolveWSPath(e.wsPath)
-	}
-	if e.sseBroker != nil || strings.TrimSpace(e.ssePath) != "" {
-		builder.SSEPath = resolveSSEPath(e.ssePath)
-	}
-	builder.PprofEnabled = e.pprofEnabled
-	builder.ExpvarEnabled = e.expvarEnabled
+	builder.SwaggerPath = transport.SwaggerPath
+	builder.GraphQLPath = transport.GraphQLPath
+	builder.GraphQLPlayground = transport.GraphQLPlayground
+	builder.WSPath = transport.WSPath
+	builder.SSEPath = transport.SSEPath
+	builder.PprofEnabled = transport.PprofEnabled
+	builder.ExpvarEnabled = transport.ExpvarEnabled
 
 	return builder
 }

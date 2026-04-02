@@ -149,6 +149,49 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 }
 
+func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(
+		api.WithSwagger("Engine API", "Engine metadata", "2.0.0"),
+		api.WithSwaggerPath("/docs"),
+		api.WithWSPath("/socket"),
+		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
+		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
+		api.WithSSE(broker),
+		api.WithSSEPath("/events"),
+		api.WithPprof(),
+		api.WithExpvar(),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if cfg.SwaggerPath != "/docs" {
+		t.Fatalf("expected swagger path /docs, got %q", cfg.SwaggerPath)
+	}
+	if cfg.GraphQLPath != "/gql" {
+		t.Fatalf("expected graphql path /gql, got %q", cfg.GraphQLPath)
+	}
+	if !cfg.GraphQLPlayground {
+		t.Fatal("expected GraphQL playground to be enabled")
+	}
+	if cfg.WSPath != "/socket" {
+		t.Fatalf("expected ws path /socket, got %q", cfg.WSPath)
+	}
+	if cfg.SSEPath != "/events" {
+		t.Fatalf("expected sse path /events, got %q", cfg.SSEPath)
+	}
+	if !cfg.PprofEnabled {
+		t.Fatal("expected pprof to be enabled")
+	}
+	if !cfg.ExpvarEnabled {
+		t.Fatal("expected expvar to be enabled")
+	}
+}
+
 func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
