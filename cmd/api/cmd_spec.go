@@ -19,6 +19,7 @@ func addSpecCommand(parent *cli.Command) {
 		description             string
 		version                 string
 		graphqlPath             string
+		graphqlPlayground       bool
 		ssePath                 string
 		wsPath                  string
 		pprofEnabled            bool
@@ -41,6 +42,7 @@ func addSpecCommand(parent *cli.Command) {
 			Description:             description,
 			Version:                 version,
 			GraphQLPath:             graphqlPath,
+			GraphQLPlayground:       graphqlPlayground,
 			SSEPath:                 ssePath,
 			WSPath:                  wsPath,
 			PprofEnabled:            pprofEnabled,
@@ -76,6 +78,7 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &description, "description", "d", "Lethean Core API", "API description in spec")
 	cli.StringFlag(cmd, &version, "version", "V", "1.0.0", "API version in spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
+	cli.BoolFlag(cmd, &graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
 	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
 	cli.StringFlag(cmd, &wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
 	cli.BoolFlag(cmd, &pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")

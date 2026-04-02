@@ -32,6 +32,7 @@ func addSDKCommand(parent *cli.Command) {
 		description             string
 		version                 string
 		graphqlPath             string
+		graphqlPlayground       bool
 		ssePath                 string
 		wsPath                  string
 		pprofEnabled            bool
@@ -55,7 +56,7 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, graphqlPath, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
+			builder := sdkSpecBuilder(title, description, version, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
 			groups := sdkSpecGroupsIter()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -105,6 +106,7 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &description, "description", "d", defaultSDKDescription, "API description in generated spec")
 	cli.StringFlag(cmd, &version, "version", "V", defaultSDKVersion, "API version in generated spec")
 	cli.StringFlag(cmd, &graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
+	cli.BoolFlag(cmd, &graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
 	cli.StringFlag(cmd, &ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
 	cli.StringFlag(cmd, &wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
 	cli.BoolFlag(cmd, &pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")
@@ -122,12 +124,13 @@ func addSDKCommand(parent *cli.Command) {
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, graphqlPath, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
+func sdkSpecBuilder(title, description, version, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
 	return &goapi.SpecBuilder{
 		Title:                   title,
 		Description:             description,
 		Version:                 version,
 		GraphQLPath:             graphqlPath,
+		GraphQLPlayground:       graphqlPlayground,
 		SSEPath:                 ssePath,
 		WSPath:                  wsPath,
 		PprofEnabled:            pprofEnabled,

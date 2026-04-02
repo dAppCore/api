@@ -85,6 +85,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("graphql-path") == nil {
 		t.Fatal("expected --graphql-path flag on spec command")
 	}
+	if specCmd.Flag("graphql-playground") == nil {
+		t.Fatal("expected --graphql-playground flag on spec command")
+	}
 	if specCmd.Flag("sse-path") == nil {
 		t.Fatal("expected --sse-path flag on spec command")
 	}
@@ -153,6 +156,42 @@ func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
 	}
 	if info["description"] != "Custom API description" {
 		t.Fatalf("expected custom description, got %v", info["description"])
+	}
+}
+
+func TestAPISpecCmd_Good_GraphQLPlaygroundFlagPopulatesSpecPaths(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--graphql-path", "/graphql",
+		"--graphql-playground",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("expected paths object in generated spec")
+	}
+	if _, ok := paths["/graphql/playground"]; !ok {
+		t.Fatal("expected GraphQL playground path in generated spec")
 	}
 }
 
@@ -652,6 +691,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"Custom SDK description",
 		"9.9.9",
 		"/gql",
+		true,
 		"/events",
 		"/ws",
 		true,
@@ -703,6 +743,9 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if _, ok := paths["/gql"]; !ok {
 		t.Fatal("expected GraphQL path to be included in generated spec")
+	}
+	if _, ok := paths["/gql/playground"]; !ok {
+		t.Fatal("expected GraphQL playground path to be included in generated spec")
 	}
 	if _, ok := paths["/events"]; !ok {
 		t.Fatal("expected SSE path to be included in generated spec")
