@@ -75,7 +75,9 @@ func writeSpec(w io.Writer, format string, data []byte, op string) error {
 //
 //	_ = api.ExportSpecToFile("./api/openapi.yaml", "yaml", builder, engine.Groups())
 func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup) error {
-	return exportSpecToFile(path, format, builder, groups, "ExportSpecToFile")
+	return exportSpecToFile(path, "ExportSpecToFile", func(w io.Writer) error {
+		return ExportSpec(w, format, builder, groups)
+	})
 }
 
 // ExportSpecToFileIter writes the OpenAPI spec from an iterator to the given path.
@@ -85,10 +87,12 @@ func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 //
 //	_ = api.ExportSpecToFileIter("./api/openapi.json", "json", builder, api.RegisteredSpecGroupsIter())
 func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
-	return exportSpecToFile(path, format, builder, collectRouteGroups(groups), "ExportSpecToFileIter")
+	return exportSpecToFile(path, "ExportSpecToFileIter", func(w io.Writer) error {
+		return ExportSpecIter(w, format, builder, groups)
+	})
 }
 
-func exportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup, op string) error {
+func exportSpecToFile(path, op string, write func(io.Writer) error) (err error) {
 	if err := coreio.Local.EnsureDir(filepath.Dir(path)); err != nil {
 		return coreerr.E(op, "create directory", err)
 	}
@@ -96,12 +100,14 @@ func exportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 	if err != nil {
 		return coreerr.E(op, "create file", err)
 	}
-	if err := ExportSpec(f, format, builder, groups); err != nil {
-		return err
-	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = coreerr.E(op, "close file", closeErr)
+		}
+	}()
 
-	if err := f.Close(); err != nil {
-		return coreerr.E(op, "close file", err)
+	if err = write(f); err != nil {
+		return err
 	}
 	return nil
 }

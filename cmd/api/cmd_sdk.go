@@ -68,14 +68,17 @@ func addSDKCommand(parent *cli.Command) {
 			if err != nil {
 				return coreerr.E("sdk.Generate", "create temp spec file", err)
 			}
-			defer coreio.Local.Delete(tmpFile.Name())
+			tmpPath := tmpFile.Name()
+			if err := tmpFile.Close(); err != nil {
+				_ = coreio.Local.Delete(tmpPath)
+				return coreerr.E("sdk.Generate", "close temp spec file", err)
+			}
+			defer coreio.Local.Delete(tmpPath)
 
-			if err := goapi.ExportSpecIter(tmpFile, "json", builder, groups); err != nil {
-				tmpFile.Close()
+			if err := goapi.ExportSpecToFileIter(tmpPath, "json", builder, groups); err != nil {
 				return coreerr.E("sdk.Generate", "generate spec", err)
 			}
-			tmpFile.Close()
-			specFile = tmpFile.Name()
+			specFile = tmpPath
 		}
 
 		gen := &goapi.SDKGenerator{
