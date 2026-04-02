@@ -110,3 +110,29 @@ func TestRegisterSpecGroupsIter_Good_DeduplicatesAndRegisters(t *testing.T) {
 		t.Fatalf("expected second group to be gamma at /gamma, got %s at %s", registered[1].Name(), registered[1].BasePath())
 	}
 }
+
+func TestSpecGroupsIter_Good_DeduplicatesExtraBridge(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
+	first := &specRegistryStubGroup{name: "alpha", basePath: "/alpha"}
+	extra := &specRegistryStubGroup{name: "alpha", basePath: "/alpha"}
+
+	api.RegisterSpecGroups(first)
+
+	var groups []api.RouteGroup
+	for group := range api.SpecGroupsIter(extra) {
+		groups = append(groups, group)
+	}
+
+	if len(groups) != 1 {
+		t.Fatalf("expected deduplicated iterator to return 1 group, got %d", len(groups))
+	}
+	if groups[0].Name() != "alpha" || groups[0].BasePath() != "/alpha" {
+		t.Fatalf("expected alpha at /alpha, got %s at %s", groups[0].Name(), groups[0].BasePath())
+	}
+}

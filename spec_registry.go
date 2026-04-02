@@ -90,6 +90,38 @@ func RegisteredSpecGroupsIter() iter.Seq[RouteGroup] {
 	return slices.Values(groups)
 }
 
+// SpecGroupsIter returns the registered spec groups plus one optional extra
+// group, deduplicated by group identity.
+//
+// The iterator snapshots the registry before yielding so callers can range
+// over it without holding the registry lock.
+//
+// Example:
+//
+//	for g := range api.SpecGroupsIter(api.NewToolBridge("/tools")) {
+//		_ = g
+//	}
+func SpecGroupsIter(extra RouteGroup) iter.Seq[RouteGroup] {
+	return func(yield func(RouteGroup) bool) {
+		seen := map[string]struct{}{}
+		for group := range RegisteredSpecGroupsIter() {
+			key := specGroupKey(group)
+			seen[key] = struct{}{}
+			if !yield(group) {
+				return
+			}
+		}
+		if extra != nil {
+			if _, ok := seen[specGroupKey(extra)]; ok {
+				return
+			}
+			if !yield(extra) {
+				return
+			}
+		}
+	}
+}
+
 // ResetSpecGroups clears the package-level spec registry.
 // It is primarily intended for tests that need to isolate global state.
 //
