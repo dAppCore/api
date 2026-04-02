@@ -919,6 +919,9 @@ func wsUpgradeHeaders() map[string]any {
 }
 
 func pprofPathItem(operationIDs map[string]int) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
 	return map[string]any{
 		"get": map[string]any{
 			"summary":     "pprof index",
@@ -940,7 +943,7 @@ func pprofPathItem(operationIDs map[string]int) map[string]any {
 							},
 						},
 					},
-					"headers": standardResponseHeaders(),
+					"headers": successHeaders,
 				},
 				"401": map[string]any{
 					"description": "Unauthorised",
@@ -952,7 +955,7 @@ func pprofPathItem(operationIDs map[string]int) map[string]any {
 							},
 						},
 					},
-					"headers": standardResponseHeaders(),
+					"headers": errorHeaders,
 				},
 				"403": map[string]any{
 					"description": "Forbidden",
@@ -964,7 +967,7 @@ func pprofPathItem(operationIDs map[string]int) map[string]any {
 							},
 						},
 					},
-					"headers": standardResponseHeaders(),
+					"headers": errorHeaders,
 				},
 			},
 		},
@@ -972,6 +975,9 @@ func pprofPathItem(operationIDs map[string]int) map[string]any {
 }
 
 func expvarPathItem(operationIDs map[string]int) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
 	return map[string]any{
 		"get": map[string]any{
 			"summary":     "Runtime metrics",
@@ -994,7 +1000,7 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 							},
 						},
 					},
-					"headers": standardResponseHeaders(),
+					"headers": successHeaders,
 				},
 				"401": map[string]any{
 					"description": "Unauthorised",
@@ -1006,7 +1012,7 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 							},
 						},
 					},
-					"headers": standardResponseHeaders(),
+					"headers": errorHeaders,
 				},
 				"403": map[string]any{
 					"description": "Forbidden",
@@ -1018,7 +1024,7 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 							},
 						},
 					},
-					"headers": standardResponseHeaders(),
+					"headers": errorHeaders,
 				},
 			},
 		},

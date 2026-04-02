@@ -2485,3 +2485,37 @@ func TestSpecBuilder_Good_ServersCollapseTrailingSlashes(t *testing.T) {
 		t.Fatalf("expected second server url=%q, got %v", "/api", second["url"])
 	}
 }
+
+func TestSpecBuilder_Good_RuntimeDebugEndpointsDocumentRateLimitHeaders(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:         "Test",
+		Version:       "1.0.0",
+		PprofEnabled:  true,
+		ExpvarEnabled: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	for _, path := range []string{"/debug/pprof", "/debug/vars"} {
+		item := paths[path].(map[string]any)
+		op := item["get"].(map[string]any)
+		for _, code := range []string{"200", "401", "403"} {
+			resp := op["responses"].(map[string]any)[code].(map[string]any)
+			headers := resp["headers"].(map[string]any)
+			for _, name := range []string{"X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
+				if _, ok := headers[name]; !ok {
+					t.Fatalf("expected %s header on %s %s response", name, path, code)
+				}
+			}
+		}
+	}
+}
