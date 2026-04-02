@@ -488,7 +488,7 @@ func TestWithCache_Good_EvictsWhenCapacityReached(t *testing.T) {
 func TestWithCache_Good_EvictsWhenSizeLimitReached(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	grp := &cacheSizedGroup{}
-	e, _ := api.New(api.WithCache(5*time.Second, 10, 250))
+	e, _ := api.New(api.WithCacheLimits(5*time.Second, 10, 250))
 	e.Register(grp)
 
 	h := e.Handler()

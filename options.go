@@ -504,19 +504,32 @@ func timeoutResponse(c *gin.Context) {
 //
 //	engine, _ := api.New(api.WithCache(5*time.Minute, 100, 10<<20))
 func WithCache(ttl time.Duration, maxEntries ...int) Option {
+	entryLimit := 0
+	byteLimit := 0
+	if len(maxEntries) > 0 {
+		entryLimit = maxEntries[0]
+	}
+	if len(maxEntries) > 1 {
+		byteLimit = maxEntries[1]
+	}
+	return WithCacheLimits(ttl, entryLimit, byteLimit)
+}
+
+// WithCacheLimits adds in-memory response caching middleware for GET requests
+// with explicit entry and payload-size bounds.
+//
+// This is the clearer form of WithCache when call sites want to make the
+// eviction policy self-documenting.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithCacheLimits(5*time.Minute, 100, 10<<20))
+func WithCacheLimits(ttl time.Duration, maxEntries, maxBytes int) Option {
 	return func(e *Engine) {
 		if ttl <= 0 {
 			return
 		}
-		entryLimit := 0
-		byteLimit := 0
-		if len(maxEntries) > 0 {
-			entryLimit = maxEntries[0]
-		}
-		if len(maxEntries) > 1 {
-			byteLimit = maxEntries[1]
-		}
-		store := newCacheStore(entryLimit, byteLimit)
+		store := newCacheStore(maxEntries, maxBytes)
 		e.middlewares = append(e.middlewares, cacheMiddleware(store, ttl))
 	}
 }
