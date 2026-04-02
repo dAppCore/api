@@ -6,10 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
 )
+
+// defaultSSEPath is the URL path where the SSE endpoint is mounted.
+const defaultSSEPath = "/events"
 
 // SSEBroker manages Server-Sent Events connections and broadcasts events
 // to subscribed clients. Clients connect via a GET endpoint and receive
@@ -50,6 +54,31 @@ func NewSSEBroker() *SSEBroker {
 	return &SSEBroker{
 		clients: make(map[*sseClient]struct{}),
 	}
+}
+
+// normaliseSSEPath coerces custom SSE paths into a stable form.
+// The path always begins with a single slash and never ends with one.
+func normaliseSSEPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return defaultSSEPath
+	}
+
+	path = "/" + strings.Trim(path, "/")
+	if path == "/" {
+		return defaultSSEPath
+	}
+
+	return path
+}
+
+// resolveSSEPath returns the configured SSE path or the default path when
+// no override has been provided.
+func resolveSSEPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return defaultSSEPath
+	}
+	return normaliseSSEPath(path)
 }
 
 // Publish sends an event to all clients subscribed to the given channel.

@@ -48,6 +48,44 @@ func TestWithSSE_Good_EndpointExists(t *testing.T) {
 	}
 }
 
+func TestWithSSE_Good_CustomPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker), api.WithSSEPath("/stream"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/stream")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
+	}
+
+	notFoundResp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request to default SSE path failed: %v", err)
+	}
+	defer notFoundResp.Body.Close()
+
+	if notFoundResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 at default /events when custom path is configured, got %d", notFoundResp.StatusCode)
+	}
+}
+
 func TestWithSSE_Good_ReceivesPublishedEvent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

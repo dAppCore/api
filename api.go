@@ -54,6 +54,7 @@ type Engine struct {
 	swaggerExternalDocsURL         string
 	pprofEnabled                   bool
 	expvarEnabled                  bool
+	ssePath                        string
 	graphql                        *graphqlConfig
 }
 
@@ -226,7 +227,7 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount SSE endpoint if configured.
 	if e.sseBroker != nil {
-		r.GET("/events", e.sseBroker.Handler())
+		r.GET(resolveSSEPath(e.ssePath), e.sseBroker.Handler())
 	}
 
 	// Mount GraphQL endpoint if configured.
@@ -238,7 +239,7 @@ func (e *Engine) build() *gin.Engine {
 	if e.swaggerEnabled {
 		ssePath := ""
 		if e.sseBroker != nil {
-			ssePath = "/events"
+			ssePath = resolveSSEPath(e.ssePath)
 		}
 		registerSwagger(
 			r,

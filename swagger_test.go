@@ -240,6 +240,47 @@ func TestSwagger_Good_IncludesSSEEndpoint(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_UsesCustomSSEPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(
+		api.WithSwagger("SSE API", "SSE test", "1.0.0"),
+		api.WithSSE(broker),
+		api.WithSSEPath("/stream"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := doc["paths"].(map[string]any)
+	if _, ok := paths["/stream"]; !ok {
+		t.Fatal("expected custom SSE path /stream in swagger doc")
+	}
+	if _, ok := paths["/events"]; ok {
+		t.Fatal("did not expect default /events path when custom SSE path is configured")
+	}
+}
+
 func TestSwagger_Good_CachesSpec(t *testing.T) {
 	spec := &swaggerSpecHelper{
 		title:   "Cache Test",

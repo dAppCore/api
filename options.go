@@ -438,9 +438,10 @@ func WithHTTPSign(secrets httpsign.Secrets, opts ...httpsign.Option) Option {
 	}
 }
 
-// WithSSE registers a Server-Sent Events broker at GET /events.
-// Clients connect to the endpoint and receive a streaming text/event-stream
-// response. The broker manages client connections and broadcasts events
+// WithSSE registers a Server-Sent Events broker at the configured path.
+// By default the endpoint is mounted at GET /events; use WithSSEPath to
+// customise the route. Clients receive a streaming text/event-stream
+// response and the broker manages client connections and broadcasts events
 // published via its Publish method.
 //
 // Example:
@@ -450,6 +451,14 @@ func WithHTTPSign(secrets httpsign.Secrets, opts ...httpsign.Option) Option {
 func WithSSE(broker *SSEBroker) Option {
 	return func(e *Engine) {
 		e.sseBroker = broker
+	}
+}
+
+// WithSSEPath sets a custom URL path for the SSE endpoint.
+// The default path is "/events".
+func WithSSEPath(path string) Option {
+	return func(e *Engine) {
+		e.ssePath = normaliseSSEPath(path)
 	}
 }
 
