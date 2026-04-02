@@ -47,6 +47,7 @@ func addSDKCommand(parent *cli.Command) {
 		externalDocsDescription string
 		externalDocsURL         string
 		servers                 string
+		securitySchemes         string
 	)
 
 	cmd := cli.NewCommand("sdk", "Generate client SDKs from OpenAPI spec", "", func(cmd *cli.Command, args []string) error {
@@ -57,7 +58,10 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file provided, generate one to a temp file.
 		if specFile == "" {
-			builder := sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers)
+			builder, err := sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath, graphqlPlayground, ssePath, wsPath, pprofEnabled, expvarEnabled, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes)
+			if err != nil {
+				return err
+			}
 			groups := sdkSpecGroupsIter()
 
 			tmpFile, err := os.CreateTemp("", "openapi-*.json")
@@ -122,12 +126,13 @@ func addSDKCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in generated spec")
 	cli.StringFlag(cmd, &externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in generated spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
+	cli.StringFlag(cmd, &securitySchemes, "security-schemes", "", "", "JSON object of custom OpenAPI security schemes")
 
 	parent.AddCommand(cmd)
 }
 
-func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers string) *goapi.SpecBuilder {
-	return &goapi.SpecBuilder{
+func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string, graphqlPlayground bool, ssePath, wsPath string, pprofEnabled, expvarEnabled bool, termsURL, contactName, contactURL, contactEmail, licenseName, licenseURL, externalDocsDescription, externalDocsURL, servers, securitySchemes string) (*goapi.SpecBuilder, error) {
+	builder := &goapi.SpecBuilder{
 		Title:                   title,
 		Description:             description,
 		Version:                 version,
@@ -148,6 +153,16 @@ func sdkSpecBuilder(title, description, version, swaggerPath, graphqlPath string
 		ExternalDocsDescription: externalDocsDescription,
 		ExternalDocsURL:         externalDocsURL,
 	}
+
+	if securitySchemes != "" {
+		schemes, err := parseSecuritySchemes(securitySchemes)
+		if err != nil {
+			return nil, err
+		}
+		builder.SecuritySchemes = schemes
+	}
+
+	return builder, nil
 }
 
 func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {

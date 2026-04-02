@@ -741,6 +741,9 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("server") == nil {
 		t.Fatal("expected --server flag on sdk command")
 	}
+	if sdkCmd.Flag("security-schemes") == nil {
+		t.Fatal("expected --security-schemes flag on sdk command")
+	}
 }
 
 func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
@@ -753,7 +756,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 
 	api.RegisterSpecGroups(specCmdStubGroup{})
 
-	builder := sdkSpecBuilder(
+	builder, err := sdkSpecBuilder(
 		"Custom SDK API",
 		"Custom SDK description",
 		"9.9.9",
@@ -773,7 +776,11 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		"",
 		"",
 		"https://api.example.com, /, https://api.example.com",
+		`{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
 	)
+	if err != nil {
+		t.Fatalf("unexpected error building sdk spec: %v", err)
+	}
 	groups := collectRouteGroups(sdkSpecGroupsIter())
 
 	outputFile := t.TempDir() + "/spec.json"
@@ -872,6 +879,14 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	}
 	if servers[1].(map[string]any)["url"] != "/" {
 		t.Fatalf("expected second server to be /, got %v", servers[1])
+	}
+
+	securitySchemes, ok := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	if !ok {
+		t.Fatal("expected securitySchemes in generated spec")
+	}
+	if _, ok := securitySchemes["apiKeyAuth"].(map[string]any); !ok {
+		t.Fatalf("expected apiKeyAuth security scheme in generated spec, got %v", securitySchemes)
 	}
 }
 
