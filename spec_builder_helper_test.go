@@ -4,6 +4,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +23,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
 		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
 		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
 		api.WithSSE(broker),
 		api.WithSSEPath("/events"),
@@ -108,6 +110,9 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 	if _, ok := paths["/gql/playground"]; !ok {
 		t.Fatal("expected GraphQL playground path from engine metadata in generated spec")
+	}
+	if _, ok := paths["/ws"]; !ok {
+		t.Fatal("expected WebSocket path from engine metadata in generated spec")
 	}
 	if _, ok := paths["/events"]; !ok {
 		t.Fatal("expected SSE path from engine metadata in generated spec")

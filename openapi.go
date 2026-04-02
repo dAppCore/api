@@ -26,6 +26,7 @@ type SpecBuilder struct {
 	Version                 string
 	GraphQLPath             string
 	GraphQLPlayground       bool
+	WSPath                  string
 	SSEPath                 string
 	TermsOfService          string
 	ContactName             string
@@ -197,6 +198,11 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			playgroundPath := normaliseOpenAPIPath(graphqlPath + "/playground")
 			paths[playgroundPath] = graphqlPlaygroundPathItem(playgroundPath, operationIDs)
 		}
+	}
+
+	if wsPath := strings.TrimSpace(sb.WSPath); wsPath != "" {
+		wsPath = normaliseOpenAPIPath(wsPath)
+		paths[wsPath] = wsPathItem(wsPath, operationIDs)
 	}
 
 	if ssePath := strings.TrimSpace(sb.SSEPath); ssePath != "" {
@@ -715,6 +721,23 @@ func graphqlPlaygroundPathItem(path string, operationIDs map[string]int) map[str
 	}
 }
 
+func wsPathItem(path string, operationIDs map[string]int) map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"summary":     "WebSocket connection",
+			"description": "Upgrades the connection to a WebSocket stream",
+			"tags":        []string{"system"},
+			"operationId": operationID("get", path, operationIDs),
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"responses": wsResponses(),
+		},
+	}
+}
+
 func ssePathItem(path string, operationIDs map[string]int) map[string]any {
 	return map[string]any{
 		"get": map[string]any{
@@ -739,6 +762,105 @@ func ssePathItem(path string, operationIDs map[string]int) map[string]any {
 				},
 			},
 			"responses": sseResponses(),
+		},
+	}
+}
+
+func wsResponses() map[string]any {
+	successHeaders := mergeHeaders(
+		standardResponseHeaders(),
+		rateLimitSuccessHeaders(),
+		wsUpgradeHeaders(),
+	)
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
+	return map[string]any{
+		"101": map[string]any{
+			"description": "Switching protocols",
+			"headers":     successHeaders,
+		},
+		"401": map[string]any{
+			"description": "Unauthorised",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"403": map[string]any{
+			"description": "Forbidden",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"429": map[string]any{
+			"description": "Too many requests",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
+		},
+		"500": map[string]any{
+			"description": "Internal server error",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+		"504": map[string]any{
+			"description": "Gateway timeout",
+			"content": map[string]any{
+				"application/json": map[string]any{
+					"schema": map[string]any{
+						"type":                 "object",
+						"additionalProperties": true,
+					},
+				},
+			},
+			"headers": errorHeaders,
+		},
+	}
+}
+
+func wsUpgradeHeaders() map[string]any {
+	return map[string]any{
+		"Upgrade": map[string]any{
+			"description": "Indicates that the connection has switched to WebSocket",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"Connection": map[string]any{
+			"description": "Keeps the upgraded connection open",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"Sec-WebSocket-Accept": map[string]any{
+			"description": "Validates the WebSocket handshake",
+			"schema": map[string]any{
+				"type": "string",
+			},
 		},
 	}
 }

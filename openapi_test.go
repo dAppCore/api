@@ -304,6 +304,59 @@ func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_WebSocketEndpoint(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+		WSPath:  "/ws",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tags := spec["tags"].([]any)
+	found := false
+	for _, tag := range tags {
+		tm := tag.(map[string]any)
+		if tm["name"] == "system" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected system tag in spec")
+	}
+
+	paths := spec["paths"].(map[string]any)
+	pathItem, ok := paths["/ws"].(map[string]any)
+	if !ok {
+		t.Fatal("expected /ws path in spec")
+	}
+
+	getOp := pathItem["get"].(map[string]any)
+	if getOp["operationId"] != "get_ws" {
+		t.Fatalf("expected WebSocket operationId to be get_ws, got %v", getOp["operationId"])
+	}
+	if getOp["summary"] != "WebSocket connection" {
+		t.Fatalf("expected WebSocket summary, got %v", getOp["summary"])
+	}
+
+	responses := getOp["responses"].(map[string]any)
+	if _, ok := responses["101"]; !ok {
+		t.Fatal("expected 101 response on /ws")
+	}
+	if _, ok := responses["429"]; !ok {
+		t.Fatal("expected 429 response on /ws")
+	}
+}
+
 func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
