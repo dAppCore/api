@@ -197,14 +197,8 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if bearerAuth["scheme"] != "bearer" {
 		t.Fatalf("expected bearerAuth.scheme=bearer, got %v", bearerAuth["scheme"])
 	}
-
-	security := spec["security"].([]any)
-	if len(security) != 1 {
-		t.Fatalf("expected one default security requirement, got %d", len(security))
-	}
-	req := security[0].(map[string]any)
-	if _, ok := req["bearerAuth"]; !ok {
-		t.Fatal("expected default bearerAuth security requirement")
+	if _, ok := spec["security"]; ok {
+		t.Fatal("expected no global security requirement in the document")
 	}
 }
 

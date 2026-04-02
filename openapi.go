@@ -74,11 +74,6 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		},
 		"paths": sb.buildPaths(prepared),
 		"tags":  sb.buildTags(prepared),
-		"security": []any{
-			map[string]any{
-				"bearerAuth": []any{},
-			},
-		},
 	}
 
 	if sb.LicenseName != "" {
