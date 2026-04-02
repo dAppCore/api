@@ -425,6 +425,85 @@ func TestSwagger_Good_UsesExternalDocsMetadata(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_IgnoresBlankMetadataOverrides(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Stable API", "Blank override test", "1.0.0"),
+		api.WithSwaggerTermsOfService("https://example.com/terms"),
+		api.WithSwaggerTermsOfService(""),
+		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
+		api.WithSwaggerContact("", "", ""),
+		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
+		api.WithSwaggerLicense("", ""),
+		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+		api.WithSwaggerExternalDocs("", ""),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService to survive blank override, got %v", info["termsOfService"])
+	}
+
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in swagger doc")
+	}
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected contact name to survive blank override, got %v", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url to survive blank override, got %v", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email to survive blank override, got %v", contact["email"])
+	}
+
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected license metadata in swagger doc")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected license name to survive blank override, got %v", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected license url to survive blank override, got %v", license["url"])
+	}
+
+	externalDocs, ok := doc["externalDocs"].(map[string]any)
+	if !ok {
+		t.Fatal("expected externalDocs metadata in swagger doc")
+	}
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected externalDocs description to survive blank override, got %v", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected externalDocs url to survive blank override, got %v", externalDocs["url"])
+	}
+}
+
 func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
