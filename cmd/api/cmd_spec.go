@@ -3,8 +3,10 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 
@@ -34,6 +36,7 @@ func addSpecCommand(parent *cli.Command) {
 		externalDocsDescription string
 		externalDocsURL         string
 		servers                 string
+		securitySchemes         string
 	)
 
 	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
@@ -58,6 +61,14 @@ func addSpecCommand(parent *cli.Command) {
 			LicenseURL:              licenseURL,
 			ExternalDocsDescription: externalDocsDescription,
 			ExternalDocsURL:         externalDocsURL,
+		}
+
+		if securitySchemes != "" {
+			schemes, err := parseSecuritySchemes(securitySchemes)
+			if err != nil {
+				return err
+			}
+			builder.SecuritySchemes = schemes
 		}
 
 		bridge := goapi.NewToolBridge("/tools")
@@ -95,10 +106,24 @@ func addSpecCommand(parent *cli.Command) {
 	cli.StringFlag(cmd, &externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in spec")
 	cli.StringFlag(cmd, &externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in spec")
 	cli.StringFlag(cmd, &servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
+	cli.StringFlag(cmd, &securitySchemes, "security-schemes", "", "", "JSON object of custom OpenAPI security schemes")
 
 	parent.AddCommand(cmd)
 }
 
 func parseServers(raw string) []string {
 	return splitUniqueCSV(raw)
+}
+
+func parseSecuritySchemes(raw string) (map[string]any, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	var schemes map[string]any
+	if err := json.Unmarshal([]byte(raw), &schemes); err != nil {
+		return nil, cli.Err("invalid security schemes JSON: %w", err)
+	}
+	return schemes, nil
 }

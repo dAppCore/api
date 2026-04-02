@@ -139,6 +139,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("server") == nil {
 		t.Fatal("expected --server flag on spec command")
 	}
+	if specCmd.Flag("security-schemes") == nil {
+		t.Fatal("expected --security-schemes flag on spec command")
+	}
 }
 
 func TestAPISpecCmd_Good_CustomDescription(t *testing.T) {
@@ -256,6 +259,51 @@ func TestAPISpecCmd_Good_ContactFlagsPopulateSpecInfo(t *testing.T) {
 	}
 	if contact["email"] != "support@example.com" {
 		t.Fatalf("expected contact email to be preserved, got %v", contact["email"])
+	}
+}
+
+func TestAPISpecCmd_Good_SecuritySchemesFlagPopulatesSpecComponents(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--security-schemes", `{"apiKeyAuth":{"type":"apiKey","in":"header","name":"X-API-Key"}}`,
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	securitySchemes, ok := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	if !ok {
+		t.Fatal("expected securitySchemes object in generated spec")
+	}
+	apiKeyAuth, ok := securitySchemes["apiKeyAuth"].(map[string]any)
+	if !ok {
+		t.Fatal("expected apiKeyAuth security scheme in generated spec")
+	}
+	if apiKeyAuth["type"] != "apiKey" {
+		t.Fatalf("expected apiKeyAuth.type=apiKey, got %v", apiKeyAuth["type"])
+	}
+	if apiKeyAuth["in"] != "header" {
+		t.Fatalf("expected apiKeyAuth.in=header, got %v", apiKeyAuth["in"])
+	}
+	if apiKeyAuth["name"] != "X-API-Key" {
+		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
 	}
 }
 
