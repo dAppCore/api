@@ -312,3 +312,56 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredSSEPathWithoutBroker(t *
 		t.Fatalf("expected x-sse-path=/events, got %v", got)
 	}
 }
+
+func TestEngine_Good_OpenAPISpecBuilderClonesSecuritySchemes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	securityScheme := map[string]any{
+		"type": "oauth2",
+		"flows": map[string]any{
+			"clientCredentials": map[string]any{
+				"tokenUrl": "https://auth.example.com/token",
+			},
+		},
+	}
+	schemes := map[string]any{
+		"oauth2": securityScheme,
+	}
+
+	e, err := api.New(
+		api.WithSwagger("Engine API", "Engine metadata", "2.0.0"),
+		api.WithSwaggerSecuritySchemes(schemes),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Mutate the original input after configuration. The builder snapshot should
+	// remain stable and keep the original token URL.
+	securityScheme["type"] = "mutated"
+	securityScheme["flows"].(map[string]any)["clientCredentials"].(map[string]any)["tokenUrl"] = "https://mutated.example.com/token"
+
+	data, err := e.OpenAPISpecBuilder().Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	securitySchemes := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	oauth2, ok := securitySchemes["oauth2"].(map[string]any)
+	if !ok {
+		t.Fatal("expected oauth2 security scheme in generated spec")
+	}
+	if oauth2["type"] != "oauth2" {
+		t.Fatalf("expected cloned oauth2.type=oauth2, got %v", oauth2["type"])
+	}
+	flows := oauth2["flows"].(map[string]any)
+	clientCredentials := flows["clientCredentials"].(map[string]any)
+	if clientCredentials["tokenUrl"] != "https://auth.example.com/token" {
+		t.Fatalf("expected original tokenUrl to be preserved, got %v", clientCredentials["tokenUrl"])
+	}
+}

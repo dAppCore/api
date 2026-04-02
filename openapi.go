@@ -721,7 +721,7 @@ func securitySchemeComponents(overrides map[string]any) map[string]any {
 		if name == "" || scheme == nil {
 			continue
 		}
-		schemes[name] = scheme
+		schemes[name] = cloneOpenAPIValue(scheme)
 	}
 
 	return schemes

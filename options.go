@@ -266,7 +266,7 @@ func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
 			if name == "" || scheme == nil {
 				continue
 			}
-			e.swaggerSecuritySchemes[name] = scheme
+			e.swaggerSecuritySchemes[name] = cloneOpenAPIValue(scheme)
 		}
 	}
 }
