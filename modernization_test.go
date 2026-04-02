@@ -5,6 +5,7 @@ package api_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	api "dappco.re/go/core/api"
 )
@@ -91,6 +92,25 @@ func TestEngine_ChannelsIter_Good_SnapshotsCurrentChannels(t *testing.T) {
 	expected := []string{"ch1", "ch2"}
 	if !slices.Equal(channels, expected) {
 		t.Fatalf("expected snapshot channels %v, got %v", expected, channels)
+	}
+}
+
+func TestEngine_CacheConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
+	e, _ := api.New(api.WithCacheLimits(5*time.Minute, 10, 1024))
+
+	cfg := e.CacheConfig()
+
+	if !cfg.Enabled {
+		t.Fatal("expected cache config to be enabled")
+	}
+	if cfg.TTL != 5*time.Minute {
+		t.Fatalf("expected TTL %v, got %v", 5*time.Minute, cfg.TTL)
+	}
+	if cfg.MaxEntries != 10 {
+		t.Fatalf("expected MaxEntries 10, got %d", cfg.MaxEntries)
+	}
+	if cfg.MaxBytes != 1024 {
+		t.Fatalf("expected MaxBytes 1024, got %d", cfg.MaxBytes)
 	}
 }
 

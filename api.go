@@ -37,6 +37,9 @@ type Engine struct {
 	addr                           string
 	groups                         []RouteGroup
 	middlewares                    []gin.HandlerFunc
+	cacheTTL                       time.Duration
+	cacheMaxEntries                int
+	cacheMaxBytes                  int
 	wsHandler                      http.Handler
 	wsPath                         string
 	sseBroker                      *SSEBroker

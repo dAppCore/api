@@ -529,6 +529,9 @@ func WithCacheLimits(ttl time.Duration, maxEntries, maxBytes int) Option {
 		if ttl <= 0 {
 			return
 		}
+		e.cacheTTL = ttl
+		e.cacheMaxEntries = maxEntries
+		e.cacheMaxBytes = maxBytes
 		store := newCacheStore(maxEntries, maxBytes)
 		e.middlewares = append(e.middlewares, cacheMiddleware(store, ttl))
 	}
