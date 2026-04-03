@@ -111,6 +111,7 @@ func sdkSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		swaggerPath:             cfg.swaggerPath,
 		graphqlPath:             cfg.graphqlPath,
 		graphqlPlayground:       cfg.graphqlPlayground,
+		graphqlPlaygroundPath:   cfg.graphqlPlaygroundPath,
 		ssePath:                 cfg.ssePath,
 		wsPath:                  cfg.wsPath,
 		pprofEnabled:            cfg.pprofEnabled,

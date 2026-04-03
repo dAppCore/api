@@ -1125,6 +1125,9 @@ func TestAPISDKCmd_Good_ValidatesLanguage(t *testing.T) {
 	if sdkCmd.Flag("sse-path") == nil {
 		t.Fatal("expected --sse-path flag on sdk command")
 	}
+	if sdkCmd.Flag("graphql-playground-path") == nil {
+		t.Fatal("expected --graphql-playground-path flag on sdk command")
+	}
 	if sdkCmd.Flag("ws-path") == nil {
 		t.Fatal("expected --ws-path flag on sdk command")
 	}
@@ -1208,6 +1211,7 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 		swaggerPath:           "/docs",
 		graphqlPath:           "/gql",
 		graphqlPlayground:     true,
+		graphqlPlaygroundPath: "/gql/ide",
 		ssePath:               "/events",
 		wsPath:                "/ws",
 		pprofEnabled:          true,
@@ -1233,6 +1237,9 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("unexpected error building sdk spec: %v", err)
+	}
+	if builder.GraphQLPlaygroundPath != "/gql/ide" {
+		t.Fatalf("expected custom GraphQL playground path to be preserved in builder, got %q", builder.GraphQLPlaygroundPath)
 	}
 	groups := collectRouteGroups(sdkSpecGroupsIter())
 
@@ -1278,8 +1285,11 @@ func TestAPISDKCmd_Good_TempSpecUsesMetadataFlags(t *testing.T) {
 	if got := builder.SwaggerPath; got != "/docs" {
 		t.Fatalf("expected swagger path to be preserved in sdk spec builder, got %v", got)
 	}
-	if _, ok := paths["/gql/playground"]; !ok {
-		t.Fatal("expected GraphQL playground path to be included in generated spec")
+	if _, ok := paths["/gql/ide"]; !ok {
+		t.Fatalf("expected custom GraphQL playground path to be included in generated spec, got keys %v", paths)
+	}
+	if _, ok := paths["/gql/playground"]; ok {
+		t.Fatal("expected custom GraphQL playground path to replace the default playground path")
 	}
 	if _, ok := paths["/events"]; !ok {
 		t.Fatal("expected SSE path to be included in generated spec")
