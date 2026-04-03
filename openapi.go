@@ -34,6 +34,7 @@ type SpecBuilder struct {
 	GraphQLEnabled          bool
 	GraphQLPath             string
 	GraphQLPlayground       bool
+	GraphQLPlaygroundPath   string
 	WSPath                  string
 	WSEnabled               bool
 	SSEPath                 string
@@ -123,6 +124,9 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if graphqlPath := sb.effectiveGraphQLPath(); graphqlPath != "" {
 		spec["x-graphql-path"] = normaliseOpenAPIPath(graphqlPath)
 		spec["x-graphql-playground"] = sb.GraphQLPlayground
+	}
+	if playgroundPath := sb.effectiveGraphQLPlaygroundPath(); playgroundPath != "" {
+		spec["x-graphql-playground-path"] = normaliseOpenAPIPath(playgroundPath)
 	}
 	if wsPath := sb.effectiveWSPath(); wsPath != "" {
 		spec["x-ws-path"] = normaliseOpenAPIPath(wsPath)
@@ -1907,6 +1911,26 @@ func (sb *SpecBuilder) effectiveGraphQLPath() string {
 	return graphqlPath
 }
 
+// effectiveGraphQLPlaygroundPath returns the configured playground path when
+// GraphQL playground is enabled.
+func (sb *SpecBuilder) effectiveGraphQLPlaygroundPath() string {
+	if !sb.GraphQLPlayground {
+		return ""
+	}
+
+	path := strings.TrimSpace(sb.GraphQLPlaygroundPath)
+	if path != "" {
+		return path
+	}
+
+	base := sb.effectiveGraphQLPath()
+	if base == "" {
+		base = defaultGraphQLPath
+	}
+
+	return base + "/playground"
+}
+
 // effectiveSwaggerPath returns the configured Swagger UI path or the default
 // path when Swagger is enabled without an explicit override.
 func (sb *SpecBuilder) effectiveSwaggerPath() string {
@@ -1979,6 +2003,7 @@ func (sb *SpecBuilder) snapshot() *SpecBuilder {
 	out.Version = strings.TrimSpace(out.Version)
 	out.SwaggerPath = strings.TrimSpace(out.SwaggerPath)
 	out.GraphQLPath = strings.TrimSpace(out.GraphQLPath)
+	out.GraphQLPlaygroundPath = strings.TrimSpace(out.GraphQLPlaygroundPath)
 	out.WSPath = strings.TrimSpace(out.WSPath)
 	out.SSEPath = strings.TrimSpace(out.SSEPath)
 	out.TermsOfService = strings.TrimSpace(out.TermsOfService)

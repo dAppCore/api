@@ -30,13 +30,16 @@ func TestEngine_GraphQLConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if !cfg.Playground {
 		t.Fatal("expected GraphQL playground to be enabled")
 	}
+	if cfg.PlaygroundPath != "/gql/playground" {
+		t.Fatalf("expected GraphQL playground path /gql/playground, got %q", cfg.PlaygroundPath)
+	}
 }
 
 func TestEngine_GraphQLConfig_Good_EmptyOnNilEngine(t *testing.T) {
 	var e *api.Engine
 
 	cfg := e.GraphQLConfig()
-	if cfg.Enabled || cfg.Path != "" || cfg.Playground {
+	if cfg.Enabled || cfg.Path != "" || cfg.Playground || cfg.PlaygroundPath != "" {
 		t.Fatalf("expected zero-value GraphQL config, got %+v", cfg)
 	}
 }

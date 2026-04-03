@@ -100,6 +100,9 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if got := spec["x-graphql-playground"]; got != true {
 		t.Fatalf("expected x-graphql-playground=true, got %v", got)
 	}
+	if got := spec["x-graphql-playground-path"]; got != "/gql/playground" {
+		t.Fatalf("expected x-graphql-playground-path=/gql/playground, got %v", got)
+	}
 	if got := spec["x-ws-path"]; got != "/socket" {
 		t.Fatalf("expected x-ws-path=/socket, got %v", got)
 	}

@@ -611,10 +611,11 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 
 func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
-		Title:             "Test",
-		Version:           "1.0.0",
-		GraphQLPath:       "/graphql",
-		GraphQLPlayground: true,
+		Title:                 "Test",
+		Version:               "1.0.0",
+		GraphQLPath:           "/graphql",
+		GraphQLPlayground:     true,
+		GraphQLPlaygroundPath: "/graphql/playground",
 	}
 
 	data, err := sb.Build(nil)
@@ -636,6 +637,9 @@ func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	getOp := pathItem["get"].(map[string]any)
 	if getOp["operationId"] != "get_graphql_playground" {
 		t.Fatalf("expected playground operationId to be get_graphql_playground, got %v", getOp["operationId"])
+	}
+	if got := spec["x-graphql-playground-path"]; got != "/graphql/playground" {
+		t.Fatalf("expected x-graphql-playground-path=/graphql/playground, got %v", got)
 	}
 
 	responses := getOp["responses"].(map[string]any)

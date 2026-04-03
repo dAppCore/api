@@ -31,9 +31,10 @@ type graphqlConfig struct {
 //
 //	cfg := api.GraphQLConfig{Enabled: true, Path: "/graphql", Playground: true}
 type GraphQLConfig struct {
-	Enabled    bool
-	Path       string
-	Playground bool
+	Enabled        bool
+	Path           string
+	Playground     bool
+	PlaygroundPath string
 }
 
 // GraphQLConfig returns the currently configured GraphQL settings for the engine.
@@ -56,6 +57,9 @@ func (e *Engine) GraphQLConfig() GraphQLConfig {
 
 	if e.graphql != nil {
 		cfg.Path = normaliseGraphQLPath(e.graphql.path)
+		if e.graphql.playground {
+			cfg.PlaygroundPath = cfg.Path + "/playground"
+		}
 	}
 
 	return cfg

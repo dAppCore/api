@@ -13,17 +13,18 @@ import "strings"
 //
 //	cfg := api.TransportConfig{SwaggerPath: "/swagger", WSPath: "/ws"}
 type TransportConfig struct {
-	SwaggerEnabled    bool
-	SwaggerPath       string
-	GraphQLPath       string
-	GraphQLEnabled    bool
-	GraphQLPlayground bool
-	WSEnabled         bool
-	WSPath            string
-	SSEEnabled        bool
-	SSEPath           string
-	PprofEnabled      bool
-	ExpvarEnabled     bool
+	SwaggerEnabled        bool
+	SwaggerPath           string
+	GraphQLPath           string
+	GraphQLEnabled        bool
+	GraphQLPlayground     bool
+	GraphQLPlaygroundPath string
+	WSEnabled             bool
+	WSPath                string
+	SSEEnabled            bool
+	SSEPath               string
+	PprofEnabled          bool
+	ExpvarEnabled         bool
 }
 
 // TransportConfig returns the currently configured transport metadata for the engine.
@@ -49,6 +50,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 	gql := e.GraphQLConfig()
 	cfg.GraphQLEnabled = gql.Enabled
 	cfg.GraphQLPlayground = gql.Playground
+	cfg.GraphQLPlaygroundPath = gql.PlaygroundPath
 
 	if e.swaggerEnabled || strings.TrimSpace(e.swaggerPath) != "" {
 		cfg.SwaggerPath = resolveSwaggerPath(e.swaggerPath)

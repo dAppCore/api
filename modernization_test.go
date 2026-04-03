@@ -150,6 +150,9 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if cfg.Transport.SwaggerPath != "/docs" {
 		t.Fatalf("expected transport swagger path /docs, got %q", cfg.Transport.SwaggerPath)
 	}
+	if cfg.Transport.GraphQLPlaygroundPath != "/graphql/playground" {
+		t.Fatalf("expected transport graphql playground path /graphql/playground, got %q", cfg.Transport.GraphQLPlaygroundPath)
+	}
 	if !cfg.Cache.Enabled || cfg.Cache.TTL != 5*time.Minute {
 		t.Fatalf("expected cache snapshot to be populated, got %+v", cfg.Cache)
 	}
@@ -161,6 +164,9 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	}
 	if !cfg.GraphQL.Playground {
 		t.Fatal("expected GraphQL playground snapshot to be enabled")
+	}
+	if cfg.GraphQL.PlaygroundPath != "/graphql/playground" {
+		t.Fatalf("expected GraphQL playground path /graphql/playground, got %q", cfg.GraphQL.PlaygroundPath)
 	}
 	if cfg.I18n.DefaultLocale != "en-GB" {
 		t.Fatalf("expected default locale en-GB, got %q", cfg.I18n.DefaultLocale)
