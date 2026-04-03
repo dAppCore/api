@@ -46,6 +46,13 @@ type OpenAPIClient struct {
 
 // OpenAPIOperation snapshots the public metadata for a single loaded OpenAPI
 // operation.
+//
+// Example:
+//
+//	ops, err := client.Operations()
+//	if err == nil && len(ops) > 0 {
+//		fmt.Println(ops[0].OperationID, ops[0].PathTemplate)
+//	}
 type OpenAPIOperation struct {
 	OperationID    string
 	Method         string
@@ -55,6 +62,13 @@ type OpenAPIOperation struct {
 }
 
 // OpenAPIParameter snapshots a single OpenAPI parameter definition.
+//
+// Example:
+//
+//	op, err := client.Operations()
+//	if err == nil && len(op) > 0 && len(op[0].Parameters) > 0 {
+//		fmt.Println(op[0].Parameters[0].Name, op[0].Parameters[0].In)
+//	}
 type OpenAPIParameter struct {
 	Name     string
 	In       string
