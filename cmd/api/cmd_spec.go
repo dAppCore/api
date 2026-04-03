@@ -77,6 +77,7 @@ func registerSpecBuilderFlags(cmd *cli.Command, cfg *specBuilderConfig) {
 	cli.StringFlag(cmd, &cfg.swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
 	cli.StringFlag(cmd, &cfg.graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
 	cli.BoolFlag(cmd, &cfg.graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
+	cli.StringFlag(cmd, &cfg.graphqlPlaygroundPath, "graphql-playground-path", "", "", "GraphQL playground path in generated spec")
 	cli.StringFlag(cmd, &cfg.ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
 	cli.StringFlag(cmd, &cfg.wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
 	cli.BoolFlag(cmd, &cfg.pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")

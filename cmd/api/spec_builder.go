@@ -17,6 +17,7 @@ type specBuilderConfig struct {
 	swaggerPath             string
 	graphqlPath             string
 	graphqlPlayground       bool
+	graphqlPlaygroundPath   string
 	ssePath                 string
 	wsPath                  string
 	pprofEnabled            bool
@@ -61,6 +62,7 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		GraphQLEnabled:          graphqlPath != "" || cfg.graphqlPlayground,
 		GraphQLPath:             graphqlPath,
 		GraphQLPlayground:       cfg.graphqlPlayground,
+		GraphQLPlaygroundPath:   strings.TrimSpace(cfg.graphqlPlaygroundPath),
 		SSEEnabled:              ssePath != "",
 		SSEPath:                 ssePath,
 		WSEnabled:               wsPath != "",

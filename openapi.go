@@ -299,7 +299,11 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		}
 		paths[graphqlPath] = item
 		if sb.GraphQLPlayground {
-			playgroundPath := normaliseOpenAPIPath(graphqlPath + "/playground")
+			playgroundPath := sb.effectiveGraphQLPlaygroundPath()
+			if playgroundPath == "" {
+				playgroundPath = graphqlPath + "/playground"
+			}
+			playgroundPath = normaliseOpenAPIPath(playgroundPath)
 			item := graphqlPlaygroundPathItem(playgroundPath, operationIDs)
 			if isPublicPathForList(playgroundPath, publicPaths) {
 				makePathItemPublic(item)

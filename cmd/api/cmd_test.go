@@ -103,6 +103,9 @@ func TestAPISpecCmd_Good_JSON(t *testing.T) {
 	if specCmd.Flag("graphql-playground") == nil {
 		t.Fatal("expected --graphql-playground flag on spec command")
 	}
+	if specCmd.Flag("graphql-playground-path") == nil {
+		t.Fatal("expected --graphql-playground-path flag on spec command")
+	}
 	if specCmd.Flag("sse-path") == nil {
 		t.Fatal("expected --sse-path flag on spec command")
 	}
@@ -453,6 +456,50 @@ func TestAPISpecCmd_Good_GraphQLPlaygroundFlagPopulatesSpecPaths(t *testing.T) {
 	}
 	if _, ok := paths["/graphql/playground"]; !ok {
 		t.Fatal("expected GraphQL playground path in generated spec")
+	}
+}
+
+func TestAPISpecCmd_Good_GraphQLPlaygroundPathFlagOverridesGeneratedPath(t *testing.T) {
+	root := &cli.Command{Use: "root"}
+	AddAPICommands(root)
+
+	outputFile := t.TempDir() + "/spec.json"
+	root.SetArgs([]string{
+		"api", "spec",
+		"--graphql-path", "/graphql",
+		"--graphql-playground",
+		"--graphql-playground-path", "/graphql-ui",
+		"--output", outputFile,
+	})
+	root.SetErr(new(bytes.Buffer))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("expected spec file to be written: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("expected valid JSON spec, got error: %v", err)
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("expected paths object in generated spec")
+	}
+	if _, ok := paths["/graphql-ui"]; !ok {
+		t.Fatal("expected custom GraphQL playground path in generated spec")
+	}
+	if _, ok := paths["/graphql/playground"]; ok {
+		t.Fatal("expected default GraphQL playground path to be overridden")
+	}
+
+	if got := spec["x-graphql-playground-path"]; got != "/graphql-ui" {
+		t.Fatalf("expected x-graphql-playground-path=/graphql-ui, got %v", got)
 	}
 }
 
