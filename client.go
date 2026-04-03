@@ -7,12 +7,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
+
+	"slices"
 
 	"gopkg.in/yaml.v3"
 
@@ -38,6 +42,24 @@ type OpenAPIClient struct {
 	operations map[string]openAPIOperation
 	servers    []string
 	loadErr    error
+}
+
+// OpenAPIOperation snapshots the public metadata for a single loaded OpenAPI
+// operation.
+type OpenAPIOperation struct {
+	OperationID    string
+	Method         string
+	PathTemplate   string
+	HasRequestBody bool
+	Parameters     []OpenAPIParameter
+}
+
+// OpenAPIParameter snapshots a single OpenAPI parameter definition.
+type OpenAPIParameter struct {
+	Name     string
+	In       string
+	Required bool
+	Schema   map[string]any
 }
 
 type openAPIOperation struct {
@@ -138,6 +160,92 @@ func NewOpenAPIClient(opts ...OpenAPIClientOption) *OpenAPIClient {
 		c.httpClient = http.DefaultClient
 	}
 	return c
+}
+
+// Operations returns a snapshot of the operations loaded from the OpenAPI
+// document.
+//
+// Example:
+//
+//	ops, err := client.Operations()
+func (c *OpenAPIClient) Operations() ([]OpenAPIOperation, error) {
+	if err := c.load(); err != nil {
+		return nil, err
+	}
+
+	operations := make([]OpenAPIOperation, 0, len(c.operations))
+	for operationID, op := range c.operations {
+		operations = append(operations, snapshotOpenAPIOperation(operationID, op))
+	}
+	sort.SliceStable(operations, func(i, j int) bool {
+		if operations[i].OperationID == operations[j].OperationID {
+			if operations[i].Method == operations[j].Method {
+				return operations[i].PathTemplate < operations[j].PathTemplate
+			}
+			return operations[i].Method < operations[j].Method
+		}
+		return operations[i].OperationID < operations[j].OperationID
+	})
+	return operations, nil
+}
+
+// OperationsIter returns an iterator over the loaded OpenAPI operations.
+//
+// Example:
+//
+//	for op := range client.OperationsIter() {
+//		_ = op
+//	}
+func (c *OpenAPIClient) OperationsIter() (iter.Seq[OpenAPIOperation], error) {
+	operations, err := c.Operations()
+	if err != nil {
+		return nil, err
+	}
+
+	return func(yield func(OpenAPIOperation) bool) {
+		for _, op := range operations {
+			if !yield(op) {
+				return
+			}
+		}
+	}, nil
+}
+
+// Servers returns a snapshot of the server URLs discovered from the OpenAPI
+// document.
+//
+// Example:
+//
+//	servers, err := client.Servers()
+func (c *OpenAPIClient) Servers() ([]string, error) {
+	if err := c.load(); err != nil {
+		return nil, err
+	}
+
+	return slices.Clone(c.servers), nil
+}
+
+// ServersIter returns an iterator over the server URLs discovered from the
+// OpenAPI document.
+//
+// Example:
+//
+//	for server := range client.ServersIter() {
+//		_ = server
+//	}
+func (c *OpenAPIClient) ServersIter() (iter.Seq[string], error) {
+	servers, err := c.Servers()
+	if err != nil {
+		return nil, err
+	}
+
+	return func(yield func(string) bool) {
+		for _, server := range servers {
+			if !yield(server) {
+				return
+			}
+		}
+	}, nil
 }
 
 // Call invokes the operation with the given operationId.
@@ -339,6 +447,26 @@ func (c *OpenAPIClient) loadSpec() error {
 	}
 
 	return nil
+}
+
+func snapshotOpenAPIOperation(operationID string, op openAPIOperation) OpenAPIOperation {
+	parameters := make([]OpenAPIParameter, len(op.parameters))
+	for i, param := range op.parameters {
+		parameters[i] = OpenAPIParameter{
+			Name:     param.name,
+			In:       param.in,
+			Required: param.required,
+			Schema:   cloneOpenAPIObject(param.schema),
+		}
+	}
+
+	return OpenAPIOperation{
+		OperationID:    operationID,
+		Method:         strings.ToUpper(op.method),
+		PathTemplate:   op.pathTemplate,
+		HasRequestBody: op.hasRequestBody,
+		Parameters:     parameters,
+	}
 }
 
 func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (string, error) {

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"slices"
+
 	api "dappco.re/go/core/api"
 )
 
@@ -171,6 +173,102 @@ paths:
 	}
 	if ping["message"] != "pong" {
 		t.Fatalf("expected message=pong, got %#v", ping["message"])
+	}
+}
+
+func TestOpenAPIClient_Good_ExposesOperationSnapshots(t *testing.T) {
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /users/{id}:
+    post:
+      operationId: update_user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+`)
+
+	client := api.NewOpenAPIClient(api.WithSpec(specPath))
+
+	operations, err := client.Operations()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(operations) != 1 {
+		t.Fatalf("expected 1 operation, got %d", len(operations))
+	}
+
+	op := operations[0]
+	if op.OperationID != "update_user" {
+		t.Fatalf("expected operationId update_user, got %q", op.OperationID)
+	}
+	if op.Method != http.MethodPost {
+		t.Fatalf("expected method POST, got %q", op.Method)
+	}
+	if op.PathTemplate != "/users/{id}" {
+		t.Fatalf("expected path template /users/{id}, got %q", op.PathTemplate)
+	}
+	if !op.HasRequestBody {
+		t.Fatal("expected operation to report a request body")
+	}
+	if len(op.Parameters) != 1 || op.Parameters[0].Name != "id" {
+		t.Fatalf("expected one path parameter snapshot, got %+v", op.Parameters)
+	}
+
+	op.Parameters[0].Schema["type"] = "integer"
+	operations[0].PathTemplate = "/mutated"
+
+	again, err := client.Operations()
+	if err != nil {
+		t.Fatalf("unexpected error on re-read: %v", err)
+	}
+	if again[0].PathTemplate != "/users/{id}" {
+		t.Fatalf("expected snapshot to remain immutable, got %q", again[0].PathTemplate)
+	}
+	if got := again[0].Parameters[0].Schema["type"]; got != "string" {
+		t.Fatalf("expected cloned parameter schema, got %#v", got)
+	}
+}
+
+func TestOpenAPIClient_Good_ExposesServerSnapshots(t *testing.T) {
+	client := api.NewOpenAPIClient(api.WithSpecReader(strings.NewReader(`openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+  - url: /relative
+paths: {}
+`)))
+
+	servers, err := client.Servers()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !slices.Equal(servers, []string{"https://api.example.com", "/relative"}) {
+		t.Fatalf("expected server snapshot to preserve order, got %v", servers)
+	}
+
+	servers[0] = "https://mutated.example.com"
+	again, err := client.Servers()
+	if err != nil {
+		t.Fatalf("unexpected error on re-read: %v", err)
+	}
+	if !slices.Equal(again, []string{"https://api.example.com", "/relative"}) {
+		t.Fatalf("expected server snapshot to be cloned, got %v", again)
 	}
 }
 
