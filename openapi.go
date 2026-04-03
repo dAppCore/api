@@ -123,10 +123,14 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	}
 	if graphqlPath := sb.effectiveGraphQLPath(); graphqlPath != "" {
 		spec["x-graphql-path"] = normaliseOpenAPIPath(graphqlPath)
-		spec["x-graphql-playground"] = sb.GraphQLPlayground
+		if sb.GraphQLPlayground {
+			spec["x-graphql-playground"] = true
+		}
 	}
-	if playgroundPath := sb.effectiveGraphQLPlaygroundPath(); playgroundPath != "" {
-		spec["x-graphql-playground-path"] = normaliseOpenAPIPath(playgroundPath)
+	if sb.GraphQLPlayground {
+		if playgroundPath := sb.effectiveGraphQLPlaygroundPath(); playgroundPath != "" {
+			spec["x-graphql-playground-path"] = normaliseOpenAPIPath(playgroundPath)
+		}
 	}
 	if wsPath := sb.effectiveWSPath(); wsPath != "" {
 		spec["x-ws-path"] = normaliseOpenAPIPath(wsPath)

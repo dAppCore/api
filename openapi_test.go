@@ -562,6 +562,9 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	if !found {
 		t.Fatal("expected graphql tag in spec")
 	}
+	if _, ok := spec["x-graphql-playground"]; ok {
+		t.Fatal("expected x-graphql-playground to be omitted when playground is disabled")
+	}
 
 	paths := spec["paths"].(map[string]any)
 	pathItem, ok := paths["/graphql"].(map[string]any)
