@@ -272,6 +272,58 @@ paths: {}
 	}
 }
 
+func TestOpenAPIClient_Good_IteratorsExposeSnapshots(t *testing.T) {
+	client := api.NewOpenAPIClient(api.WithSpecReader(strings.NewReader(`openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /users/{id}:
+    post:
+      operationId: update_user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+`)))
+
+	operations, err := client.OperationsIter()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var operationIDs []string
+	for op := range operations {
+		operationIDs = append(operationIDs, op.OperationID)
+	}
+	if !slices.Equal(operationIDs, []string{"update_user"}) {
+		t.Fatalf("expected iterator to preserve operation snapshots, got %v", operationIDs)
+	}
+
+	servers, err := client.ServersIter()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var serverURLs []string
+	for server := range servers {
+		serverURLs = append(serverURLs, server)
+	}
+	if !slices.Equal(serverURLs, []string{"https://api.example.com"}) {
+		t.Fatalf("expected iterator to preserve server snapshots, got %v", serverURLs)
+	}
+}
+
 func TestOpenAPIClient_Good_CallHeadOperationWithRequestBody(t *testing.T) {
 	errCh := make(chan error, 1)
 	mux := http.NewServeMux()

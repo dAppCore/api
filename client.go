@@ -207,8 +207,12 @@ func (c *OpenAPIClient) Operations() ([]OpenAPIOperation, error) {
 //
 // Example:
 //
-//	for op := range client.OperationsIter() {
-//		_ = op
+//	ops, err := client.OperationsIter()
+//	if err != nil {
+//		panic(err)
+//	}
+//	for op := range ops {
+//		fmt.Println(op.OperationID, op.PathTemplate)
 //	}
 func (c *OpenAPIClient) OperationsIter() (iter.Seq[OpenAPIOperation], error) {
 	operations, err := c.Operations()
@@ -244,8 +248,12 @@ func (c *OpenAPIClient) Servers() ([]string, error) {
 //
 // Example:
 //
-//	for server := range client.ServersIter() {
-//		_ = server
+//	servers, err := client.ServersIter()
+//	if err != nil {
+//		panic(err)
+//	}
+//	for server := range servers {
+//		fmt.Println(server)
 //	}
 func (c *OpenAPIClient) ServersIter() (iter.Seq[string], error) {
 	servers, err := c.Servers()
