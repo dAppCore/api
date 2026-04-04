@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	dappco.re/go/core/io v0.1.7
 	dappco.re/go/core/log v0.0.4
-	forge.lthn.ai/core/cli v0.3.7
+	dappco.re/go/core/cli v0.3.7
 	github.com/99designs/gqlgen v0.17.88
 	github.com/andybalholm/brotli v1.2.0
 	github.com/casbin/casbin/v2 v2.135.0
@@ -38,10 +38,10 @@ require (
 )
 
 require (
-	forge.lthn.ai/core/go v0.3.2 // indirect
-	forge.lthn.ai/core/go-i18n v0.1.7 // indirect
-	forge.lthn.ai/core/go-inference v0.1.7 // indirect
-	forge.lthn.ai/core/go-log v0.0.4 // indirect
+	dappco.re/go/core v0.3.2 // indirect
+	dappco.re/go/core/i18n v0.1.7 // indirect
+	dappco.re/go/core/inference v0.1.7 // indirect
+	dappco.re/go/core/log v0.0.4 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
