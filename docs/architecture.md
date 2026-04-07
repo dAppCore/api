@@ -30,6 +30,8 @@ type Engine struct {
     swaggerTitle   string
     swaggerDesc    string
     swaggerVersion string
+    swaggerExternalDocsDescription string
+    swaggerExternalDocsURL         string
     pprofEnabled   bool
     expvarEnabled  bool
     graphql        *graphqlConfig
@@ -128,6 +130,9 @@ type RouteDescription struct {
     Summary     string
     Description string
     Tags        []string
+    Deprecated  bool
+    StatusCode  int
+    Parameters  []ParameterDescription
     RequestBody map[string]any
     Response    map[string]any
 }
@@ -151,12 +156,19 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithAddr(addr)` | Listen address | Default `:8080` |
 | `WithBearerAuth(token)` | Static bearer token authentication | Skips `/health` and `/swagger` |
 | `WithRequestID()` | `X-Request-ID` propagation | Preserves client-supplied IDs; generates 16-byte hex otherwise |
+| `WithResponseMeta()` | Request metadata in JSON envelopes | Merges `request_id` and `duration` into standard responses |
 | `WithCORS(origins...)` | CORS policy | `"*"` enables `AllowAllOrigins`; 12-hour `MaxAge` |
+| `WithRateLimit(limit)` | Per-IP token-bucket rate limiting | `429 Too Many Requests`; `X-RateLimit-*` on success; `Retry-After` on rejection; zero or negative disables |
 | `WithMiddleware(mw...)` | Arbitrary Gin middleware | Escape hatch for custom middleware |
 | `WithStatic(prefix, root)` | Static file serving | Directory listing disabled |
 | `WithWSHandler(h)` | WebSocket at `/ws` | Wraps any `http.Handler` |
 | `WithAuthentik(cfg)` | Authentik forward-auth + OIDC JWT | Permissive; populates context, never rejects |
 | `WithSwagger(title, desc, ver)` | Swagger UI at `/swagger/` | Runtime spec via `SpecBuilder` |
+| `WithSwaggerTermsOfService(url)` | OpenAPI terms of service metadata | Populates the Swagger spec info block without manual `SpecBuilder` wiring |
+| `WithSwaggerContact(name, url, email)` | OpenAPI contact metadata | Populates the Swagger spec info block without manual `SpecBuilder` wiring |
+| `WithSwaggerServers(servers...)` | OpenAPI server metadata | Feeds the runtime Swagger spec and exported docs |
+| `WithSwaggerLicense(name, url)` | OpenAPI licence metadata | Populates the Swagger spec info block without manual `SpecBuilder` wiring |
+| `WithSwaggerExternalDocs(description, url)` | OpenAPI external documentation metadata | Populates the top-level `externalDocs` block without manual `SpecBuilder` wiring |
 | `WithPprof()` | Go profiling at `/debug/pprof/` | WARNING: do not expose in production without authentication |
 | `WithExpvar()` | Runtime metrics at `/debug/vars` | WARNING: do not expose in production without authentication |
 | `WithSecure()` | Security headers | HSTS 1 year, X-Frame-Options DENY, nosniff, strict referrer |
@@ -164,7 +176,8 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithBrotli(level...)` | Brotli response compression | Writer pool for efficiency; default compression if level omitted |
 | `WithSlog(logger)` | Structured request logging | Falls back to `slog.Default()` if nil |
 | `WithTimeout(d)` | Per-request deadline | 504 with standard error envelope on timeout |
-| `WithCache(ttl)` | In-memory GET response caching | `X-Cache: HIT` header on cache hits; 2xx only |
+| `WithCache(ttl)` | In-memory GET response caching | Compatibility wrapper for `WithCacheLimits(ttl, 0, 0)`; `X-Cache: HIT` header on cache hits; 2xx only |
+| `WithCacheLimits(ttl, maxEntries, maxBytes)` | In-memory GET response caching with explicit bounds | Clearer cache configuration when eviction policy should be self-documenting |
 | `WithSessions(name, secret)` | Cookie-backed server sessions | gin-contrib/sessions with cookie store |
 | `WithAuthz(enforcer)` | Casbin policy-based authorisation | Subject from HTTP Basic Auth; 403 on deny |
 | `WithHTTPSign(secrets, opts...)` | HTTP Signatures verification | draft-cavage-http-signatures; 401/400 on failure |
@@ -371,14 +384,19 @@ redirects and introspection). The GraphQL handler is created via gqlgen's
 
 ## 8. Response Caching
 
-`WithCache(ttl)` installs a URL-keyed in-memory response cache scoped to GET requests:
+`WithCacheLimits(ttl, maxEntries, maxBytes)` installs a URL-keyed in-memory response cache scoped to GET requests:
+
+```go
+engine, _ := api.New(api.WithCacheLimits(5*time.Minute, 100, 10<<20))
+```
 
 - Only successful 2xx responses are cached.
 - Non-GET methods pass through uncached.
 - Cached responses are served with an `X-Cache: HIT` header.
 - Expired entries are evicted lazily on the next access for the same key.
 - The cache is not shared across `Engine` instances.
-- There is no size limit on the cache.
+- `WithCache(ttl)` remains available as a compatibility wrapper for callers that do not need to spell out the bounds.
+- Passing non-positive values to `WithCacheLimits` leaves that limit unbounded.
 
 The implementation uses a `cacheWriter` that wraps `gin.ResponseWriter` to intercept and
 capture the response body and status code for storage.
@@ -573,7 +591,9 @@ Generates an OpenAPI 3.1 specification from registered route groups.
 | `--output` | `-o` | (stdout) | Write spec to file |
 | `--format` | `-f` | `json` | Output format: `json` or `yaml` |
 | `--title` | `-t` | `Lethean Core API` | API title |
+| `--description` | `-d` | `Lethean Core API` | API description |
 | `--version` | `-V` | `1.0.0` | API version |
+| `--server` | `-S` | (none) | Comma-separated OpenAPI server URL(s) |
 
 ### `core api sdk`
 
@@ -585,6 +605,10 @@ Generates client SDKs from an OpenAPI spec using `openapi-generator-cli`.
 | `--output` | `-o` | `./sdk` | Output directory |
 | `--spec` | `-s` | (auto-generated) | Path to existing OpenAPI spec |
 | `--package` | `-p` | `lethean` | Package name for generated SDK |
+| `--title` | `-t` | `Lethean Core API` | API title in generated spec |
+| `--description` | `-d` | `Lethean Core API` | API description in generated spec |
+| `--version` | `-V` | `1.0.0` | API version in generated spec |
+| `--server` | `-S` | (none) | Comma-separated OpenAPI server URL(s) |
 
 ---
 

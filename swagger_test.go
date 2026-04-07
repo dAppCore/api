@@ -65,6 +65,117 @@ func TestSwaggerEndpoint_Good(t *testing.T) {
 	}
 }
 
+func TestSwaggerEndpoint_Good_CustomPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/docs/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+	if len(body) == 0 {
+		t.Fatal("expected non-empty response body")
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("expected valid JSON, got unmarshal error: %v", err)
+	}
+
+	info, ok := doc["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected 'info' object in swagger doc")
+	}
+	if info["title"] != "Test API" {
+		t.Fatalf("expected title=%q, got %q", "Test API", info["title"])
+	}
+}
+
+func TestSwaggerEndpoint_Good_BasePathRedirect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwagger("Test API", "A test API service", "1.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(srv.URL + "/swagger")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 redirect, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/swagger/" {
+		t.Fatalf("expected Location=/swagger/, got %q", got)
+	}
+}
+
+func TestSwaggerEndpoint_Good_CustomBasePathRedirect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(srv.URL + "/docs")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301 redirect, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != "/docs/" {
+		t.Fatalf("expected Location=/docs/, got %q", got)
+	}
+}
+
 func TestSwaggerDisabledByDefault_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -78,6 +189,32 @@ func TestSwaggerDisabledByDefault_Good(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for /swagger/doc.json without WithSwagger, got %d", w.Code)
+	}
+}
+
+func TestSwaggerAuth_Good_CustomPathBypassesBearerAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithBearerAuth("secret"),
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/docs/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for custom swagger path without auth, got %d", resp.StatusCode)
 	}
 }
 
@@ -200,6 +337,87 @@ func TestSwagger_Good_WithToolBridge(t *testing.T) {
 	}
 }
 
+func TestSwagger_Good_IncludesSSEEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSwagger("SSE API", "SSE test", "1.0.0"), api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := doc["paths"].(map[string]any)
+	pathItem, ok := paths["/events"].(map[string]any)
+	if !ok {
+		t.Fatal("expected /events path in swagger doc")
+	}
+
+	getOp := pathItem["get"].(map[string]any)
+	if getOp["operationId"] != "get_events" {
+		t.Fatalf("expected SSE operationId to be get_events, got %v", getOp["operationId"])
+	}
+}
+
+func TestSwagger_Good_UsesCustomSSEPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(
+		api.WithSwagger("SSE API", "SSE test", "1.0.0"),
+		api.WithSSE(broker),
+		api.WithSSEPath("/stream"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := doc["paths"].(map[string]any)
+	if _, ok := paths["/stream"]; !ok {
+		t.Fatal("expected custom SSE path /stream in swagger doc")
+	}
+	if _, ok := paths["/events"]; ok {
+		t.Fatal("did not expect default /events path when custom SSE path is configured")
+	}
+}
+
 func TestSwagger_Good_CachesSpec(t *testing.T) {
 	spec := &swaggerSpecHelper{
 		title:   "Cache Test",
@@ -255,6 +473,389 @@ func TestSwagger_Good_InfoFromOptions(t *testing.T) {
 	}
 	if info["version"] != "2.0.0" {
 		t.Fatalf("expected version=%q, got %v", "2.0.0", info["version"])
+	}
+}
+
+func TestSwagger_Good_IncludesGraphQLEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithGraphQL(newTestSchema()), api.WithSwagger("Graph API", "GraphQL docs", "1.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("expected paths object in swagger doc")
+	}
+	if _, ok := paths["/graphql"]; !ok {
+		t.Fatal("expected /graphql path in swagger doc")
+	}
+}
+
+func TestSwagger_Good_UsesLicenseMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Licensed API", "Licensed test", "1.0.0"),
+		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected license metadata in swagger doc")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected license name=%q, got %v", "EUPL-1.2", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected license url=%q, got %v", "https://eupl.eu/1.2/en/", license["url"])
+	}
+}
+
+func TestSwagger_Good_UsesContactMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Contact API", "Contact test", "1.0.0"),
+		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in swagger doc")
+	}
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected contact name=%q, got %v", "API Support", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url=%q, got %v", "https://example.com/support", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email=%q, got %v", "support@example.com", contact["email"])
+	}
+}
+
+func TestSwagger_Good_UsesTermsOfServiceMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Terms API", "Terms test", "1.0.0"),
+		api.WithSwaggerTermsOfService("https://example.com/terms"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService=%q, got %v", "https://example.com/terms", info["termsOfService"])
+	}
+}
+
+func TestSwagger_Good_UsesExternalDocsMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Docs API", "Docs test", "1.0.0"),
+		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	externalDocs, ok := doc["externalDocs"].(map[string]any)
+	if !ok {
+		t.Fatal("expected externalDocs metadata in swagger doc")
+	}
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected externalDocs description=%q, got %v", "Developer guide", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected externalDocs url=%q, got %v", "https://example.com/docs", externalDocs["url"])
+	}
+}
+
+func TestSwagger_Good_IgnoresBlankMetadataOverrides(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Stable API", "Blank override test", "1.0.0"),
+		api.WithSwaggerTermsOfService("https://example.com/terms"),
+		api.WithSwaggerTermsOfService(""),
+		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
+		api.WithSwaggerContact("", "", ""),
+		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
+		api.WithSwaggerLicense("", ""),
+		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
+		api.WithSwaggerExternalDocs("", ""),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	info := doc["info"].(map[string]any)
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService to survive blank override, got %v", info["termsOfService"])
+	}
+
+	contact, ok := info["contact"].(map[string]any)
+	if !ok {
+		t.Fatal("expected contact metadata in swagger doc")
+	}
+	if contact["name"] != "API Support" {
+		t.Fatalf("expected contact name to survive blank override, got %v", contact["name"])
+	}
+	if contact["url"] != "https://example.com/support" {
+		t.Fatalf("expected contact url to survive blank override, got %v", contact["url"])
+	}
+	if contact["email"] != "support@example.com" {
+		t.Fatalf("expected contact email to survive blank override, got %v", contact["email"])
+	}
+
+	license, ok := info["license"].(map[string]any)
+	if !ok {
+		t.Fatal("expected license metadata in swagger doc")
+	}
+	if license["name"] != "EUPL-1.2" {
+		t.Fatalf("expected license name to survive blank override, got %v", license["name"])
+	}
+	if license["url"] != "https://eupl.eu/1.2/en/" {
+		t.Fatalf("expected license url to survive blank override, got %v", license["url"])
+	}
+
+	externalDocs, ok := doc["externalDocs"].(map[string]any)
+	if !ok {
+		t.Fatal("expected externalDocs metadata in swagger doc")
+	}
+	if externalDocs["description"] != "Developer guide" {
+		t.Fatalf("expected externalDocs description to survive blank override, got %v", externalDocs["description"])
+	}
+	if externalDocs["url"] != "https://example.com/docs" {
+		t.Fatalf("expected externalDocs url to survive blank override, got %v", externalDocs["url"])
+	}
+}
+
+func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
+		api.WithSwaggerServers(" https://api.example.com ", "/", "", "https://api.example.com"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := doc["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array, got %T", doc["servers"])
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 normalised servers, got %d", len(servers))
+	}
+
+	first := servers[0].(map[string]any)
+	if first["url"] != "https://api.example.com" {
+		t.Fatalf("expected first server url=%q, got %v", "https://api.example.com", first["url"])
+	}
+
+	second := servers[1].(map[string]any)
+	if second["url"] != "/" {
+		t.Fatalf("expected second server url=%q, got %v", "/", second["url"])
+	}
+}
+
+func TestSwagger_Good_AppendsServerMetadataAcrossCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
+		api.WithSwaggerServers("https://api.example.com", "/"),
+		api.WithSwaggerServers(" https://docs.example.com ", "/", "https://api.example.com"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers, ok := doc["servers"].([]any)
+	if !ok {
+		t.Fatalf("expected servers array, got %T", doc["servers"])
+	}
+	if len(servers) != 3 {
+		t.Fatalf("expected 3 normalised servers, got %d", len(servers))
+	}
+
+	expected := []string{"https://api.example.com", "/", "https://docs.example.com"}
+	for i, want := range expected {
+		got := servers[i].(map[string]any)["url"]
+		if got != want {
+			t.Fatalf("expected server[%d] url=%q, got %v", i, want, got)
+		}
 	}
 }
 

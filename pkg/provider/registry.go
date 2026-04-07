@@ -1,4 +1,4 @@
-// SPDX-Licence-Identifier: EUPL-1.2
+// SPDX-License-Identifier: EUPL-1.2
 
 package provider
 
@@ -88,6 +88,24 @@ func (r *Registry) Streamable() []Streamable {
 	return result
 }
 
+// StreamableIter returns an iterator over all registered providers that
+// implement the Streamable interface.
+func (r *Registry) StreamableIter() iter.Seq[Streamable] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(Streamable) bool) {
+		for _, p := range providers {
+			if s, ok := p.(Streamable); ok {
+				if !yield(s) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // Describable returns all providers that implement the Describable interface.
 func (r *Registry) Describable() []Describable {
 	r.mu.RLock()
@@ -99,6 +117,24 @@ func (r *Registry) Describable() []Describable {
 		}
 	}
 	return result
+}
+
+// DescribableIter returns an iterator over all registered providers that
+// implement the Describable interface.
+func (r *Registry) DescribableIter() iter.Seq[Describable] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(Describable) bool) {
+		for _, p := range providers {
+			if d, ok := p.(Describable); ok {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // Renderable returns all providers that implement the Renderable interface.
@@ -114,12 +150,32 @@ func (r *Registry) Renderable() []Renderable {
 	return result
 }
 
+// RenderableIter returns an iterator over all registered providers that
+// implement the Renderable interface.
+func (r *Registry) RenderableIter() iter.Seq[Renderable] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(Renderable) bool) {
+		for _, p := range providers {
+			if rv, ok := p.(Renderable); ok {
+				if !yield(rv) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // ProviderInfo is a serialisable summary of a registered provider.
 type ProviderInfo struct {
 	Name     string       `json:"name"`
 	BasePath string       `json:"basePath"`
 	Channels []string     `json:"channels,omitempty"`
 	Element  *ElementSpec `json:"element,omitempty"`
+	SpecFile string       `json:"specFile,omitempty"`
+	Upstream string       `json:"upstream,omitempty"`
 }
 
 // Info returns a summary of all registered providers.
@@ -140,7 +196,76 @@ func (r *Registry) Info() []ProviderInfo {
 			elem := rv.Element()
 			info.Element = &elem
 		}
+		if sf, ok := p.(interface{ SpecFile() string }); ok {
+			info.SpecFile = sf.SpecFile()
+		}
+		if up, ok := p.(interface{ Upstream() string }); ok {
+			info.Upstream = up.Upstream()
+		}
 		infos = append(infos, info)
 	}
 	return infos
+}
+
+// InfoIter returns an iterator over all registered provider summaries.
+// The iterator snapshots the current registry contents so callers can range
+// over it without holding the registry lock.
+func (r *Registry) InfoIter() iter.Seq[ProviderInfo] {
+	r.mu.RLock()
+	providers := slices.Clone(r.providers)
+	r.mu.RUnlock()
+
+	return func(yield func(ProviderInfo) bool) {
+		for _, p := range providers {
+			info := ProviderInfo{
+				Name:     p.Name(),
+				BasePath: p.BasePath(),
+			}
+			if s, ok := p.(Streamable); ok {
+				info.Channels = s.Channels()
+			}
+			if rv, ok := p.(Renderable); ok {
+				elem := rv.Element()
+				info.Element = &elem
+			}
+			if sf, ok := p.(interface{ SpecFile() string }); ok {
+				info.SpecFile = sf.SpecFile()
+			}
+			if up, ok := p.(interface{ Upstream() string }); ok {
+				info.Upstream = up.Upstream()
+			}
+			if !yield(info) {
+				return
+			}
+		}
+	}
+}
+
+// SpecFiles returns all non-empty provider OpenAPI spec file paths.
+// The result is deduplicated and sorted for stable discovery output.
+func (r *Registry) SpecFiles() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	files := make(map[string]struct{}, len(r.providers))
+	for _, p := range r.providers {
+		if sf, ok := p.(interface{ SpecFile() string }); ok {
+			if path := sf.SpecFile(); path != "" {
+				files[path] = struct{}{}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(files))
+	for path := range files {
+		out = append(out, path)
+	}
+
+	slices.Sort(out)
+	return out
+}
+
+// SpecFilesIter returns an iterator over all non-empty provider OpenAPI spec files.
+func (r *Registry) SpecFilesIter() iter.Seq[string] {
+	return slices.Values(r.SpecFiles())
 }

@@ -14,6 +14,10 @@ import (
 )
 
 // AuthentikConfig holds settings for the Authentik forward-auth integration.
+//
+// Example:
+//
+//	cfg := api.AuthentikConfig{Issuer: "https://auth.example.com/", ClientID: "core-api"}
 type AuthentikConfig struct {
 	// Issuer is the OIDC issuer URL (e.g. https://auth.example.com/application/o/my-app/).
 	Issuer string
@@ -26,12 +30,32 @@ type AuthentikConfig struct {
 	TrustedProxy bool
 
 	// PublicPaths lists additional paths that do not require authentication.
-	// /health and /swagger are always public.
+	// /health and the configured Swagger UI path are always public.
 	PublicPaths []string
+}
+
+// AuthentikConfig returns the configured Authentik settings for the engine.
+//
+// The result snapshots the Engine state at call time and clones slices so
+// callers can safely reuse or modify the returned value.
+//
+// Example:
+//
+//	cfg := engine.AuthentikConfig()
+func (e *Engine) AuthentikConfig() AuthentikConfig {
+	if e == nil {
+		return AuthentikConfig{}
+	}
+
+	return cloneAuthentikConfig(e.authentikConfig)
 }
 
 // AuthentikUser represents an authenticated user extracted from Authentik
 // forward-auth headers or a validated JWT.
+//
+// Example:
+//
+//	user := &api.AuthentikUser{Username: "alice", Groups: []string{"admins"}}
 type AuthentikUser struct {
 	Username     string   `json:"username"`
 	Email        string   `json:"email"`
@@ -43,6 +67,10 @@ type AuthentikUser struct {
 }
 
 // HasGroup reports whether the user belongs to the named group.
+//
+// Example:
+//
+//	user.HasGroup("admins")
 func (u *AuthentikUser) HasGroup(group string) bool {
 	return slices.Contains(u.Groups, group)
 }
@@ -53,6 +81,10 @@ const authentikUserKey = "authentik_user"
 // GetUser retrieves the AuthentikUser from the Gin context.
 // Returns nil when no user has been set (unauthenticated request or
 // middleware not active).
+//
+// Example:
+//
+//	user := api.GetUser(c)
 func GetUser(c *gin.Context) *AuthentikUser {
 	val, exists := c.Get(authentikUserKey)
 	if !exists {
@@ -134,7 +166,7 @@ func validateJWT(ctx context.Context, cfg AuthentikConfig, rawToken string) (*Au
 // The middleware is PERMISSIVE: it populates the context when credentials are
 // present but never rejects unauthenticated requests. Downstream handlers
 // use GetUser to check authentication.
-func authentikMiddleware(cfg AuthentikConfig) gin.HandlerFunc {
+func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.HandlerFunc {
 	// Build the set of public paths that skip header extraction entirely.
 	public := map[string]bool{
 		"/health":  true,
@@ -148,9 +180,17 @@ func authentikMiddleware(cfg AuthentikConfig) gin.HandlerFunc {
 		// Skip public paths.
 		path := c.Request.URL.Path
 		for p := range public {
-			if strings.HasPrefix(path, p) {
+			if isPublicPath(path, p) {
 				c.Next()
 				return
+			}
+		}
+		if publicPaths != nil {
+			for _, p := range publicPaths() {
+				if isPublicPath(path, p) {
+					c.Next()
+					return
+				}
 			}
 		}
 
@@ -193,9 +233,57 @@ func authentikMiddleware(cfg AuthentikConfig) gin.HandlerFunc {
 	}
 }
 
+func cloneAuthentikConfig(cfg AuthentikConfig) AuthentikConfig {
+	out := cfg
+	out.Issuer = strings.TrimSpace(out.Issuer)
+	out.ClientID = strings.TrimSpace(out.ClientID)
+	out.PublicPaths = normalisePublicPaths(cfg.PublicPaths)
+	return out
+}
+
+// normalisePublicPaths trims whitespace, ensures a leading slash, and removes
+// duplicate entries while preserving the first occurrence of each path.
+func normalisePublicPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		path = strings.TrimRight(path, "/")
+		if path == "" {
+			path = "/"
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}
+
 // RequireAuth is Gin middleware that rejects unauthenticated requests.
 // It checks for a user set by the Authentik middleware and returns 401
 // when none is present.
+//
+// Example:
+//
+//	r.GET("/private", api.RequireAuth(), handler)
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if GetUser(c) == nil {
@@ -210,6 +298,10 @@ func RequireAuth() gin.HandlerFunc {
 // RequireGroup is Gin middleware that rejects requests from users who do
 // not belong to the specified group. Returns 401 when no user is present
 // and 403 when the user lacks the required group membership.
+//
+// Example:
+//
+//	r.GET("/admin", api.RequireGroup("admins"), handler)
 func RequireGroup(group string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := GetUser(c)

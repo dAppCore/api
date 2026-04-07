@@ -24,6 +24,10 @@ import (
 //	otel.SetTextMapPropagator(propagation.TraceContext{})
 //
 //	engine, _ := api.New(api.WithTracing("my-service"))
+//
+// Example:
+//
+//	api.New(api.WithTracing("my-service"))
 func WithTracing(serviceName string, opts ...otelgin.Option) Option {
 	return func(e *Engine) {
 		e.middlewares = append(e.middlewares, otelgin.Middleware(serviceName, opts...))
@@ -37,6 +41,11 @@ func WithTracing(serviceName string, opts ...otelgin.Option) Option {
 // This is a convenience helper for tests and simple deployments.
 // Production setups should build their own TracerProvider with batching,
 // resource attributes, and appropriate exporters.
+//
+// Example:
+//
+//	tp := api.NewTracerProvider(exporter)
+//	_ = tp.Shutdown(context.Background())
 func NewTracerProvider(exporter sdktrace.SpanExporter) *sdktrace.TracerProvider {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSyncer(exporter),

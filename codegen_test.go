@@ -59,7 +59,108 @@ func TestSDKGenerator_Bad_MissingSpec(t *testing.T) {
 	}
 }
 
+func TestSDKGenerator_Bad_EmptySpecPath(t *testing.T) {
+	gen := &api.SDKGenerator{
+		OutputDir: t.TempDir(),
+	}
+
+	err := gen.Generate(context.Background(), "go")
+	if err == nil {
+		t.Fatal("expected error for empty spec path, got nil")
+	}
+	if !strings.Contains(err.Error(), "spec path is required") {
+		t.Fatalf("expected error to contain 'spec path is required', got: %v", err)
+	}
+}
+
+func TestSDKGenerator_Bad_EmptyOutputDir(t *testing.T) {
+	specDir := t.TempDir()
+	specPath := filepath.Join(specDir, "spec.json")
+	if err := os.WriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
+		t.Fatalf("failed to write spec file: %v", err)
+	}
+
+	gen := &api.SDKGenerator{
+		SpecPath: specPath,
+	}
+
+	err := gen.Generate(context.Background(), "go")
+	if err == nil {
+		t.Fatal("expected error for empty output directory, got nil")
+	}
+	if !strings.Contains(err.Error(), "output directory is required") {
+		t.Fatalf("expected error to contain 'output directory is required', got: %v", err)
+	}
+}
+
+func TestSDKGenerator_Bad_NilContext(t *testing.T) {
+	gen := &api.SDKGenerator{
+		SpecPath:  filepath.Join(t.TempDir(), "nonexistent.json"),
+		OutputDir: t.TempDir(),
+	}
+
+	err := gen.Generate(nil, "go")
+	if err == nil {
+		t.Fatal("expected error for nil context, got nil")
+	}
+	if !strings.Contains(err.Error(), "context is nil") {
+		t.Fatalf("expected error to contain 'context is nil', got: %v", err)
+	}
+}
+
+func TestSDKGenerator_Bad_NilReceiver(t *testing.T) {
+	var gen *api.SDKGenerator
+
+	err := gen.Generate(context.Background(), "go")
+	if err == nil {
+		t.Fatal("expected error for nil generator, got nil")
+	}
+	if !strings.Contains(err.Error(), "generator is nil") {
+		t.Fatalf("expected error to contain 'generator is nil', got: %v", err)
+	}
+}
+
+func TestSDKGenerator_Bad_MissingGenerator(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	specDir := t.TempDir()
+	specPath := filepath.Join(specDir, "spec.json")
+	if err := os.WriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
+		t.Fatalf("failed to write spec file: %v", err)
+	}
+
+	outputDir := filepath.Join(t.TempDir(), "nested", "sdk")
+	gen := &api.SDKGenerator{
+		SpecPath:  specPath,
+		OutputDir: outputDir,
+	}
+
+	err := gen.Generate(context.Background(), "go")
+	if err == nil {
+		t.Fatal("expected error when openapi-generator-cli is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "openapi-generator-cli not installed") {
+		t.Fatalf("expected missing-generator error, got: %v", err)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(outputDir, "go")); !os.IsNotExist(statErr) {
+		t.Fatalf("expected output directory not to be created when generator is missing, got err=%v", statErr)
+	}
+}
+
 func TestSDKGenerator_Good_OutputDirCreated(t *testing.T) {
+	oldPath := os.Getenv("PATH")
+
+	// Provide a fake openapi-generator-cli so Generate reaches the exec step
+	// without depending on the host environment.
+	binDir := t.TempDir()
+	binPath := filepath.Join(binDir, "openapi-generator-cli")
+	script := []byte("#!/bin/sh\nexit 1\n")
+	if err := os.WriteFile(binPath, script, 0o755); err != nil {
+		t.Fatalf("failed to write fake generator: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+
 	// Write a minimal spec file so we pass the file-exists check.
 	specDir := t.TempDir()
 	specPath := filepath.Join(specDir, "spec.json")
@@ -73,8 +174,8 @@ func TestSDKGenerator_Good_OutputDirCreated(t *testing.T) {
 		OutputDir: outputDir,
 	}
 
-	// Generate will fail at the exec step (openapi-generator-cli likely not installed),
-	// but the output directory should have been created before that.
+	// Generate will fail at the exec step, but the output directory should have
+	// been created before the CLI returned its non-zero status.
 	_ = gen.Generate(context.Background(), "go")
 
 	expected := filepath.Join(outputDir, "go")

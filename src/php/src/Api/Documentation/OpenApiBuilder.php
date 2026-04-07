@@ -11,6 +11,8 @@ use Core\Api\Documentation\Attributes\ApiSecurity;
 use Core\Api\Documentation\Attributes\ApiTag;
 use Core\Api\Documentation\Extensions\ApiKeyAuthExtension;
 use Core\Api\Documentation\Extensions\RateLimitExtension;
+use Core\Api\Documentation\Extensions\SunsetExtension;
+use Core\Api\Documentation\Extensions\VersionExtension;
 use Core\Api\Documentation\Extensions\WorkspaceHeaderExtension;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Routing\Route;
@@ -57,7 +59,9 @@ class OpenApiBuilder
     {
         $this->extensions = [
             new WorkspaceHeaderExtension,
+            new VersionExtension,
             new RateLimitExtension,
+            new SunsetExtension,
             new ApiKeyAuthExtension,
         ];
     }
@@ -229,6 +233,7 @@ class OpenApiBuilder
     protected function buildPaths(array $config): array
     {
         $paths = [];
+        $operationIds = [];
         $includePatterns = $config['routes']['include'] ?? ['api/*'];
         $excludePatterns = $config['routes']['exclude'] ?? [];
 
@@ -243,7 +248,7 @@ class OpenApiBuilder
 
             foreach ($methods as $method) {
                 $method = strtolower($method);
-                $operation = $this->buildOperation($route, $method, $config);
+                $operation = $this->buildOperation($route, $method, $config, $operationIds);
 
                 if ($operation !== null) {
                     $paths[$path][$method] = $operation;
@@ -297,7 +302,7 @@ class OpenApiBuilder
     /**
      * Build operation for a specific route and method.
      */
-    protected function buildOperation(Route $route, string $method, array $config): ?array
+    protected function buildOperation(Route $route, string $method, array $config, array &$operationIds): ?array
     {
         $controller = $route->getController();
         $action = $route->getActionMethod();
@@ -309,7 +314,7 @@ class OpenApiBuilder
 
         $operation = [
             'summary' => $this->buildSummary($route, $method),
-            'operationId' => $this->buildOperationId($route, $method),
+            'operationId' => $this->buildOperationId($route, $method, $operationIds),
             'tags' => $this->buildOperationTags($route, $controller, $action),
             'responses' => $this->buildResponses($controller, $action),
         ];
@@ -328,7 +333,7 @@ class OpenApiBuilder
 
         // Add request body for POST/PUT/PATCH
         if (in_array($method, ['post', 'put', 'patch'])) {
-            $operation['requestBody'] = $this->buildRequestBody($controller, $action);
+            $operation['requestBody'] = $this->buildRequestBody($route, $controller, $action);
         }
 
         // Add security requirements
@@ -398,15 +403,24 @@ class OpenApiBuilder
     /**
      * Build operation ID from route name.
      */
-    protected function buildOperationId(Route $route, string $method): string
+    protected function buildOperationId(Route $route, string $method, array &$operationIds): string
     {
         $name = $route->getName();
 
         if ($name) {
-            return Str::camel(str_replace(['.', '-'], '_', $name));
+            $base = Str::camel(str_replace(['.', '-'], '_', $name));
+        } else {
+            $base = Str::camel($method.'_'.str_replace(['/', '-', '.'], '_', $route->uri()));
         }
 
-        return Str::camel($method.'_'.str_replace(['/', '-', '.'], '_', $route->uri()));
+        $count = $operationIds[$base] ?? 0;
+        $operationIds[$base] = $count + 1;
+
+        if ($count === 0) {
+            return $base;
+        }
+
+        return $base.'_'.($count + 1);
     }
 
     /**
@@ -511,16 +525,36 @@ class OpenApiBuilder
     protected function buildParameters(Route $route, ?object $controller, string $action, array $config): array
     {
         $parameters = [];
+        $parameterIndex = [];
+
+        $addParameter = function (array $parameter) use (&$parameters, &$parameterIndex): void {
+            $name = $parameter['name'] ?? null;
+            $in = $parameter['in'] ?? null;
+
+            if (! is_string($name) || $name === '' || ! is_string($in) || $in === '') {
+                return;
+            }
+
+            $key = $in.':'.$name;
+            if (isset($parameterIndex[$key])) {
+                $parameters[$parameterIndex[$key]] = $parameter;
+
+                return;
+            }
+
+            $parameterIndex[$key] = count($parameters);
+            $parameters[] = $parameter;
+        };
 
         // Add path parameters
         preg_match_all('/\{([^}?]+)\??}/', $route->uri(), $matches);
         foreach ($matches[1] as $param) {
-            $parameters[] = [
+            $addParameter([
                 'name' => $param,
                 'in' => 'path',
                 'required' => true,
                 'schema' => ['type' => 'string'],
-            ];
+            ]);
         }
 
         // Add parameters from ApiParameter attributes
@@ -532,12 +566,12 @@ class OpenApiBuilder
 
                 foreach ($paramAttrs as $attr) {
                     $param = $attr->newInstance();
-                    $parameters[] = $param->toOpenApi();
+                    $addParameter($param->toOpenApi());
                 }
             }
         }
 
-        return $parameters;
+        return array_values($parameters);
     }
 
     /**
@@ -578,15 +612,23 @@ class OpenApiBuilder
             'description' => $response->getDescription(),
         ];
 
-        if ($response->resource !== null && class_exists($response->resource)) {
+        $schema = null;
+
+        if (is_array($response->schema) && ! empty($response->schema)) {
+            $schema = $response->schema;
+        } elseif ($response->resource !== null && class_exists($response->resource)) {
             $schema = $this->extractResourceSchema($response->resource);
 
             if ($response->paginated) {
                 $schema = $this->wrapPaginatedSchema($schema);
             }
+        }
+
+        if ($schema !== null) {
+            $contentType = $response->contentType ?: 'application/json';
 
             $result['content'] = [
-                'application/json' => [
+                $contentType => [
                     'schema' => $schema,
                 ],
             ];
@@ -614,10 +656,177 @@ class OpenApiBuilder
             return ['type' => 'object'];
         }
 
-        // For now, return a generic object schema
-        // A more sophisticated implementation would analyze the resource's toArray method
+        try {
+            $resource = new $resourceClass(new \stdClass);
+            $data = $resource->toArray(request());
+
+            if (is_array($data)) {
+                return $this->inferArraySchema($data);
+            }
+        } catch (\Throwable) {
+            // Fall back to a generic object schema when the resource cannot
+            // be instantiated safely in the current context.
+        }
+
         return [
             'type' => 'object',
+            'additionalProperties' => true,
+        ];
+    }
+
+    /**
+     * Infer an OpenAPI schema from a PHP array.
+     */
+    protected function inferArraySchema(array $value): array
+    {
+        if (array_is_list($value)) {
+            $itemSchema = ['type' => 'object'];
+
+            foreach ($value as $item) {
+                if ($item === null) {
+                    continue;
+                }
+
+                $itemSchema = $this->inferValueSchema($item);
+                break;
+            }
+
+            return [
+                'type' => 'array',
+                'items' => $itemSchema,
+            ];
+        }
+
+        $properties = [];
+        foreach ($value as $key => $item) {
+            $properties[(string) $key] = $this->inferValueSchema($item, (string) $key);
+        }
+
+        return [
+            'type' => 'object',
+            'properties' => $properties,
+            'additionalProperties' => true,
+        ];
+    }
+
+    /**
+     * Infer an OpenAPI schema node from a PHP value.
+     */
+    protected function inferValueSchema(mixed $value, ?string $key = null): array
+    {
+        if ($value === null) {
+            return $this->inferNullableSchema($key);
+        }
+
+        if (is_bool($value)) {
+            return ['type' => 'boolean'];
+        }
+
+        if (is_int($value)) {
+            return ['type' => 'integer'];
+        }
+
+        if (is_float($value)) {
+            return ['type' => 'number'];
+        }
+
+        if (is_string($value)) {
+            return $this->inferStringSchema($value, $key);
+        }
+
+        if (is_array($value)) {
+            return $this->inferArraySchema($value);
+        }
+
+        if (is_object($value)) {
+            return $this->inferObjectSchema($value);
+        }
+
+        return [];
+    }
+
+    /**
+     * Infer a schema for a null value using the field name as a hint.
+     */
+    protected function inferNullableSchema(?string $key): array
+    {
+        if ($key === null) {
+            return ['nullable' => true];
+        }
+
+        $normalized = strtolower($key);
+
+        return match (true) {
+            $normalized === 'id',
+            str_ends_with($normalized, '_id'),
+            str_ends_with($normalized, 'count'),
+            str_ends_with($normalized, 'total'),
+            str_ends_with($normalized, 'page'),
+            str_ends_with($normalized, 'limit'),
+            str_ends_with($normalized, 'offset'),
+            str_ends_with($normalized, 'size'),
+            str_ends_with($normalized, 'quantity'),
+            str_ends_with($normalized, 'rank'),
+            str_ends_with($normalized, 'score') => ['type' => 'integer', 'nullable' => true],
+            str_starts_with($normalized, 'is_'),
+            str_starts_with($normalized, 'has_'),
+            str_starts_with($normalized, 'can_'),
+            str_starts_with($normalized, 'should_'),
+            str_starts_with($normalized, 'enabled'),
+            str_starts_with($normalized, 'active') => ['type' => 'boolean', 'nullable' => true],
+            str_ends_with($normalized, '_at'),
+            str_ends_with($normalized, '_on'),
+            str_contains($normalized, 'date'),
+            str_contains($normalized, 'time'),
+            str_contains($normalized, 'timestamp') => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+            str_contains($normalized, 'email') => ['type' => 'string', 'format' => 'email', 'nullable' => true],
+            str_contains($normalized, 'url'),
+            str_contains($normalized, 'uri') => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+            str_contains($normalized, 'uuid') => ['type' => 'string', 'format' => 'uuid', 'nullable' => true],
+            str_contains($normalized, 'name'),
+            str_contains($normalized, 'title'),
+            str_contains($normalized, 'description'),
+            str_contains($normalized, 'status'),
+            str_contains($normalized, 'type'),
+            str_contains($normalized, 'code'),
+            str_contains($normalized, 'token'),
+            str_contains($normalized, 'slug'),
+            str_contains($normalized, 'key') => ['type' => 'string', 'nullable' => true],
+            default => ['nullable' => true],
+        };
+    }
+
+    /**
+     * Infer a schema for a string value using the field name as a hint.
+     */
+    protected function inferStringSchema(string $value, ?string $key): array
+    {
+        if ($key !== null) {
+            $nullable = $this->inferNullableSchema($key);
+
+            if (($nullable['type'] ?? null) === 'string') {
+                $nullable['nullable'] = false;
+                return $nullable;
+            }
+        }
+
+        return ['type' => 'string'];
+    }
+
+    /**
+     * Infer a schema for an object value.
+     */
+    protected function inferObjectSchema(object $value): array
+    {
+        $properties = [];
+
+        foreach (get_object_vars($value) as $key => $item) {
+            $properties[$key] = $this->inferValueSchema($item, (string) $key);
+        }
+
+        return [
+            'type' => 'object',
+            'properties' => $properties,
             'additionalProperties' => true,
         ];
     }
@@ -661,8 +870,45 @@ class OpenApiBuilder
     /**
      * Build request body schema.
      */
-    protected function buildRequestBody(?object $controller, string $action): array
+    protected function buildRequestBody(Route $route, ?object $controller, string $action): array
     {
+        if ($controller instanceof \Core\Api\Controllers\McpApiController && $action === 'callTool') {
+            return [
+                'required' => true,
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'server' => [
+                                    'type' => 'string',
+                                    'maxLength' => 64,
+                                    'description' => 'MCP server identifier.',
+                                ],
+                                'tool' => [
+                                    'type' => 'string',
+                                    'maxLength' => 128,
+                                    'description' => 'Tool name to invoke on the selected server.',
+                                ],
+                                'arguments' => [
+                                    'type' => 'object',
+                                    'description' => 'Tool arguments passed through to MCP.',
+                                    'additionalProperties' => true,
+                                ],
+                                'version' => [
+                                    'type' => 'string',
+                                    'maxLength' => 32,
+                                    'description' => 'Optional tool version to execute. Defaults to the latest supported version.',
+                                ],
+                            ],
+                            'required' => ['server', 'tool'],
+                            'additionalProperties' => true,
+                        ],
+                    ],
+                ],
+            ];
+        }
+
         return [
             'required' => true,
             'content' => [

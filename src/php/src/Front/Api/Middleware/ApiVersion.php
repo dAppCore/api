@@ -105,11 +105,16 @@ class ApiVersion
         /** @var Response $response */
         $response = $next($request);
 
-        // Add version header to response
-        $response->headers->set('X-API-Version', (string) $version);
+        $includeVersionHeader = (bool) config('api.headers.include_version', true);
+        $includeDeprecationHeaders = (bool) config('api.headers.include_deprecation', true);
+
+        // Add version header to response when enabled
+        if ($includeVersionHeader) {
+            $response->headers->set('X-API-Version', (string) $version);
+        }
 
         // Add deprecation headers if applicable
-        if (in_array($version, $deprecated, true)) {
+        if ($includeDeprecationHeaders && in_array($version, $deprecated, true)) {
             $response->headers->set('Deprecation', 'true');
             $response->headers->set('X-API-Warn', "API version {$version} is deprecated. Please upgrade to v{$current}.");
 
@@ -183,7 +188,9 @@ class ApiVersion
             return null;
         }
 
-        // Strip 'v' prefix if present
+        // Strip 'v' prefix and any optional parameters if present.
+        $header = trim($header);
+        $header = explode(';', $header, 2)[0];
         $version = ltrim($header, 'vV');
 
         if (is_numeric($version)) {
@@ -202,9 +209,14 @@ class ApiVersion
     {
         $accept = $request->header('Accept', '');
 
-        // Match vendor media type: application/vnd.{name}.v{n}+json
-        if (preg_match('#application/vnd\.[^.]+\.v(\d+)\+#', $accept, $matches)) {
-            return (int) $matches[1];
+        foreach (preg_split('/\s*,\s*/', $accept, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $mediaType) {
+            // Strip media-type parameters before matching the vendor suffix.
+            $mediaType = explode(';', trim($mediaType), 2)[0];
+
+            // Match vendor media type: application/vnd.{name}.v{n}+json
+            if (preg_match('#^application/vnd\.[^.]+\.v(\d+)\+#i', $mediaType, $matches)) {
+                return (int) $matches[1];
+            }
         }
 
         return null;
@@ -217,6 +229,12 @@ class ApiVersion
      */
     protected function unsupportedVersion(int $requested, array $supported, int $current): Response
     {
+        $headers = [];
+
+        if ((bool) config('api.headers.include_version', true)) {
+            $headers['X-API-Version'] = (string) $current;
+        }
+
         return response()->json([
             'error' => 'unsupported_api_version',
             'message' => "API version {$requested} is not supported.",
@@ -224,9 +242,7 @@ class ApiVersion
             'supported_versions' => $supported,
             'current_version' => $current,
             'hint' => 'Use Accept-Version header or URL prefix (e.g., /api/v1/) to specify version.',
-        ], 400, [
-            'X-API-Version' => (string) $current,
-        ]);
+        ], 400, $headers);
     }
 
     /**
@@ -234,13 +250,17 @@ class ApiVersion
      */
     protected function versionTooLow(int $requested, int $required): Response
     {
+        $headers = [];
+
+        if ((bool) config('api.headers.include_version', true)) {
+            $headers['X-API-Version'] = (string) $requested;
+        }
+
         return response()->json([
             'error' => 'api_version_too_low',
             'message' => "This endpoint requires API version {$required} or higher.",
             'requested_version' => $requested,
             'minimum_version' => $required,
-        ], 400, [
-            'X-API-Version' => (string) $requested,
-        ]);
+        ], 400, $headers);
     }
 }

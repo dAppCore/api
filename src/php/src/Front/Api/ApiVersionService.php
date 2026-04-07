@@ -55,6 +55,69 @@ use Illuminate\Http\Request;
 class ApiVersionService
 {
     /**
+     * Normalise a list of API versions to unique positive integers.
+     *
+     * @param  array<int|string, mixed>  $versions
+     * @return array<int>
+     */
+    protected function normaliseVersions(array $versions): array
+    {
+        $normalised = [];
+
+        foreach ($versions as $version) {
+            if (! is_numeric($version)) {
+                continue;
+            }
+
+            $version = (int) $version;
+            if ($version <= 0) {
+                continue;
+            }
+
+            $normalised[] = $version;
+        }
+
+        return array_values(array_unique($normalised));
+    }
+
+    /**
+     * Normalise sunset dates to an integer-keyed map.
+     *
+     * @param  array<int|string, mixed>  $sunsets
+     * @return array<int, string>
+     */
+    protected function normaliseSunsetDates(array $sunsets): array
+    {
+        $normalised = [];
+
+        foreach ($sunsets as $version => $date) {
+            if (! is_numeric($version)) {
+                continue;
+            }
+
+            $version = (int) $version;
+            if ($version <= 0) {
+                continue;
+            }
+
+            if ($date === null) {
+                continue;
+            }
+
+            $date = trim((string) $date);
+            if ($date === '') {
+                continue;
+            }
+
+            $normalised[$version] = $date;
+        }
+
+        ksort($normalised);
+
+        return $normalised;
+    }
+
+    /**
      * Get the current API version from the request.
      *
      * Returns null if no version middleware has processed the request.
@@ -116,7 +179,7 @@ class ApiVersionService
     public function isDeprecated(?Request $request = null): bool
     {
         $current = $this->current($request);
-        $deprecated = config('api.versioning.deprecated', []);
+        $deprecated = $this->deprecatedVersions();
 
         return $current !== null && in_array($current, $deprecated, true);
     }
@@ -144,7 +207,7 @@ class ApiVersionService
      */
     public function supportedVersions(): array
     {
-        return config('api.versioning.supported', [1]);
+        return $this->normaliseVersions((array) config('api.versioning.supported', [1]));
     }
 
     /**
@@ -154,7 +217,7 @@ class ApiVersionService
      */
     public function deprecatedVersions(): array
     {
-        return config('api.versioning.deprecated', []);
+        return $this->normaliseVersions((array) config('api.versioning.deprecated', []));
     }
 
     /**
@@ -164,7 +227,7 @@ class ApiVersionService
      */
     public function sunsetDates(): array
     {
-        return config('api.versioning.sunset', []);
+        return $this->normaliseSunsetDates((array) config('api.versioning.sunset', []));
     }
 
     /**

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Core\Api\Exceptions;
 
 use Core\Api\RateLimit\RateLimitResult;
+use Core\Api\Concerns\HasApiResponses;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -15,6 +17,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class RateLimitExceededException extends HttpException
 {
+    use HasApiResponses;
+
     public function __construct(
         protected RateLimitResult $rateLimitResult,
         string $message = 'Too many requests. Please slow down.',
@@ -33,15 +37,22 @@ class RateLimitExceededException extends HttpException
     /**
      * Render the exception as a JSON response.
      */
-    public function render(): JsonResponse
+    public function render(?Request $request = null): JsonResponse
     {
-        return response()->json([
-            'error' => 'rate_limit_exceeded',
-            'message' => $this->getMessage(),
-            'retry_after' => $this->rateLimitResult->retryAfter,
-            'limit' => $this->rateLimitResult->limit,
-            'resets_at' => $this->rateLimitResult->resetsAt->toIso8601String(),
-        ], 429, $this->rateLimitResult->headers());
+        // Return the rate-limit error response with rate-limit headers attached.
+        // CORS headers are intentionally omitted here; they are applied by the
+        // framework's CORS middleware (or PublicApiCors) which handles patterns,
+        // credentials, and Vary correctly for all responses — including errors.
+        return $this->errorResponse(
+            errorCode: 'rate_limit_exceeded',
+            message: $this->getMessage(),
+            meta: [
+                'retry_after' => $this->rateLimitResult->retryAfter,
+                'limit' => $this->rateLimitResult->limit,
+                'resets_at' => $this->rateLimitResult->resetsAt->toIso8601String(),
+            ],
+            status: 429,
+        )->withHeaders($this->rateLimitResult->headers());
     }
 
     /**

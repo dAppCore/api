@@ -44,6 +44,7 @@ func main() {
         api.WithSecure(),
         api.WithSlog(nil),
         api.WithSwagger("My API", "A service description", "1.0.0"),
+        api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
     )
 
     engine.Register(myRoutes) // any RouteGroup implementation
@@ -94,7 +95,7 @@ engine.Register(&Routes{service: svc})
 | File | Purpose |
 |------|---------|
 | `api.go` | `Engine` struct, `New()`, `build()`, `Serve()`, `Handler()`, `Channels()` |
-| `options.go` | All `With*()` option functions (25 options) |
+| `options.go` | All `With*()` option functions (28 options) |
 | `group.go` | `RouteGroup`, `StreamGroup`, `DescribableGroup` interfaces; `RouteDescription` |
 | `response.go` | `Response[T]`, `Error`, `Meta`, `OK()`, `Fail()`, `FailWithDetails()`, `Paginated()` |
 | `middleware.go` | `bearerAuthMiddleware()`, `requestIDMiddleware()` |

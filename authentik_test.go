@@ -221,6 +221,27 @@ func TestHealthBypassesAuthentik_Good(t *testing.T) {
 	}
 }
 
+func TestPublicPaths_Good_SimilarPrefixDoesNotBypassAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := api.AuthentikConfig{
+		TrustedProxy: true,
+		PublicPaths:  []string{"/public"},
+	}
+	e, _ := api.New(api.WithAuthentik(cfg))
+	e.Register(&publicPrefixGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/publicity/secure", nil)
+	req.Header.Set("X-authentik-username", "alice")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /publicity/secure with auth header, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestGetUser_Good_NilContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -319,6 +340,33 @@ func TestBearerAndAuthentikCoexist_Good(t *testing.T) {
 	}
 	if len(gotUser.Groups) != 2 || gotUser.Groups[0] != "developers" || gotUser.Groups[1] != "admins" {
 		t.Fatalf("expected groups [developers admins], got %v", gotUser.Groups)
+	}
+}
+
+func TestAuthentik_Good_CustomSwaggerPathBypassesAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := api.AuthentikConfig{TrustedProxy: true}
+	e, err := api.New(
+		api.WithAuthentik(cfg),
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithSwaggerPath("/docs"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/docs/doc.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for custom swagger path without auth, got %d", resp.StatusCode)
 	}
 }
 
@@ -456,5 +504,17 @@ func (g *groupRequireGroup) BasePath() string { return "/v1/admin" }
 func (g *groupRequireGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/panel", api.RequireGroup("admins"), func(c *gin.Context) {
 		c.JSON(200, api.OK("admin panel"))
+	})
+}
+
+// publicPrefixGroup provides a route that should still be processed by auth
+// middleware even though its path shares a prefix with a public path.
+type publicPrefixGroup struct{}
+
+func (g *publicPrefixGroup) Name() string     { return "public-prefix" }
+func (g *publicPrefixGroup) BasePath() string { return "/publicity" }
+func (g *publicPrefixGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/secure", api.RequireAuth(), func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("protected"))
 	})
 }

@@ -29,6 +29,16 @@ func (h *healthGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type panicGroup struct{}
+
+func (p *panicGroup) Name() string     { return "panic" }
+func (p *panicGroup) BasePath() string { return "/panic" }
+func (p *panicGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/boom", func(c *gin.Context) {
+		panic("boom")
+	})
+}
+
 // ── New ─────────────────────────────────────────────────────────────────
 
 func TestNew_Good(t *testing.T) {
@@ -82,6 +92,28 @@ func TestRegister_Good_MultipleGroups(t *testing.T) {
 
 	if len(e.Groups()) != 2 {
 		t.Fatalf("expected 2 groups, got %d", len(e.Groups()))
+	}
+}
+
+func TestRegister_Good_GroupsReturnsCopy(t *testing.T) {
+	e, _ := api.New()
+	first := &healthGroup{}
+	second := &stubGroup{}
+	e.Register(first)
+	e.Register(second)
+
+	groups := e.Groups()
+	groups[0] = nil
+
+	fresh := e.Groups()
+	if fresh[0] == nil {
+		t.Fatal("expected Groups to return a copy, but engine state was mutated")
+	}
+	if fresh[0].Name() != first.Name() {
+		t.Fatalf("expected first group name %q, got %q", first.Name(), fresh[0].Name())
+	}
+	if fresh[1].Name() != "stub" {
+		t.Fatalf("expected second group name %q, got %q", "stub", fresh[1].Name())
 	}
 }
 
@@ -149,6 +181,41 @@ func TestHandler_Bad_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandler_Bad_PanicReturnsEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRequestID())
+	e.Register(&panicGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/panic/boom", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil {
+		t.Fatal("expected Error to be non-nil")
+	}
+	if resp.Error.Code != "internal_server_error" {
+		t.Fatalf("expected error code=%q, got %q", "internal_server_error", resp.Error.Code)
+	}
+	if resp.Error.Message != "Internal server error" {
+		t.Fatalf("expected error message=%q, got %q", "Internal server error", resp.Error.Message)
+	}
+	if got := w.Header().Get("X-Request-ID"); got == "" {
+		t.Fatal("expected X-Request-ID header to survive panic recovery")
+	}
+}
+
 // ── Serve + graceful shutdown ───────────────────────────────────────────
 
 func TestServe_Good_GracefulShutdown(t *testing.T) {
@@ -200,5 +267,34 @@ func TestServe_Good_GracefulShutdown(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return within 5 seconds after context cancellation")
+	}
+}
+
+func TestServe_Bad_ReturnsListenErrorBeforeCancel(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to reserve port: %v", err)
+	}
+	addr := ln.Addr().String()
+	defer ln.Close()
+
+	e, _ := api.New(api.WithAddr(addr))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- e.Serve(ctx)
+	}()
+
+	select {
+	case serveErr := <-errCh:
+		if serveErr == nil {
+			t.Fatal("expected Serve to return a listen error, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("Serve did not return promptly after listener failure")
 	}
 }

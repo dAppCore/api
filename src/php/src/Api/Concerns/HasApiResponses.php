@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Core\Api\Concerns;
 
 use Illuminate\Http\JsonResponse;
@@ -12,14 +14,32 @@ use Illuminate\Http\JsonResponse;
 trait HasApiResponses
 {
     /**
+     * Return a standard error response.
+     */
+    protected function errorResponse(
+        string $errorCode,
+        string $message,
+        array $meta = [],
+        int $status = 400,
+    ): JsonResponse {
+        return response()->json(array_merge([
+            'success' => false,
+            'error' => $errorCode,
+            'message' => $message,
+            'error_code' => $errorCode,
+        ], $meta), $status);
+    }
+
+    /**
      * Return a no workspace response.
      */
     protected function noWorkspaceResponse(): JsonResponse
     {
-        return response()->json([
-            'error' => 'no_workspace',
-            'message' => 'No workspace found. Please select a workspace first.',
-        ], 404);
+        return $this->errorResponse(
+            errorCode: 'no_workspace',
+            message: 'No workspace found. Please select a workspace first.',
+            status: 404,
+        );
     }
 
     /**
@@ -27,10 +47,14 @@ trait HasApiResponses
      */
     protected function notFoundResponse(string $resource = 'Resource'): JsonResponse
     {
-        return response()->json([
-            'error' => 'not_found',
-            'message' => "{$resource} not found.",
-        ], 404);
+        return $this->errorResponse(
+            errorCode: 'not_found',
+            message: "{$resource} not found.",
+            meta: [
+                'resource' => $resource,
+            ],
+            status: 404,
+        );
     }
 
     /**
@@ -38,12 +62,15 @@ trait HasApiResponses
      */
     protected function limitReachedResponse(string $feature, ?string $message = null): JsonResponse
     {
-        return response()->json([
-            'error' => 'feature_limit_reached',
-            'message' => $message ?? 'You have reached your limit for this feature.',
-            'feature' => $feature,
-            'upgrade_url' => route('hub.usage'),
-        ], 403);
+        return $this->errorResponse(
+            errorCode: 'feature_limit_reached',
+            message: $message ?? 'You have reached your limit for this feature.',
+            meta: [
+                'feature' => $feature,
+                'upgrade_url' => route('hub.usage'),
+            ],
+            status: 403,
+        );
     }
 
     /**
@@ -51,10 +78,20 @@ trait HasApiResponses
      */
     protected function accessDeniedResponse(string $message = 'Access denied.'): JsonResponse
     {
-        return response()->json([
-            'error' => 'access_denied',
-            'message' => $message,
-        ], 403);
+        return $this->forbiddenResponse($message, status: 403);
+    }
+
+    /**
+     * Return a forbidden response.
+     */
+    protected function forbiddenResponse(string $message, array $meta = [], int $status = 403): JsonResponse
+    {
+        return $this->errorResponse(
+            errorCode: 'forbidden',
+            message: $message,
+            meta: $meta,
+            status: $status,
+        );
     }
 
     /**
@@ -63,6 +100,7 @@ trait HasApiResponses
     protected function successResponse(string $message, array $data = []): JsonResponse
     {
         return response()->json(array_merge([
+            'success' => true,
             'message' => $message,
         ], $data));
     }
@@ -73,6 +111,7 @@ trait HasApiResponses
     protected function createdResponse(mixed $resource, string $message = 'Created successfully.'): JsonResponse
     {
         return response()->json([
+            'success' => true,
             'message' => $message,
             'data' => $resource,
         ], 201);
@@ -81,13 +120,16 @@ trait HasApiResponses
     /**
      * Return a validation error response.
      */
-    protected function validationErrorResponse(array $errors): JsonResponse
+    protected function validationErrorResponse(array $errors, int $status = 422): JsonResponse
     {
-        return response()->json([
-            'error' => 'validation_failed',
-            'message' => 'The given data was invalid.',
-            'errors' => $errors,
-        ], 422);
+        return $this->errorResponse(
+            errorCode: 'validation_failed',
+            message: 'The given data was invalid.',
+            meta: [
+                'errors' => $errors,
+            ],
+            status: $status,
+        );
     }
 
     /**
@@ -97,10 +139,11 @@ trait HasApiResponses
      */
     protected function invalidStatusResponse(string $message): JsonResponse
     {
-        return response()->json([
-            'error' => 'invalid_status',
-            'message' => $message,
-        ], 422);
+        return $this->errorResponse(
+            errorCode: 'invalid_status',
+            message: $message,
+            status: 422,
+        );
     }
 
     /**
@@ -110,15 +153,13 @@ trait HasApiResponses
      */
     protected function providerErrorResponse(string $message, ?string $provider = null): JsonResponse
     {
-        $response = [
-            'error' => 'provider_error',
-            'message' => $message,
-        ];
-
-        if ($provider !== null) {
-            $response['provider'] = $provider;
-        }
-
-        return response()->json($response, 400);
+        return $this->errorResponse(
+            errorCode: 'provider_error',
+            message: $message,
+            meta: array_filter([
+                'provider' => $provider,
+            ]),
+            status: 400,
+        );
     }
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -23,6 +24,75 @@ func (m *mwTestGroup) BasePath() string { return "/v1" }
 func (m *mwTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/secret", func(c *gin.Context) {
 		c.JSON(http.StatusOK, api.OK("classified"))
+	})
+}
+
+type swaggerLikeGroup struct{}
+
+func (g *swaggerLikeGroup) Name() string     { return "swagger-like" }
+func (g *swaggerLikeGroup) BasePath() string { return "/swaggerx" }
+func (g *swaggerLikeGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/secret", func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("classified"))
+	})
+}
+
+type requestIDTestGroup struct {
+	gotID *string
+}
+
+func (g requestIDTestGroup) Name() string     { return "request-id" }
+func (g requestIDTestGroup) BasePath() string { return "/v1" }
+func (g requestIDTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/secret", func(c *gin.Context) {
+		*g.gotID = api.GetRequestID(c)
+		c.JSON(http.StatusOK, api.OK("classified"))
+	})
+}
+
+type requestMetaTestGroup struct{}
+
+func (g requestMetaTestGroup) Name() string     { return "request-meta" }
+func (g requestMetaTestGroup) BasePath() string { return "/v1" }
+func (g requestMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/meta", func(c *gin.Context) {
+		time.Sleep(2 * time.Millisecond)
+		resp := api.AttachRequestMeta(c, api.Paginated("classified", 1, 25, 100))
+		c.JSON(http.StatusOK, resp)
+	})
+}
+
+type autoResponseMetaTestGroup struct{}
+
+func (g autoResponseMetaTestGroup) Name() string     { return "auto-response-meta" }
+func (g autoResponseMetaTestGroup) BasePath() string { return "/v1" }
+func (g autoResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/meta", func(c *gin.Context) {
+		time.Sleep(2 * time.Millisecond)
+		c.JSON(http.StatusOK, api.Paginated("classified", 1, 25, 100))
+	})
+}
+
+type autoErrorResponseMetaTestGroup struct{}
+
+func (g autoErrorResponseMetaTestGroup) Name() string     { return "auto-error-response-meta" }
+func (g autoErrorResponseMetaTestGroup) BasePath() string { return "/v1" }
+func (g autoErrorResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/error", func(c *gin.Context) {
+		time.Sleep(2 * time.Millisecond)
+		c.JSON(http.StatusBadRequest, api.Fail("bad_request", "request failed"))
+	})
+}
+
+type plusJSONResponseMetaTestGroup struct{}
+
+func (g plusJSONResponseMetaTestGroup) Name() string     { return "plus-json-response-meta" }
+func (g plusJSONResponseMetaTestGroup) BasePath() string { return "/v1" }
+func (g plusJSONResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/plus-json", func(c *gin.Context) {
+		c.Header("Content-Type", "application/problem+json")
+		c.Status(http.StatusOK)
+		_, _ = c.Writer.Write([]byte(`{"success":true,"data":"ok"}`))
 	})
 }
 
@@ -114,6 +184,21 @@ func TestBearerAuth_Good_HealthBypassesAuth(t *testing.T) {
 	}
 }
 
+func TestBearerAuth_Bad_SimilarPrefixDoesNotBypassAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithBearerAuth("s3cret"))
+	e.Register(&swaggerLikeGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/swaggerx/secret", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for /swaggerx/secret, got %d", w.Code)
+	}
+}
+
 // ── Request ID ──────────────────────────────────────────────────────────
 
 func TestRequestID_Good_GeneratedWhenMissing(t *testing.T) {
@@ -148,6 +233,176 @@ func TestRequestID_Good_PreservesClientID(t *testing.T) {
 	id := w.Header().Get("X-Request-ID")
 	if id != "client-id-abc" {
 		t.Fatalf("expected X-Request-ID=%q, got %q", "client-id-abc", id)
+	}
+}
+
+func TestRequestID_Good_ContextAccessor(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRequestID())
+
+	var gotID string
+	e.Register(requestIDTestGroup{gotID: &gotID})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/secret", nil)
+	req.Header.Set("X-Request-ID", "client-id-xyz")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if gotID == "" {
+		t.Fatal("expected GetRequestID to return the request ID inside the handler")
+	}
+	if gotID != "client-id-xyz" {
+		t.Fatalf("expected GetRequestID=%q, got %q", "client-id-xyz", gotID)
+	}
+}
+
+func TestRequestID_Good_RequestMetaHelper(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRequestID())
+	e.Register(requestMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req.Header.Set("X-Request-ID", "client-id-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Meta.Page != 1 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
+		t.Fatalf("expected pagination metadata to be preserved, got %+v", resp.Meta)
+	}
+}
+
+func TestResponseMeta_Good_AttachesMetaAutomatically(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+	)
+	e.Register(autoResponseMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req.Header.Set("X-Request-ID", "client-id-auto-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-auto-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-auto-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Meta.Page != 1 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
+		t.Fatalf("expected pagination metadata to be preserved, got %+v", resp.Meta)
+	}
+	if got := w.Header().Get("X-Request-ID"); got != "client-id-auto-meta" {
+		t.Fatalf("expected response header X-Request-ID=%q, got %q", "client-id-auto-meta", got)
+	}
+}
+
+func TestResponseMeta_Good_AttachesMetaToErrorResponses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+	)
+	e.Register(autoErrorResponseMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/error", nil)
+	req.Header.Set("X-Request-ID", "client-id-auto-error-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-auto-error-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-auto-error-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Error == nil || resp.Error.Code != "bad_request" {
+		t.Fatalf("expected bad_request error, got %+v", resp.Error)
+	}
+}
+
+func TestResponseMeta_Good_AttachesMetaToPlusJSONContentType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+	)
+	e.Register(plusJSONResponseMetaTestGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/plus-json", nil)
+	req.Header.Set("X-Request-ID", "client-id-plus-json-meta")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if got := w.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Fatalf("expected Content-Type to be preserved, got %q", got)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-plus-json-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-plus-json-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
 	}
 }
 

@@ -10,6 +10,7 @@ use Core\Api\Documentation\Attributes\ApiTag;
 use Core\Api\Documentation\Extension;
 use Core\Api\Documentation\Extensions\ApiKeyAuthExtension;
 use Core\Api\Documentation\Extensions\RateLimitExtension;
+use Core\Api\Documentation\Extensions\SunsetExtension;
 use Core\Api\Documentation\Extensions\WorkspaceHeaderExtension;
 use Core\Api\Documentation\OpenApiBuilder;
 use Core\Api\RateLimit\RateLimit;
@@ -152,6 +153,26 @@ describe('OpenApiBuilder Controller Scanning', function () {
         expect($operation['operationId'])->toBe('testScanItemsIndex');
     });
 
+    it('makes duplicate operation IDs unique', function () {
+        RouteFacade::prefix('api')
+            ->middleware('api')
+            ->group(function () {
+                RouteFacade::get('/duplicate-id/dup-one', fn () => response()->json([]));
+                RouteFacade::get('/duplicate-id/dup_one', fn () => response()->json([]));
+            });
+
+        config(['api-docs.routes.include' => ['api/*']]);
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $first = $spec['paths']['/api/duplicate-id/dup-one']['get']['operationId'];
+        $second = $spec['paths']['/api/duplicate-id/dup_one']['get']['operationId'];
+
+        expect($first)->not->toBe($second);
+        expect($second)->toEndWith('_2');
+    });
+
     it('generates summary from route name', function () {
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -172,6 +193,116 @@ describe('OpenApiBuilder Controller Scanning', function () {
         expect($idParam)->not->toBeNull();
         expect($idParam['in'])->toBe('path');
         expect($idParam['required'])->toBeTrue();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Application Endpoint Parameter Docs
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Application Endpoint Parameter Docs', function () {
+    it('documents the SEO report url query parameter', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/seo/report']['get'];
+        $urlParam = collect($operation['parameters'] ?? [])->firstWhere('name', 'url');
+
+        expect($urlParam)->not->toBeNull();
+        expect($urlParam['in'])->toBe('query');
+        expect($urlParam['required'])->toBeTrue();
+        expect($urlParam['schema']['format'])->toBe('uri');
+    });
+
+    it('documents the pixel endpoint as binary for GET and no-content for POST', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $getOperation = $spec['paths']['/api/pixel/{pixelKey}']['get'];
+        $getResponse = $getOperation['responses']['200'] ?? [];
+        $getContent = $getResponse['content']['image/gif']['schema'] ?? null;
+
+        expect($getContent)->toBe([
+            'type' => 'string',
+            'format' => 'binary',
+        ]);
+
+        $postOperation = $spec['paths']['/api/pixel/{pixelKey}']['post'];
+        $postResponse = $postOperation['responses']['204'] ?? [];
+
+        expect($postResponse['description'] ?? null)->toBe('Accepted without a response body');
+        expect($postResponse)->not->toHaveKey('content');
+    });
+
+    it('documents MCP list query parameters', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $toolsOperation = $spec['paths']['/api/mcp/servers/{id}/tools']['get'];
+        $includeVersions = collect($toolsOperation['parameters'] ?? [])->firstWhere('name', 'include_versions');
+
+        expect($includeVersions)->not->toBeNull();
+        expect($includeVersions['in'])->toBe('query');
+        expect($includeVersions['schema']['type'])->toBe('boolean');
+
+        $resourcesOperation = $spec['paths']['/api/mcp/servers/{id}/resources']['get'];
+        $includeContent = collect($resourcesOperation['parameters'] ?? [])->firstWhere('name', 'include_content');
+
+        expect($includeContent)->not->toBeNull();
+        expect($includeContent['in'])->toBe('query');
+        expect($includeContent['schema']['type'])->toBe('boolean');
+
+        $serverOperation = $spec['paths']['/api/mcp/servers/{id}']['get'];
+        $serverIncludeVersions = collect($serverOperation['parameters'] ?? [])->firstWhere('name', 'include_versions');
+        $serverIncludeContent = collect($serverOperation['parameters'] ?? [])->firstWhere('name', 'include_content');
+
+        expect($serverIncludeVersions)->not->toBeNull();
+        expect($serverIncludeVersions['in'])->toBe('query');
+        expect($serverIncludeVersions['schema']['type'])->toBe('boolean');
+
+        expect($serverIncludeContent)->not->toBeNull();
+        expect($serverIncludeContent['in'])->toBe('query');
+        expect($serverIncludeContent['schema']['type'])->toBe('boolean');
+    });
+
+    it('lets explicit path parameter metadata override the generated entry', function () {
+        RouteFacade::prefix('api')
+            ->middleware('api')
+            ->group(function () {
+                RouteFacade::get('/test-scan/items/{id}/explicit', [TestExplicitPathParameterController::class, 'show']);
+            });
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/test-scan/items/{id}/explicit']['get'];
+        $parameters = $operation['parameters'] ?? [];
+
+        expect($parameters)->toHaveCount(1);
+
+        $idParam = collect($parameters)->firstWhere('name', 'id');
+
+        expect($idParam)->not->toBeNull();
+        expect($idParam['in'])->toBe('path');
+        expect($idParam['required'])->toBeTrue();
+        expect($idParam['description'])->toBe('Explicit item identifier');
+    });
+
+    it('documents the MCP tool call request body shape', function () {
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/mcp/tools/call']['post'];
+        $schema = $operation['requestBody']['content']['application/json']['schema'] ?? null;
+
+        expect($schema)->not->toBeNull();
+        expect($schema['type'])->toBe('object');
+        expect($schema['properties'])->toHaveKey('server')
+            ->toHaveKey('tool')
+            ->toHaveKey('arguments')
+            ->toHaveKey('version');
+        expect($schema['required'])->toBe(['server', 'tool']);
+        expect($schema['additionalProperties'])->toBeTrue();
     });
 });
 
@@ -323,9 +454,10 @@ describe('ApiResponse Attribute Rendering', function () {
             201 => 'Resource created',
             204 => 'No content',
             400 => 'Bad request',
-            401 => 'Unauthorized',
+            401 => 'Unauthorised',
             403 => 'Forbidden',
             404 => 'Not found',
+            410 => 'Gone',
             422 => 'Validation error',
             429 => 'Too many requests',
             500 => 'Internal server error',
@@ -345,6 +477,29 @@ describe('ApiResponse Attribute Rendering', function () {
         );
 
         expect($response->resource)->toBe(TestJsonResource::class);
+    });
+
+    it('infers resource schema fields from JsonResource payloads', function () {
+        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.exclude' => []]);
+
+        RouteFacade::prefix('api')
+            ->middleware('api')
+            ->group(function () {
+                RouteFacade::get('/test-scan/items/{id}', [TestOpenApiController::class, 'show']);
+            });
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $schema = $spec['paths']['/api/test-scan/items/{id}']['get']['responses']['200']['content']['application/json']['schema'] ?? null;
+
+        expect($schema)->not->toBeNull();
+        expect($schema['type'])->toBe('object');
+        expect($schema['properties'])->toHaveKey('id')
+            ->toHaveKey('name');
+        expect($schema['properties']['id']['type'])->toBe('integer');
+        expect($schema['properties']['name']['type'])->toBe('string');
     });
 
     it('supports paginated flag', function () {
@@ -649,7 +804,7 @@ describe('Extension System', function () {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Error Response Documentation', function () {
-    it('documents 401 Unauthorized response', function () {
+    it('documents 401 Unauthorised response', function () {
         $extension = new ApiKeyAuthExtension;
         $spec = [
             'info' => [],
@@ -708,6 +863,69 @@ describe('Error Response Documentation', function () {
 
         expect($result['responses'])->toHaveKey('401')
             ->toHaveKey('403');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sunset Documentation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Sunset Documentation', function () {
+    it('registers deprecation headers in components', function () {
+        $extension = new SunsetExtension;
+        $spec = ['components' => []];
+
+        $result = $extension->extend($spec, []);
+
+        expect($result['components']['headers'])->toHaveKey('deprecation')
+            ->toHaveKey('sunset')
+            ->toHaveKey('link')
+            ->toHaveKey('xapiwarn');
+    });
+
+    it('marks sunset routes as deprecated and documents their response headers', function () {
+        RouteFacade::prefix('api')
+            ->middleware(['api', 'api.sunset:2025-06-01,/api/v2/legacy'])
+            ->group(function () {
+                RouteFacade::get('/sunset-test/legacy', fn () => response()->json(['ok' => true]))
+                    ->name('sunset-test.legacy');
+            });
+
+        config(['api-docs.routes.include' => ['api/*']]);
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/sunset-test/legacy']['get'];
+
+        expect($operation['deprecated'])->toBeTrue();
+        expect($operation['responses']['200']['headers'])->toHaveKey('Deprecation')
+            ->toHaveKey('Sunset')
+            ->toHaveKey('X-API-Warn')
+            ->toHaveKey('Link');
+    });
+
+    it('only documents the sunset headers that the middleware will emit', function () {
+        RouteFacade::prefix('api')
+            ->middleware(['api', 'api.sunset'])
+            ->group(function () {
+                RouteFacade::get('/sunset-test/plain', fn () => response()->json(['ok' => true]))
+                    ->name('sunset-test.plain');
+            });
+
+        config(['api-docs.routes.include' => ['api/*']]);
+
+        $builder = new OpenApiBuilder;
+        $spec = $builder->build();
+
+        $operation = $spec['paths']['/api/sunset-test/plain']['get'];
+        $headers = $operation['responses']['200']['headers'];
+
+        expect($operation['deprecated'])->toBeTrue();
+        expect($headers)->toHaveKey('Deprecation')
+            ->toHaveKey('X-API-Warn');
+        expect($headers)->not->toHaveKey('Sunset');
+        expect($headers)->not->toHaveKey('Link');
     });
 });
 
@@ -1025,6 +1243,16 @@ class TestPartialHiddenController
 
     #[ApiHidden]
     public function hiddenMethod(): void {}
+}
+
+/**
+ * Test controller with an explicit path parameter override.
+ */
+class TestExplicitPathParameterController
+{
+    #[ApiParameter('id', 'path', 'string', 'Explicit item identifier')]
+    #[ApiResponse(200, TestJsonResource::class, 'Item details')]
+    public function show(string $id): void {}
 }
 
 /**

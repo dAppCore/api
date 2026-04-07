@@ -72,7 +72,7 @@ use Illuminate\Support\Facades\Route;
  *
  * ```php
  * VersionedRoutes::v1()
- *     ->deprecated('2025-06-01')
+ *     ->deprecated('2025-06-01', '/api/v2/new-endpoint')
  *     ->routes(function () {
  *         Route::get('/legacy', ...);
  *     });
@@ -85,6 +85,11 @@ class VersionedRoutes
     protected bool $usePrefix = true;
 
     protected ?string $sunsetDate = null;
+
+    /**
+     * @var string|null
+     */
+    protected ?string $replacement = null;
 
     protected bool $isDeprecated = false;
 
@@ -178,11 +183,13 @@ class VersionedRoutes
      * Mark this version as deprecated.
      *
      * @param  string|null  $sunsetDate  Optional sunset date (YYYY-MM-DD or RFC7231 format)
+     * @param  string|null  $replacement  Optional replacement endpoint URL
      */
-    public function deprecated(?string $sunsetDate = null): static
+    public function deprecated(?string $sunsetDate = null, ?string $replacement = null): static
     {
         $this->isDeprecated = true;
         $this->sunsetDate = $sunsetDate;
+        $this->replacement = $replacement;
 
         return $this;
     }
@@ -239,8 +246,18 @@ class VersionedRoutes
     {
         $middleware = ["api.version:{$this->version}"];
 
-        if ($this->isDeprecated && $this->sunsetDate) {
-            $middleware[] = "api.sunset:{$this->sunsetDate}";
+        if ($this->isDeprecated) {
+            if ($this->sunsetDate !== null && $this->sunsetDate !== '') {
+                if ($this->replacement !== null && $this->replacement !== '') {
+                    $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement}";
+                } else {
+                    $middleware[] = "api.sunset:{$this->sunsetDate}";
+                }
+            } elseif ($this->replacement !== null && $this->replacement !== '') {
+                $middleware[] = "api.sunset:,$this->replacement";
+            } else {
+                $middleware[] = 'api.sunset';
+            }
         }
 
         return array_merge($middleware, $this->middleware);

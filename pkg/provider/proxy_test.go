@@ -183,11 +183,32 @@ func TestProxyProvider_Renderable_Good(t *testing.T) {
 }
 
 func TestProxyProvider_Ugly_InvalidUpstream(t *testing.T) {
-	assert.Panics(t, func() {
-		provider.NewProxy(provider.ProxyConfig{
-			Name:     "bad",
-			BasePath: "/api/v1/bad",
-			Upstream: "://not-a-url",
-		})
+	p := provider.NewProxy(provider.ProxyConfig{
+		Name:     "bad",
+		BasePath: "/api/v1/bad",
+		Upstream: "://not-a-url",
 	})
+
+	require.NotNil(t, p)
+	assert.Error(t, p.Err())
+
+	engine, err := api.New()
+	require.NoError(t, err)
+	engine.Register(p)
+
+	handler := engine.Handler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/bad/items", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	assert.Equal(t, false, body["success"])
+	errObj, ok := body["error"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "invalid_provider_configuration", errObj["code"])
 }

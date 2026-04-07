@@ -40,7 +40,7 @@ class ErrorResource extends JsonResource
     /**
      * Common error factory methods.
      */
-    public static function unauthorized(string $message = 'Unauthorized'): static
+    public static function unauthorized(string $message = 'Unauthorised'): static
     {
         return new static('unauthorized', $message);
     }

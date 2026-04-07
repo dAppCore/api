@@ -6,6 +6,7 @@ namespace Core\Api\Middleware;
 
 use Core\Api\Models\ApiKey;
 use Core\Api\Services\IpRestrictionService;
+use Core\Api\Concerns\HasApiResponses;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,6 +25,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class AuthenticateApiKey
 {
+    use HasApiResponses;
+
     public function handle(Request $request, Closure $next, ?string $scope = null): Response
     {
         $token = $request->bearerToken();
@@ -113,14 +116,15 @@ class AuthenticateApiKey
     }
 
     /**
-     * Return 401 Unauthorized response.
+     * Return 401 Unauthorised response.
      */
     protected function unauthorized(string $message): Response
     {
-        return response()->json([
-            'error' => 'unauthorized',
-            'message' => $message,
-        ], 401);
+        return $this->errorResponse(
+            errorCode: 'unauthorized',
+            message: $message,
+            status: 401,
+        );
     }
 
     /**
@@ -128,9 +132,6 @@ class AuthenticateApiKey
      */
     protected function forbidden(string $message): Response
     {
-        return response()->json([
-            'error' => 'forbidden',
-            'message' => $message,
-        ], 403);
+        return $this->forbiddenResponse($message, status: 403);
     }
 }

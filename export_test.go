@@ -5,6 +5,7 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
+	"iter"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,6 +54,24 @@ func TestExportSpec_Good_YAML(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "openapi:") {
 		t.Fatalf("expected YAML output to contain 'openapi:', got:\n%s", output)
+	}
+
+	var spec map[string]any
+	if err := yaml.Unmarshal(buf.Bytes(), &spec); err != nil {
+		t.Fatalf("output is not valid YAML: %v", err)
+	}
+
+	if spec["openapi"] != "3.1.0" {
+		t.Fatalf("expected openapi=3.1.0, got %v", spec["openapi"])
+	}
+}
+
+func TestExportSpec_Good_NormalisesFormatInput(t *testing.T) {
+	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+
+	var buf bytes.Buffer
+	if err := api.ExportSpec(&buf, " YAML ", builder, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var spec map[string]any
@@ -162,5 +181,43 @@ func TestExportSpec_Good_WithToolBridge(t *testing.T) {
 	}
 	if _, ok := paths["/tools/metrics_query"]; !ok {
 		t.Fatal("expected /tools/metrics_query path in spec")
+	}
+}
+
+func TestExportSpecIter_Good_WithGroupIterator(t *testing.T) {
+	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+
+	group := &specStubGroup{
+		name:     "iter",
+		basePath: "/iter",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/ping",
+				Summary: "Ping iter group",
+				Response: map[string]any{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	groups := iter.Seq[api.RouteGroup](func(yield func(api.RouteGroup) bool) {
+		_ = yield(group)
+	})
+
+	var buf bytes.Buffer
+	if err := api.ExportSpecIter(&buf, "json", builder, groups); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &spec); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/iter/ping"]; !ok {
+		t.Fatal("expected /iter/ping path in spec")
 	}
 }

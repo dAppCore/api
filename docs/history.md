@@ -169,11 +169,12 @@ At the end of Phase 3, the module has 176 tests.
 
 ## Known Limitations
 
-### 1. Cache has no size limit
+### 1. Cache remains in-memory
 
-`WithCache(ttl)` stores all successful GET responses in memory with no maximum entry count or
-total size bound. For a server receiving requests to many distinct URLs, the cache will grow
-without bound. A LRU eviction policy or a configurable maximum is the natural next step.
+`WithCache(ttl, maxEntries, maxBytes)` can now bound the cache by entry count and approximate
+payload size, but it still stores responses in memory. Workloads with very large cached bodies
+or a long-lived process will still consume RAM, so a disk-backed cache would be the next step if
+that becomes a concern.
 
 ### 2. SDK codegen requires an external binary
 

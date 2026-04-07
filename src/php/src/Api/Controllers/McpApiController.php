@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Core\Api\Controllers;
 
 use Core\Front\Controller;
+use Core\Api\Concerns\HasApiResponses;
+use Core\Api\Documentation\Attributes\ApiParameter;
 use Core\Api\Models\ApiKey;
 use Core\Mod\Mcp\Models\McpApiRequest;
 use Core\Mod\Mcp\Models\McpToolCall;
@@ -23,6 +25,8 @@ use Symfony\Component\Yaml\Yaml;
  */
 class McpApiController extends Controller
 {
+    use HasApiResponses;
+
     /**
      * List all available MCP servers.
      *
@@ -47,14 +51,47 @@ class McpApiController extends Controller
      * Get server details with tools and resources.
      *
      * GET /api/v1/mcp/servers/{id}
+     *
+     * Query params:
+     * - include_versions: bool - include version info for each tool
+     * - include_content: bool - include resource content when the definition already contains it
      */
+    #[ApiParameter(
+        name: 'include_versions',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include version information for each tool',
+        required: false,
+        example: false,
+        default: false
+    )]
+    #[ApiParameter(
+        name: 'include_content',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include resource content when the definition already contains it',
+        required: false,
+        example: false,
+        default: false
+    )]
     public function server(Request $request, string $id): JsonResponse
     {
         $server = $this->loadServerFull($id);
 
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
+
+        if ($request->boolean('include_versions', false)) {
+            $server['tools'] = $this->enrichToolsWithVersioning($id, $server['tools'] ?? []);
+        }
+
+        if ($request->boolean('include_content', false)) {
+            $server['resources'] = $this->enrichResourcesWithContent($server['resources'] ?? []);
+        }
+
+        $server['tool_count'] = count($server['tools'] ?? []);
+        $server['resource_count'] = count($server['resources'] ?? []);
 
         return response()->json($server);
     }
@@ -67,12 +104,21 @@ class McpApiController extends Controller
      * Query params:
      * - include_versions: bool - include version info for each tool
      */
+    #[ApiParameter(
+        name: 'include_versions',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include version information for each tool',
+        required: false,
+        example: false,
+        default: false
+    )]
     public function tools(Request $request, string $id): JsonResponse
     {
         $server = $this->loadServerFull($id);
 
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         $tools = $server['tools'] ?? [];
@@ -108,6 +154,116 @@ class McpApiController extends Controller
     }
 
     /**
+     * List resources for a specific server.
+     *
+     * GET /api/v1/mcp/servers/{id}/resources
+     *
+     * Query params:
+     * - include_content: bool - include resource content when the definition already contains it
+     */
+    #[ApiParameter(
+        name: 'include_content',
+        in: 'query',
+        type: 'boolean',
+        description: 'Include resource content when the definition already contains it',
+        required: false,
+        example: false,
+        default: false
+    )]
+    public function resources(Request $request, string $id): JsonResponse
+    {
+        $server = $this->loadServerFull($id);
+
+        if (! $server) {
+            return $this->notFoundResponse('Server');
+        }
+
+        $includeContent = $request->boolean('include_content', false);
+
+        $resources = collect($server['resources'] ?? [])
+            ->filter(fn ($resource) => is_array($resource))
+            ->map(function (array $resource) use ($includeContent) {
+                $payload = array_filter([
+                    'uri' => $resource['uri'] ?? null,
+                    'path' => $resource['path'] ?? null,
+                    'name' => $resource['name'] ?? null,
+                    'description' => $resource['description'] ?? null,
+                    'mime_type' => $resource['mime_type'] ?? ($resource['mimeType'] ?? null),
+                ], static fn ($value) => $value !== null);
+
+                if ($includeContent && $this->resourceDefinitionHasContent($resource)) {
+                    $payload['content'] = $this->normaliseResourceContent($resource);
+                }
+
+                return $payload;
+            })
+            ->values();
+
+        return response()->json([
+            'server' => $id,
+            'resources' => $resources,
+            'count' => $resources->count(),
+        ]);
+    }
+
+    /**
+     * Enrich a tool collection with version metadata.
+     *
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<int, array<string, mixed>>
+     */
+    protected function enrichToolsWithVersioning(string $serverId, array $tools): array
+    {
+        $versionService = app(ToolVersionService::class);
+
+        return collect($tools)->map(function (array $tool) use ($serverId, $versionService) {
+            $toolName = $tool['name'] ?? '';
+            $latestVersion = $versionService->getLatestVersion($serverId, $toolName);
+
+            $tool['versioning'] = [
+                'latest_version' => $latestVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
+                'is_versioned' => $latestVersion !== null,
+                'deprecated' => $latestVersion?->is_deprecated ?? false,
+            ];
+
+            if ($latestVersion?->input_schema) {
+                $tool['inputSchema'] = $latestVersion->input_schema;
+            }
+
+            return $tool;
+        })->all();
+    }
+
+    /**
+     * Enrich a resource collection with inline content when available.
+     *
+     * @param  array<int, array<string, mixed>>  $resources
+     * @return array<int, array<string, mixed>>
+     */
+    protected function enrichResourcesWithContent(array $resources): array
+    {
+        return collect($resources)
+            ->filter(fn ($resource) => is_array($resource))
+            ->map(function (array $resource) {
+                $payload = array_filter([
+                    'uri' => $resource['uri'] ?? null,
+                    'path' => $resource['path'] ?? null,
+                    'name' => $resource['name'] ?? null,
+                    'description' => $resource['description'] ?? null,
+                    'mime_type' => $resource['mime_type'] ?? ($resource['mimeType'] ?? null),
+                ], static fn ($value) => $value !== null);
+
+                if ($this->resourceDefinitionHasContent($resource)) {
+                    $payload['content'] = $this->normaliseResourceContent($resource);
+                }
+
+                return $payload;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
      * Execute a tool on an MCP server.
      *
      * POST /api/v1/mcp/tools/call
@@ -129,13 +285,13 @@ class McpApiController extends Controller
 
         $server = $this->loadServerFull($validated['server']);
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         // Verify tool exists in server definition
         $toolDef = collect($server['tools'] ?? [])->firstWhere('name', $validated['tool']);
         if (! $toolDef) {
-            return response()->json(['error' => 'Tool not found'], 404);
+            return $this->notFoundResponse('Tool');
         }
 
         // Version resolution
@@ -153,16 +309,18 @@ class McpApiController extends Controller
             // Sunset versions return 410 Gone
             $status = ($error['code'] ?? '') === 'TOOL_VERSION_SUNSET' ? 410 : 400;
 
-            return response()->json([
-                'success' => false,
-                'error' => $error['message'] ?? 'Version error',
-                'error_code' => $error['code'] ?? 'VERSION_ERROR',
-                'server' => $validated['server'],
-                'tool' => $validated['tool'],
-                'requested_version' => $validated['version'] ?? null,
-                'latest_version' => $error['latest_version'] ?? null,
-                'migration_notes' => $error['migration_notes'] ?? null,
-            ], $status);
+            return $this->errorResponse(
+                errorCode: $error['code'] ?? 'VERSION_ERROR',
+                message: $error['message'] ?? 'Version error',
+                meta: [
+                    'server' => $validated['server'],
+                    'tool' => $validated['tool'],
+                    'requested_version' => $validated['version'] ?? null,
+                    'latest_version' => $error['latest_version'] ?? null,
+                    'migration_notes' => $error['migration_notes'] ?? null,
+                ],
+                status: $status,
+            );
         }
 
         /** @var McpToolVersion|null $toolVersion */
@@ -178,15 +336,17 @@ class McpApiController extends Controller
             );
 
             if (! empty($validationErrors)) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Validation failed',
-                    'error_code' => 'VALIDATION_ERROR',
-                    'validation_errors' => $validationErrors,
-                    'server' => $validated['server'],
-                    'tool' => $validated['tool'],
-                    'version' => $toolVersion?->version ?? 'unversioned',
-                ], 422);
+                return $this->errorResponse(
+                    errorCode: 'VALIDATION_ERROR',
+                    message: 'Validation failed',
+                    meta: [
+                        'validation_errors' => $validationErrors,
+                        'server' => $validated['server'],
+                        'tool' => $validated['tool'],
+                        'version' => $toolVersion?->version ?? 'unversioned',
+                    ],
+                    status: 422,
+                );
             }
         }
 
@@ -201,7 +361,8 @@ class McpApiController extends Controller
             $result = $this->executeToolViaArtisan(
                 $validated['server'],
                 $validated['tool'],
-                $validated['arguments'] ?? []
+                $validated['arguments'] ?? [],
+                $toolVersion?->version
             );
 
             $durationMs = (int) ((microtime(true) - $startTime) * 1000);
@@ -262,7 +423,16 @@ class McpApiController extends Controller
             // Log full request for debugging/replay
             $this->logApiRequest($request, $validated, 500, $response, $durationMs, $apiKey, $e->getMessage());
 
-            return response()->json($response, 500);
+            return $this->errorResponse(
+                errorCode: 'tool_execution_error',
+                message: $e->getMessage(),
+                meta: array_filter([
+                    'server' => $validated['server'],
+                    'tool' => $validated['tool'],
+                    'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
+                ]),
+                status: 500,
+            );
         }
     }
 
@@ -343,13 +513,13 @@ class McpApiController extends Controller
     {
         $serverConfig = $this->loadServerFull($server);
         if (! $serverConfig) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
         }
 
         // Verify tool exists in server definition
         $toolDef = collect($serverConfig['tools'] ?? [])->firstWhere('name', $tool);
         if (! $toolDef) {
-            return response()->json(['error' => 'Tool not found'], 404);
+            return $this->notFoundResponse('Tool');
         }
 
         $versionService = app(ToolVersionService::class);
@@ -374,7 +544,7 @@ class McpApiController extends Controller
         $toolVersion = $versionService->getToolAtVersion($server, $tool, $version);
 
         if (! $toolVersion) {
-            return response()->json(['error' => 'Version not found'], 404);
+            return $this->notFoundResponse('Version');
         }
 
         $response = response()->json($toolVersion->toApiArray());
@@ -397,9 +567,13 @@ class McpApiController extends Controller
      */
     public function resource(Request $request, string $uri): JsonResponse
     {
+        $uri = rawurldecode($uri);
+
         // Parse URI format: server://resource/path
         if (! preg_match('/^([a-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
-            return response()->json(['error' => 'Invalid resource URI format'], 400);
+            return $this->validationErrorResponse([
+                'uri' => ['Invalid resource URI format. Expected pattern server://resource/path'],
+            ], 400);
         }
 
         $serverId = $matches[1];
@@ -407,53 +581,62 @@ class McpApiController extends Controller
 
         $server = $this->loadServerFull($serverId);
         if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+            return $this->notFoundResponse('Server');
+        }
+
+        $resourceDef = $this->findResourceDefinition($server, $uri, $resourcePath);
+        if ($resourceDef !== null && $this->resourceDefinitionHasContent($resourceDef)) {
+            return response()->json([
+                'uri' => $uri,
+                'server' => $serverId,
+                'resource' => $resourcePath,
+                'content' => $this->normaliseResourceContent($resourceDef),
+            ]);
         }
 
         try {
             $result = $this->readResourceViaArtisan($serverId, $resourcePath);
+            if ($result === null) {
+                return $this->notFoundResponse('Resource');
+            }
+
+            if (is_array($result) && array_key_exists('content', $result)) {
+                $content = $result['content'];
+            } elseif (is_array($result) && array_key_exists('contents', $result)) {
+                $content = $result['contents'];
+            } else {
+                $content = $result;
+            }
 
             return response()->json([
                 'uri' => $uri,
-                'content' => $result,
+                'server' => $serverId,
+                'resource' => $resourcePath,
+                'content' => $content,
             ]);
         } catch (\Throwable $e) {
-            return response()->json([
-                'error' => $e->getMessage(),
-                'uri' => $uri,
-            ], 500);
+            return $this->errorResponse(
+                errorCode: 'resource_read_error',
+                message: $e->getMessage(),
+                meta: [
+                    'uri' => $uri,
+                ],
+                status: 500,
+            );
         }
     }
 
     /**
      * Execute tool via artisan MCP server command.
      */
-    protected function executeToolViaArtisan(string $server, string $tool, array $arguments): mixed
+    protected function executeToolViaArtisan(string $server, string $tool, array $arguments, ?string $version = null): mixed
     {
-        $commandMap = [
-            'hosthub-agent' => 'mcp:agent-server',
-            'socialhost' => 'mcp:socialhost-server',
-            'biohost' => 'mcp:biohost-server',
-            'commerce' => 'mcp:commerce-server',
-            'supporthost' => 'mcp:support-server',
-            'upstream' => 'mcp:upstream-server',
-        ];
-
-        $command = $commandMap[$server] ?? null;
+        $command = $this->resolveMcpServerCommand($server);
         if (! $command) {
             throw new \RuntimeException("Unknown server: {$server}");
         }
 
-        // Build MCP request
-        $mcpRequest = [
-            'jsonrpc' => '2.0',
-            'id' => uniqid(),
-            'method' => 'tools/call',
-            'params' => [
-                'name' => $tool,
-                'arguments' => $arguments,
-            ],
-        ];
+        $mcpRequest = $this->buildToolCallRequest($tool, $arguments, $version);
 
         // Execute via process
         $process = proc_open(
@@ -490,13 +673,156 @@ class McpApiController extends Controller
     }
 
     /**
+     * Build the JSON-RPC payload for an MCP tool call.
+     */
+    protected function buildToolCallRequest(string $tool, array $arguments, ?string $version = null): array
+    {
+        $params = [
+            'name' => $tool,
+            'arguments' => $arguments,
+        ];
+
+        if ($version !== null && $version !== '') {
+            $params['version'] = $version;
+        }
+
+        return [
+            'jsonrpc' => '2.0',
+            'id' => uniqid(),
+            'method' => 'tools/call',
+            'params' => $params,
+        ];
+    }
+
+    /**
      * Read resource via artisan MCP server command.
      */
     protected function readResourceViaArtisan(string $server, string $path): mixed
     {
-        // Similar to executeToolViaArtisan but with resources/read method
-        // Simplified for now - can expand later
-        return ['path' => $path, 'content' => 'Resource reading not yet implemented'];
+        $command = $this->resolveMcpServerCommand($server);
+        if (! $command) {
+            throw new \RuntimeException("Unknown server: {$server}");
+        }
+
+        $mcpRequest = [
+            'jsonrpc' => '2.0',
+            'id' => uniqid(),
+            'method' => 'resources/read',
+            'params' => [
+                'uri' => "{$server}://{$path}",
+                'path' => $path,
+            ],
+        ];
+
+        $process = proc_open(
+            ['php', 'artisan', $command],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            base_path()
+        );
+
+        if (! is_resource($process)) {
+            throw new \RuntimeException('Failed to start MCP server process');
+        }
+
+        fwrite($pipes[0], json_encode($mcpRequest)."\n");
+        fclose($pipes[0]);
+
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        proc_close($process);
+
+        $response = json_decode($output, true);
+        if (! is_array($response)) {
+            throw new \RuntimeException('Invalid MCP resource response');
+        }
+
+        if (isset($response['error'])) {
+            throw new \RuntimeException($response['error']['message'] ?? 'Resource read failed');
+        }
+
+        return $response['result'] ?? null;
+    }
+
+    /**
+     * Resolve the artisan command used for a given MCP server.
+     */
+    protected function resolveMcpServerCommand(string $server): ?string
+    {
+        $commandMap = [
+            'hosthub-agent' => 'mcp:agent-server',
+            'socialhost' => 'mcp:socialhost-server',
+            'biohost' => 'mcp:biohost-server',
+            'commerce' => 'mcp:commerce-server',
+            'supporthost' => 'mcp:support-server',
+            'upstream' => 'mcp:upstream-server',
+        ];
+
+        return $commandMap[$server] ?? null;
+    }
+
+    /**
+     * Find a resource definition within the loaded server config.
+     */
+    protected function findResourceDefinition(array $server, string $uri, string $path): mixed
+    {
+        foreach ($server['resources'] ?? [] as $resource) {
+            if (! is_array($resource)) {
+                continue;
+            }
+
+            $resourceUri = $resource['uri'] ?? null;
+            $resourcePath = $resource['path'] ?? null;
+            $resourceName = $resource['name'] ?? null;
+
+            if ($resourceUri === $uri || $resourcePath === $path || $resourceName === basename($path)) {
+                return $resource;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalise a resource definition into a response payload.
+     */
+    protected function normaliseResourceContent(mixed $resource): mixed
+    {
+        if (! is_array($resource)) {
+            return $resource;
+        }
+
+        foreach (['content', 'contents', 'body', 'text', 'value'] as $field) {
+            if (array_key_exists($field, $resource)) {
+                return $resource[$field];
+            }
+        }
+
+        return $resource;
+    }
+
+    /**
+     * Determine whether a resource definition already carries readable content.
+     */
+    protected function resourceDefinitionHasContent(mixed $resource): bool
+    {
+        if (! is_array($resource)) {
+            return true;
+        }
+
+        foreach (['content', 'contents', 'body', 'text', 'value'] as $field) {
+            if (array_key_exists($field, $resource)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

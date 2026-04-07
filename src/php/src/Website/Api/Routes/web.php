@@ -28,6 +28,9 @@ Route::get('/scalar', [DocsController::class, 'scalar'])->name('api.scalar');
 // ReDoc (three-panel API reference)
 Route::get('/redoc', [DocsController::class, 'redoc'])->name('api.redoc');
 
+// Stoplight Elements API reference
+Route::get('/stoplight', [DocsController::class, 'stoplight'])->name('api.stoplight');
+
 // OpenAPI spec (rate limited - expensive to generate)
 Route::get('/openapi.json', [DocsController::class, 'openapi'])
     ->middleware('throttle:60,1')

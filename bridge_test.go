@@ -3,6 +3,7 @@
 package api_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -150,6 +151,522 @@ func TestToolBridge_Good_Describe(t *testing.T) {
 	}
 	if descs[1].Response != nil {
 		t.Fatalf("expected descs[1].Response to be nil, got %v", descs[1].Response)
+	}
+}
+
+func TestToolBridge_Good_DescribeTrimsBlankGroup(t *testing.T) {
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "   ",
+	}, func(c *gin.Context) {})
+
+	descs := bridge.Describe()
+	if len(descs) != 1 {
+		t.Fatalf("expected 1 description, got %d", len(descs))
+	}
+	if len(descs[0].Tags) != 1 || descs[0].Tags[0] != "tools" {
+		t.Fatalf("expected blank group to fall back to bridge tag, got %v", descs[0].Tags)
+	}
+}
+
+func TestToolBridge_Good_ValidatesRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		var payload map[string]any
+		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+			t.Fatalf("handler could not read validated body: %v", err)
+		}
+		c.JSON(http.StatusOK, api.OK(payload["path"]))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(`{"path":"/tmp/file.txt"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Data != "/tmp/file.txt" {
+		t.Fatalf("expected validated payload to reach handler, got %q", resp.Data)
+	}
+}
+
+func TestToolBridge_Good_ValidatesResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK(map[string]any{"path": "/tmp/file.txt"}))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[map[string]any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("expected Success=true")
+	}
+	if resp.Data["path"] != "/tmp/file.txt" {
+		t.Fatalf("expected validated response data to reach client, got %v", resp.Data["path"])
+	}
+}
+
+func TestToolBridge_Bad_InvalidResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		OutputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK(map[string]any{"path": 123}))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_tool_response" {
+		t.Fatalf("expected invalid_tool_response error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Bad_InvalidRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(`{"path":123}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Good_ValidatesEnumValues(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "publish_item",
+		Description: "Publish an item",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"draft", "published"},
+				},
+			},
+			"required": []any{"status"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("published"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"published"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestToolBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "publish_item",
+		Description: "Publish an item",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"draft", "published"},
+				},
+			},
+			"required": []any{"status"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("published"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"archived"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Good_ValidatesSchemaCombinators(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "route_choice",
+		Description: "Choose a route",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"choice": map[string]any{
+					"oneOf": []any{
+						map[string]any{
+							"type": "string",
+							"allOf": []any{
+								map[string]any{"minLength": 2},
+								map[string]any{"pattern": "^[A-Z]+$"},
+							},
+						},
+						map[string]any{
+							"type":    "string",
+							"pattern": "^A",
+						},
+					},
+				},
+			},
+			"required": []any{"choice"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", bytes.NewBufferString(`{"choice":"BC"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestToolBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "route_choice",
+		Description: "Choose a route",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"choice": map[string]any{
+					"oneOf": []any{
+						map[string]any{
+							"type": "string",
+							"allOf": []any{
+								map[string]any{"minLength": 1},
+								map[string]any{"pattern": "^[A-Z]+$"},
+							},
+						},
+						map[string]any{
+							"type":    "string",
+							"pattern": "^A",
+						},
+					},
+				},
+			},
+			"required": []any{"choice"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", bytes.NewBufferString(`{"choice":"A"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "publish_item",
+		Description: "Publish an item",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"status": map[string]any{"type": "string"},
+			},
+			"required":             []any{"status"},
+			"additionalProperties": false,
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("published"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"published","unexpected":true}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Good_EnforcesStringConstraints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "publish_code",
+		Description: "Publish a code",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"code": map[string]any{
+					"type":      "string",
+					"minLength": 3,
+					"maxLength": 5,
+					"pattern":   "^[A-Z]+$",
+				},
+			},
+			"required": []any{"code"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_code", bytes.NewBufferString(`{"code":"ABC"}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestToolBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "quota_check",
+		Description: "Check quotas",
+		Group:       "items",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"count": map[string]any{
+					"type":    "integer",
+					"minimum": 1,
+					"maximum": 3,
+				},
+				"labels": map[string]any{
+					"type":     "array",
+					"minItems": 2,
+					"maxItems": 4,
+					"items": map[string]any{
+						"type": "string",
+					},
+				},
+				"payload": map[string]any{
+					"type":                 "object",
+					"minProperties":        1,
+					"maxProperties":        2,
+					"additionalProperties": true,
+				},
+			},
+			"required": []any{"count", "labels", "payload"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("accepted"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/quota_check", bytes.NewBufferString(`{"count":0,"labels":["one"],"payload":{}}`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for numeric/collection constraint failure, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
 	}
 }
 

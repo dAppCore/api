@@ -3,6 +3,9 @@
 package api
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/language"
 )
@@ -13,7 +16,21 @@ const i18nContextKey = "i18n.locale"
 // i18nMessagesKey is the Gin context key for the message lookup map.
 const i18nMessagesKey = "i18n.messages"
 
+// i18nCatalogKey is the Gin context key for the full locale->message catalog.
+const i18nCatalogKey = "i18n.catalog"
+
+// i18nDefaultLocaleKey stores the configured default locale for fallback lookups.
+const i18nDefaultLocaleKey = "i18n.default_locale"
+
 // I18nConfig configures the internationalisation middleware.
+//
+// Example:
+//
+//	cfg := api.I18nConfig{
+//		DefaultLocale: "en",
+//		Supported:     []string{"en", "fr"},
+//		Messages:      map[string]map[string]string{"fr": {"greeting": "Bonjour"}},
+//	}
 type I18nConfig struct {
 	// DefaultLocale is the fallback locale when the Accept-Language header
 	// is absent or does not match any supported locale. Defaults to "en".
@@ -30,10 +47,31 @@ type I18nConfig struct {
 	Messages map[string]map[string]string
 }
 
+// I18nConfig returns the configured locale and message catalogue settings for
+// the engine.
+//
+// The result snapshots the Engine state at call time and clones slices/maps so
+// callers can safely reuse or modify the returned value.
+//
+// Example:
+//
+//	cfg := engine.I18nConfig()
+func (e *Engine) I18nConfig() I18nConfig {
+	if e == nil {
+		return I18nConfig{}
+	}
+
+	return cloneI18nConfig(e.i18nConfig)
+}
+
 // WithI18n adds Accept-Language header parsing and locale detection middleware.
 // The middleware uses golang.org/x/text/language for RFC 5646 language matching
 // with quality weighting support. The detected locale is stored in the Gin
 // context and can be retrieved by handlers via GetLocale().
+//
+// Example:
+//
+//	api.New(api.WithI18n(api.I18nConfig{Supported: []string{"en", "fr"}}))
 //
 // If messages are configured, handlers can look up localised strings via
 // GetMessage(). This is a lightweight bridge — the go-i18n grammar engine
@@ -57,14 +95,16 @@ func WithI18n(cfg ...I18nConfig) Option {
 				tags = append(tags, tag)
 			}
 		}
+		snapshot := cloneI18nConfig(config)
+		e.i18nConfig = snapshot
 		matcher := language.NewMatcher(tags)
 
-		e.middlewares = append(e.middlewares, i18nMiddleware(matcher, config))
+		e.middlewares = append(e.middlewares, i18nMiddleware(matcher, snapshot))
 	}
 }
 
 // i18nMiddleware returns Gin middleware that parses Accept-Language, matches
-// it against supported locales, and stores the result in the context.
+// it against supported locales, and stores the resolved BCP 47 tag in the context.
 func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		accept := c.GetHeader("Accept-Language")
@@ -75,18 +115,16 @@ func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 		} else {
 			tags, _, _ := language.ParseAcceptLanguage(accept)
 			tag, _, _ := matcher.Match(tags...)
-			base, _ := tag.Base()
-			locale = base.String()
+			locale = tag.String()
 		}
 
 		c.Set(i18nContextKey, locale)
+		c.Set(i18nDefaultLocaleKey, cfg.DefaultLocale)
 
 		// Attach the message map for this locale if messages are configured.
 		if cfg.Messages != nil {
+			c.Set(i18nCatalogKey, cfg.Messages)
 			if msgs, ok := cfg.Messages[locale]; ok {
-				c.Set(i18nMessagesKey, msgs)
-			} else if msgs, ok := cfg.Messages[cfg.DefaultLocale]; ok {
-				// Fall back to default locale messages.
 				c.Set(i18nMessagesKey, msgs)
 			}
 		}
@@ -97,6 +135,10 @@ func i18nMiddleware(matcher language.Matcher, cfg I18nConfig) gin.HandlerFunc {
 
 // GetLocale returns the detected locale for the current request.
 // Returns "en" if the i18n middleware was not applied.
+//
+// Example:
+//
+//	locale := api.GetLocale(c)
 func GetLocale(c *gin.Context) string {
 	if v, ok := c.Get(i18nContextKey); ok {
 		if s, ok := v.(string); ok {
@@ -109,6 +151,10 @@ func GetLocale(c *gin.Context) string {
 // GetMessage looks up a localised message by key for the current request.
 // Returns the message string and true if found, or empty string and false
 // if the key does not exist or the i18n middleware was not applied.
+//
+// Example:
+//
+//	msg, ok := api.GetMessage(c, "greeting")
 func GetMessage(c *gin.Context, key string) (string, bool) {
 	if v, ok := c.Get(i18nMessagesKey); ok {
 		if msgs, ok := v.(map[string]string); ok {
@@ -117,5 +163,84 @@ func GetMessage(c *gin.Context, key string) (string, bool) {
 			}
 		}
 	}
+
+	catalog, _ := c.Get(i18nCatalogKey)
+	msgsByLocale, _ := catalog.(map[string]map[string]string)
+	if len(msgsByLocale) == 0 {
+		return "", false
+	}
+
+	locales := localeFallbacks(GetLocale(c))
+	if defaultLocale, ok := c.Get(i18nDefaultLocaleKey); ok {
+		if fallback, ok := defaultLocale.(string); ok && fallback != "" {
+			locales = append(locales, localeFallbacks(fallback)...)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(locales))
+	for _, locale := range locales {
+		if locale == "" {
+			continue
+		}
+		if _, ok := seen[locale]; ok {
+			continue
+		}
+		seen[locale] = struct{}{}
+		if msgs, ok := msgsByLocale[locale]; ok {
+			if msg, ok := msgs[key]; ok {
+				return msg, true
+			}
+		}
+	}
+
 	return "", false
+}
+
+// localeFallbacks returns the locale and its parent tags in order from
+// most specific to least specific. For example, "fr-CA" yields
+// ["fr-CA", "fr"] and "zh-Hant-TW" yields ["zh-Hant-TW", "zh-Hant", "zh"].
+func localeFallbacks(locale string) []string {
+	locale = strings.TrimSpace(strings.ReplaceAll(locale, "_", "-"))
+	if locale == "" {
+		return nil
+	}
+
+	parts := strings.Split(locale, "-")
+	if len(parts) == 0 {
+		return []string{locale}
+	}
+
+	fallbacks := make([]string, 0, len(parts))
+	for i := len(parts); i >= 1; i-- {
+		fallbacks = append(fallbacks, strings.Join(parts[:i], "-"))
+	}
+
+	return fallbacks
+}
+
+func cloneI18nConfig(cfg I18nConfig) I18nConfig {
+	out := cfg
+	out.Supported = slices.Clone(cfg.Supported)
+	out.Messages = cloneI18nMessages(cfg.Messages)
+	return out
+}
+
+func cloneI18nMessages(messages map[string]map[string]string) map[string]map[string]string {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	out := make(map[string]map[string]string, len(messages))
+	for locale, msgs := range messages {
+		if len(msgs) == 0 {
+			out[locale] = nil
+			continue
+		}
+		cloned := make(map[string]string, len(msgs))
+		for key, value := range msgs {
+			cloned[key] = value
+		}
+		out[locale] = cloned
+	}
+	return out
 }

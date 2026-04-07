@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * API Configuration
  *
@@ -218,6 +220,20 @@ return [
             'link.clicked',
             'qrcode.scanned',
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | SEO Analysis
+    |--------------------------------------------------------------------------
+    |
+    | Settings for the SEO report and analysis endpoint.
+    |
+    */
+
+    'seo' => [
+        // HTTP timeout when fetching a page for analysis
+        'timeout' => env('API_SEO_TIMEOUT', 10),
     ],
 
     /*

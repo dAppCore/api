@@ -1,13 +1,15 @@
-// SPDX-Licence-Identifier: EUPL-1.2
+// SPDX-License-Identifier: EUPL-1.2
 
 package provider
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 
+	coreapi "dappco.re/go/core/api"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,14 +41,30 @@ type ProxyConfig struct {
 type ProxyProvider struct {
 	config ProxyConfig
 	proxy  *httputil.ReverseProxy
+	err    error
 }
 
 // NewProxy creates a ProxyProvider from the given configuration.
-// The upstream URL must be valid or NewProxy will panic.
+// Invalid upstream URLs do not panic; the provider retains the
+// configuration error and responds with a standard 500 envelope when
+// mounted. This keeps provider construction safe for callers.
 func NewProxy(cfg ProxyConfig) *ProxyProvider {
 	target, err := url.Parse(cfg.Upstream)
 	if err != nil {
-		panic("provider.NewProxy: invalid upstream URL: " + err.Error())
+		return &ProxyProvider{
+			config: cfg,
+			err:    err,
+		}
+	}
+
+	// url.Parse accepts inputs like "127.0.0.1:9901" without error — they
+	// parse without a scheme or host, which causes httputil.ReverseProxy to
+	// fail silently at runtime. Require both to be present.
+	if target.Scheme == "" || target.Host == "" {
+		return &ProxyProvider{
+			config: cfg,
+			err:    fmt.Errorf("upstream %q must include a scheme and host (e.g. http://127.0.0.1:9901)", cfg.Upstream),
+		}
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
@@ -59,17 +77,53 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 	proxy.Director = func(req *http.Request) {
 		defaultDirector(req)
 		// Strip the base path prefix from the request path.
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, basePath)
-		if req.URL.Path == "" {
-			req.URL.Path = "/"
+		req.URL.Path = stripBasePath(req.URL.Path, basePath)
+		if req.URL.RawPath != "" {
+			req.URL.RawPath = stripBasePath(req.URL.RawPath, basePath)
 		}
-		req.URL.RawPath = strings.TrimPrefix(req.URL.RawPath, basePath)
 	}
 
 	return &ProxyProvider{
 		config: cfg,
 		proxy:  proxy,
 	}
+}
+
+// Err reports any configuration error detected while constructing the proxy.
+// A nil error means the proxy is ready to mount and serve requests.
+func (p *ProxyProvider) Err() error {
+	if p == nil {
+		return nil
+	}
+	return p.err
+}
+
+// stripBasePath removes an exact base path prefix from a request path.
+// It only strips when the path matches the base path itself or lives under
+// the base path boundary, so "/api" will not accidentally trim "/api-v2".
+func stripBasePath(path, basePath string) string {
+	basePath = strings.TrimSuffix(strings.TrimSpace(basePath), "/")
+	if basePath == "" || basePath == "/" {
+		if path == "" {
+			return "/"
+		}
+		return path
+	}
+
+	if path == basePath {
+		return "/"
+	}
+
+	prefix := basePath + "/"
+	if strings.HasPrefix(path, prefix) {
+		trimmed := strings.TrimPrefix(path, basePath)
+		if trimmed == "" {
+			return "/"
+		}
+		return trimmed
+	}
+
+	return path
 }
 
 // Name returns the provider identity.
@@ -85,6 +139,19 @@ func (p *ProxyProvider) BasePath() string {
 // RegisterRoutes mounts a catch-all reverse proxy handler on the router group.
 func (p *ProxyProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.Any("/*path", func(c *gin.Context) {
+		if p == nil || p.err != nil || p.proxy == nil {
+			details := map[string]any{}
+			if p != nil && p.err != nil {
+				details["error"] = p.err.Error()
+			}
+			c.JSON(http.StatusInternalServerError, coreapi.FailWithDetails(
+				"invalid_provider_configuration",
+				"Provider is misconfigured",
+				details,
+			))
+			return
+		}
+
 		// Use the underlying http.ResponseWriter directly. Gin's
 		// responseWriter wrapper does not implement http.CloseNotifier,
 		// which httputil.ReverseProxy requires for cancellation signalling.

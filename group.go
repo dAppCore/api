@@ -2,10 +2,18 @@
 
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"iter"
+
+	"github.com/gin-gonic/gin"
+)
 
 // RouteGroup registers API routes onto a Gin router group.
 // Subsystems implement this interface to declare their endpoints.
+//
+// Example:
+//
+//	var g api.RouteGroup = &myGroup{}
 type RouteGroup interface {
 	// Name returns a human-readable identifier for the group.
 	Name() string
@@ -18,6 +26,10 @@ type RouteGroup interface {
 }
 
 // StreamGroup optionally declares WebSocket channels a subsystem publishes to.
+//
+// Example:
+//
+//	var sg api.StreamGroup = &myStreamGroup{}
 type StreamGroup interface {
 	// Channels returns the list of channel names this group streams on.
 	Channels() []string
@@ -26,19 +38,89 @@ type StreamGroup interface {
 // DescribableGroup extends RouteGroup with OpenAPI metadata.
 // RouteGroups that implement this will have their endpoints
 // included in the generated OpenAPI specification.
+//
+// Example:
+//
+//	var dg api.DescribableGroup = &myDescribableGroup{}
 type DescribableGroup interface {
 	RouteGroup
 	// Describe returns endpoint descriptions for OpenAPI generation.
 	Describe() []RouteDescription
 }
 
+// DescribableGroupIter extends DescribableGroup with an iterator-based
+// description source for callers that want to avoid slice allocation.
+//
+// Example:
+//
+//	var dg api.DescribableGroupIter = &myDescribableGroup{}
+type DescribableGroupIter interface {
+	DescribableGroup
+	// DescribeIter returns endpoint descriptions for OpenAPI generation.
+	DescribeIter() iter.Seq[RouteDescription]
+}
+
 // RouteDescription describes a single endpoint for OpenAPI generation.
+//
+// Example:
+//
+//	rd := api.RouteDescription{
+//		Method:      "POST",
+//		Path:        "/users",
+//		Summary:     "Create a user",
+//		Description: "Creates a new user account.",
+//		Tags:        []string{"users"},
+//		StatusCode:  201,
+//		RequestBody: map[string]any{"type": "object"},
+//		Response:    map[string]any{"type": "object"},
+//	}
 type RouteDescription struct {
-	Method      string         // HTTP method: GET, POST, PUT, DELETE, PATCH
-	Path        string         // Path relative to BasePath, e.g. "/generate"
-	Summary     string         // Short summary
-	Description string         // Long description
-	Tags        []string       // OpenAPI tags for grouping
-	RequestBody map[string]any // JSON Schema for request body (nil for GET)
-	Response    map[string]any // JSON Schema for success response data
+	Method      string   // HTTP method: GET, POST, PUT, DELETE, PATCH
+	Path        string   // Path relative to BasePath, e.g. "/generate"
+	Summary     string   // Short summary
+	Description string   // Long description
+	Tags        []string // OpenAPI tags for grouping
+	// Hidden omits the route from generated documentation.
+	Hidden bool
+	// Deprecated marks the operation as deprecated in OpenAPI.
+	Deprecated bool
+	// SunsetDate marks when a deprecated operation will be removed.
+	// Use YYYY-MM-DD or an RFC 7231 HTTP date string.
+	SunsetDate string
+	// Replacement points to the successor endpoint URL, when known.
+	Replacement string
+	// StatusCode is the documented 2xx success status code.
+	// Zero defaults to 200.
+	StatusCode int
+	// Security overrides the default bearerAuth requirement when non-nil.
+	// Use an empty, non-nil slice to mark the route as public.
+	Security        []map[string][]string
+	Parameters      []ParameterDescription
+	RequestBody     map[string]any // JSON Schema for request body (nil for GET)
+	RequestExample  any            // Optional example payload for the request body.
+	Response        map[string]any // JSON Schema for success response data
+	ResponseExample any            // Optional example payload for the success response.
+	ResponseHeaders map[string]string
+}
+
+// ParameterDescription describes an OpenAPI parameter for a route.
+//
+// Example:
+//
+//	param := api.ParameterDescription{
+//		Name:        "id",
+//		In:          "path",
+//		Description: "User identifier",
+//		Required:    true,
+//		Schema:      map[string]any{"type": "string"},
+//		Example:     "usr_123",
+//	}
+type ParameterDescription struct {
+	Name        string         // Parameter name.
+	In          string         // Parameter location: path, query, header, or cookie.
+	Description string         // Human-readable parameter description.
+	Required    bool           // Whether the parameter is required.
+	Deprecated  bool           // Whether the parameter is deprecated.
+	Schema      map[string]any // JSON Schema for the parameter value.
+	Example     any            // Optional example value.
 }

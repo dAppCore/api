@@ -4,6 +4,8 @@ package api_test
 
 import (
 	"bufio"
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -43,6 +45,44 @@ func TestWithSSE_Good_EndpointExists(t *testing.T) {
 	ct := resp.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
+	}
+}
+
+func TestWithSSE_Good_CustomPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker), api.WithSSEPath("/stream"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/stream")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
+	}
+
+	notFoundResp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request to default SSE path failed: %v", err)
+	}
+	defer notFoundResp.Body.Close()
+
+	if notFoundResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 at default /events when custom path is configured, got %d", notFoundResp.StatusCode)
 	}
 }
 
@@ -202,6 +242,67 @@ func TestWithSSE_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 }
 
+func TestWithSSE_Good_WithResponseMetaStillStreamsEvents(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(
+		api.WithRequestID(),
+		api.WithResponseMeta(),
+		api.WithSSE(broker),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
+	}
+	if reqID := resp.Header.Get("X-Request-ID"); reqID == "" {
+		t.Fatal("expected X-Request-ID header from RequestID middleware")
+	}
+
+	waitForClients(t, broker, 1)
+
+	broker.Publish("test", "greeting", map[string]string{"msg": "hello"})
+
+	scanner := bufio.NewScanner(resp.Body)
+	var eventLine string
+
+	deadline := time.After(3 * time.Second)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if after, ok := strings.CutPrefix(line, "event: "); ok {
+				eventLine = after
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-deadline:
+		t.Fatal("timed out waiting for SSE event with response meta enabled")
+	}
+
+	if eventLine != "greeting" {
+		t.Fatalf("expected event=%q, got %q", "greeting", eventLine)
+	}
+}
+
 func TestWithSSE_Good_MultipleClients(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -269,6 +370,58 @@ func TestWithSSE_Good_MultipleClients(t *testing.T) {
 	wg.Wait()
 }
 
+func TestWithSSE_Good_DrainDisconnectsClients(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	waitForClients(t, broker, 1)
+
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+		}
+	}()
+
+	drainDone := make(chan struct{})
+	go func() {
+		broker.Drain()
+		close(drainDone)
+	}()
+
+	select {
+	case <-drainDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for SSE drain to complete")
+	}
+
+	select {
+	case <-streamDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for SSE client to disconnect")
+	}
+
+	if got := broker.ClientCount(); got != 0 {
+		t.Fatalf("expected 0 connected SSE clients after drain, got %d", got)
+	}
+
+	_ = resp.Body.Close()
+}
+
 // ── No SSE broker ────────────────────────────────────────────────────────
 
 func TestNoSSEBroker_Good(t *testing.T) {
@@ -284,6 +437,63 @@ func TestNoSSEBroker_Good(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for /events without broker, got %d", w.Code)
+	}
+}
+
+func TestWithSSE_Good_EngineShutdownDrainsClients(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to allocate listener: %v", err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+
+	e, err := api.New(api.WithAddr(addr), api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- e.Serve(ctx)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	resp, err := http.Get("http://" + addr + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	waitForClients(t, broker, 1)
+
+	cancel()
+
+	select {
+	case serveErr := <-errCh:
+		if serveErr != nil {
+			t.Fatalf("Serve returned unexpected error: %v", serveErr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return within 5 seconds after context cancellation")
+	}
+
+	if got := broker.ClientCount(); got != 0 {
+		t.Fatalf("expected SSE broker to drain all clients, got %d", got)
 	}
 }
 

@@ -57,6 +57,10 @@ class OpenApiDocumentationTest extends TestCase
         $response = new ApiResponse(404);
 
         $this->assertEquals('Not found', $response->getDescription());
+
+        $goneResponse = new ApiResponse(410);
+
+        $this->assertEquals('Gone', $goneResponse->getDescription());
     }
 
     public function test_api_security_attribute(): void

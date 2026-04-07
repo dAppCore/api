@@ -148,14 +148,7 @@ func TestWithTimeout_Good_CombinesWithOtherMiddleware(t *testing.T) {
 }
 
 func TestWithTimeout_Ugly_ZeroDurationDoesNotPanic(t *testing.T) {
-	skipIfRaceDetector(t)
 	gin.SetMode(gin.TestMode)
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("WithTimeout(0) panicked: %v", r)
-		}
-	}()
 
 	e, err := api.New(api.WithTimeout(0))
 	if err != nil {
@@ -168,5 +161,15 @@ func TestWithTimeout_Ugly_ZeroDurationDoesNotPanic(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
 	h.ServeHTTP(w, req)
 
-	// We only care that it did not panic. Status may vary with zero timeout.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with zero timeout disabled, got %d", w.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Data != "pong" {
+		t.Fatalf("expected Data=%q, got %q", "pong", resp.Data)
+	}
 }

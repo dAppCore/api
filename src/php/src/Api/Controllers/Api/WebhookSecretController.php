@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Core\Api\Controllers\Api;
 
+use Core\Api\Concerns\HasApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -16,6 +17,8 @@ use Core\Social\Models\Webhook;
  */
 class WebhookSecretController extends Controller
 {
+    use HasApiResponses;
+
     public function __construct(
         protected WebhookSecretRotationService $rotationService
     ) {}
@@ -28,7 +31,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $webhook = Webhook::where('workspace_id', $workspace->id)
@@ -36,7 +39,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $webhook) {
-            return response()->json(['error' => 'Webhook not found'], 404);
+            return $this->notFoundResponse('Webhook');
         }
 
         $validated = $request->validate([
@@ -66,7 +69,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $endpoint = ContentWebhookEndpoint::where('workspace_id', $workspace->id)
@@ -74,7 +77,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return response()->json(['error' => 'Webhook endpoint not found'], 404);
+            return $this->notFoundResponse('Webhook endpoint');
         }
 
         $validated = $request->validate([
@@ -104,7 +107,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $webhook = Webhook::where('workspace_id', $workspace->id)
@@ -112,7 +115,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $webhook) {
-            return response()->json(['error' => 'Webhook not found'], 404);
+            return $this->notFoundResponse('Webhook');
         }
 
         return response()->json([
@@ -128,7 +131,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $endpoint = ContentWebhookEndpoint::where('workspace_id', $workspace->id)
@@ -136,7 +139,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return response()->json(['error' => 'Webhook endpoint not found'], 404);
+            return $this->notFoundResponse('Webhook endpoint');
         }
 
         return response()->json([
@@ -152,7 +155,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $webhook = Webhook::where('workspace_id', $workspace->id)
@@ -160,7 +163,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $webhook) {
-            return response()->json(['error' => 'Webhook not found'], 404);
+            return $this->notFoundResponse('Webhook');
         }
 
         $this->rotationService->invalidatePreviousSecret($webhook);
@@ -179,7 +182,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $endpoint = ContentWebhookEndpoint::where('workspace_id', $workspace->id)
@@ -187,7 +190,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return response()->json(['error' => 'Webhook endpoint not found'], 404);
+            return $this->notFoundResponse('Webhook endpoint');
         }
 
         $this->rotationService->invalidatePreviousSecret($endpoint);
@@ -206,7 +209,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $webhook = Webhook::where('workspace_id', $workspace->id)
@@ -214,7 +217,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $webhook) {
-            return response()->json(['error' => 'Webhook not found'], 404);
+            return $this->notFoundResponse('Webhook');
         }
 
         $validated = $request->validate([
@@ -240,7 +243,7 @@ class WebhookSecretController extends Controller
         $workspace = $request->user()?->defaultHostWorkspace();
 
         if (! $workspace) {
-            return response()->json(['error' => 'Workspace not found'], 404);
+            return $this->noWorkspaceResponse();
         }
 
         $endpoint = ContentWebhookEndpoint::where('workspace_id', $workspace->id)
@@ -248,7 +251,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return response()->json(['error' => 'Webhook endpoint not found'], 404);
+            return $this->notFoundResponse('Webhook endpoint');
         }
 
         $validated = $request->validate([
