@@ -3,6 +3,7 @@
 package provider
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -53,6 +54,16 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 		return &ProxyProvider{
 			config: cfg,
 			err:    err,
+		}
+	}
+
+	// url.Parse accepts inputs like "127.0.0.1:9901" without error — they
+	// parse without a scheme or host, which causes httputil.ReverseProxy to
+	// fail silently at runtime. Require both to be present.
+	if target.Scheme == "" || target.Host == "" {
+		return &ProxyProvider{
+			config: cfg,
+			err:    fmt.Errorf("upstream %q must include a scheme and host (e.g. http://127.0.0.1:9901)", cfg.Upstream),
 		}
 	}
 

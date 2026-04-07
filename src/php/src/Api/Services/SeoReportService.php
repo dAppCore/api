@@ -20,16 +20,24 @@ class SeoReportService
 {
     /**
      * Analyse a URL and return a technical SEO report.
+     *
+     * @throws RuntimeException when the URL is blocked for SSRF reasons or the fetch fails.
      */
     public function analyse(string $url): array
     {
+        $this->validateUrlForSsrf($url);
+
         try {
             $response = Http::withHeaders([
                 'User-Agent' => config('app.name', 'Core API').' SEO Reporter/1.0',
                 'Accept' => 'text/html,application/xhtml+xml',
             ])
                 ->timeout((int) config('api.seo.timeout', 10))
-                ->get($url);
+                ->withoutRedirecting()
+                ->get($url)
+                ->throw();
+        } catch (RuntimeException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             throw new RuntimeException('Unable to fetch the requested URL.', 0, $exception);
         }
@@ -347,6 +355,107 @@ class SeoReportService
             'message' => $message,
             'severity' => $severity,
         ];
+    }
+
+    /**
+     * Validate that a URL is safe to fetch and does not target internal/private
+     * network resources (SSRF protection).
+     *
+     * Blocks:
+     *  - Non-HTTP/HTTPS schemes
+     *  - Loopback addresses (127.0.0.0/8, ::1)
+     *  - RFC-1918 private ranges (10/8, 172.16/12, 192.168/16)
+     *  - Link-local ranges (169.254.0.0/16, fe80::/10)
+     *  - IPv6 ULA (fc00::/7)
+     *
+     * @throws RuntimeException when the URL fails SSRF validation.
+     */
+    protected function validateUrlForSsrf(string $url): void
+    {
+        $parsed = parse_url($url);
+
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            throw new RuntimeException('The supplied URL is not valid.');
+        }
+
+        if (! in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+            throw new RuntimeException('Only HTTP and HTTPS URLs are permitted.');
+        }
+
+        $host = $parsed['host'];
+        $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
+
+        // Fall back to gethostbyname for hosts not returned by dns_get_record.
+        if (empty($records)) {
+            $resolved = gethostbyname($host);
+            if ($resolved !== $host) {
+                $records[] = ['ip' => $resolved];
+            }
+        }
+
+        foreach ($records as $record) {
+            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
+            if ($ip === null) {
+                continue;
+            }
+            if ($this->isPrivateIp($ip)) {
+                throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+            }
+        }
+    }
+
+    /**
+     * Return true when an IP address falls within a private, loopback, or
+     * link-local range.
+     */
+    protected function isPrivateIp(string $ip): bool
+    {
+        // inet_pton returns false for invalid addresses.
+        $packed = inet_pton($ip);
+        if ($packed === false) {
+            return true; // Treat unresolvable as unsafe.
+        }
+
+        if (strlen($packed) === 4) {
+            // IPv4 checks.
+            $long = ip2long($ip);
+            if ($long === false) {
+                return true;
+            }
+            $privateRanges = [
+                ['start' => ip2long('127.0.0.0'),   'end' => ip2long('127.255.255.255')], // loopback
+                ['start' => ip2long('10.0.0.0'),    'end' => ip2long('10.255.255.255')],  // RFC-1918
+                ['start' => ip2long('172.16.0.0'),  'end' => ip2long('172.31.255.255')],  // RFC-1918
+                ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')], // RFC-1918
+                ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')], // link-local
+            ];
+            foreach ($privateRanges as $range) {
+                if ($long >= $range['start'] && $long <= $range['end']) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // IPv6 checks: loopback (::1), link-local (fe80::/10), ULA (fc00::/7).
+        if ($ip === '::1') {
+            return true;
+        }
+        $prefix2 = strtolower(substr(bin2hex($packed), 0, 2));
+        // fe80::/10 — first byte 0xfe, second byte 0x80–0xbf
+        if ($prefix2 === 'fe') {
+            $secondNibble = hexdec(substr(bin2hex($packed), 2, 1));
+            if ($secondNibble >= 8 && $secondNibble <= 11) {
+                return true;
+            }
+        }
+        // fc00::/7 — first byte 0xfc or 0xfd
+        if (in_array($prefix2, ['fc', 'fd'], true)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

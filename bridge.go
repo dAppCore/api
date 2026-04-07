@@ -194,13 +194,24 @@ func describeTool(desc ToolDescriptor, defaultTag string) RouteDescription {
 	}
 }
 
+// maxToolRequestBodyBytes is the maximum request body size accepted by the
+// tool bridge handler. Requests larger than this are rejected with 413.
+const maxToolRequestBodyBytes = 10 << 20 // 10 MiB
+
 func wrapToolHandler(handler gin.HandlerFunc, validator *toolInputValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		body, err := io.ReadAll(c.Request.Body)
+		limited := http.MaxBytesReader(c.Writer, c.Request.Body, maxToolRequestBodyBytes)
+		body, err := io.ReadAll(limited)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, FailWithDetails(
+			status := http.StatusBadRequest
+			msg := "Unable to read request body"
+			if err.Error() == "http: request body too large" {
+				status = http.StatusRequestEntityTooLarge
+				msg = "Request body exceeds the maximum allowed size"
+			}
+			c.AbortWithStatusJSON(status, FailWithDetails(
 				"invalid_request_body",
-				"Unable to read request body",
+				msg,
 				map[string]any{"error": err.Error()},
 			))
 			return
@@ -289,9 +300,12 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 		return coreerr.E("ToolBridge.ValidateResponse", "response is missing a successful envelope", nil)
 	}
 
+	// data is serialised with omitempty, so a nil/zero-value payload from
+	// constructors like OK(nil) or OK(false) will omit the key entirely.
+	// Treat a missing data key as a valid nil payload for successful responses.
 	data, ok := envelope["data"]
 	if !ok {
-		return coreerr.E("ToolBridge.ValidateResponse", "response is missing data", nil)
+		return nil
 	}
 
 	encoded, err := json.Marshal(data)
@@ -691,9 +705,16 @@ func (w *toolResponseRecorder) reset() {
 func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]) {
 	data, err := json.Marshal(resp)
 	if err != nil {
+		w.status = http.StatusInternalServerError
+		w.wroteHeader = true
 		http.Error(w.ResponseWriter, "internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	// Update recorder state so middleware observing c.Writer.Status() or
+	// Written() sees the correct values after an error response is emitted.
+	w.status = status
+	w.wroteHeader = true
 
 	w.ResponseWriter.Header().Set("Content-Type", "application/json")
 	w.ResponseWriter.WriteHeader(status)

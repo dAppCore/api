@@ -26,7 +26,7 @@
         router="hash"
         layout="{{ $config['layout'] ?? 'sidebar' }}"
         theme="{{ $config['theme'] ?? 'dark' }}"
-        hideTryIt="{{ ($config['hide_try_it'] ?? false) ? 'true' : 'false' }}"
+        @if($config['hide_try_it'] ?? false) hideTryIt="true" @endif
     ></elements-api>
 
     <script src="https://unpkg.com/@stoplight/elements/web-components.min.js"></script>

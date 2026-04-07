@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core\Api\Services;
 
 use Carbon\Carbon;
+use Core\Api\Models\ApiKey;
 use Core\Api\Models\ApiUsage;
 use Core\Api\Models\ApiUsageDaily;
 
@@ -282,7 +283,7 @@ class ApiUsageService
 
         // Fetch API keys separately to avoid broken eager loading with aggregation
         $apiKeyIds = $aggregated->pluck('api_key_id')->filter()->unique()->all();
-        $apiKeys = \Mod\Api\Models\ApiKey::whereIn('id', $apiKeyIds)
+        $apiKeys = ApiKey::whereIn('id', $apiKeyIds)
             ->select('id', 'name', 'prefix')
             ->get()
             ->keyBy('id');

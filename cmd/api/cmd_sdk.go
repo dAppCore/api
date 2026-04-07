@@ -55,7 +55,8 @@ func addSDKCommand(parent *cli.Command) {
 
 		// If no spec file was provided, generate one only after confirming the
 		// generator is available.
-		if specFile == "" {
+		resolvedSpecFile := specFile
+		if resolvedSpecFile == "" {
 			builder, err := sdkSpecBuilder(cfg)
 			if err != nil {
 				return err
@@ -76,10 +77,10 @@ func addSDKCommand(parent *cli.Command) {
 			if err := goapi.ExportSpecToFileIter(tmpPath, "json", builder, groups); err != nil {
 				return coreerr.E("sdk.Generate", "generate spec", err)
 			}
-			specFile = tmpPath
+			resolvedSpecFile = tmpPath
 		}
 
-		gen.SpecPath = specFile
+		gen.SpecPath = resolvedSpecFile
 
 		// Generate for each language.
 		for _, l := range languages {

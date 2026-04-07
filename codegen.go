@@ -93,7 +93,7 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
 	}
 
-	args := g.buildArgs(generator, outputDir)
+	args := g.buildArgs(specPath, generator, outputDir)
 	cmd := exec.CommandContext(ctx, "openapi-generator-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -106,10 +106,10 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 }
 
 // buildArgs constructs the openapi-generator-cli command arguments.
-func (g *SDKGenerator) buildArgs(generator, outputDir string) []string {
+func (g *SDKGenerator) buildArgs(specPath, generator, outputDir string) []string {
 	args := []string{
 		"generate",
-		"-i", g.SpecPath,
+		"-i", specPath,
 		"-g", generator,
 		"-o", outputDir,
 	}

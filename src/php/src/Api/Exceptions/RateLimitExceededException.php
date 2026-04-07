@@ -51,9 +51,17 @@ class RateLimitExceededException extends HttpException
         )->withHeaders($this->rateLimitResult->headers());
 
         if ($request !== null) {
-            $origin = $request->headers->get('Origin', '*');
-            $response->headers->set('Access-Control-Allow-Origin', $origin);
-            $response->headers->set('Vary', 'Origin');
+            $origin = $request->headers->get('Origin');
+            $allowedOrigins = (array) config('cors.allowed_origins', []);
+            if ($origin !== null && in_array($origin, $allowedOrigins, true)) {
+                $response->headers->set('Access-Control-Allow-Origin', $origin);
+            }
+
+            $existingVary = $response->headers->get('Vary');
+            $response->headers->set(
+                'Vary',
+                $existingVary ? $existingVary.', Origin' : 'Origin'
+            );
         }
 
         return $response;

@@ -3,6 +3,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"math"
 	"net/http"
 	"strconv"
@@ -146,8 +148,8 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 			return
 		}
 
-		c.Next()
 		setRateLimitHeaders(c, decision.limit, decision.remaining, decision.resetAt)
+		c.Next()
 	}
 }
 
@@ -183,21 +185,41 @@ func timeUntilFull(tokens float64, limit int) time.Duration {
 	return time.Duration(math.Ceil(seconds * float64(time.Second)))
 }
 
-// clientRateLimitKey prefers caller-provided credentials for bucket
-// isolation, then falls back to the network address.
+// clientRateLimitKey derives a bucket key for the request. It prefers a
+// validated principal from context (set by auth middleware), then falls back
+// to the client IP. Raw credential headers are hashed with SHA-256 when used
+// as a last resort so that secrets are never stored in the bucket map.
 func clientRateLimitKey(c *gin.Context) string {
-	if apiKey := strings.TrimSpace(c.GetHeader("X-API-Key")); apiKey != "" {
-		return "api_key:" + apiKey
+	// Prefer a validated principal placed in context by auth middleware.
+	if principal, ok := c.Get("principal"); ok && principal != nil {
+		if s, ok := principal.(string); ok && s != "" {
+			return "principal:" + s
+		}
 	}
-	if bearer := bearerTokenFromHeader(c.GetHeader("Authorization")); bearer != "" {
-		return "bearer:" + bearer
+	if userID, ok := c.Get("userID"); ok && userID != nil {
+		if s, ok := userID.(string); ok && s != "" {
+			return "user:" + s
+		}
 	}
+
+	// Fall back to IP address.
 	if ip := c.ClientIP(); ip != "" {
 		return "ip:" + ip
 	}
 	if c.Request != nil && c.Request.RemoteAddr != "" {
 		return "ip:" + c.Request.RemoteAddr
 	}
+
+	// Last resort: hash credential headers so raw secrets are not retained.
+	if apiKey := strings.TrimSpace(c.GetHeader("X-API-Key")); apiKey != "" {
+		h := sha256.Sum256([]byte(apiKey))
+		return "cred:sha256:" + hex.EncodeToString(h[:])
+	}
+	if bearer := bearerTokenFromHeader(c.GetHeader("Authorization")); bearer != "" {
+		h := sha256.Sum256([]byte(bearer))
+		return "cred:sha256:" + hex.EncodeToString(h[:])
+	}
+
 	return "ip:unknown"
 }
 

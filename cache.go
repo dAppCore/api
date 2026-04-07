@@ -85,6 +85,12 @@ func (s *cacheStore) set(key string, entry *cacheEntry) {
 	}
 
 	if elem, ok := s.index[key]; ok {
+		// Reject an oversized replacement before touching LRU state so the
+		// existing entry remains intact when the new value cannot fit.
+		if s.maxBytes > 0 && entry.size > s.maxBytes {
+			s.mu.Unlock()
+			return
+		}
 		if existing, exists := s.entries[key]; exists {
 			s.currentBytes -= existing.size
 			if s.currentBytes < 0 {

@@ -810,6 +810,13 @@ func TestAPISpecCmd_Good_ServerFlagAddsServers(t *testing.T) {
 }
 
 func TestAPISpecCmd_Good_RegisteredSpecGroups(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
 	api.RegisterSpecGroups(specCmdStubGroup{})
 
 	root := &cli.Command{Use: "root"}

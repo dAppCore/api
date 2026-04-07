@@ -23,6 +23,7 @@ type responseMetaRecorder struct {
 	gin.ResponseWriter
 	headers     http.Header
 	body        bytes.Buffer
+	size        int
 	status      int
 	wroteHeader bool
 	committed   bool
@@ -76,7 +77,9 @@ func (w *responseMetaRecorder) Write(data []byte) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
-	return w.body.Write(data)
+	n, err := w.body.Write(data)
+	w.size += n
+	return n, err
 }
 
 func (w *responseMetaRecorder) WriteString(s string) (int, error) {
@@ -89,7 +92,9 @@ func (w *responseMetaRecorder) WriteString(s string) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
-	return w.body.WriteString(s)
+	n, err := w.body.WriteString(s)
+	w.size += n
+	return n, err
 }
 
 func (w *responseMetaRecorder) Flush() {
@@ -121,7 +126,10 @@ func (w *responseMetaRecorder) Status() int {
 }
 
 func (w *responseMetaRecorder) Size() int {
-	return w.body.Len()
+	if w.passthrough {
+		return w.ResponseWriter.Size()
+	}
+	return w.size
 }
 
 func (w *responseMetaRecorder) Written() bool {
@@ -194,6 +202,7 @@ func responseMetaMiddleware() gin.HandlerFunc {
 
 		recorder.body.Reset()
 		_, _ = recorder.body.Write(body)
+		recorder.size = len(body)
 		recorder.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		recorder.commit(true)
 	}

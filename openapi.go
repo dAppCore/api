@@ -1910,10 +1910,14 @@ func sseResponseHeaders() map[string]any {
 }
 
 // effectiveGraphQLPath returns the configured GraphQL path or the default
-// GraphQL path when GraphQL is enabled without an explicit path.
+// GraphQL path when GraphQL is enabled without an explicit path. Returns an
+// empty string when neither GraphQL nor the playground is enabled.
 func (sb *SpecBuilder) effectiveGraphQLPath() string {
+	if !sb.GraphQLEnabled && !sb.GraphQLPlayground {
+		return ""
+	}
 	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
-	if graphqlPath == "" && (sb.GraphQLEnabled || sb.GraphQLPlayground) {
+	if graphqlPath == "" {
 		return defaultGraphQLPath
 	}
 	return graphqlPath
@@ -1940,30 +1944,42 @@ func (sb *SpecBuilder) effectiveGraphQLPlaygroundPath() string {
 }
 
 // effectiveSwaggerPath returns the configured Swagger UI path or the default
-// path when Swagger is enabled without an explicit override.
+// path when Swagger is enabled without an explicit override. Returns an empty
+// string when Swagger is disabled.
 func (sb *SpecBuilder) effectiveSwaggerPath() string {
+	if !sb.SwaggerEnabled {
+		return ""
+	}
 	swaggerPath := strings.TrimSpace(sb.SwaggerPath)
-	if swaggerPath == "" && sb.SwaggerEnabled {
+	if swaggerPath == "" {
 		return defaultSwaggerPath
 	}
 	return swaggerPath
 }
 
 // effectiveWSPath returns the configured WebSocket path or the default path
-// when WebSockets are enabled without an explicit override.
+// when WebSockets are enabled without an explicit override. Returns an empty
+// string when WebSockets are disabled.
 func (sb *SpecBuilder) effectiveWSPath() string {
+	if !sb.WSEnabled {
+		return ""
+	}
 	wsPath := strings.TrimSpace(sb.WSPath)
-	if wsPath == "" && sb.WSEnabled {
+	if wsPath == "" {
 		return defaultWSPath
 	}
 	return wsPath
 }
 
 // effectiveSSEPath returns the configured SSE path or the default path when
-// SSE is enabled without an explicit override.
+// SSE is enabled without an explicit override. Returns an empty string when
+// SSE is disabled.
 func (sb *SpecBuilder) effectiveSSEPath() string {
+	if !sb.SSEEnabled {
+		return ""
+	}
 	ssePath := strings.TrimSpace(sb.SSEPath)
-	if ssePath == "" && sb.SSEEnabled {
+	if ssePath == "" {
 		return defaultSSEPath
 	}
 	return ssePath
@@ -1992,7 +2008,10 @@ func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
 		return nil
 	}
 
-	paths := []string{"/health", "/swagger", resolveSwaggerPath(sb.SwaggerPath)}
+	paths := []string{"/health"}
+	if swaggerPath := sb.effectiveSwaggerPath(); swaggerPath != "" {
+		paths = append(paths, swaggerPath)
+	}
 	paths = append(paths, sb.AuthentikPublicPaths...)
 	return normalisePublicPaths(paths)
 }
