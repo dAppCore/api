@@ -489,6 +489,11 @@ func timeoutResponse(c *gin.Context) {
 	c.JSON(http.StatusGatewayTimeout, Fail("timeout", "Request timed out"))
 }
 
+// cacheDefaultMaxEntries is the entry cap applied by WithCache when the caller
+// does not supply explicit limits. Prevents unbounded growth when WithCache is
+// called with only a TTL argument.
+const cacheDefaultMaxEntries = 1_000
+
 // WithCache adds in-memory response caching middleware for GET requests.
 // Successful (2xx) GET responses are cached for the given TTL and served
 // with an X-Cache: HIT header on subsequent requests. Non-GET methods
@@ -498,15 +503,15 @@ func timeoutResponse(c *gin.Context) {
 //   - maxEntries limits the number of cached responses
 //   - maxBytes limits the approximate total cached payload size
 //
-// Pass a non-positive value to either limit to leave that dimension
-// unbounded for backward compatibility. A non-positive TTL disables the
-// middleware entirely.
+// At least one limit must be positive; when called with only a TTL the entry
+// cap defaults to cacheDefaultMaxEntries (1 000) to prevent unbounded growth.
+// A non-positive TTL disables the middleware entirely.
 //
 // Example:
 //
 //	engine, _ := api.New(api.WithCache(5*time.Minute, 100, 10<<20))
 func WithCache(ttl time.Duration, maxEntries ...int) Option {
-	entryLimit := 0
+	entryLimit := cacheDefaultMaxEntries
 	byteLimit := 0
 	if len(maxEntries) > 0 {
 		entryLimit = maxEntries[0]
@@ -531,10 +536,15 @@ func WithCacheLimits(ttl time.Duration, maxEntries, maxBytes int) Option {
 		if ttl <= 0 {
 			return
 		}
+		// newCacheStore returns nil when both limits are non-positive (unbounded),
+		// which is a footgun; skip middleware registration in that case.
+		store := newCacheStore(maxEntries, maxBytes)
+		if store == nil {
+			return
+		}
 		e.cacheTTL = ttl
 		e.cacheMaxEntries = maxEntries
 		e.cacheMaxBytes = maxBytes
-		store := newCacheStore(maxEntries, maxBytes)
 		e.middlewares = append(e.middlewares, cacheMiddleware(store, ttl))
 	}
 }

@@ -176,7 +176,7 @@ They execute after `gin.Recovery()` but before any route handler. The `Option` t
 | `WithBrotli(level...)` | Brotli response compression | Writer pool for efficiency; default compression if level omitted |
 | `WithSlog(logger)` | Structured request logging | Falls back to `slog.Default()` if nil |
 | `WithTimeout(d)` | Per-request deadline | 504 with standard error envelope on timeout |
-| `WithCache(ttl)` | In-memory GET response caching | Compatibility wrapper for `WithCacheLimits(ttl, 0, 0)`; `X-Cache: HIT` header on cache hits; 2xx only |
+| `WithCache(ttl)` | In-memory GET response caching | Defaults to 1 000-entry LRU cap when no explicit bounds given; `X-Cache: HIT` header on cache hits; 2xx only |
 | `WithCacheLimits(ttl, maxEntries, maxBytes)` | In-memory GET response caching with explicit bounds | Clearer cache configuration when eviction policy should be self-documenting |
 | `WithSessions(name, secret)` | Cookie-backed server sessions | gin-contrib/sessions with cookie store |
 | `WithAuthz(enforcer)` | Casbin policy-based authorisation | Subject from HTTP Basic Auth; 403 on deny |
@@ -395,8 +395,9 @@ engine, _ := api.New(api.WithCacheLimits(5*time.Minute, 100, 10<<20))
 - Cached responses are served with an `X-Cache: HIT` header.
 - Expired entries are evicted lazily on the next access for the same key.
 - The cache is not shared across `Engine` instances.
-- `WithCache(ttl)` remains available as a compatibility wrapper for callers that do not need to spell out the bounds.
-- Passing non-positive values to `WithCacheLimits` leaves that limit unbounded.
+- `WithCache(ttl)` defaults to a 1 000-entry LRU cap when called with only a TTL; pass explicit limits via `WithCacheLimits` for production tuning.
+- Both `maxEntries` and `maxBytes` being non-positive causes `WithCacheLimits` to skip registration; at least one must be positive.
+- Setting only one limit to a non-positive value leaves that dimension unbounded while the other limit controls eviction.
 
 The implementation uses a `cacheWriter` that wraps `gin.ResponseWriter` to intercept and
 capture the response body and status code for storage.

@@ -35,7 +35,13 @@ type cacheStore struct {
 }
 
 // newCacheStore creates an empty cache store.
+// At least one of maxEntries or maxBytes must be positive; if both are
+// non-positive the store would be unbounded and newCacheStore returns nil so
+// callers can skip registering the middleware.
 func newCacheStore(maxEntries, maxBytes int) *cacheStore {
+	if maxEntries <= 0 && maxBytes <= 0 {
+		return nil
+	}
 	return &cacheStore{
 		entries:    make(map[string]*cacheEntry),
 		order:      list.New(),
