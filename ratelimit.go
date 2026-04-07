@@ -18,6 +18,14 @@ import (
 const (
 	rateLimitCleanupInterval = time.Minute
 	rateLimitStaleAfter      = 10 * time.Minute
+
+	// rateLimitMaxBuckets caps the total number of tracked keys to prevent
+	// unbounded memory growth under high-cardinality traffic (e.g. scanning
+	// bots cycling random IPs). When the cap is reached, new keys that cannot
+	// evict a stale bucket are routed to a shared overflow bucket so requests
+	// are still rate-limited rather than bypassing the limiter entirely.
+	rateLimitMaxBuckets  = 100_000
+	rateLimitOverflowKey = "__overflow__"
 )
 
 type rateLimitStore struct {
@@ -57,12 +65,39 @@ func (s *rateLimitStore) allow(key string) rateLimitDecision {
 	s.mu.Lock()
 	bucket, ok := s.buckets[key]
 	if !ok || now.Sub(bucket.lastSeen) > rateLimitStaleAfter {
-		bucket = &rateLimitBucket{
-			tokens:   float64(s.limit),
-			last:     now,
-			lastSeen: now,
+		// Enforce the bucket cap before inserting a new entry. First try to
+		// evict a single stale entry; if none exists and the map is full,
+		// route the request to the shared overflow bucket so it is still
+		// rate-limited rather than bypassing the limiter.
+		if !ok && len(s.buckets) >= rateLimitMaxBuckets {
+			evicted := false
+			for k, candidate := range s.buckets {
+				if now.Sub(candidate.lastSeen) > rateLimitStaleAfter {
+					delete(s.buckets, k)
+					evicted = true
+					break
+				}
+			}
+			if !evicted {
+				// Cap reached and no stale entry to evict: use overflow bucket.
+				key = rateLimitOverflowKey
+				if ob, exists := s.buckets[key]; exists {
+					bucket = ob
+					ok = true
+				}
+			}
 		}
-		s.buckets[key] = bucket
+
+		if !ok {
+			bucket = &rateLimitBucket{
+				tokens:   float64(s.limit),
+				last:     now,
+				lastSeen: now,
+			}
+			s.buckets[key] = bucket
+		} else {
+			bucket.lastSeen = now
+		}
 	} else {
 		bucket.lastSeen = now
 	}
@@ -186,9 +221,10 @@ func timeUntilFull(tokens float64, limit int) time.Duration {
 }
 
 // clientRateLimitKey derives a bucket key for the request. It prefers a
-// validated principal from context (set by auth middleware), then falls back
-// to the client IP. Raw credential headers are hashed with SHA-256 when used
-// as a last resort so that secrets are never stored in the bucket map.
+// validated principal placed in context by auth middleware, then falls back to
+// raw credential headers (X-API-Key or Bearer token, hashed with SHA-256 so
+// secrets are never stored in the bucket map), and finally falls back to the
+// client IP when no credentials are present.
 func clientRateLimitKey(c *gin.Context) string {
 	// Prefer a validated principal placed in context by auth middleware.
 	if principal, ok := c.Get("principal"); ok && principal != nil {

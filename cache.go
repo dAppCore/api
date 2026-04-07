@@ -50,27 +50,15 @@ func newCacheStore(maxEntries, maxBytes int) *cacheStore {
 func (s *cacheStore) get(key string) *cacheEntry {
 	s.mu.Lock()
 	entry, ok := s.entries[key]
-	if ok {
-		if elem, exists := s.index[key]; exists {
-			s.order.MoveToFront(elem)
-		}
-	}
-	s.mu.Unlock()
-
 	if !ok {
+		s.mu.Unlock()
 		return nil
 	}
+
+	// Check expiry before promoting in the LRU order so we never move a stale
+	// entry to the front. All expiry checking and eviction happen inside the
+	// same critical section to avoid a TOCTOU race.
 	if time.Now().After(entry.expires) {
-		s.mu.Lock()
-		// Re-verify the entry pointer is unchanged before evicting. Another
-		// goroutine may have called set() between us releasing and re-acquiring
-		// the lock, replacing the entry with a fresh one. Evicting the new
-		// entry would corrupt s.currentBytes and lose valid cached data.
-		currentEntry, stillExists := s.entries[key]
-		if !stillExists || currentEntry != entry {
-			s.mu.Unlock()
-			return nil
-		}
 		if elem, exists := s.index[key]; exists {
 			s.order.Remove(elem)
 			delete(s.index, key)
@@ -83,6 +71,12 @@ func (s *cacheStore) get(key string) *cacheEntry {
 		s.mu.Unlock()
 		return nil
 	}
+
+	// Only promote to LRU front after confirming the entry is still valid.
+	if elem, exists := s.index[key]; exists {
+		s.order.MoveToFront(elem)
+	}
+	s.mu.Unlock()
 	return entry
 }
 
@@ -201,15 +195,35 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 		// Serve from cache if a valid entry exists.
 		if entry := store.get(key); entry != nil {
 			body := entry.body
+			metaRewritten := false
 			if meta := GetRequestMeta(c); meta != nil {
 				body = refreshCachedResponseMeta(entry.body, meta)
+				metaRewritten = true
+			}
+
+			// staleValidatorHeader returns true for headers that describe the
+			// exact bytes of the cached body and must be dropped when the body
+			// has been rewritten by refreshCachedResponseMeta.
+			staleValidatorHeader := func(canonical string) bool {
+				if !metaRewritten {
+					return false
+				}
+				switch canonical {
+				case "Etag", "Content-Md5", "Digest":
+					return true
+				}
+				return false
 			}
 
 			for k, vals := range entry.headers {
-				if http.CanonicalHeaderKey(k) == "X-Request-ID" {
+				canonical := http.CanonicalHeaderKey(k)
+				if canonical == "X-Request-Id" {
 					continue
 				}
-				if http.CanonicalHeaderKey(k) == "Content-Length" {
+				if canonical == "Content-Length" {
+					continue
+				}
+				if staleValidatorHeader(canonical) {
 					continue
 				}
 				for _, v := range vals {
