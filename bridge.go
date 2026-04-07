@@ -290,8 +290,14 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 		return nil
 	}
 
+	// Use a decoder with UseNumber so that large integers in the envelope
+	// (including within the data field) are preserved as json.Number rather
+	// than being silently coerced to float64. This matches the behaviour of
+	// the Validate path and avoids precision loss for 64-bit integer values.
 	var envelope map[string]any
-	if err := json.Unmarshal(body, &envelope); err != nil {
+	envDec := json.NewDecoder(bytes.NewReader(body))
+	envDec.UseNumber()
+	if err := envDec.Decode(&envelope); err != nil {
 		return coreerr.E("ToolBridge.ValidateResponse", "invalid JSON response", err)
 	}
 
@@ -711,14 +717,19 @@ func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]
 		return
 	}
 
-	// Update recorder state so middleware observing c.Writer.Status() or
-	// Written() sees the correct values after an error response is emitted.
+	// Keep recorder state aligned with the replacement response so that
+	// Status(), Written(), Header() and Size() all reflect the error
+	// response. Post-handler middleware and metrics must observe correct
+	// values, not stale state from the reset() call above.
 	w.status = status
 	w.wroteHeader = true
-
-	w.ResponseWriter.Header().Set("Content-Type", "application/json")
-	w.ResponseWriter.WriteHeader(status)
-	_, _ = w.ResponseWriter.Write(data)
+	if w.headers == nil {
+		w.headers = make(http.Header)
+	}
+	w.headers.Set("Content-Type", "application/json")
+	w.body.Reset()
+	_, _ = w.body.Write(data)
+	w.commit()
 }
 
 func typeError(path, want string, value any) error {

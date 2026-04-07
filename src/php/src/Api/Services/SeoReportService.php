@@ -216,7 +216,18 @@ class SeoReportService
             }
         }
 
-        return $this->extractMetaContent($xpath, 'content-type', 'http-equiv');
+        // The http-equiv Content-Type meta returns a full value such as
+        // "text/html; charset=utf-8". Extract only the charset token so that
+        // callers receive a bare encoding label (e.g. "utf-8"), not the whole
+        // content-type string.
+        $contentType = $this->extractMetaContent($xpath, 'content-type', 'http-equiv');
+        if ($contentType !== null) {
+            if (preg_match('/charset\s*=\s*["\']?([^\s;"\']+)/i', $contentType, $matches)) {
+                return $matches[1];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -383,6 +394,21 @@ class SeoReportService
         }
 
         $host = $parsed['host'];
+
+        // If the host is an IP literal (IPv4 or bracketed IPv6), validate it
+        // directly. dns_get_record returns nothing for IP literals and
+        // gethostbyname returns the same value, so both would silently skip
+        // the private-range check without this explicit guard.
+        $normalised = ltrim(rtrim($host, ']'), '['); // strip IPv6 brackets
+        if (filter_var($normalised, FILTER_VALIDATE_IP) !== false) {
+            if ($this->isPrivateIp($normalised)) {
+                throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+            }
+
+            // Valid public IP literal — no DNS lookup required.
+            return;
+        }
+
         $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
 
         // Fall back to gethostbyname for hosts not returned by dns_get_record.
@@ -417,28 +443,23 @@ class SeoReportService
         }
 
         if (strlen($packed) === 4) {
-            // IPv4 checks.
-            $long = ip2long($ip);
-            if ($long === false) {
-                return true;
-            }
-            $privateRanges = [
-                ['start' => ip2long('127.0.0.0'),   'end' => ip2long('127.255.255.255')], // loopback
-                ['start' => ip2long('10.0.0.0'),    'end' => ip2long('10.255.255.255')],  // RFC-1918
-                ['start' => ip2long('172.16.0.0'),  'end' => ip2long('172.31.255.255')],  // RFC-1918
-                ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')], // RFC-1918
-                ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')], // link-local
-            ];
-            foreach ($privateRanges as $range) {
-                if ($long >= $range['start'] && $long <= $range['end']) {
-                    return true;
-                }
-            }
-
-            return false;
+            return $this->isPrivateIpv4($ip);
         }
 
-        // IPv6 checks: loopback (::1), link-local (fe80::/10), ULA (fc00::/7).
+        // IPv6 checks.
+
+        // ::ffff:0:0/96 — IPv4-mapped addresses (e.g. ::ffff:127.0.0.1).
+        // The first 10 bytes are 0x00, bytes 10-11 are 0xff 0xff, then 4
+        // bytes of IPv4. Evaluate the embedded IPv4 address against the
+        // standard private ranges.
+        if (str_repeat("\x00", 10) . "\xff\xff" === substr($packed, 0, 12)) {
+            $ipv4 = inet_ntop(substr($packed, 12, 4));
+            if ($ipv4 !== false && $this->isPrivateIpv4($ipv4)) {
+                return true;
+            }
+        }
+
+        // Loopback (::1).
         if ($ip === '::1') {
             return true;
         }
@@ -453,6 +474,38 @@ class SeoReportService
         // fc00::/7 — first byte 0xfc or 0xfd
         if (in_array($prefix2, ['fc', 'fd'], true)) {
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Return true when an IPv4 address string falls within a private,
+     * loopback, link-local, or reserved range.
+     *
+     * Handles 0.0.0.0/8 (RFC 1122 "this network"), 127/8 (loopback),
+     * 10/8, 172.16/12, 192.168/16 (RFC 1918), and 169.254/16 (link-local).
+     */
+    protected function isPrivateIpv4(string $ip): bool
+    {
+        $long = ip2long($ip);
+        if ($long === false) {
+            return true; // Treat unparsable as unsafe.
+        }
+
+        $privateRanges = [
+            ['start' => ip2long('0.0.0.0'),     'end' => ip2long('0.255.255.255')],   // 0.0.0.0/8 (RFC 1122)
+            ['start' => ip2long('127.0.0.0'),   'end' => ip2long('127.255.255.255')], // loopback
+            ['start' => ip2long('10.0.0.0'),    'end' => ip2long('10.255.255.255')],  // RFC-1918
+            ['start' => ip2long('172.16.0.0'),  'end' => ip2long('172.31.255.255')],  // RFC-1918
+            ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')], // RFC-1918
+            ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')], // link-local
+        ];
+
+        foreach ($privateRanges as $range) {
+            if ($long >= $range['start'] && $long <= $range['end']) {
+                return true;
+            }
         }
 
         return false;

@@ -39,7 +39,11 @@ class RateLimitExceededException extends HttpException
      */
     public function render(?Request $request = null): JsonResponse
     {
-        $response = $this->errorResponse(
+        // Return the rate-limit error response with rate-limit headers attached.
+        // CORS headers are intentionally omitted here; they are applied by the
+        // framework's CORS middleware (or PublicApiCors) which handles patterns,
+        // credentials, and Vary correctly for all responses — including errors.
+        return $this->errorResponse(
             errorCode: 'rate_limit_exceeded',
             message: $this->getMessage(),
             meta: [
@@ -49,22 +53,6 @@ class RateLimitExceededException extends HttpException
             ],
             status: 429,
         )->withHeaders($this->rateLimitResult->headers());
-
-        if ($request !== null) {
-            $origin = $request->headers->get('Origin');
-            $allowedOrigins = (array) config('cors.allowed_origins', []);
-            if ($origin !== null && in_array($origin, $allowedOrigins, true)) {
-                $response->headers->set('Access-Control-Allow-Origin', $origin);
-            }
-
-            $existingVary = $response->headers->get('Vary');
-            $response->headers->set(
-                'Vary',
-                $existingVary ? $existingVary.', Origin' : 'Origin'
-            );
-        }
-
-        return $response;
     }
 
     /**

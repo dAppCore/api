@@ -202,15 +202,9 @@ func clientRateLimitKey(c *gin.Context) string {
 		}
 	}
 
-	// Fall back to IP address.
-	if ip := c.ClientIP(); ip != "" {
-		return "ip:" + ip
-	}
-	if c.Request != nil && c.Request.RemoteAddr != "" {
-		return "ip:" + c.Request.RemoteAddr
-	}
-
-	// Last resort: hash credential headers so raw secrets are not retained.
+	// Fall back to credential headers before the IP so that different API
+	// keys coming from the same NAT address are bucketed independently. The
+	// raw secret is never stored — it is hashed with SHA-256 first.
 	if apiKey := strings.TrimSpace(c.GetHeader("X-API-Key")); apiKey != "" {
 		h := sha256.Sum256([]byte(apiKey))
 		return "cred:sha256:" + hex.EncodeToString(h[:])
@@ -218,6 +212,14 @@ func clientRateLimitKey(c *gin.Context) string {
 	if bearer := bearerTokenFromHeader(c.GetHeader("Authorization")); bearer != "" {
 		h := sha256.Sum256([]byte(bearer))
 		return "cred:sha256:" + hex.EncodeToString(h[:])
+	}
+
+	// Last resort: fall back to IP address.
+	if ip := c.ClientIP(); ip != "" {
+		return "ip:" + ip
+	}
+	if c.Request != nil && c.Request.RemoteAddr != "" {
+		return "ip:" + c.Request.RemoteAddr
 	}
 
 	return "ip:unknown"

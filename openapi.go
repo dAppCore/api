@@ -366,7 +366,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, rd.Replacement, deprecationHeaders),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, rd.Replacement, deprecationHeaders, sb.CacheEnabled),
 			}
 			if deprecated {
 				operation["deprecated"] = true
@@ -497,10 +497,10 @@ func normaliseOpenAPIPath(path string) string {
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecated bool, sunsetDate, replacement string, deprecationHeaders map[string]any) map[string]any {
+func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecated bool, sunsetDate, replacement string, deprecationHeaders map[string]any, cacheEnabled bool) map[string]any {
 	documentedHeaders := documentedResponseHeaders(responseHeaders)
 	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
-	if method == "get" {
+	if method == "get" && cacheEnabled {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
 	}
 
@@ -1554,7 +1554,7 @@ func prepareRouteGroups(groups []RouteGroup) []preparedRouteGroup {
 
 	out := make([]preparedRouteGroup, 0, len(groups))
 	for _, g := range groups {
-		if g == nil {
+		if g == nil || isNilRouteGroup(g) {
 			continue
 		}
 		if isHiddenRouteGroup(g) {

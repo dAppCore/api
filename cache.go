@@ -62,6 +62,15 @@ func (s *cacheStore) get(key string) *cacheEntry {
 	}
 	if time.Now().After(entry.expires) {
 		s.mu.Lock()
+		// Re-verify the entry pointer is unchanged before evicting. Another
+		// goroutine may have called set() between us releasing and re-acquiring
+		// the lock, replacing the entry with a fresh one. Evicting the new
+		// entry would corrupt s.currentBytes and lose valid cached data.
+		currentEntry, stillExists := s.entries[key]
+		if !stillExists || currentEntry != entry {
+			s.mu.Unlock()
+			return nil
+		}
 		if elem, exists := s.index[key]; exists {
 			s.order.Remove(elem)
 			delete(s.index, key)
