@@ -3,8 +3,9 @@
 package api
 
 import (
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 
 	goapi "dappco.re/go/core/api"
 )
@@ -45,24 +46,24 @@ type specBuilderConfig struct {
 }
 
 func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
-	swaggerPath := strings.TrimSpace(cfg.swaggerPath)
-	graphqlPath := strings.TrimSpace(cfg.graphqlPath)
-	ssePath := strings.TrimSpace(cfg.ssePath)
-	wsPath := strings.TrimSpace(cfg.wsPath)
-	cacheTTL := strings.TrimSpace(cfg.cacheTTL)
+	swaggerPath := core.Trim(cfg.swaggerPath)
+	graphqlPath := core.Trim(cfg.graphqlPath)
+	ssePath := core.Trim(cfg.ssePath)
+	wsPath := core.Trim(cfg.wsPath)
+	cacheTTL := core.Trim(cfg.cacheTTL)
 	cacheTTLValid := parsePositiveDuration(cacheTTL)
 
 	builder := &goapi.SpecBuilder{
-		Title:                   strings.TrimSpace(cfg.title),
-		Summary:                 strings.TrimSpace(cfg.summary),
-		Description:             strings.TrimSpace(cfg.description),
-		Version:                 strings.TrimSpace(cfg.version),
+		Title:                   core.Trim(cfg.title),
+		Summary:                 core.Trim(cfg.summary),
+		Description:             core.Trim(cfg.description),
+		Version:                 core.Trim(cfg.version),
 		SwaggerEnabled:          swaggerPath != "",
 		SwaggerPath:             swaggerPath,
 		GraphQLEnabled:          graphqlPath != "" || cfg.graphqlPlayground,
 		GraphQLPath:             graphqlPath,
 		GraphQLPlayground:       cfg.graphqlPlayground,
-		GraphQLPlaygroundPath:   strings.TrimSpace(cfg.graphqlPlaygroundPath),
+		GraphQLPlaygroundPath:   core.Trim(cfg.graphqlPlaygroundPath),
 		SSEEnabled:              ssePath != "",
 		SSEPath:                 ssePath,
 		WSEnabled:               wsPath != "",
@@ -73,18 +74,18 @@ func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 		CacheTTL:                cacheTTL,
 		CacheMaxEntries:         cfg.cacheMaxEntries,
 		CacheMaxBytes:           cfg.cacheMaxBytes,
-		I18nDefaultLocale:       strings.TrimSpace(cfg.i18nDefaultLocale),
-		TermsOfService:          strings.TrimSpace(cfg.termsURL),
-		ContactName:             strings.TrimSpace(cfg.contactName),
-		ContactURL:              strings.TrimSpace(cfg.contactURL),
-		ContactEmail:            strings.TrimSpace(cfg.contactEmail),
+		I18nDefaultLocale:       core.Trim(cfg.i18nDefaultLocale),
+		TermsOfService:          core.Trim(cfg.termsURL),
+		ContactName:             core.Trim(cfg.contactName),
+		ContactURL:              core.Trim(cfg.contactURL),
+		ContactEmail:            core.Trim(cfg.contactEmail),
 		Servers:                 parseServers(cfg.servers),
-		LicenseName:             strings.TrimSpace(cfg.licenseName),
-		LicenseURL:              strings.TrimSpace(cfg.licenseURL),
-		ExternalDocsDescription: strings.TrimSpace(cfg.externalDocsDescription),
-		ExternalDocsURL:         strings.TrimSpace(cfg.externalDocsURL),
-		AuthentikIssuer:         strings.TrimSpace(cfg.authentikIssuer),
-		AuthentikClientID:       strings.TrimSpace(cfg.authentikClientID),
+		LicenseName:             core.Trim(cfg.licenseName),
+		LicenseURL:              core.Trim(cfg.licenseURL),
+		ExternalDocsDescription: core.Trim(cfg.externalDocsDescription),
+		ExternalDocsURL:         core.Trim(cfg.externalDocsURL),
+		AuthentikIssuer:         core.Trim(cfg.authentikIssuer),
+		AuthentikClientID:       core.Trim(cfg.authentikClientID),
 		AuthentikTrustedProxy:   cfg.authentikTrustedProxy,
 		AuthentikPublicPaths:    normalisePublicPaths(splitUniqueCSV(cfg.authentikPublicPaths)),
 	}
@@ -110,7 +111,7 @@ func parseLocales(raw string) []string {
 }
 
 func parsePositiveDuration(raw string) bool {
-	raw = strings.TrimSpace(raw)
+	raw = core.Trim(raw)
 	if raw == "" {
 		return false
 	}

@@ -2,7 +2,7 @@
 
 package api
 
-import "strings"
+import core "dappco.re/go/core"
 
 // TransportConfig captures the configured transport endpoints and flags for an Engine.
 //
@@ -52,16 +52,16 @@ func (e *Engine) TransportConfig() TransportConfig {
 	cfg.GraphQLPlayground = gql.Playground
 	cfg.GraphQLPlaygroundPath = gql.PlaygroundPath
 
-	if e.swaggerEnabled || strings.TrimSpace(e.swaggerPath) != "" {
+	if e.swaggerEnabled || core.Trim(e.swaggerPath) != "" {
 		cfg.SwaggerPath = resolveSwaggerPath(e.swaggerPath)
 	}
 	if gql.Path != "" {
 		cfg.GraphQLPath = gql.Path
 	}
-	if e.wsHandler != nil || strings.TrimSpace(e.wsPath) != "" {
+	if e.wsHandler != nil || core.Trim(e.wsPath) != "" {
 		cfg.WSPath = resolveWSPath(e.wsPath)
 	}
-	if e.sseBroker != nil || strings.TrimSpace(e.ssePath) != "" {
+	if e.sseBroker != nil || core.Trim(e.ssePath) != "" {
 		cfg.SSEPath = resolveSSEPath(e.ssePath)
 	}
 

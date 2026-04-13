@@ -8,9 +8,10 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -241,7 +242,7 @@ func clientRateLimitKey(c *gin.Context) string {
 	// Fall back to credential headers before the IP so that different API
 	// keys coming from the same NAT address are bucketed independently. The
 	// raw secret is never stored — it is hashed with SHA-256 first.
-	if apiKey := strings.TrimSpace(c.GetHeader("X-API-Key")); apiKey != "" {
+	if apiKey := core.Trim(c.GetHeader("X-API-Key")); apiKey != "" {
 		h := sha256.Sum256([]byte(apiKey))
 		return "cred:sha256:" + hex.EncodeToString(h[:])
 	}
@@ -262,15 +263,15 @@ func clientRateLimitKey(c *gin.Context) string {
 }
 
 func bearerTokenFromHeader(header string) string {
-	header = strings.TrimSpace(header)
+	header = core.Trim(header)
 	if header == "" {
 		return ""
 	}
 
-	parts := strings.SplitN(header, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+	parts := core.SplitN(header, " ", 2)
+	if len(parts) != 2 || core.Lower(parts[0]) != "bearer" {
 		return ""
 	}
 
-	return strings.TrimSpace(parts[1])
+	return core.Trim(parts[1])
 }

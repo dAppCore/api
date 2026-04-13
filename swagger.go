@@ -3,11 +3,12 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -58,7 +59,7 @@ func (s *swaggerSpec) ReadDoc() string {
 func registerSwagger(g *gin.Engine, e *Engine, groups []RouteGroup) {
 	swaggerPath := resolveSwaggerPath(e.swaggerPath)
 	spec := newSwaggerSpec(e.OpenAPISpecBuilder(), groups)
-	name := fmt.Sprintf("swagger_%d", swaggerSeq.Add(1))
+	name := core.Sprintf("swagger_%d", swaggerSeq.Add(1))
 	swag.Register(name, spec)
 	g.GET(swaggerPath, func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, swaggerPath+"/")
@@ -69,7 +70,7 @@ func registerSwagger(g *gin.Engine, e *Engine, groups []RouteGroup) {
 // normaliseSwaggerPath coerces custom Swagger paths into a stable form.
 // The path always begins with a single slash and never ends with one.
 func normaliseSwaggerPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return defaultSwaggerPath
 	}
@@ -85,7 +86,7 @@ func normaliseSwaggerPath(path string) string {
 // resolveSwaggerPath returns the configured Swagger path or the default path
 // when no override has been provided.
 func resolveSwaggerPath(path string) string {
-	if strings.TrimSpace(path) == "" {
+	if core.Trim(path) == "" {
 		return defaultSwaggerPath
 	}
 	return normaliseSwaggerPath(path)

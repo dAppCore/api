@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"iter"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"slices"
+	core "dappco.re/go/core"
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
@@ -162,16 +162,16 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if sb.CacheMaxBytes > 0 {
 		spec["x-cache-max-bytes"] = sb.CacheMaxBytes
 	}
-	if locale := strings.TrimSpace(sb.I18nDefaultLocale); locale != "" {
+	if locale := core.Trim(sb.I18nDefaultLocale); locale != "" {
 		spec["x-i18n-default-locale"] = locale
 	}
 	if len(sb.I18nSupportedLocales) > 0 {
 		spec["x-i18n-supported-locales"] = slices.Clone(sb.I18nSupportedLocales)
 	}
-	if issuer := strings.TrimSpace(sb.AuthentikIssuer); issuer != "" {
+	if issuer := core.Trim(sb.AuthentikIssuer); issuer != "" {
 		spec["x-authentik-issuer"] = issuer
 	}
-	if clientID := strings.TrimSpace(sb.AuthentikClientID); clientID != "" {
+	if clientID := core.Trim(sb.AuthentikClientID); clientID != "" {
 		spec["x-authentik-client-id"] = clientID
 	}
 	if sb.AuthentikTrustedProxy {
@@ -353,8 +353,8 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	for _, g := range groups {
 		for _, rd := range g.descs {
 			fullPath := joinOpenAPIPath(g.basePath, rd.Path)
-			method := strings.ToLower(rd.Method)
-			deprecated := rd.Deprecated || strings.TrimSpace(rd.SunsetDate) != "" || strings.TrimSpace(rd.Replacement) != ""
+			method := core.Lower(rd.Method)
+			deprecated := rd.Deprecated || core.Trim(rd.SunsetDate) != "" || core.Trim(rd.Replacement) != ""
 			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
 			isPublic := isPublicPathForList(fullPath, publicPaths)
 			security := rd.Security
@@ -443,8 +443,8 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 // OpenAPI path without duplicate or missing separators. Gin-style parameters
 // such as :id and *path are converted to OpenAPI template parameters.
 func joinOpenAPIPath(basePath, routePath string) string {
-	basePath = strings.TrimSpace(basePath)
-	routePath = strings.TrimSpace(routePath)
+	basePath = core.Trim(basePath)
+	routePath = core.Trim(routePath)
 
 	if basePath == "" {
 		basePath = "/"
@@ -460,28 +460,28 @@ func joinOpenAPIPath(basePath, routePath string) string {
 		return routePath
 	}
 
-	return strings.TrimRight(basePath, "/") + "/" + strings.TrimPrefix(routePath, "/")
+	return strings.TrimRight(basePath, "/") + "/" + core.TrimPrefix(routePath, "/")
 }
 
 // normaliseOpenAPIPath trims whitespace and collapses trailing separators
 // while preserving the root path and converting Gin-style path parameters.
 func normaliseOpenAPIPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return "/"
 	}
 
-	segments := strings.Split(path, "/")
+	segments := core.Split(path, "/")
 	cleaned := make([]string, 0, len(segments))
 	for _, segment := range segments {
-		segment = strings.TrimSpace(segment)
+		segment = core.Trim(segment)
 		if segment == "" {
 			continue
 		}
 		switch {
-		case strings.HasPrefix(segment, ":") && len(segment) > 1:
+		case core.HasPrefix(segment, ":") && len(segment) > 1:
 			segment = "{" + segment[1:] + "}"
-		case strings.HasPrefix(segment, "*") && len(segment) > 1:
+		case core.HasPrefix(segment, "*") && len(segment) > 1:
 			segment = "{" + segment[1:] + "}"
 		}
 		cleaned = append(cleaned, segment)
@@ -491,7 +491,7 @@ func normaliseOpenAPIPath(path string) string {
 		return "/"
 	}
 
-	return "/" + strings.Join(cleaned, "/")
+	return "/" + core.Join("/", cleaned...)
 }
 
 // operationResponses builds the standard response set for a documented API
@@ -570,7 +570,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		},
 	}
 
-	if deprecated && (strings.TrimSpace(sunsetDate) != "" || strings.TrimSpace(replacement) != "") {
+	if deprecated && (core.Trim(sunsetDate) != "" || core.Trim(replacement) != "") {
 		responses["410"] = map[string]any{
 			"description": "Gone",
 			"content": map[string]any{
@@ -686,8 +686,8 @@ func healthResponses() map[string]any {
 // deprecationResponseHeaders documents the standard deprecation headers for
 // deprecated or sunsetted operations.
 func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string) map[string]any {
-	sunsetDate = strings.TrimSpace(sunsetDate)
-	replacement = strings.TrimSpace(replacement)
+	sunsetDate = core.Trim(sunsetDate)
+	replacement = core.Trim(replacement)
 
 	if !deprecated && sunsetDate == "" && replacement == "" {
 		return nil
@@ -835,7 +835,7 @@ func securitySchemeComponents(overrides map[string]any) map[string]any {
 	}
 
 	for name, scheme := range overrides {
-		name = strings.TrimSpace(name)
+		name = core.Trim(name)
 		if name == "" || scheme == nil {
 			continue
 		}
@@ -877,7 +877,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 	}
 
 	for _, g := range groups {
-		name := strings.TrimSpace(g.name)
+		name := core.Trim(g.name)
 		if name != "" && !seen[name] {
 			tags = append(tags, map[string]any{
 				"name":        name,
@@ -888,7 +888,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 
 		for _, rd := range g.descs {
 			for _, tag := range rd.Tags {
-				tag = strings.TrimSpace(tag)
+				tag = core.Trim(tag)
 				if tag == "" || seen[tag] {
 					continue
 				}
@@ -913,17 +913,21 @@ func sortTags(tags []map[string]any) {
 		return
 	}
 
-	sort.SliceStable(tags, func(i, j int) bool {
-		left, _ := tags[i]["name"].(string)
-		right, _ := tags[j]["name"].(string)
+	slices.SortStableFunc(tags, func(a, b map[string]any) int {
+		left, _ := a["name"].(string)
+		right, _ := b["name"].(string)
 
 		switch {
 		case left == "system":
-			return true
+			return -1
 		case right == "system":
-			return false
+			return 1
+		case left < right:
+			return -1
+		case left > right:
+			return 1
 		default:
-			return left < right
+			return 0
 		}
 	})
 }
@@ -1753,7 +1757,7 @@ func resolvedOperationTags(groupName string, rd RouteDescription) []string {
 		return tags
 	}
 
-	if name := strings.TrimSpace(groupName); name != "" {
+	if name := core.Trim(groupName); name != "" {
 		return []string{name}
 	}
 
@@ -1770,7 +1774,7 @@ func cleanTags(tags []string) []string {
 	cleaned := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		tag = strings.TrimSpace(tag)
+		tag = core.Trim(tag)
 		if tag == "" {
 			continue
 		}
@@ -1916,7 +1920,7 @@ func (sb *SpecBuilder) effectiveGraphQLPath() string {
 	if !sb.GraphQLEnabled && !sb.GraphQLPlayground {
 		return ""
 	}
-	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
+	graphqlPath := core.Trim(sb.GraphQLPath)
 	if graphqlPath == "" {
 		return defaultGraphQLPath
 	}
@@ -1930,7 +1934,7 @@ func (sb *SpecBuilder) effectiveGraphQLPlaygroundPath() string {
 		return ""
 	}
 
-	path := strings.TrimSpace(sb.GraphQLPlaygroundPath)
+	path := core.Trim(sb.GraphQLPlaygroundPath)
 	if path != "" {
 		return path
 	}
@@ -1950,7 +1954,7 @@ func (sb *SpecBuilder) effectiveSwaggerPath() string {
 	if !sb.SwaggerEnabled {
 		return ""
 	}
-	swaggerPath := strings.TrimSpace(sb.SwaggerPath)
+	swaggerPath := core.Trim(sb.SwaggerPath)
 	if swaggerPath == "" {
 		return defaultSwaggerPath
 	}
@@ -1964,7 +1968,7 @@ func (sb *SpecBuilder) effectiveWSPath() string {
 	if !sb.WSEnabled {
 		return ""
 	}
-	wsPath := strings.TrimSpace(sb.WSPath)
+	wsPath := core.Trim(sb.WSPath)
 	if wsPath == "" {
 		return defaultWSPath
 	}
@@ -1978,7 +1982,7 @@ func (sb *SpecBuilder) effectiveSSEPath() string {
 	if !sb.SSEEnabled {
 		return ""
 	}
-	ssePath := strings.TrimSpace(sb.SSEPath)
+	ssePath := core.Trim(sb.SSEPath)
 	if ssePath == "" {
 		return defaultSSEPath
 	}
@@ -1988,7 +1992,7 @@ func (sb *SpecBuilder) effectiveSSEPath() string {
 // effectiveCacheTTL returns a normalised cache TTL when it parses to a
 // positive duration.
 func (sb *SpecBuilder) effectiveCacheTTL() string {
-	ttl := strings.TrimSpace(sb.CacheTTL)
+	ttl := core.Trim(sb.CacheTTL)
 	if ttl == "" {
 		return ""
 	}
@@ -2024,25 +2028,25 @@ func (sb *SpecBuilder) snapshot() *SpecBuilder {
 	}
 
 	out := *sb
-	out.Title = strings.TrimSpace(out.Title)
-	out.Summary = strings.TrimSpace(out.Summary)
-	out.Description = strings.TrimSpace(out.Description)
-	out.Version = strings.TrimSpace(out.Version)
-	out.SwaggerPath = strings.TrimSpace(out.SwaggerPath)
-	out.GraphQLPath = strings.TrimSpace(out.GraphQLPath)
-	out.GraphQLPlaygroundPath = strings.TrimSpace(out.GraphQLPlaygroundPath)
-	out.WSPath = strings.TrimSpace(out.WSPath)
-	out.SSEPath = strings.TrimSpace(out.SSEPath)
-	out.TermsOfService = strings.TrimSpace(out.TermsOfService)
-	out.ContactName = strings.TrimSpace(out.ContactName)
-	out.ContactURL = strings.TrimSpace(out.ContactURL)
-	out.ContactEmail = strings.TrimSpace(out.ContactEmail)
-	out.LicenseName = strings.TrimSpace(out.LicenseName)
-	out.LicenseURL = strings.TrimSpace(out.LicenseURL)
-	out.ExternalDocsDescription = strings.TrimSpace(out.ExternalDocsDescription)
-	out.ExternalDocsURL = strings.TrimSpace(out.ExternalDocsURL)
-	out.CacheTTL = strings.TrimSpace(out.CacheTTL)
-	out.I18nDefaultLocale = strings.TrimSpace(out.I18nDefaultLocale)
+	out.Title = core.Trim(out.Title)
+	out.Summary = core.Trim(out.Summary)
+	out.Description = core.Trim(out.Description)
+	out.Version = core.Trim(out.Version)
+	out.SwaggerPath = core.Trim(out.SwaggerPath)
+	out.GraphQLPath = core.Trim(out.GraphQLPath)
+	out.GraphQLPlaygroundPath = core.Trim(out.GraphQLPlaygroundPath)
+	out.WSPath = core.Trim(out.WSPath)
+	out.SSEPath = core.Trim(out.SSEPath)
+	out.TermsOfService = core.Trim(out.TermsOfService)
+	out.ContactName = core.Trim(out.ContactName)
+	out.ContactURL = core.Trim(out.ContactURL)
+	out.ContactEmail = core.Trim(out.ContactEmail)
+	out.LicenseName = core.Trim(out.LicenseName)
+	out.LicenseURL = core.Trim(out.LicenseURL)
+	out.ExternalDocsDescription = core.Trim(out.ExternalDocsDescription)
+	out.ExternalDocsURL = core.Trim(out.ExternalDocsURL)
+	out.CacheTTL = core.Trim(out.CacheTTL)
+	out.I18nDefaultLocale = core.Trim(out.I18nDefaultLocale)
 	out.Servers = slices.Clone(sb.Servers)
 	out.I18nSupportedLocales = slices.Clone(sb.I18nSupportedLocales)
 	out.AuthentikPublicPaths = normalisePublicPaths(sb.AuthentikPublicPaths)
@@ -2064,8 +2068,8 @@ func (sb *SpecBuilder) hasAuthentikMetadata() bool {
 		return false
 	}
 
-	return strings.TrimSpace(sb.AuthentikIssuer) != "" ||
-		strings.TrimSpace(sb.AuthentikClientID) != "" ||
+	return core.Trim(sb.AuthentikIssuer) != "" ||
+		core.Trim(sb.AuthentikClientID) != "" ||
 		sb.AuthentikTrustedProxy ||
 		len(sb.AuthentikPublicPaths) > 0
 }
@@ -2109,7 +2113,7 @@ func documentedResponseHeaders(headers map[string]string) map[string]any {
 
 	out := make(map[string]any, len(headers))
 	for name, description := range headers {
-		name = strings.TrimSpace(name)
+		name = core.Trim(name)
 		if name == "" {
 			continue
 		}
@@ -2153,7 +2157,7 @@ func mergeHeaders(sets ...map[string]any) map[string]any {
 // operationID builds a stable OpenAPI operationId from the HTTP method and path.
 // The generated identifier is lower snake_case and preserves path parameter names.
 func operationID(method, path string, operationIDs map[string]int) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.Grow(len(method) + len(path) + 1)
 	lastUnderscore := false
 

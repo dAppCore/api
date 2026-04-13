@@ -6,12 +6,13 @@ package api
 
 import (
 	"context"
-	"errors"
 	"iter"
 	"net/http"
 	"reflect"
 	"slices"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-contrib/pprof"
@@ -193,7 +194,7 @@ func (e *Engine) Serve(ctx context.Context) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.ListenAndServe(); err != nil && !core.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 		close(errCh)

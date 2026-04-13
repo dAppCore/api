@@ -4,7 +4,8 @@ package api
 
 import (
 	"slices"
-	"strings"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/language"
@@ -200,19 +201,19 @@ func GetMessage(c *gin.Context, key string) (string, bool) {
 // most specific to least specific. For example, "fr-CA" yields
 // ["fr-CA", "fr"] and "zh-Hant-TW" yields ["zh-Hant-TW", "zh-Hant", "zh"].
 func localeFallbacks(locale string) []string {
-	locale = strings.TrimSpace(strings.ReplaceAll(locale, "_", "-"))
+	locale = core.Trim(core.Replace(locale, "_", "-"))
 	if locale == "" {
 		return nil
 	}
 
-	parts := strings.Split(locale, "-")
+	parts := core.Split(locale, "-")
 	if len(parts) == 0 {
 		return []string{locale}
 	}
 
 	fallbacks := make([]string, 0, len(parts))
 	for i := len(parts); i >= 1; i-- {
-		fallbacks = append(fallbacks, strings.Join(parts[:i], "-"))
+		fallbacks = append(fallbacks, core.Join("-", parts[:i]...))
 	}
 
 	return fallbacks

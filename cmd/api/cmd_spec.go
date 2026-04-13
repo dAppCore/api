@@ -4,11 +4,11 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
-	"strings"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
+	core "dappco.re/go/core"
+
+	"dappco.re/go/core/cli/pkg/cli"
 
 	goapi "dappco.re/go/core/api"
 )
@@ -38,7 +38,7 @@ func addSpecCommand(parent *cli.Command) {
 			if err := goapi.ExportSpecToFileIter(output, format, builder, groups); err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stderr, "Spec written to %s\n", output)
+			_, _ = os.Stderr.Write([]byte(core.Sprintf("Spec written to %s\n", output)))
 			return nil
 		}
 
@@ -57,7 +57,7 @@ func parseServers(raw string) []string {
 }
 
 func parseSecuritySchemes(raw string) (map[string]any, error) {
-	raw = strings.TrimSpace(raw)
+	raw = core.Trim(raw)
 	if raw == "" {
 		return nil, nil
 	}

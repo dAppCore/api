@@ -5,7 +5,8 @@ package api
 import (
 	"reflect"
 	"slices"
-	"strings"
+
+	core "dappco.re/go/core"
 )
 
 // SwaggerConfig captures the configured Swagger/OpenAPI metadata for an Engine.
@@ -125,7 +126,7 @@ func (e *Engine) SwaggerConfig() SwaggerConfig {
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
 
-	if strings.TrimSpace(e.swaggerPath) != "" {
+	if core.Trim(e.swaggerPath) != "" {
 		cfg.Path = normaliseSwaggerPath(e.swaggerPath)
 	}
 

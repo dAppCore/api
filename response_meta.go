@@ -11,8 +11,9 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -270,17 +271,17 @@ func shouldAttachResponseMeta(contentType string, body []byte) bool {
 }
 
 func isJSONContentType(contentType string) bool {
-	if strings.TrimSpace(contentType) == "" {
+	if core.Trim(contentType) == "" {
 		return false
 	}
 
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		mediaType = strings.TrimSpace(contentType)
+		mediaType = core.Trim(contentType)
 	}
-	mediaType = strings.ToLower(mediaType)
+	mediaType = core.Lower(mediaType)
 
 	return mediaType == "application/json" ||
-		strings.HasSuffix(mediaType, "+json") ||
-		strings.HasSuffix(mediaType, "/json")
+		core.HasSuffix(mediaType, "+json") ||
+		core.HasSuffix(mediaType, "/json")
 }

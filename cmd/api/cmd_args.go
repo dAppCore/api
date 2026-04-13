@@ -2,7 +2,11 @@
 
 package api
 
-import "strings"
+import (
+	"strings"
+
+	core "dappco.re/go/core"
+)
 
 // splitUniqueCSV trims and deduplicates a comma-separated list while
 // preserving the first occurrence of each value.
@@ -11,12 +15,12 @@ func splitUniqueCSV(raw string) []string {
 		return nil
 	}
 
-	parts := strings.Split(raw, ",")
+	parts := core.Split(raw, ",")
 	values := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 
 	for _, part := range parts {
-		value := strings.TrimSpace(part)
+		value := core.Trim(part)
 		if value == "" {
 			continue
 		}
@@ -41,11 +45,11 @@ func normalisePublicPaths(paths []string) []string {
 	seen := make(map[string]struct{}, len(paths))
 
 	for _, path := range paths {
-		path = strings.TrimSpace(path)
+		path = core.Trim(path)
 		if path == "" {
 			continue
 		}
-		if !strings.HasPrefix(path, "/") {
+		if !core.HasPrefix(path, "/") {
 			path = "/" + path
 		}
 		path = strings.TrimRight(path, "/")

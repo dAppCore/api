@@ -5,22 +5,18 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"iter"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
-	"slices"
+	core "dappco.re/go/core"
 
 	"gopkg.in/yaml.v3"
-
-	coreerr "dappco.re/go/core/log"
 )
 
 // OpenAPIClient is a small runtime client that can call operations by their
@@ -191,14 +187,26 @@ func (c *OpenAPIClient) Operations() ([]OpenAPIOperation, error) {
 	for operationID, op := range c.operations {
 		operations = append(operations, snapshotOpenAPIOperation(operationID, op))
 	}
-	sort.SliceStable(operations, func(i, j int) bool {
-		if operations[i].OperationID == operations[j].OperationID {
-			if operations[i].Method == operations[j].Method {
-				return operations[i].PathTemplate < operations[j].PathTemplate
+	slices.SortStableFunc(operations, func(a, b OpenAPIOperation) int {
+		if a.OperationID != b.OperationID {
+			if a.OperationID < b.OperationID {
+				return -1
 			}
-			return operations[i].Method < operations[j].Method
+			return 1
 		}
-		return operations[i].OperationID < operations[j].OperationID
+		if a.Method != b.Method {
+			if a.Method < b.Method {
+				return -1
+			}
+			return 1
+		}
+		if a.PathTemplate < b.PathTemplate {
+			return -1
+		}
+		if a.PathTemplate > b.PathTemplate {
+			return 1
+		}
+		return 0
 	})
 	return operations, nil
 }
@@ -290,7 +298,7 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 
 	op, ok := c.operations[operationID]
 	if !ok {
-		return nil, coreerr.E("OpenAPIClient.Call", fmt.Sprintf("operation %q not found in OpenAPI spec", operationID), nil)
+		return nil, core.E("OpenAPIClient.Call", core.Sprintf("operation %q not found in OpenAPI spec", operationID), nil)
 	}
 
 	merged, err := normaliseParams(params)
@@ -343,7 +351,7 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, coreerr.E("OpenAPIClient.Call", fmt.Sprintf("openapi call %s returned %s: %s", operationID, resp.Status, strings.TrimSpace(string(payload))), nil)
+		return nil, core.E("OpenAPIClient.Call", core.Sprintf("openapi call %s returned %s: %s", operationID, resp.Status, core.Trim(string(payload))), nil)
 	}
 
 	if op.responseSchema != nil && len(bytes.TrimSpace(payload)) > 0 {
@@ -367,9 +375,9 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 		if success, ok := envelope["success"].(bool); ok {
 			if !success {
 				if errObj, ok := envelope["error"].(map[string]any); ok {
-					return nil, coreerr.E("OpenAPIClient.Call", fmt.Sprintf("openapi call %s failed: %v", operationID, errObj), nil)
+					return nil, core.E("OpenAPIClient.Call", core.Sprintf("openapi call %s failed: %v", operationID, errObj), nil)
 				}
-				return nil, coreerr.E("OpenAPIClient.Call", fmt.Sprintf("openapi call %s failed", operationID), nil)
+				return nil, core.E("OpenAPIClient.Call", core.Sprintf("openapi call %s failed", operationID), nil)
 			}
 			if data, ok := envelope["data"]; ok {
 				return data, nil
@@ -397,23 +405,23 @@ func (c *OpenAPIClient) loadSpec() error {
 	case c.specReader != nil:
 		data, err = io.ReadAll(c.specReader)
 	case c.specPath != "":
-		f, openErr := os.Open(c.specPath)
-		if openErr != nil {
-			return coreerr.E("OpenAPIClient.loadSpec", "read spec", openErr)
+		cfs := (&core.Fs{}).NewUnrestricted()
+		r := cfs.Read(c.specPath)
+		if !r.OK {
+			return core.E("OpenAPIClient.loadSpec", "read spec", r.Value.(error))
 		}
-		defer f.Close()
-		data, err = io.ReadAll(f)
+		data = []byte(r.Value.(string))
 	default:
-		return coreerr.E("OpenAPIClient.loadSpec", "spec path or reader is required", nil)
+		return core.E("OpenAPIClient.loadSpec", "spec path or reader is required", nil)
 	}
 
 	if err != nil {
-		return coreerr.E("OpenAPIClient.loadSpec", "read spec", err)
+		return core.E("OpenAPIClient.loadSpec", "read spec", err)
 	}
 
 	var spec map[string]any
 	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return coreerr.E("OpenAPIClient.loadSpec", "parse spec", err)
+		return core.E("OpenAPIClient.loadSpec", "parse spec", err)
 	}
 
 	operations := make(map[string]openAPIOperation)
@@ -434,7 +442,7 @@ func (c *OpenAPIClient) loadSpec() error {
 				}
 				params := parseOperationParameters(operation)
 				operations[operationID] = openAPIOperation{
-					method:         strings.ToUpper(method),
+					method:         core.Upper(method),
 					pathTemplate:   pathTemplate,
 					hasRequestBody: operation["requestBody"] != nil,
 					parameters:     params,
@@ -484,7 +492,7 @@ func snapshotOpenAPIOperation(operationID string, op openAPIOperation) OpenAPIOp
 
 	return OpenAPIOperation{
 		OperationID:    operationID,
-		Method:         strings.ToUpper(op.method),
+		Method:         core.Upper(op.method),
 		PathTemplate:   op.pathTemplate,
 		HasRequestBody: op.hasRequestBody,
 		Parameters:     parameters,
@@ -494,7 +502,7 @@ func snapshotOpenAPIOperation(operationID string, op openAPIOperation) OpenAPIOp
 func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (string, error) {
 	base := strings.TrimRight(c.baseURL, "/")
 	if base == "" {
-		return "", coreerr.E("OpenAPIClient.buildURL", "base URL is required", nil)
+		return "", core.E("OpenAPIClient.buildURL", "base URL is required", nil)
 	}
 
 	path := op.pathTemplate
@@ -516,12 +524,12 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	for _, key := range pathKeys {
 		if value, ok := pathValues[key]; ok {
 			placeholder := "{" + key + "}"
-			path = strings.ReplaceAll(path, placeholder, url.PathEscape(fmt.Sprint(value)))
+			path = core.Replace(path, placeholder, url.PathEscape(core.Sprint(value)))
 		}
 	}
 
-	if strings.Contains(path, "{") {
-		return "", coreerr.E("OpenAPIClient.buildURL", fmt.Sprintf("missing path parameters for %q", op.pathTemplate), nil)
+	if core.Contains(path, "{") {
+		return "", core.E("OpenAPIClient.buildURL", core.Sprintf("missing path parameters for %q", op.pathTemplate), nil)
 	}
 
 	fullURL, err := url.JoinPath(base, path)
@@ -670,7 +678,7 @@ func applyHeaderValue(headers http.Header, key string, value any) {
 		return
 	case []any:
 		for _, item := range v {
-			headers.Add(key, fmt.Sprint(item))
+			headers.Add(key, core.Sprint(item))
 		}
 		return
 	}
@@ -678,12 +686,12 @@ func applyHeaderValue(headers http.Header, key string, value any) {
 	rv := reflect.ValueOf(value)
 	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && !(rv.Type().Elem().Kind() == reflect.Uint8) {
 		for i := 0; i < rv.Len(); i++ {
-			headers.Add(key, fmt.Sprint(rv.Index(i).Interface()))
+			headers.Add(key, core.Sprint(rv.Index(i).Interface()))
 		}
 		return
 	}
 
-	headers.Set(key, fmt.Sprint(value))
+	headers.Set(key, core.Sprint(value))
 }
 
 func applyCookieValues(req *http.Request, values map[string]any) {
@@ -703,7 +711,7 @@ func applyCookieValue(req *http.Request, key string, value any) {
 		return
 	case []any:
 		for _, item := range v {
-			req.AddCookie(&http.Cookie{Name: key, Value: fmt.Sprint(item)})
+			req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(item)})
 		}
 		return
 	}
@@ -711,12 +719,12 @@ func applyCookieValue(req *http.Request, key string, value any) {
 	rv := reflect.ValueOf(value)
 	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && !(rv.Type().Elem().Kind() == reflect.Uint8) {
 		for i := 0; i < rv.Len(); i++ {
-			req.AddCookie(&http.Cookie{Name: key, Value: fmt.Sprint(rv.Index(i).Interface())})
+			req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(rv.Index(i).Interface())})
 		}
 		return
 	}
 
-	req.AddCookie(&http.Cookie{Name: key, Value: fmt.Sprint(value)})
+	req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(value)})
 }
 
 func parseOperationParameters(operation map[string]any) []openAPIParameter {
@@ -784,9 +792,9 @@ func validateParameterValue(param openAPIParameter, value any) error {
 
 	data, err := json.Marshal(value)
 	if err != nil {
-		return coreerr.E("OpenAPIClient.validateParameterValue", fmt.Sprintf("marshal %s parameter %q", param.in, param.name), err)
+		return core.E("OpenAPIClient.validateParameterValue", core.Sprintf("marshal %s parameter %q", param.in, param.name), err)
 	}
-	if err := validateOpenAPISchema(data, param.schema, fmt.Sprintf("%s parameter %q", param.in, param.name)); err != nil {
+	if err := validateOpenAPISchema(data, param.schema, core.Sprintf("%s parameter %q", param.in, param.name)); err != nil {
 		return err
 	}
 	return nil
@@ -800,7 +808,7 @@ func validateRequiredParameters(op openAPIOperation, params map[string]any, path
 		if parameterProvided(params, param.name, param.in) {
 			continue
 		}
-		return coreerr.E("OpenAPIClient.buildURL", fmt.Sprintf("missing required %s parameter %q", param.in, param.name), nil)
+		return core.E("OpenAPIClient.buildURL", core.Sprintf("missing required %s parameter %q", param.in, param.name), nil)
 	}
 	return nil
 }
@@ -840,12 +848,12 @@ func normaliseParams(params any) (map[string]any, error) {
 
 	data, err := json.Marshal(params)
 	if err != nil {
-		return nil, coreerr.E("OpenAPIClient.normaliseParams", "marshal params", err)
+		return nil, core.E("OpenAPIClient.normaliseParams", "marshal params", err)
 	}
 
 	var out map[string]any
 	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, coreerr.E("OpenAPIClient.normaliseParams", "decode params", err)
+		return nil, core.E("OpenAPIClient.normaliseParams", "decode params", err)
 	}
 
 	return out, nil
@@ -936,7 +944,7 @@ func appendQueryValue(query url.Values, key string, value any) {
 		return
 	}
 
-	query.Add(key, fmt.Sprint(value))
+	query.Add(key, core.Sprint(value))
 }
 
 func isAbsoluteBaseURL(raw string) bool {
@@ -1004,15 +1012,15 @@ func validateOpenAPISchema(body []byte, schema map[string]any, label string) err
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
 	if err := dec.Decode(&payload); err != nil {
-		return coreerr.E("OpenAPIClient.validateOpenAPISchema", fmt.Sprintf("validate %s: invalid JSON", label), err)
+		return core.E("OpenAPIClient.validateOpenAPISchema", core.Sprintf("validate %s: invalid JSON", label), err)
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return coreerr.E("OpenAPIClient.validateOpenAPISchema", fmt.Sprintf("validate %s: expected a single JSON value", label), nil)
+		return core.E("OpenAPIClient.validateOpenAPISchema", core.Sprintf("validate %s: expected a single JSON value", label), nil)
 	}
 
 	if err := validateSchemaNode(payload, schema, ""); err != nil {
-		return coreerr.E("OpenAPIClient.validateOpenAPISchema", fmt.Sprintf("validate %s", label), err)
+		return core.E("OpenAPIClient.validateOpenAPISchema", core.Sprintf("validate %s", label), err)
 	}
 
 	return nil
@@ -1023,15 +1031,15 @@ func validateOpenAPIResponse(payload []byte, schema map[string]any, operationID 
 	dec := json.NewDecoder(bytes.NewReader(payload))
 	dec.UseNumber()
 	if err := dec.Decode(&decoded); err != nil {
-		return coreerr.E("OpenAPIClient.validateOpenAPIResponse", fmt.Sprintf("openapi call %s returned invalid JSON", operationID), err)
+		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s returned invalid JSON", operationID), err)
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return coreerr.E("OpenAPIClient.validateOpenAPIResponse", fmt.Sprintf("openapi call %s returned multiple JSON values", operationID), nil)
+		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s returned multiple JSON values", operationID), nil)
 	}
 
 	if err := validateSchemaNode(decoded, schema, ""); err != nil {
-		return coreerr.E("OpenAPIClient.validateOpenAPIResponse", fmt.Sprintf("openapi call %s response does not match spec", operationID), err)
+		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s response does not match spec", operationID), err)
 	}
 
 	return nil

@@ -4,10 +4,11 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,7 +60,7 @@ func NewSSEBroker() *SSEBroker {
 // normaliseSSEPath coerces custom SSE paths into a stable form.
 // The path always begins with a single slash and never ends with one.
 func normaliseSSEPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return defaultSSEPath
 	}
@@ -75,7 +76,7 @@ func normaliseSSEPath(path string) string {
 // resolveSSEPath returns the configured SSE path or the default path when
 // no override has been provided.
 func resolveSSEPath(path string) string {
-	if strings.TrimSpace(path) == "" {
+	if core.Trim(path) == "" {
 		return defaultSSEPath
 	}
 	return normaliseSSEPath(path)
@@ -178,7 +179,7 @@ func (b *SSEBroker) Handler() gin.HandlerFunc {
 				if !ok {
 					return
 				}
-				_, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", evt.Event, evt.Data)
+				_, err := c.Writer.Write([]byte(core.Sprintf("event: %s\ndata: %s\n\n", evt.Event, evt.Data)))
 				if err != nil {
 					return
 				}

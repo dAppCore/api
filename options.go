@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/casbin/casbin/v2"
@@ -204,9 +205,9 @@ func WithSunset(sunsetDate, replacement string) Option {
 //	api.New(api.WithSwagger("Service", "Public API", "1.0.0"))
 func WithSwagger(title, description, version string) Option {
 	return func(e *Engine) {
-		e.swaggerTitle = strings.TrimSpace(title)
-		e.swaggerDesc = strings.TrimSpace(description)
-		e.swaggerVersion = strings.TrimSpace(version)
+		e.swaggerTitle = core.Trim(title)
+		e.swaggerDesc = core.Trim(description)
+		e.swaggerVersion = core.Trim(version)
 		e.swaggerEnabled = true
 	}
 }
@@ -218,7 +219,7 @@ func WithSwagger(title, description, version string) Option {
 //	api.WithSwaggerSummary("Service overview")
 func WithSwaggerSummary(summary string) Option {
 	return func(e *Engine) {
-		if summary = strings.TrimSpace(summary); summary != "" {
+		if summary = core.Trim(summary); summary != "" {
 			e.swaggerSummary = summary
 		}
 	}
@@ -244,7 +245,7 @@ func WithSwaggerPath(path string) Option {
 //	api.WithSwaggerTermsOfService("https://example.com/terms")
 func WithSwaggerTermsOfService(url string) Option {
 	return func(e *Engine) {
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerTermsOfService = url
 		}
 	}
@@ -258,13 +259,13 @@ func WithSwaggerTermsOfService(url string) Option {
 //	api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com")
 func WithSwaggerContact(name, url, email string) Option {
 	return func(e *Engine) {
-		if name = strings.TrimSpace(name); name != "" {
+		if name = core.Trim(name); name != "" {
 			e.swaggerContactName = name
 		}
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerContactURL = url
 		}
-		if email = strings.TrimSpace(email); email != "" {
+		if email = core.Trim(email); email != "" {
 			e.swaggerContactEmail = email
 		}
 	}
@@ -291,10 +292,10 @@ func WithSwaggerServers(servers ...string) Option {
 //	api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/")
 func WithSwaggerLicense(name, url string) Option {
 	return func(e *Engine) {
-		if name = strings.TrimSpace(name); name != "" {
+		if name = core.Trim(name); name != "" {
 			e.swaggerLicenseName = name
 		}
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerLicenseURL = url
 		}
 	}
@@ -322,7 +323,7 @@ func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
 			e.swaggerSecuritySchemes = make(map[string]any, len(schemes))
 		}
 		for name, scheme := range schemes {
-			name = strings.TrimSpace(name)
+			name = core.Trim(name)
 			if name == "" || scheme == nil {
 				continue
 			}
@@ -340,10 +341,10 @@ func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
 //	api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs")
 func WithSwaggerExternalDocs(description, url string) Option {
 	return func(e *Engine) {
-		if description = strings.TrimSpace(description); description != "" {
+		if description = core.Trim(description); description != "" {
 			e.swaggerExternalDocsDescription = description
 		}
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerExternalDocsURL = url
 		}
 	}

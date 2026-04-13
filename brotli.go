@@ -6,8 +6,9 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
+
+	core "dappco.re/go/core"
 
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
@@ -47,7 +48,7 @@ func newBrotliHandler(level int) *brotliHandler {
 
 // Handle is the Gin middleware function that compresses responses with Brotli.
 func (h *brotliHandler) Handle(c *gin.Context) {
-	if !strings.Contains(c.Request.Header.Get("Accept-Encoding"), "br") {
+	if !core.Contains(c.Request.Header.Get("Accept-Encoding"), "br") {
 		c.Next()
 		return
 	}

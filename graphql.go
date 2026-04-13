@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	core "dappco.re/go/core"
+
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -114,7 +116,7 @@ func mountGraphQL(r *gin.Engine, cfg *graphqlConfig) {
 // normaliseGraphQLPath coerces custom GraphQL paths into a stable form.
 // The path always begins with a single slash and never ends with one.
 func normaliseGraphQLPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return defaultGraphQLPath
 	}

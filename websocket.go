@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	core "dappco.re/go/core"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,7 +25,7 @@ func wrapWSHandler(h http.Handler) gin.HandlerFunc {
 // normaliseWSPath coerces custom WebSocket paths into a stable form.
 // The path always begins with a single slash and never ends with one.
 func normaliseWSPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return defaultWSPath
 	}
@@ -39,7 +41,7 @@ func normaliseWSPath(path string) string {
 // resolveWSPath returns the configured WebSocket path or the default path
 // when no override has been provided.
 func resolveWSPath(path string) string {
-	if strings.TrimSpace(path) == "" {
+	if core.Trim(path) == "" {
 		return defaultWSPath
 	}
 	return normaliseWSPath(path)

@@ -4,8 +4,9 @@ package api
 
 import (
 	"net/http"
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,8 +22,8 @@ import (
 //
 //	rg.Use(api.ApiSunset("2025-06-01", "/api/v2/users"))
 func ApiSunset(sunsetDate, replacement string) gin.HandlerFunc {
-	sunsetDate = strings.TrimSpace(sunsetDate)
-	replacement = strings.TrimSpace(replacement)
+	sunsetDate = core.Trim(sunsetDate)
+	replacement = core.Trim(replacement)
 	formatted := formatSunsetDate(sunsetDate)
 	warning := "This endpoint is deprecated."
 	if sunsetDate != "" {
@@ -44,11 +45,11 @@ func ApiSunset(sunsetDate, replacement string) gin.HandlerFunc {
 }
 
 func formatSunsetDate(sunsetDate string) string {
-	sunsetDate = strings.TrimSpace(sunsetDate)
+	sunsetDate = core.Trim(sunsetDate)
 	if sunsetDate == "" {
 		return ""
 	}
-	if strings.Contains(sunsetDate, ",") {
+	if core.Contains(sunsetDate, ",") {
 		return sunsetDate
 	}
 

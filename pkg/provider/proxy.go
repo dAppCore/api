@@ -3,11 +3,11 @@
 package provider
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
+
+	core "dappco.re/go/core"
 
 	coreapi "dappco.re/go/core/api"
 	"github.com/gin-gonic/gin"
@@ -63,7 +63,7 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 	if target.Scheme == "" || target.Host == "" {
 		return &ProxyProvider{
 			config: cfg,
-			err:    fmt.Errorf("upstream %q must include a scheme and host (e.g. http://127.0.0.1:9901)", cfg.Upstream),
+			err:    core.E("ProxyProvider.New", core.Sprintf("upstream %q must include a scheme and host (e.g. http://127.0.0.1:9901)", cfg.Upstream), nil),
 		}
 	}
 
@@ -72,7 +72,7 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 	// Preserve the original Director but strip the base path so the
 	// upstream receives clean paths (e.g. /items instead of /api/v1/cool-widget/items).
 	defaultDirector := proxy.Director
-	basePath := strings.TrimSuffix(cfg.BasePath, "/")
+	basePath := core.TrimSuffix(cfg.BasePath, "/")
 
 	proxy.Director = func(req *http.Request) {
 		defaultDirector(req)
@@ -102,7 +102,7 @@ func (p *ProxyProvider) Err() error {
 // It only strips when the path matches the base path itself or lives under
 // the base path boundary, so "/api" will not accidentally trim "/api-v2".
 func stripBasePath(path, basePath string) string {
-	basePath = strings.TrimSuffix(strings.TrimSpace(basePath), "/")
+	basePath = core.TrimSuffix(core.Trim(basePath), "/")
 	if basePath == "" || basePath == "/" {
 		if path == "" {
 			return "/"
@@ -115,8 +115,8 @@ func stripBasePath(path, basePath string) string {
 	}
 
 	prefix := basePath + "/"
-	if strings.HasPrefix(path, prefix) {
-		trimmed := strings.TrimPrefix(path, basePath)
+	if core.HasPrefix(path, prefix) {
+		trimmed := core.TrimPrefix(path, basePath)
 		if trimmed == "" {
 			return "/"
 		}
