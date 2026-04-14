@@ -290,13 +290,19 @@ func TestToolBridge_Iterators(t *testing.T) {
 		t.Errorf("ToolsIter failed, got %v", tools)
 	}
 
-	// Test DescribeIter
+	// Test DescribeIter — emits the GET listing entry followed by each tool.
 	var descs []api.RouteDescription
 	for d := range b.DescribeIter() {
 		descs = append(descs, d)
 	}
-	if len(descs) != 1 || descs[0].Path != "/test" {
-		t.Errorf("DescribeIter failed, got %v", descs)
+	if len(descs) != 2 {
+		t.Errorf("DescribeIter failed: expected listing + 1 tool, got %v", descs)
+	}
+	if descs[0].Method != "GET" || descs[0].Path != "/" {
+		t.Errorf("DescribeIter failed: expected first entry to be GET / listing, got %+v", descs[0])
+	}
+	if descs[1].Path != "/test" {
+		t.Errorf("DescribeIter failed: expected tool entry at /test, got %+v", descs[1])
 	}
 }
 
@@ -322,7 +328,14 @@ func TestToolBridge_Iterators_Good_SnapshotCurrentTools(t *testing.T) {
 	if len(tools) != 1 || tools[0].Name != "first" {
 		t.Fatalf("expected ToolsIter snapshot to contain the original tool, got %v", tools)
 	}
-	if len(descs) != 1 || descs[0].Path != "/first" {
+	// DescribeIter snapshots the listing entry plus the tool registered at call time.
+	if len(descs) != 2 {
+		t.Fatalf("expected DescribeIter snapshot to contain listing + original tool, got %v", descs)
+	}
+	if descs[0].Method != "GET" || descs[0].Path != "/" {
+		t.Fatalf("expected DescribeIter snapshot to start with the GET listing entry, got %+v", descs[0])
+	}
+	if descs[1].Path != "/first" {
 		t.Fatalf("expected DescribeIter snapshot to contain the original tool, got %v", descs)
 	}
 }

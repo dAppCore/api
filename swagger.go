@@ -91,3 +91,54 @@ func resolveSwaggerPath(path string) string {
 	}
 	return normaliseSwaggerPath(path)
 }
+
+// defaultOpenAPISpecPath is the URL path where the raw OpenAPI 3.1 JSON
+// document is served per RFC.endpoints.md — "GET /v1/openapi.json".
+const defaultOpenAPISpecPath = "/v1/openapi.json"
+
+// registerOpenAPISpec mounts a GET handler at the configured spec path that
+// serves the generated OpenAPI 3.1 JSON document. The document is built once
+// and reused for every subsequent request so callers pay the generation cost
+// a single time.
+//
+//	registerOpenAPISpec(r, engine)
+//	// GET /v1/openapi.json -> application/json openapi document
+func registerOpenAPISpec(g *gin.Engine, e *Engine) {
+	path := resolveOpenAPISpecPath(e.openAPISpecPath)
+	spec := newSwaggerSpec(e.OpenAPISpecBuilder(), e.Groups())
+	g.GET(path, func(c *gin.Context) {
+		doc := spec.ReadDoc()
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(http.StatusOK, doc)
+	})
+}
+
+// normaliseOpenAPISpecPath coerces custom spec URL overrides into a stable
+// form. The returned path always begins with a single slash and never ends
+// with one, matching the shape of the other transport path helpers.
+//
+//	normaliseOpenAPISpecPath("openapi.json") // "/openapi.json"
+func normaliseOpenAPISpecPath(path string) string {
+	path = core.Trim(path)
+	if path == "" {
+		return defaultOpenAPISpecPath
+	}
+
+	path = "/" + strings.Trim(path, "/")
+	if path == "/" {
+		return defaultOpenAPISpecPath
+	}
+
+	return path
+}
+
+// resolveOpenAPISpecPath returns the configured OpenAPI spec URL or the
+// RFC default when no override is provided.
+//
+//	resolveOpenAPISpecPath("") // "/v1/openapi.json"
+func resolveOpenAPISpecPath(path string) string {
+	if core.Trim(path) == "" {
+		return defaultOpenAPISpecPath
+	}
+	return normaliseOpenAPISpecPath(path)
+}

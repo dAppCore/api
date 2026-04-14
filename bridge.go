@@ -95,32 +95,54 @@ func (b *ToolBridge) Name() string { return b.name }
 //	path := bridge.BasePath()
 func (b *ToolBridge) BasePath() string { return b.basePath }
 
-// RegisterRoutes mounts POST /{tool_name} for each registered tool.
+// RegisterRoutes mounts GET / (tool listing) and POST /{tool_name} for each
+// registered tool. The listing endpoint returns a JSON envelope containing the
+// registered tool descriptors and mirrors RFC.endpoints.md §"ToolBridge" so
+// clients can discover every tool exposed on the bridge in a single call.
 //
 // Example:
 //
 //	bridge.RegisterRoutes(rg)
+//	// GET  /{basePath}/        -> tool catalogue
+//	// POST /{basePath}/{name}  -> dispatch tool
 func (b *ToolBridge) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("", b.listHandler())
+	rg.GET("/", b.listHandler())
 	for _, t := range b.tools {
 		rg.POST("/"+t.descriptor.Name, t.handler)
 	}
 }
 
-// Describe returns OpenAPI route descriptions for all registered tools.
+// listHandler returns a Gin handler that serves the tool catalogue at the
+// bridge's base path. The response envelope matches RFC.endpoints.md — an
+// array of tool descriptors with their name, description, group, and the
+// declared input/output JSON schemas.
+//
+//	GET /v1/tools -> {"success": true, "data": [{"name": "ping", ...}]}
+func (b *ToolBridge) listHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, OK(b.Tools()))
+	}
+}
+
+// Describe returns OpenAPI route descriptions for all registered tools plus a
+// GET entry describing the tool listing endpoint at the bridge's base path.
 //
 // Example:
 //
 //	descs := bridge.Describe()
 func (b *ToolBridge) Describe() []RouteDescription {
 	tools := b.snapshotTools()
-	descs := make([]RouteDescription, 0, len(tools))
+	descs := make([]RouteDescription, 0, len(tools)+1)
+	descs = append(descs, describeToolList(b.name))
 	for _, tool := range tools {
 		descs = append(descs, describeTool(tool.descriptor, b.name))
 	}
 	return descs
 }
 
-// DescribeIter returns an iterator over OpenAPI route descriptions for all registered tools.
+// DescribeIter returns an iterator over OpenAPI route descriptions for all
+// registered tools plus a leading GET entry for the tool listing endpoint.
 //
 // Example:
 //
@@ -129,9 +151,13 @@ func (b *ToolBridge) Describe() []RouteDescription {
 //	}
 func (b *ToolBridge) DescribeIter() iter.Seq[RouteDescription] {
 	tools := b.snapshotTools()
+	defaultTag := b.name
 	return func(yield func(RouteDescription) bool) {
+		if !yield(describeToolList(defaultTag)) {
+			return
+		}
 		for _, tool := range tools {
-			if !yield(describeTool(tool.descriptor, b.name)) {
+			if !yield(describeTool(tool.descriptor, defaultTag)) {
 				return
 			}
 		}
@@ -190,6 +216,40 @@ func describeTool(desc ToolDescriptor, defaultTag string) RouteDescription {
 		Tags:        tags,
 		RequestBody: desc.InputSchema,
 		Response:    desc.OutputSchema,
+	}
+}
+
+// describeToolList returns the RouteDescription for GET {basePath}/ —
+// the tool catalogue listing documented in RFC.endpoints.md.
+//
+//	rd := describeToolList("tools")
+//	// rd.Method == "GET" && rd.Path == "/"
+func describeToolList(defaultTag string) RouteDescription {
+	tags := cleanTags([]string{defaultTag})
+	if len(tags) == 0 {
+		tags = []string{"tools"}
+	}
+	return RouteDescription{
+		Method:      "GET",
+		Path:        "/",
+		Summary:     "List available tools",
+		Description: "Returns every tool registered on the bridge, including its declared input and output JSON schemas.",
+		Tags:        tags,
+		StatusCode:  http.StatusOK,
+		Response: map[string]any{
+			"type": "array",
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":         map[string]any{"type": "string"},
+					"description":  map[string]any{"type": "string"},
+					"group":        map[string]any{"type": "string"},
+					"inputSchema":  map[string]any{"type": "object", "additionalProperties": true},
+					"outputSchema": map[string]any{"type": "object", "additionalProperties": true},
+				},
+				"required": []string{"name"},
+			},
+		},
 	}
 }
 

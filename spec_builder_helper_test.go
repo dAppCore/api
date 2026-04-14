@@ -538,6 +538,66 @@ func TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride(t *testin
 	}
 }
 
+// TestEngine_Good_TransportConfigReportsOpenAPISpec verifies that the
+// WithOpenAPISpec option surfaces the standalone JSON endpoint (RFC
+// /v1/openapi.json) through TransportConfig so callers can discover it
+// alongside the other framework routes.
+func TestEngine_Good_TransportConfigReportsOpenAPISpec(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpec())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=true")
+	}
+	if cfg.OpenAPISpecPath != "/v1/openapi.json" {
+		t.Fatalf("expected OpenAPISpecPath=/v1/openapi.json, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
+// TestEngine_Good_TransportConfigHonoursOpenAPISpecPathOverride verifies
+// that WithOpenAPISpecPath surfaces through TransportConfig.
+func TestEngine_Good_TransportConfigHonoursOpenAPISpecPathOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpecPath("/api/v1/openapi.json"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled inferred from path override")
+	}
+	if cfg.OpenAPISpecPath != "/api/v1/openapi.json" {
+		t.Fatalf("expected custom path, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
+// TestEngine_Bad_TransportConfigOmitsOpenAPISpecWhenDisabled confirms the
+// standalone OpenAPI endpoint reports as disabled when neither WithOpenAPISpec
+// nor WithOpenAPISpecPath has been invoked.
+func TestEngine_Bad_TransportConfigOmitsOpenAPISpecWhenDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=false when not configured")
+	}
+	if cfg.OpenAPISpecPath != "" {
+		t.Fatalf("expected empty OpenAPISpecPath, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
 func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -79,6 +79,8 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	builder.ExpvarEnabled = runtime.Transport.ExpvarEnabled
 	builder.ChatCompletionsEnabled = runtime.Transport.ChatCompletionsEnabled
 	builder.ChatCompletionsPath = runtime.Transport.ChatCompletionsPath
+	builder.OpenAPISpecEnabled = runtime.Transport.OpenAPISpecEnabled
+	builder.OpenAPISpecPath = runtime.Transport.OpenAPISpecPath
 
 	builder.CacheEnabled = runtime.Cache.Enabled
 	if runtime.Cache.TTL > 0 {

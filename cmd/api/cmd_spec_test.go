@@ -134,6 +134,88 @@ func TestCmdSpec_SpecConfigFromOptions_Good_FlagsArePreserved(t *testing.T) {
 	}
 }
 
+// TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved
+// verifies the new spec-level flags for the standalone OpenAPI JSON and
+// chat completions endpoints round-trip through the CLI parser.
+func TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved(t *testing.T) {
+	opts := core.NewOptions(
+		core.Option{Key: "openapi-spec", Value: true},
+		core.Option{Key: "openapi-spec-path", Value: "/api/v1/openapi.json"},
+		core.Option{Key: "chat-completions", Value: true},
+		core.Option{Key: "chat-completions-path", Value: "/api/v1/chat/completions"},
+	)
+
+	cfg := specConfigFromOptions(opts)
+
+	if !cfg.openAPISpecEnabled {
+		t.Fatal("expected openAPISpecEnabled=true")
+	}
+	if cfg.openAPISpecPath != "/api/v1/openapi.json" {
+		t.Fatalf("expected openAPISpecPath=%q, got %q", "/api/v1/openapi.json", cfg.openAPISpecPath)
+	}
+	if !cfg.chatCompletionsEnabled {
+		t.Fatal("expected chatCompletionsEnabled=true")
+	}
+	if cfg.chatCompletionsPath != "/api/v1/chat/completions" {
+		t.Fatalf("expected chatCompletionsPath=%q, got %q", "/api/v1/chat/completions", cfg.chatCompletionsPath)
+	}
+}
+
+// TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags verifies that the
+// spec builder respects the new OpenAPI and ChatCompletions flags.
+func TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags(t *testing.T) {
+	cfg := specBuilderConfig{
+		title:                  "Test",
+		version:                "1.0.0",
+		openAPISpecEnabled:     true,
+		openAPISpecPath:        "/api/v1/openapi.json",
+		chatCompletionsEnabled: true,
+		chatCompletionsPath:    "/api/v1/chat/completions",
+	}
+
+	builder, err := newSpecBuilder(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !builder.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=true on builder")
+	}
+	if builder.OpenAPISpecPath != "/api/v1/openapi.json" {
+		t.Fatalf("expected OpenAPISpecPath=%q, got %q", "/api/v1/openapi.json", builder.OpenAPISpecPath)
+	}
+	if !builder.ChatCompletionsEnabled {
+		t.Fatal("expected ChatCompletionsEnabled=true on builder")
+	}
+	if builder.ChatCompletionsPath != "/api/v1/chat/completions" {
+		t.Fatalf("expected ChatCompletionsPath=%q, got %q", "/api/v1/chat/completions", builder.ChatCompletionsPath)
+	}
+}
+
+// TestCmdSpec_NewSpecBuilder_Ugly_PathImpliesEnabled verifies that supplying
+// only a path override turns the endpoint on automatically so callers need
+// not pass both flags in CI scripts.
+func TestCmdSpec_NewSpecBuilder_Ugly_PathImpliesEnabled(t *testing.T) {
+	cfg := specBuilderConfig{
+		title:               "Test",
+		version:             "1.0.0",
+		openAPISpecPath:     "/api/v1/openapi.json",
+		chatCompletionsPath: "/api/v1/chat/completions",
+	}
+
+	builder, err := newSpecBuilder(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !builder.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled to be inferred from path override")
+	}
+	if !builder.ChatCompletionsEnabled {
+		t.Fatal("expected ChatCompletionsEnabled to be inferred from path override")
+	}
+}
+
 // TestCmdSpec_SpecConfigFromOptions_Bad_DefaultsApplied ensures empty values
 // do not blank out required defaults like title, description, version.
 func TestCmdSpec_SpecConfigFromOptions_Bad_DefaultsApplied(t *testing.T) {

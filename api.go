@@ -69,6 +69,8 @@ type Engine struct {
 	ssePath                        string
 	graphql                        *graphqlConfig
 	i18nConfig                     I18nConfig
+	openAPISpecEnabled             bool
+	openAPISpecPath                string
 }
 
 // New creates an Engine with the given options.
@@ -286,6 +288,14 @@ func (e *Engine) build() *gin.Engine {
 	// Mount Swagger UI if enabled.
 	if e.swaggerEnabled {
 		registerSwagger(r, e, e.groups)
+	}
+
+	// Mount the standalone OpenAPI JSON endpoint (RFC.endpoints.md — "GET
+	// /v1/openapi.json") when explicitly enabled. Unlike Swagger UI the spec
+	// document is served directly so ToolBridge consumers and SDK generators
+	// can fetch the latest description without loading the UI bundle.
+	if e.openAPISpecEnabled {
+		registerOpenAPISpec(r, e)
 	}
 
 	// Mount pprof profiling endpoints if enabled.

@@ -27,6 +27,8 @@ type TransportConfig struct {
 	ExpvarEnabled          bool
 	ChatCompletionsEnabled bool
 	ChatCompletionsPath    string
+	OpenAPISpecEnabled     bool
+	OpenAPISpecPath        string
 }
 
 // TransportConfig returns the currently configured transport metadata for the engine.
@@ -49,6 +51,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 		PprofEnabled:           e.pprofEnabled,
 		ExpvarEnabled:          e.expvarEnabled,
 		ChatCompletionsEnabled: e.chatCompletionsResolver != nil,
+		OpenAPISpecEnabled:     e.openAPISpecEnabled,
 	}
 	gql := e.GraphQLConfig()
 	cfg.GraphQLEnabled = gql.Enabled
@@ -69,6 +72,9 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 	if e.chatCompletionsResolver != nil || core.Trim(e.chatCompletionsPath) != "" {
 		cfg.ChatCompletionsPath = resolveChatCompletionsPath(e.chatCompletionsPath)
+	}
+	if e.openAPISpecEnabled || core.Trim(e.openAPISpecPath) != "" {
+		cfg.OpenAPISpecPath = resolveOpenAPISpecPath(e.openAPISpecPath)
 	}
 
 	return cfg

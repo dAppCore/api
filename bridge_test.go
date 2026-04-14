@@ -118,39 +118,48 @@ func TestToolBridge_Good_Describe(t *testing.T) {
 	var dg api.DescribableGroup = bridge
 	descs := dg.Describe()
 
-	if len(descs) != 2 {
-		t.Fatalf("expected 2 descriptions, got %d", len(descs))
+	// Describe() returns the GET tool listing entry followed by every tool.
+	if len(descs) != 3 {
+		t.Fatalf("expected 3 descriptions (listing + 2 tools), got %d", len(descs))
+	}
+
+	// Listing entry mirrors RFC.endpoints.md — GET /v1/tools returns the catalogue.
+	if descs[0].Method != "GET" {
+		t.Fatalf("expected descs[0].Method=%q, got %q", "GET", descs[0].Method)
+	}
+	if descs[0].Path != "/" {
+		t.Fatalf("expected descs[0].Path=%q, got %q", "/", descs[0].Path)
 	}
 
 	// First tool.
-	if descs[0].Method != "POST" {
-		t.Fatalf("expected descs[0].Method=%q, got %q", "POST", descs[0].Method)
+	if descs[1].Method != "POST" {
+		t.Fatalf("expected descs[1].Method=%q, got %q", "POST", descs[1].Method)
 	}
-	if descs[0].Path != "/file_read" {
-		t.Fatalf("expected descs[0].Path=%q, got %q", "/file_read", descs[0].Path)
+	if descs[1].Path != "/file_read" {
+		t.Fatalf("expected descs[1].Path=%q, got %q", "/file_read", descs[1].Path)
 	}
-	if descs[0].Summary != "Read a file from disk" {
-		t.Fatalf("expected descs[0].Summary=%q, got %q", "Read a file from disk", descs[0].Summary)
+	if descs[1].Summary != "Read a file from disk" {
+		t.Fatalf("expected descs[1].Summary=%q, got %q", "Read a file from disk", descs[1].Summary)
 	}
-	if len(descs[0].Tags) != 1 || descs[0].Tags[0] != "files" {
-		t.Fatalf("expected descs[0].Tags=[files], got %v", descs[0].Tags)
+	if len(descs[1].Tags) != 1 || descs[1].Tags[0] != "files" {
+		t.Fatalf("expected descs[1].Tags=[files], got %v", descs[1].Tags)
 	}
-	if descs[0].RequestBody == nil {
-		t.Fatal("expected descs[0].RequestBody to be non-nil")
+	if descs[1].RequestBody == nil {
+		t.Fatal("expected descs[1].RequestBody to be non-nil")
 	}
-	if descs[0].Response == nil {
-		t.Fatal("expected descs[0].Response to be non-nil")
+	if descs[1].Response == nil {
+		t.Fatal("expected descs[1].Response to be non-nil")
 	}
 
 	// Second tool.
-	if descs[1].Path != "/metrics_query" {
-		t.Fatalf("expected descs[1].Path=%q, got %q", "/metrics_query", descs[1].Path)
+	if descs[2].Path != "/metrics_query" {
+		t.Fatalf("expected descs[2].Path=%q, got %q", "/metrics_query", descs[2].Path)
 	}
-	if len(descs[1].Tags) != 1 || descs[1].Tags[0] != "metrics" {
-		t.Fatalf("expected descs[1].Tags=[metrics], got %v", descs[1].Tags)
+	if len(descs[2].Tags) != 1 || descs[2].Tags[0] != "metrics" {
+		t.Fatalf("expected descs[2].Tags=[metrics], got %v", descs[2].Tags)
 	}
-	if descs[1].Response != nil {
-		t.Fatalf("expected descs[1].Response to be nil, got %v", descs[1].Response)
+	if descs[2].Response != nil {
+		t.Fatalf("expected descs[2].Response to be nil, got %v", descs[2].Response)
 	}
 }
 
@@ -163,11 +172,12 @@ func TestToolBridge_Good_DescribeTrimsBlankGroup(t *testing.T) {
 	}, func(c *gin.Context) {})
 
 	descs := bridge.Describe()
-	if len(descs) != 1 {
-		t.Fatalf("expected 1 description, got %d", len(descs))
+	// Describe() returns the GET listing plus one tool description.
+	if len(descs) != 2 {
+		t.Fatalf("expected 2 descriptions (listing + tool), got %d", len(descs))
 	}
-	if len(descs[0].Tags) != 1 || descs[0].Tags[0] != "tools" {
-		t.Fatalf("expected blank group to fall back to bridge tag, got %v", descs[0].Tags)
+	if len(descs[1].Tags) != 1 || descs[1].Tags[0] != "tools" {
+		t.Fatalf("expected blank group to fall back to bridge tag, got %v", descs[1].Tags)
 	}
 }
 
@@ -698,16 +708,138 @@ func TestToolBridge_Bad_EmptyBridge(t *testing.T) {
 	rg := engine.Group(bridge.BasePath())
 	bridge.RegisterRoutes(rg)
 
-	// Describe should return empty slice.
+	// Describe should return only the GET listing entry when no tools are registered.
 	descs := bridge.Describe()
-	if len(descs) != 0 {
-		t.Fatalf("expected 0 descriptions, got %d", len(descs))
+	if len(descs) != 1 {
+		t.Fatalf("expected 1 description (tool listing), got %d", len(descs))
+	}
+	if descs[0].Method != "GET" || descs[0].Path != "/" {
+		t.Fatalf("expected solitary description to be the tool listing, got %+v", descs[0])
 	}
 
 	// Tools should return empty slice.
 	tools := bridge.Tools()
 	if len(tools) != 0 {
 		t.Fatalf("expected 0 tools, got %d", len(tools))
+	}
+}
+
+// TestToolBridge_Good_ListsRegisteredTools verifies that GET on the bridge's
+// base path returns the catalogue of registered tools per RFC.endpoints.md —
+// "GET /v1/tools  List available tools".
+func TestToolBridge_Good_ListsRegisteredTools(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	bridge := api.NewToolBridge("/v1/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+		},
+	}, func(c *gin.Context) {})
+	bridge.Add(api.ToolDescriptor{
+		Name:        "metrics_query",
+		Description: "Query metrics data",
+		Group:       "metrics",
+	}, func(c *gin.Context) {})
+
+	engine := gin.New()
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/tools", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+
+	var resp api.Response[[]api.ToolDescriptor]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("expected Success=true for tool listing")
+	}
+	if len(resp.Data) != 2 {
+		t.Fatalf("expected 2 tool descriptors, got %d", len(resp.Data))
+	}
+	if resp.Data[0].Name != "file_read" {
+		t.Fatalf("expected Data[0].Name=%q, got %q", "file_read", resp.Data[0].Name)
+	}
+	if resp.Data[1].Name != "metrics_query" {
+		t.Fatalf("expected Data[1].Name=%q, got %q", "metrics_query", resp.Data[1].Name)
+	}
+}
+
+// TestToolBridge_Bad_ListingRoutesWhenEmpty verifies the listing endpoint
+// still serves an empty array when no tools are registered on the bridge.
+func TestToolBridge_Bad_ListingRoutesWhenEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	bridge := api.NewToolBridge("/tools")
+	engine := gin.New()
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/tools", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 from empty listing, got %d", w.Code)
+	}
+
+	var resp api.Response[[]api.ToolDescriptor]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("expected Success=true from empty listing")
+	}
+	if len(resp.Data) != 0 {
+		t.Fatalf("expected empty list, got %d entries", len(resp.Data))
+	}
+}
+
+// TestToolBridge_Ugly_ListingCoexistsWithToolEndpoint verifies that the GET
+// listing and POST /{tool_name} endpoints register on the same base path
+// without colliding.
+func TestToolBridge_Ugly_ListingCoexistsWithToolEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	bridge := api.NewToolBridge("/v1/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "ping",
+		Description: "Ping tool",
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("pong"))
+	})
+
+	engine := gin.New()
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	// Listing still answers at the base path.
+	listReq, _ := http.NewRequest(http.MethodGet, "/v1/tools", nil)
+	listW := httptest.NewRecorder()
+	engine.ServeHTTP(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("expected 200 from listing, got %d", listW.Code)
+	}
+
+	// Tool dispatch still answers at POST {basePath}/{name}.
+	toolReq, _ := http.NewRequest(http.MethodPost, "/v1/tools/ping", nil)
+	toolW := httptest.NewRecorder()
+	engine.ServeHTTP(toolW, toolReq)
+	if toolW.Code != http.StatusOK {
+		t.Fatalf("expected 200 from tool dispatch, got %d", toolW.Code)
 	}
 }
 

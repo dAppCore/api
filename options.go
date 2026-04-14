@@ -749,3 +749,42 @@ func WithChatCompletionsPath(path string) Option {
 		e.chatCompletionsPath = path
 	}
 }
+
+// WithOpenAPISpec mounts a standalone JSON document endpoint at
+// "/v1/openapi.json" (RFC.endpoints.md — "GET /v1/openapi.json"). The generated
+// spec mirrors the document surfaced by the Swagger UI but is served
+// application/json directly so SDK generators and ToolBridge consumers can
+// fetch it without loading the UI bundle.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithOpenAPISpec())
+func WithOpenAPISpec() Option {
+	return func(e *Engine) {
+		e.openAPISpecEnabled = true
+	}
+}
+
+// WithOpenAPISpecPath sets a custom URL path for the standalone OpenAPI JSON
+// endpoint. An empty string falls back to the RFC default "/v1/openapi.json".
+// The override also enables the endpoint so callers can configure the URL
+// without an additional WithOpenAPISpec() call.
+//
+// Example:
+//
+//	api.New(api.WithOpenAPISpecPath("/api/v1/openapi.json"))
+func WithOpenAPISpecPath(path string) Option {
+	return func(e *Engine) {
+		path = core.Trim(path)
+		if path == "" {
+			e.openAPISpecPath = defaultOpenAPISpecPath
+			e.openAPISpecEnabled = true
+			return
+		}
+		if !core.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		e.openAPISpecPath = path
+		e.openAPISpecEnabled = true
+	}
+}
