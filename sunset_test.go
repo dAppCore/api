@@ -72,8 +72,70 @@ func TestWithSunset_Good_AddsDeprecationHeaders(t *testing.T) {
 	if got := w.Header().Get("Link"); got != "</api/v2/status>; rel=\"successor-version\"" {
 		t.Fatalf("expected successor Link header, got %q", got)
 	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "/api/v2/status" {
+		t.Fatalf("expected API-Suggested-Replacement to mirror replacement URL, got %q", got)
+	}
 	if got := w.Header().Get("X-API-Warn"); got != "This endpoint is deprecated and will be removed on 2025-06-01." {
 		t.Fatalf("expected deprecation warning, got %q", got)
+	}
+}
+
+// TestApiSunsetWith_Good_AddsNoticeURLHeader exercises ApiSunsetWith with the
+// WithSunsetNoticeURL option to verify the spec §8 notice header is emitted.
+func TestApiSunsetWith_Good_AddsNoticeURLHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith(
+		"2026-04-30",
+		"POST /api/v2/billing/invoices",
+		api.WithSunsetNoticeURL("https://docs.api.dappco.re/deprecation/billing"),
+	)
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("API-Deprecation-Notice-URL"); got != "https://docs.api.dappco.re/deprecation/billing" {
+		t.Fatalf("expected API-Deprecation-Notice-URL header, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "POST /api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to mirror replacement, got %q", got)
+	}
+}
+
+// TestApiSunsetWith_Bad_OmitsEmptyOptionalHeaders ensures empty option values
+// do not emit blank headers, keeping the response surface clean.
+func TestApiSunsetWith_Bad_OmitsEmptyOptionalHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("", "", api.WithSunsetNoticeURL("   "))
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/x", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/x", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Sunset"); got != "" {
+		t.Fatalf("expected no Sunset header for empty date, got %q", got)
+	}
+	if got := w.Header().Get("Link"); got != "" {
+		t.Fatalf("expected no Link header for empty replacement, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "" {
+		t.Fatalf("expected no API-Suggested-Replacement for empty replacement, got %q", got)
+	}
+	if got := w.Header().Get("API-Deprecation-Notice-URL"); got != "" {
+		t.Fatalf("expected no API-Deprecation-Notice-URL for blank URL, got %q", got)
+	}
+	if got := w.Header().Get("Deprecation"); got != "true" {
+		t.Fatalf("expected Deprecation=true even with no metadata, got %q", got)
 	}
 }
 

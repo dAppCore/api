@@ -153,6 +153,27 @@ func WithWSHandler(h http.Handler) Option {
 	}
 }
 
+// WithWebSocket registers a Gin-native WebSocket handler at GET /ws.
+//
+// This is the gin-handler form of WithWSHandler. The handler receives the
+// request via *gin.Context and is responsible for performing the upgrade
+// (typically with gorilla/websocket) and managing the message loop.
+// Use WithWSPath to customise the route before mounting the handler.
+//
+// Example:
+//
+//	api.New(api.WithWebSocket(func(c *gin.Context) {
+//	    // upgrade and handle messages
+//	}))
+func WithWebSocket(h gin.HandlerFunc) Option {
+	return func(e *Engine) {
+		if h == nil {
+			return
+		}
+		e.wsGinHandler = h
+	}
+}
+
 // WithWSPath sets a custom URL path for the WebSocket endpoint.
 // The default path is "/ws".
 //

@@ -165,6 +165,95 @@ func TestWSEndpoint_Good_WithResponseMeta(t *testing.T) {
 	}
 }
 
+// TestWithWebSocket_Good_GinHandlerReceivesUpgrade verifies the gin-native
+// WithWebSocket option mounts a *gin.Context-aware handler on /ws.
+func TestWithWebSocket_Good_GinHandlerReceivesUpgrade(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	handler := func(c *gin.Context) {
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			t.Logf("upgrade error: %v", err)
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("gin-hello"))
+	}
+
+	e, err := api.New(api.WithWebSocket(handler))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to dial WebSocket: %v", err)
+	}
+	defer conn.Close()
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read message: %v", err)
+	}
+	if string(msg) != "gin-hello" {
+		t.Fatalf("expected message=%q, got %q", "gin-hello", string(msg))
+	}
+}
+
+// TestWithWebSocket_Bad_NilHandlerNoMount ensures a nil handler is silently
+// ignored rather than panicking on engine build.
+func TestWithWebSocket_Bad_NilHandlerNoMount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithWebSocket(nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/ws", nil)
+	e.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for /ws without handler, got %d", w.Code)
+	}
+}
+
+// TestWithWebSocket_Ugly_GinHandlerWinsOverHTTPHandler verifies the gin form
+// takes precedence when both options are supplied so callers can iteratively
+// upgrade legacy registrations without behaviour drift.
+func TestWithWebSocket_Ugly_GinHandlerWinsOverHTTPHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	called := ""
+	httpH := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = "http"
+		w.WriteHeader(http.StatusOK)
+	})
+	ginH := func(c *gin.Context) {
+		called = "gin"
+		c.Status(http.StatusOK)
+	}
+
+	e, err := api.New(api.WithWSHandler(httpH), api.WithWebSocket(ginH))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/ws", nil)
+	e.Handler().ServeHTTP(w, req)
+	if called != "gin" {
+		t.Fatalf("expected gin handler to win, got %q", called)
+	}
+}
+
 func TestNoWSHandler_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

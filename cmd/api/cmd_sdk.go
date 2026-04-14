@@ -3,17 +3,14 @@
 package api
 
 import (
-	"fmt"
 	"iter"
 	"os"
-	"strings"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/cli/pkg/cli"
 
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-
 	goapi "dappco.re/go/core/api"
+	coreio "dappco.re/go/core/io"
 )
 
 const (
@@ -22,124 +19,95 @@ const (
 	defaultSDKVersion     = "1.0.0"
 )
 
-func addSDKCommand(parent *cli.Command) {
-	var (
-		lang        string
-		output      string
-		specFile    string
-		packageName string
-		cfg         specBuilderConfig
-	)
-
-	cfg.title = defaultSDKTitle
-	cfg.description = defaultSDKDescription
-	cfg.version = defaultSDKVersion
-
-	cmd := cli.NewCommand("sdk", "Generate client SDKs from OpenAPI spec", "", func(cmd *cli.Command, args []string) error {
-		languages := splitUniqueCSV(lang)
-		if len(languages) == 0 {
-			return coreerr.E("sdk.Generate", "--lang is required and must include at least one non-empty language. Supported: "+strings.Join(goapi.SupportedLanguages(), ", "), nil)
-		}
-
-		gen := &goapi.SDKGenerator{
-			OutputDir:   output,
-			PackageName: packageName,
-		}
-
-		if !gen.Available() {
-			fmt.Fprintln(os.Stderr, "openapi-generator-cli not found. Install with:")
-			fmt.Fprintln(os.Stderr, "  brew install openapi-generator    (macOS)")
-			fmt.Fprintln(os.Stderr, "  npm install @openapitools/openapi-generator-cli -g")
-			return coreerr.E("sdk.Generate", "openapi-generator-cli not installed", nil)
-		}
-
-		// If no spec file was provided, generate one only after confirming the
-		// generator is available.
-		resolvedSpecFile := specFile
-		if resolvedSpecFile == "" {
-			builder, err := sdkSpecBuilder(cfg)
-			if err != nil {
-				return err
-			}
-			groups := sdkSpecGroupsIter()
-
-			tmpFile, err := os.CreateTemp("", "openapi-*.json")
-			if err != nil {
-				return coreerr.E("sdk.Generate", "create temp spec file", err)
-			}
-			tmpPath := tmpFile.Name()
-			if err := tmpFile.Close(); err != nil {
-				_ = coreio.Local.Delete(tmpPath)
-				return coreerr.E("sdk.Generate", "close temp spec file", err)
-			}
-			defer coreio.Local.Delete(tmpPath)
-
-			if err := goapi.ExportSpecToFileIter(tmpPath, "json", builder, groups); err != nil {
-				return coreerr.E("sdk.Generate", "generate spec", err)
-			}
-			resolvedSpecFile = tmpPath
-		}
-
-		gen.SpecPath = resolvedSpecFile
-
-		// Generate for each language.
-		for _, l := range languages {
-			fmt.Fprintf(os.Stderr, "Generating %s SDK...\n", l)
-			if err := gen.Generate(cli.Context(), l); err != nil {
-				return coreerr.E("sdk.Generate", "generate "+l, err)
-			}
-			fmt.Fprintf(os.Stderr, "  Done: %s/%s/\n", output, l)
-		}
-
-		return nil
+func addSDKCommand(c *core.Core) {
+	c.Command("api/sdk", core.Command{
+		Description: "Generate client SDKs from OpenAPI spec",
+		Action:      sdkAction,
 	})
+}
 
-	cli.StringFlag(cmd, &lang, "lang", "l", "", "Target language(s), comma-separated (e.g. go,python,typescript-fetch)")
-	cli.StringFlag(cmd, &output, "output", "o", "./sdk", "Output directory for generated SDKs")
-	cli.StringFlag(cmd, &specFile, "spec", "s", "", "Path to an existing OpenAPI spec (generates a temporary spec from registered route groups and the built-in tool bridge if not provided)")
-	cli.StringFlag(cmd, &packageName, "package", "p", "lethean", "Package name for generated SDK")
-	registerSpecBuilderFlags(cmd, &cfg)
+func sdkAction(opts core.Options) core.Result {
+	lang := opts.String("lang")
+	output := opts.String("output")
+	if output == "" {
+		output = "./sdk"
+	}
+	specFile := opts.String("spec")
+	packageName := opts.String("package")
+	if packageName == "" {
+		packageName = "lethean"
+	}
 
-	parent.AddCommand(cmd)
+	languages := splitUniqueCSV(lang)
+	if len(languages) == 0 {
+		return core.Result{Value: cli.Err("--lang is required and must include at least one non-empty language"), OK: false}
+	}
+
+	gen := &goapi.SDKGenerator{
+		OutputDir:   output,
+		PackageName: packageName,
+	}
+
+	if !gen.Available() {
+		cli.Error("openapi-generator-cli not found. Install with:")
+		cli.Print("  brew install openapi-generator    (macOS)")
+		cli.Print("  npm install @openapitools/openapi-generator-cli -g")
+		return core.Result{Value: cli.Err("openapi-generator-cli not installed"), OK: false}
+	}
+
+	resolvedSpecFile := specFile
+	if resolvedSpecFile == "" {
+		cfg := sdkConfigFromOptions(opts)
+		builder, err := sdkSpecBuilder(cfg)
+		if err != nil {
+			return core.Result{Value: err, OK: false}
+		}
+		groups := sdkSpecGroupsIter()
+
+		tmpFile, err := os.CreateTemp("", "openapi-*.json")
+		if err != nil {
+			return core.Result{Value: cli.Wrap(err, "create temp spec file"), OK: false}
+		}
+		tmpPath := tmpFile.Name()
+		if err := tmpFile.Close(); err != nil {
+			_ = coreio.Local.Delete(tmpPath)
+			return core.Result{Value: cli.Wrap(err, "close temp spec file"), OK: false}
+		}
+		defer coreio.Local.Delete(tmpPath)
+
+		if err := goapi.ExportSpecToFileIter(tmpPath, "json", builder, groups); err != nil {
+			return core.Result{Value: cli.Wrap(err, "generate spec"), OK: false}
+		}
+		resolvedSpecFile = tmpPath
+	}
+
+	gen.SpecPath = resolvedSpecFile
+
+	for _, l := range languages {
+		cli.Dim("Generating " + l + " SDK...")
+		if err := gen.Generate(cli.Context(), l); err != nil {
+			return core.Result{Value: cli.Wrap(err, "generate "+l), OK: false}
+		}
+		cli.Dim("  Done: " + output + "/" + l + "/")
+	}
+
+	return core.Result{OK: true}
 }
 
 func sdkSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
-	return newSpecBuilder(specBuilderConfig{
-		title:                   cfg.title,
-		summary:                 cfg.summary,
-		description:             cfg.description,
-		version:                 cfg.version,
-		swaggerPath:             cfg.swaggerPath,
-		graphqlPath:             cfg.graphqlPath,
-		graphqlPlayground:       cfg.graphqlPlayground,
-		graphqlPlaygroundPath:   cfg.graphqlPlaygroundPath,
-		ssePath:                 cfg.ssePath,
-		wsPath:                  cfg.wsPath,
-		pprofEnabled:            cfg.pprofEnabled,
-		expvarEnabled:           cfg.expvarEnabled,
-		cacheEnabled:            cfg.cacheEnabled,
-		cacheTTL:                cfg.cacheTTL,
-		cacheMaxEntries:         cfg.cacheMaxEntries,
-		cacheMaxBytes:           cfg.cacheMaxBytes,
-		i18nDefaultLocale:       cfg.i18nDefaultLocale,
-		i18nSupportedLocales:    cfg.i18nSupportedLocales,
-		authentikIssuer:         cfg.authentikIssuer,
-		authentikClientID:       cfg.authentikClientID,
-		authentikTrustedProxy:   cfg.authentikTrustedProxy,
-		authentikPublicPaths:    cfg.authentikPublicPaths,
-		termsURL:                cfg.termsURL,
-		contactName:             cfg.contactName,
-		contactURL:              cfg.contactURL,
-		contactEmail:            cfg.contactEmail,
-		licenseName:             cfg.licenseName,
-		licenseURL:              cfg.licenseURL,
-		externalDocsDescription: cfg.externalDocsDescription,
-		externalDocsURL:         cfg.externalDocsURL,
-		servers:                 cfg.servers,
-		securitySchemes:         cfg.securitySchemes,
-	})
+	return newSpecBuilder(cfg)
 }
 
 func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {
 	return specGroupsIter(goapi.NewToolBridge("/tools"))
+}
+
+// sdkConfigFromOptions mirrors specConfigFromOptions but falls back to
+// SDK-specific title/description/version defaults.
+func sdkConfigFromOptions(opts core.Options) specBuilderConfig {
+	cfg := specConfigFromOptions(opts)
+	cfg.title = stringOr(opts.String("title"), defaultSDKTitle)
+	cfg.description = stringOr(opts.String("description"), defaultSDKDescription)
+	cfg.version = stringOr(opts.String("version"), defaultSDKVersion)
+	return cfg
 }

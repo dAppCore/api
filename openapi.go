@@ -354,8 +354,13 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		for _, rd := range g.descs {
 			fullPath := joinOpenAPIPath(g.basePath, rd.Path)
 			method := core.Lower(rd.Method)
-			deprecated := rd.Deprecated || core.Trim(rd.SunsetDate) != "" || core.Trim(rd.Replacement) != ""
+			deprecated := rd.Deprecated || core.Trim(rd.SunsetDate) != "" || core.Trim(rd.Replacement) != "" || core.Trim(rd.NoticeURL) != ""
 			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
+			if deprecated && core.Trim(rd.NoticeURL) != "" && deprecationHeaders != nil {
+				deprecationHeaders["API-Deprecation-Notice-URL"] = map[string]any{
+					"$ref": "#/components/headers/apiDeprecationNoticeURL",
+				}
+			}
 			isPublic := isPublicPathForList(fullPath, publicPaths)
 			security := rd.Security
 			if isPublic {
@@ -684,7 +689,9 @@ func healthResponses() map[string]any {
 }
 
 // deprecationResponseHeaders documents the standard deprecation headers for
-// deprecated or sunsetted operations.
+// deprecated or sunsetted operations. The header set mirrors what
+// ApiSunset/ApiSunsetWith emit at runtime, including the spec §8 custom
+// headers (API-Suggested-Replacement, API-Deprecation-Notice-URL).
 func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string) map[string]any {
 	sunsetDate = core.Trim(sunsetDate)
 	replacement = core.Trim(replacement)
@@ -712,13 +719,18 @@ func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string)
 		headers["Link"] = map[string]any{
 			"$ref": "#/components/headers/link",
 		}
+		headers["API-Suggested-Replacement"] = map[string]any{
+			"$ref": "#/components/headers/apiSuggestedReplacement",
+		}
 	}
 
 	return headers
 }
 
 // deprecationHeaderComponents returns reusable OpenAPI header components for
-// the standard deprecation and sunset middleware headers.
+// the standard deprecation and sunset middleware headers. Includes both the
+// IETF-standard headers (Deprecation, Sunset, Link) and the custom spec §8
+// headers used to communicate replacement endpoints and migration guides.
 func deprecationHeaderComponents() map[string]any {
 	return map[string]any{
 		"deprecation": map[string]any{
@@ -745,6 +757,19 @@ func deprecationHeaderComponents() map[string]any {
 			"description": "Human-readable deprecation warning for clients.",
 			"schema": map[string]any{
 				"type": "string",
+			},
+		},
+		"apiSuggestedReplacement": map[string]any{
+			"description": "Suggested replacement endpoint for clients to migrate to.",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"apiDeprecationNoticeURL": map[string]any{
+			"description": "URL pointing to a detailed deprecation notice.",
+			"schema": map[string]any{
+				"type":   "string",
+				"format": "uri",
 			},
 		},
 	}

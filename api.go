@@ -44,6 +44,7 @@ type Engine struct {
 	cacheMaxEntries                int
 	cacheMaxBytes                  int
 	wsHandler                      http.Handler
+	wsGinHandler                   gin.HandlerFunc
 	wsPath                         string
 	sseBroker                      *SSEBroker
 	swaggerEnabled                 bool
@@ -262,8 +263,13 @@ func (e *Engine) build() *gin.Engine {
 		g.RegisterRoutes(rg)
 	}
 
-	// Mount WebSocket handler if configured.
-	if e.wsHandler != nil {
+	// Mount WebSocket handler if configured. WithWebSocket (gin-native) takes
+	// precedence over WithWSHandler (http.Handler) when both are supplied so
+	// the more specific gin form wins.
+	switch {
+	case e.wsGinHandler != nil:
+		r.GET(resolveWSPath(e.wsPath), e.wsGinHandler)
+	case e.wsHandler != nil:
 		r.GET(resolveWSPath(e.wsPath), wrapWSHandler(e.wsHandler))
 	}
 

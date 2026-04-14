@@ -89,6 +89,9 @@ type RouteDescription struct {
 	SunsetDate string
 	// Replacement points to the successor endpoint URL, when known.
 	Replacement string
+	// NoticeURL points to a detailed deprecation notice or migration guide,
+	// surfaced as the API-Deprecation-Notice-URL response header per spec §8.
+	NoticeURL string
 	// StatusCode is the documented 2xx success status code.
 	// Zero defaults to 200.
 	StatusCode int

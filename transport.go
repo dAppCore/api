@@ -42,7 +42,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 
 	cfg := TransportConfig{
 		SwaggerEnabled: e.swaggerEnabled,
-		WSEnabled:      e.wsHandler != nil,
+		WSEnabled:      e.wsHandler != nil || e.wsGinHandler != nil,
 		SSEEnabled:     e.sseBroker != nil,
 		PprofEnabled:   e.pprofEnabled,
 		ExpvarEnabled:  e.expvarEnabled,
@@ -58,7 +58,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 	if gql.Path != "" {
 		cfg.GraphQLPath = gql.Path
 	}
-	if e.wsHandler != nil || core.Trim(e.wsPath) != "" {
+	if e.wsHandler != nil || e.wsGinHandler != nil || core.Trim(e.wsPath) != "" {
 		cfg.WSPath = resolveWSPath(e.wsPath)
 	}
 	if e.sseBroker != nil || core.Trim(e.ssePath) != "" {
