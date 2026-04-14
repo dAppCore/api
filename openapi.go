@@ -51,6 +51,8 @@ type SpecBuilder struct {
 	ExternalDocsURL         string
 	PprofEnabled            bool
 	ExpvarEnabled           bool
+	ChatCompletionsEnabled  bool
+	ChatCompletionsPath     string
 	CacheEnabled            bool
 	CacheTTL                string
 	CacheMaxEntries         int
@@ -149,6 +151,12 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	}
 	if sb.ExpvarEnabled {
 		spec["x-expvar-enabled"] = true
+	}
+	if sb.ChatCompletionsEnabled {
+		spec["x-chat-completions-enabled"] = true
+	}
+	if path := sb.effectiveChatCompletionsPath(); path != "" {
+		spec["x-chat-completions-path"] = normaliseOpenAPIPath(path)
 	}
 	if sb.CacheEnabled {
 		spec["x-cache-enabled"] = true
@@ -2026,6 +2034,23 @@ func (sb *SpecBuilder) effectiveSSEPath() string {
 	}
 	if sb.SSEEnabled {
 		return defaultSSEPath
+	}
+	return ""
+}
+
+// effectiveChatCompletionsPath returns the configured chat completions path or
+// the RFC §11.1 default when chat completions is enabled without an explicit
+// override. An explicit path also surfaces on its own so spec generation
+// reflects configuration authored ahead of runtime activation.
+//
+//	sb.effectiveChatCompletionsPath()  // "/v1/chat/completions" when enabled
+func (sb *SpecBuilder) effectiveChatCompletionsPath() string {
+	path := core.Trim(sb.ChatCompletionsPath)
+	if path != "" {
+		return path
+	}
+	if sb.ChatCompletionsEnabled {
+		return defaultChatCompletionsPath
 	}
 	return ""
 }

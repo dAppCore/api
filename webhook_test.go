@@ -208,6 +208,73 @@ func TestWebhook_VerifyRequest_Ugly_NilRequestReturnsFalse(t *testing.T) {
 	}
 }
 
+// TestWebhook_WebhookEvents_Good_ListsCanonicalIdentifiers verifies the
+// exported list of canonical event names documented in RFC §6.
+func TestWebhook_WebhookEvents_Good_ListsCanonicalIdentifiers(t *testing.T) {
+	got := WebhookEvents()
+	want := []string{
+		"workspace.created",
+		"workspace.deleted",
+		"subscription.changed",
+		"subscription.cancelled",
+		"biolink.created",
+		"link.clicked",
+		"ticket.created",
+		"ticket.replied",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d events, got %d: %v", len(want), len(got), got)
+	}
+	for i, evt := range want {
+		if got[i] != evt {
+			t.Fatalf("index %d: expected %q, got %q", i, evt, got[i])
+		}
+	}
+}
+
+// TestWebhook_WebhookEvents_Good_ReturnsFreshSlice ensures the returned slice
+// is safe to mutate — callers never corrupt the canonical list.
+func TestWebhook_WebhookEvents_Good_ReturnsFreshSlice(t *testing.T) {
+	first := WebhookEvents()
+	first[0] = "mutated"
+	second := WebhookEvents()
+	if second[0] != "workspace.created" {
+		t.Fatalf("expected canonical list to be immutable, got %q", second[0])
+	}
+}
+
+// TestWebhook_IsKnownWebhookEvent_Good_RecognisesCanonical confirms canonical
+// identifiers pass the known-event predicate.
+func TestWebhook_IsKnownWebhookEvent_Good_RecognisesCanonical(t *testing.T) {
+	for _, evt := range WebhookEvents() {
+		if !IsKnownWebhookEvent(evt) {
+			t.Fatalf("expected %q to be recognised", evt)
+		}
+	}
+}
+
+// TestWebhook_IsKnownWebhookEvent_Good_TrimsWhitespace ensures whitespace
+// around user-supplied event names does not defeat the lookup.
+func TestWebhook_IsKnownWebhookEvent_Good_TrimsWhitespace(t *testing.T) {
+	if !IsKnownWebhookEvent("  workspace.created  ") {
+		t.Fatal("expected whitespace-padded identifier to be recognised")
+	}
+}
+
+// TestWebhook_IsKnownWebhookEvent_Bad_RejectsUnknown guards against silent
+// acceptance of typos or out-of-catalogue event identifiers.
+func TestWebhook_IsKnownWebhookEvent_Bad_RejectsUnknown(t *testing.T) {
+	if IsKnownWebhookEvent("") {
+		t.Fatal("expected empty string to be rejected")
+	}
+	if IsKnownWebhookEvent("workspace.created.extra") {
+		t.Fatal("expected suffixed event to be rejected")
+	}
+	if IsKnownWebhookEvent("Workspace.Created") {
+		t.Fatal("expected differently-cased identifier to be rejected")
+	}
+}
+
 // TestWebhook_IsTimestampValid_Good_UsesConfiguredTolerance exercises the
 // inclusive boundary where the timestamp falls right at the tolerance edge.
 func TestWebhook_IsTimestampValid_Good_UsesConfiguredTolerance(t *testing.T) {

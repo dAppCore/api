@@ -497,6 +497,47 @@ func TestEngine_Good_TransportConfigReportsDisabledSwaggerWithoutUI(t *testing.T
 	}
 }
 
+// TestEngine_Good_TransportConfigReportsChatCompletions verifies that the
+// chat completions resolver surfaces through TransportConfig so callers can
+// discover the RFC §11.1 endpoint without rebuilding the engine.
+func TestEngine_Good_TransportConfigReportsChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	resolver := api.NewModelResolver()
+	e, err := api.New(api.WithChatCompletions(resolver))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.ChatCompletionsEnabled {
+		t.Fatal("expected chat completions to be enabled")
+	}
+	if cfg.ChatCompletionsPath != "/v1/chat/completions" {
+		t.Fatalf("expected chat completions path /v1/chat/completions, got %q", cfg.ChatCompletionsPath)
+	}
+}
+
+// TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride verifies
+// that WithChatCompletionsPath surfaces through TransportConfig.
+func TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	resolver := api.NewModelResolver()
+	e, err := api.New(
+		api.WithChatCompletions(resolver),
+		api.WithChatCompletionsPath("/chat"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if cfg.ChatCompletionsPath != "/chat" {
+		t.Fatalf("expected chat completions path /chat, got %q", cfg.ChatCompletionsPath)
+	}
+}
+
 func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

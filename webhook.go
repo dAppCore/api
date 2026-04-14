@@ -8,11 +8,67 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
 	core "dappco.re/go/core"
 )
+
+// Canonical webhook event identifiers from RFC §6. These constants mirror the
+// PHP-side event catalogue so Go senders and receivers reference the same
+// namespaced strings.
+//
+//	evt := api.WebhookEventLinkClicked // "link.clicked"
+const (
+	// WebhookEventWorkspaceCreated fires when a new workspace is provisioned.
+	WebhookEventWorkspaceCreated = "workspace.created"
+	// WebhookEventWorkspaceDeleted fires when a workspace is permanently removed.
+	WebhookEventWorkspaceDeleted = "workspace.deleted"
+	// WebhookEventSubscriptionChanged fires when a subscription plan changes.
+	WebhookEventSubscriptionChanged = "subscription.changed"
+	// WebhookEventSubscriptionCancelled fires when a subscription is cancelled.
+	WebhookEventSubscriptionCancelled = "subscription.cancelled"
+	// WebhookEventBiolinkCreated fires when a new biolink page is created.
+	WebhookEventBiolinkCreated = "biolink.created"
+	// WebhookEventLinkClicked fires when a tracked short link is clicked.
+	// High-volume event — recipients should opt in explicitly.
+	WebhookEventLinkClicked = "link.clicked"
+	// WebhookEventTicketCreated fires when a support ticket is opened.
+	WebhookEventTicketCreated = "ticket.created"
+	// WebhookEventTicketReplied fires when a support ticket receives a reply.
+	WebhookEventTicketReplied = "ticket.replied"
+)
+
+// WebhookEvents returns the canonical list of webhook event identifiers
+// documented in RFC §6. The order is stable: catalogue groups share a prefix
+// (workspace → subscription → biolink → link → ticket).
+//
+//	for _, evt := range api.WebhookEvents() {
+//	    registry.Enable(evt)
+//	}
+func WebhookEvents() []string {
+	return []string{
+		WebhookEventWorkspaceCreated,
+		WebhookEventWorkspaceDeleted,
+		WebhookEventSubscriptionChanged,
+		WebhookEventSubscriptionCancelled,
+		WebhookEventBiolinkCreated,
+		WebhookEventLinkClicked,
+		WebhookEventTicketCreated,
+		WebhookEventTicketReplied,
+	}
+}
+
+// IsKnownWebhookEvent reports whether the given event name is one of the
+// canonical identifiers documented in RFC §6.
+//
+//	if !api.IsKnownWebhookEvent(evt) {
+//	    return errors.New("unknown webhook event")
+//	}
+func IsKnownWebhookEvent(name string) bool {
+	return slices.Contains(WebhookEvents(), core.Trim(name))
+}
 
 // WebhookSigner produces and verifies HMAC-SHA256 signatures over webhook
 // payloads. Spec §6: signed payloads (HMAC-SHA256) include a timestamp and

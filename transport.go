@@ -13,18 +13,20 @@ import core "dappco.re/go/core"
 //
 //	cfg := api.TransportConfig{SwaggerPath: "/swagger", WSPath: "/ws"}
 type TransportConfig struct {
-	SwaggerEnabled        bool
-	SwaggerPath           string
-	GraphQLPath           string
-	GraphQLEnabled        bool
-	GraphQLPlayground     bool
-	GraphQLPlaygroundPath string
-	WSEnabled             bool
-	WSPath                string
-	SSEEnabled            bool
-	SSEPath               string
-	PprofEnabled          bool
-	ExpvarEnabled         bool
+	SwaggerEnabled         bool
+	SwaggerPath            string
+	GraphQLPath            string
+	GraphQLEnabled         bool
+	GraphQLPlayground      bool
+	GraphQLPlaygroundPath  string
+	WSEnabled              bool
+	WSPath                 string
+	SSEEnabled             bool
+	SSEPath                string
+	PprofEnabled           bool
+	ExpvarEnabled          bool
+	ChatCompletionsEnabled bool
+	ChatCompletionsPath    string
 }
 
 // TransportConfig returns the currently configured transport metadata for the engine.
@@ -41,11 +43,12 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 
 	cfg := TransportConfig{
-		SwaggerEnabled: e.swaggerEnabled,
-		WSEnabled:      e.wsHandler != nil || e.wsGinHandler != nil,
-		SSEEnabled:     e.sseBroker != nil,
-		PprofEnabled:   e.pprofEnabled,
-		ExpvarEnabled:  e.expvarEnabled,
+		SwaggerEnabled:         e.swaggerEnabled,
+		WSEnabled:              e.wsHandler != nil || e.wsGinHandler != nil,
+		SSEEnabled:             e.sseBroker != nil,
+		PprofEnabled:           e.pprofEnabled,
+		ExpvarEnabled:          e.expvarEnabled,
+		ChatCompletionsEnabled: e.chatCompletionsResolver != nil,
 	}
 	gql := e.GraphQLConfig()
 	cfg.GraphQLEnabled = gql.Enabled
@@ -64,6 +67,22 @@ func (e *Engine) TransportConfig() TransportConfig {
 	if e.sseBroker != nil || core.Trim(e.ssePath) != "" {
 		cfg.SSEPath = resolveSSEPath(e.ssePath)
 	}
+	if e.chatCompletionsResolver != nil || core.Trim(e.chatCompletionsPath) != "" {
+		cfg.ChatCompletionsPath = resolveChatCompletionsPath(e.chatCompletionsPath)
+	}
 
 	return cfg
+}
+
+// resolveChatCompletionsPath returns the configured chat completions path or
+// the spec §11.1 default when no override has been provided.
+func resolveChatCompletionsPath(path string) string {
+	path = core.Trim(path)
+	if path == "" {
+		return defaultChatCompletionsPath
+	}
+	if !core.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return path
 }

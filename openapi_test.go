@@ -710,6 +710,85 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLTag(t *testing.T) {
 	}
 }
 
+// TestSpecBuilder_Good_ChatCompletionsEndpointExtension verifies the chat
+// completions path surfaces as x-chat-completions-path/enabled extensions per
+// RFC §11.1 so SDK consumers can auto-discover the local endpoint.
+func TestSpecBuilder_Good_ChatCompletionsEndpointExtension(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                  "Test",
+		Version:                "1.0.0",
+		ChatCompletionsEnabled: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-chat-completions-enabled"]; got != true {
+		t.Fatalf("expected x-chat-completions-enabled=true, got %v", got)
+	}
+	if got := spec["x-chat-completions-path"]; got != "/v1/chat/completions" {
+		t.Fatalf("expected default chat completions path, got %v", got)
+	}
+}
+
+// TestSpecBuilder_Good_ChatCompletionsHonoursCustomPath verifies an explicit
+// path override surfaces through the spec extension.
+func TestSpecBuilder_Good_ChatCompletionsHonoursCustomPath(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                  "Test",
+		Version:                "1.0.0",
+		ChatCompletionsEnabled: true,
+		ChatCompletionsPath:    "/chat",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-chat-completions-path"]; got != "/chat" {
+		t.Fatalf("expected custom chat completions path /chat, got %v", got)
+	}
+}
+
+// TestSpecBuilder_Good_ChatCompletionsOmittedWhenDisabled ensures the
+// extension keys are absent when chat completions is not configured.
+func TestSpecBuilder_Good_ChatCompletionsOmittedWhenDisabled(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if _, ok := spec["x-chat-completions-enabled"]; ok {
+		t.Fatal("expected x-chat-completions-enabled to be absent when disabled")
+	}
+	if _, ok := spec["x-chat-completions-path"]; ok {
+		t.Fatal("expected x-chat-completions-path to be absent when disabled")
+	}
+}
+
 func TestSpecBuilder_Good_EnabledTransportsUseDefaultPaths(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:          "Test",
