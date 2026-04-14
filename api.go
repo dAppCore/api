@@ -38,6 +38,8 @@ type Engine struct {
 	addr                           string
 	groups                         []RouteGroup
 	middlewares                    []gin.HandlerFunc
+	chatCompletionsResolver        *ModelResolver
+	chatCompletionsPath            string
 	cacheTTL                       time.Duration
 	cacheMaxEntries                int
 	cacheMaxBytes                  int
@@ -240,6 +242,12 @@ func (e *Engine) build() *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, OK("healthy"))
 	})
+
+	// Mount the local OpenAI-compatible chat completion endpoint when configured.
+	if e.chatCompletionsResolver != nil {
+		h := newChatCompletionsHandler(e.chatCompletionsResolver)
+		r.POST(e.chatCompletionsPath, h.ServeHTTP)
+	}
 
 	// Mount each registered group at its base path.
 	for _, g := range e.groups {
