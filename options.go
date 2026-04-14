@@ -689,3 +689,42 @@ func WithGraphQL(schema graphql.ExecutableSchema, opts ...GraphQLOption) Option 
 		e.graphql = cfg
 	}
 }
+
+// WithChatCompletions mounts an OpenAI-compatible POST /v1/chat/completions
+// endpoint backed by the given ModelResolver. The resolver maps model names to
+// loaded inference.TextModel instances (see chat_completions.go).
+//
+// Use WithChatCompletionsPath to override the default "/v1/chat/completions"
+// mount point. The endpoint streams Server-Sent Events when the request body
+// sets "stream": true, and otherwise returns a single JSON response that
+// mirrors OpenAI's chat completion payload.
+//
+// Example:
+//
+//	resolver := api.NewModelResolver()
+//	engine, _ := api.New(api.WithChatCompletions(resolver))
+func WithChatCompletions(resolver *ModelResolver) Option {
+	return func(e *Engine) {
+		e.chatCompletionsResolver = resolver
+	}
+}
+
+// WithChatCompletionsPath sets a custom URL path for the chat completions
+// endpoint. The default path is "/v1/chat/completions".
+//
+// Example:
+//
+//	api.New(api.WithChatCompletionsPath("/api/v1/chat/completions"))
+func WithChatCompletionsPath(path string) Option {
+	return func(e *Engine) {
+		path = core.Trim(path)
+		if path == "" {
+			e.chatCompletionsPath = defaultChatCompletionsPath
+			return
+		}
+		if !core.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		e.chatCompletionsPath = path
+	}
+}

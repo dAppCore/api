@@ -1914,17 +1914,21 @@ func sseResponseHeaders() map[string]any {
 }
 
 // effectiveGraphQLPath returns the configured GraphQL path or the default
-// GraphQL path when GraphQL is enabled without an explicit path. Returns an
-// empty string when neither GraphQL nor the playground is enabled.
+// GraphQL path when GraphQL is enabled without an explicit path. An explicit
+// path also surfaces on its own so spec generation reflects configuration
+// authored ahead of runtime activation. Returns an empty string only when no
+// configuration is present.
+//
+//	sb.effectiveGraphQLPath()  // "/graphql" when enabled or configured
 func (sb *SpecBuilder) effectiveGraphQLPath() string {
-	if !sb.GraphQLEnabled && !sb.GraphQLPlayground {
-		return ""
-	}
 	graphqlPath := core.Trim(sb.GraphQLPath)
-	if graphqlPath == "" {
+	if graphqlPath != "" {
+		return graphqlPath
+	}
+	if sb.GraphQLEnabled || sb.GraphQLPlayground {
 		return defaultGraphQLPath
 	}
-	return graphqlPath
+	return ""
 }
 
 // effectiveGraphQLPlaygroundPath returns the configured playground path when
@@ -1948,45 +1952,57 @@ func (sb *SpecBuilder) effectiveGraphQLPlaygroundPath() string {
 }
 
 // effectiveSwaggerPath returns the configured Swagger UI path or the default
-// path when Swagger is enabled without an explicit override. Returns an empty
-// string when Swagger is disabled.
+// path when Swagger is enabled without an explicit override. An explicit path
+// also surfaces on its own so spec generation reflects configuration authored
+// ahead of runtime activation. Returns an empty string only when no
+// configuration is present.
+//
+//	sb.effectiveSwaggerPath()  // "/swagger" when enabled or configured
 func (sb *SpecBuilder) effectiveSwaggerPath() string {
-	if !sb.SwaggerEnabled {
-		return ""
-	}
 	swaggerPath := core.Trim(sb.SwaggerPath)
-	if swaggerPath == "" {
+	if swaggerPath != "" {
+		return swaggerPath
+	}
+	if sb.SwaggerEnabled {
 		return defaultSwaggerPath
 	}
-	return swaggerPath
+	return ""
 }
 
 // effectiveWSPath returns the configured WebSocket path or the default path
-// when WebSockets are enabled without an explicit override. Returns an empty
-// string when WebSockets are disabled.
+// when WebSockets are enabled without an explicit override. An explicit path
+// also surfaces on its own so spec generation reflects configuration authored
+// ahead of runtime activation. Returns an empty string only when no
+// configuration is present.
+//
+//	sb.effectiveWSPath()  // "/ws" when enabled or configured
 func (sb *SpecBuilder) effectiveWSPath() string {
-	if !sb.WSEnabled {
-		return ""
-	}
 	wsPath := core.Trim(sb.WSPath)
-	if wsPath == "" {
+	if wsPath != "" {
+		return wsPath
+	}
+	if sb.WSEnabled {
 		return defaultWSPath
 	}
-	return wsPath
+	return ""
 }
 
 // effectiveSSEPath returns the configured SSE path or the default path when
-// SSE is enabled without an explicit override. Returns an empty string when
-// SSE is disabled.
+// SSE is enabled without an explicit override. An explicit path also surfaces
+// on its own so spec generation reflects configuration authored ahead of
+// runtime activation. Returns an empty string only when no configuration is
+// present.
+//
+//	sb.effectiveSSEPath()  // "/events" when enabled or configured
 func (sb *SpecBuilder) effectiveSSEPath() string {
-	if !sb.SSEEnabled {
-		return ""
-	}
 	ssePath := core.Trim(sb.SSEPath)
-	if ssePath == "" {
+	if ssePath != "" {
+		return ssePath
+	}
+	if sb.SSEEnabled {
 		return defaultSSEPath
 	}
-	return ssePath
+	return ""
 }
 
 // effectiveCacheTTL returns a normalised cache TTL when it parses to a
@@ -2006,13 +2022,18 @@ func (sb *SpecBuilder) effectiveCacheTTL() string {
 }
 
 // effectiveAuthentikPublicPaths returns the public paths that Authentik skips
-// in practice, including the always-public health and Swagger endpoints.
+// in practice, including the always-public health endpoint and both the
+// default and any configured Swagger UI paths. The runtime middleware also
+// always skips "/swagger" unconditionally (see authentikMiddleware), so the
+// spec mirrors that behaviour even when a custom swagger path is mounted.
+//
+//	paths := sb.effectiveAuthentikPublicPaths()  // [/health /swagger ...]
 func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
 	if !sb.hasAuthentikMetadata() {
 		return nil
 	}
 
-	paths := []string{"/health"}
+	paths := []string{"/health", defaultSwaggerPath}
 	if swaggerPath := sb.effectiveSwaggerPath(); swaggerPath != "" {
 		paths = append(paths, swaggerPath)
 	}

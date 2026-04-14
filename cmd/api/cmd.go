@@ -2,7 +2,7 @@
 
 package api
 
-import "forge.lthn.ai/core/cli/pkg/cli"
+import "dappco.re/go/core/cli/pkg/cli"
 
 func init() {
 	cli.RegisterCommands(AddAPICommands)
@@ -12,7 +12,7 @@ func init() {
 //
 // Example:
 //
-//	root := &cli.Command{Use: "root"}
+//	root := cli.NewGroup("root", "", "")
 //	api.AddAPICommands(root)
 func AddAPICommands(root *cli.Command) {
 	apiCmd := cli.NewGroup("api", "API specification and SDK generation", "")

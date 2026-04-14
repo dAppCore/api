@@ -147,7 +147,7 @@ engine.Register(&Routes{service: svc})
 | `go.opentelemetry.io/contrib/.../otelgin` | OpenTelemetry Gin instrumentation |
 | `golang.org/x/text` | BCP 47 language tag matching |
 | `gopkg.in/yaml.v3` | YAML export of OpenAPI specs |
-| `forge.lthn.ai/core/cli` | CLI command registration (for `cmd/api/` subcommands) |
+| `dappco.re/go/core/cli` | CLI command registration (for `cmd/api/` subcommands) |
 
 ### Ecosystem position
 

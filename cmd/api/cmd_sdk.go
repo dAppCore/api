@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/core/cli/pkg/cli"
 
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"

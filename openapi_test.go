@@ -1763,8 +1763,9 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeBuiltInEndpointsPublic(t *test
 
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	sb := &api.SpecBuilder{
-		Title:   "Test",
-		Version: "1.0.0",
+		Title:        "Test",
+		Version:      "1.0.0",
+		CacheEnabled: true,
 	}
 
 	group := &specStubGroup{

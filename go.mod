@@ -3,9 +3,11 @@ module dappco.re/go/core/api
 go 1.26.0
 
 require (
+	dappco.re/go/core v0.8.0-alpha.1
+	dappco.re/go/core/cli v0.5.2
+	dappco.re/go/core/inference v0.2.1
 	dappco.re/go/core/io v0.1.7
-	dappco.re/go/core/log v0.0.4
-	dappco.re/go/core/cli v0.3.7
+	dappco.re/go/core/log v0.1.2
 	github.com/99designs/gqlgen v0.17.88
 	github.com/andybalholm/brotli v1.2.0
 	github.com/casbin/casbin/v2 v2.135.0
@@ -38,10 +40,7 @@ require (
 )
 
 require (
-	dappco.re/go/core v0.3.2 // indirect
-	dappco.re/go/core/i18n v0.1.7 // indirect
-	dappco.re/go/core/inference v0.1.7 // indirect
-	dappco.re/go/core/log v0.0.4 // indirect
+	dappco.re/go/core/i18n v0.2.3 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -132,6 +131,7 @@ require (
 replace (
 	dappco.re/go/core => ../go
 	dappco.re/go/core/i18n => ../go-i18n
-	dappco.re/go/core/io => ./go-io
-	dappco.re/go/core/log => ./go-log
+	dappco.re/go/core/inference => ../go-inference
+	dappco.re/go/core/io => ../go-io
+	dappco.re/go/core/log => ../go-log
 )

@@ -86,6 +86,10 @@ func New(opts ...Option) (*Engine, error) {
 	for _, opt := range opts {
 		opt(e)
 	}
+	// Apply calibrated defaults for optional subsystems.
+	if e.chatCompletionsResolver != nil && core.Trim(e.chatCompletionsPath) == "" {
+		e.chatCompletionsPath = defaultChatCompletionsPath
+	}
 	return e, nil
 }
 

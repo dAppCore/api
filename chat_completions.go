@@ -3,19 +3,17 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
+	"math/rand"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
-
-	"math/rand"
 
 	"dappco.re/go/core"
 	inference "dappco.re/go/core/inference"
@@ -43,15 +41,15 @@ const channelMarker = "<|channel>"
 //	    Stream:   true,
 //	}
 type ChatCompletionRequest struct {
-	Model     string        `json:"model"`
-	Messages  []ChatMessage `json:"messages"`
-	Temperature *float32    `json:"temperature,omitempty"`
-	TopP      *float32      `json:"top_p,omitempty"`
-	TopK      *int          `json:"top_k,omitempty"`
-	MaxTokens *int          `json:"max_tokens,omitempty"`
-	Stream    bool          `json:"stream,omitempty"`
-	Stop      []string      `json:"stop,omitempty"`
-	User      string        `json:"user,omitempty"`
+	Model       string        `json:"model"`
+	Messages    []ChatMessage `json:"messages"`
+	Temperature *float32      `json:"temperature,omitempty"`
+	TopP        *float32      `json:"top_p,omitempty"`
+	TopK        *int          `json:"top_k,omitempty"`
+	MaxTokens   *int          `json:"max_tokens,omitempty"`
+	Stream      bool          `json:"stream,omitempty"`
+	Stop        []string      `json:"stop,omitempty"`
+	User        string        `json:"user,omitempty"`
 }
 
 // ChatMessage is a single turn in a conversation.
@@ -66,13 +64,13 @@ type ChatMessage struct {
 //
 //	resp.Choices[0].Message.Content // "4"
 type ChatCompletionResponse struct {
-	ID      string      `json:"id"`
-	Object  string      `json:"object"`
-	Created int64       `json:"created"`
-	Model   string      `json:"model"`
+	ID      string       `json:"id"`
+	Object  string       `json:"object"`
+	Created int64        `json:"created"`
+	Model   string       `json:"model"`
 	Choices []ChatChoice `json:"choices"`
-	Usage   ChatUsage   `json:"usage"`
-	Thought *string     `json:"thought,omitempty"`
+	Usage   ChatUsage    `json:"usage"`
+	Thought *string      `json:"thought,omitempty"`
 }
 
 // ChatChoice is a single response option.
@@ -98,12 +96,12 @@ type ChatUsage struct {
 //
 //	chunk.Choices[0].Delta.Content // Partial token text
 type ChatCompletionChunk struct {
-	ID      string             `json:"id"`
-	Object  string             `json:"object"`
-	Created int64              `json:"created"`
-	Model   string             `json:"model"`
-	Choices []ChatChunkChoice  `json:"choices"`
-	Thought *string            `json:"thought,omitempty"`
+	ID      string            `json:"id"`
+	Object  string            `json:"object"`
+	Created int64             `json:"created"`
+	Model   string            `json:"model"`
+	Choices []ChatChunkChoice `json:"choices"`
+	Thought *string           `json:"thought,omitempty"`
 }
 
 // ChatChunkChoice is a streaming delta.
@@ -111,7 +109,7 @@ type ChatCompletionChunk struct {
 //	delta.Content // New token(s) in this chunk
 type ChatChunkChoice struct {
 	Index        int              `json:"index"`
-	Delta        ChatMessageDelta  `json:"delta"`
+	Delta        ChatMessageDelta `json:"delta"`
 	FinishReason *string          `json:"finish_reason"`
 }
 
@@ -151,9 +149,9 @@ func (e *modelResolutionError) Error() string {
 //
 // Resolution order:
 //
-//  1) Exact cache hit
-//  2) ~/.core/models.yaml path mapping
-//  3) discovery by architecture via inference.Discover()
+//  1. Exact cache hit
+//  2. ~/.core/models.yaml path mapping
+//  3. discovery by architecture via inference.Discover()
 type ModelResolver struct {
 	mu           sync.RWMutex
 	loadedByName map[string]inference.TextModel
@@ -161,6 +159,12 @@ type ModelResolver struct {
 	discovery    map[string]string
 }
 
+// NewModelResolver constructs a ModelResolver with empty caches. The returned
+// resolver is safe for concurrent use — ResolveModel serialises cache updates
+// through an internal sync.RWMutex.
+//
+//	resolver := api.NewModelResolver()
+//	engine, _ := api.New(api.WithChatCompletions(resolver))
 func NewModelResolver() *ModelResolver {
 	return &ModelResolver{
 		loadedByName: make(map[string]inference.TextModel),
@@ -174,9 +178,9 @@ func NewModelResolver() *ModelResolver {
 func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 	if r == nil {
 		return nil, &modelResolutionError{
-			code: "model_not_found",
+			code:  "model_not_found",
 			param: "model",
-			msg: "model resolver is not configured",
+			msg:   "model resolver is not configured",
 		}
 	}
 
@@ -343,16 +347,23 @@ func (r *ModelResolver) resolveDiscoveredPath(name string) (string, bool) {
 }
 
 type discoveredModel struct {
-	Path string
+	Path      string
+	ModelType string
 }
 
+// discoveryModels enumerates locally discovered models under base and
+// returns Path + ModelType pairs for name resolution.
+//
+//	for _, m := range discoveryModels(base) {
+//	    _ = m.Path
+//	}
 func discoveryModels(base string) []discoveredModel {
 	var out []discoveredModel
 	for m := range inference.Discover(base) {
 		if m.Path == "" || m.ModelType == "" {
 			continue
 		}
-		out = append(out, discoveredModel{Path: m.Path})
+		out = append(out, discoveredModel{Path: m.Path, ModelType: m.ModelType})
 	}
 	return out
 }
@@ -372,16 +383,34 @@ type ThinkingExtractor struct {
 	thought        strings.Builder
 }
 
+// NewThinkingExtractor constructs a ThinkingExtractor that starts on the
+// "assistant" channel. Tokens are routed to Content() until a
+// "<|channel>thought" marker switches the stream to the thinking channel (and
+// similarly back).
+//
+//	extractor := api.NewThinkingExtractor()
 func NewThinkingExtractor() *ThinkingExtractor {
 	return &ThinkingExtractor{
 		currentChannel: "assistant",
 	}
 }
 
+// Process feeds a single generated token into the extractor. Tokens are
+// appended to the current channel buffer (content or thought), switching on
+// the "<|channel>NAME" marker. Non-streaming handlers call Process in a loop
+// and then read Content and Thinking when generation completes.
+//
+//	for tok := range model.Chat(ctx, messages) {
+//	    extractor.Process(tok)
+//	}
 func (te *ThinkingExtractor) Process(token inference.Token) {
 	te.writeDeltas(token.Text)
 }
 
+// Content returns all text accumulated on the user-facing "assistant" channel
+// so far. Safe to call on a nil receiver (returns "").
+//
+//	text := extractor.Content()
 func (te *ThinkingExtractor) Content() string {
 	if te == nil {
 		return ""
@@ -389,6 +418,13 @@ func (te *ThinkingExtractor) Content() string {
 	return te.content.String()
 }
 
+// Thinking returns all text accumulated on the internal "thought" channel so
+// far or nil when no thinking tokens were produced. Safe to call on a nil
+// receiver.
+//
+//	if thinking := extractor.Thinking(); thinking != nil {
+//	    response.Thought = thinking
+//	}
 func (te *ThinkingExtractor) Thinking() *string {
 	if te == nil {
 		return nil
@@ -400,13 +436,19 @@ func (te *ThinkingExtractor) Thinking() *string {
 	return &out
 }
 
+// writeDeltas tokenises text into the current channel, switching channels
+// whenever it encounters the "<|channel>NAME" marker. It returns the content
+// and thought fragments that were added to the builders during this call so
+// streaming handlers can emit only the new bytes to the wire.
+//
+//	contentDelta, thoughtDelta := extractor.writeDeltas(tok.Text)
 func (te *ThinkingExtractor) writeDeltas(text string) (string, string) {
-	beforeContentLen := te.content.Len()
-	beforeThoughtLen := te.thought.Len()
-
 	if te == nil {
 		return "", ""
 	}
+
+	beforeContentLen := te.content.Len()
+	beforeThoughtLen := te.thought.Len()
 
 	remaining := text
 	for {
@@ -500,20 +542,17 @@ func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
 	if err := validateChatRequest(&req); err != nil {
 		chatErr, ok := err.(*chatCompletionRequestError)
 		if !ok {
-			writeChatCompletionError(c, 400, "invalid_request_error", "body", err.Error(), "")
+			writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "body", err.Error(), "")
 			return
 		}
-		writeChatCompletionError(c, chatErr.Status, chatErr.Code, chatErr.Param, chatErr.Message, chatErr.Type)
+		writeChatCompletionError(c, chatErr.Status, chatErr.Type, chatErr.Param, chatErr.Message, chatErr.Code)
 		return
 	}
 
 	model, err := h.resolver.ResolveModel(req.Model)
 	if err != nil {
-		status, chatErrType, chatErrCode, chatErrParam := mapResolverError(err)
-		writeChatCompletionError(c, status, "invalid_request_error", chatErrParam, err.Error(), chatErrType)
-		if chatErrCode != "" {
-			chatErrType = chatErrCode
-		}
+		status, errType, errCode, errParam := mapResolverError(err)
+		writeChatCompletionError(c, status, errType, errParam, err.Error(), errCode)
 		return
 	}
 
@@ -670,8 +709,8 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 		Model:   req.Model,
 		Choices: []ChatChunkChoice{
 			{
-				Index: 0,
-				Delta: ChatMessageDelta{},
+				Index:        0,
+				Delta:        ChatMessageDelta{},
 				FinishReason: &finished,
 			},
 		},
@@ -751,6 +790,14 @@ func chatRequestOptions(req *ChatCompletionRequest) ([]inference.GenerateOption,
 	return opts, nil
 }
 
+// chatResolvedFloat honours an explicitly set float sampling parameter or
+// falls back to the calibrated default when the pointer is nil.
+//
+// Spec §11.2: "When a parameter is omitted (nil), the server applies the
+// calibrated default. When explicitly set (including 0.0), the server honours
+// the caller's value."
+//
+//	temperature := chatResolvedFloat(req.Temperature, chatDefaultTemperature)
 func chatResolvedFloat(v *float32, def float32) float32 {
 	if v == nil {
 		return def
@@ -758,6 +805,10 @@ func chatResolvedFloat(v *float32, def float32) float32 {
 	return *v
 }
 
+// chatResolvedInt honours an explicitly set integer sampling parameter or
+// falls back to the calibrated default when the pointer is nil.
+//
+//	topK := chatResolvedInt(req.TopK, chatDefaultTopK)
 func chatResolvedInt(v *int, def int) int {
 	if v == nil {
 		return def
@@ -785,10 +836,14 @@ func parsedStopTokens(stops []string) ([]int32, error) {
 	return out, nil
 }
 
+// isTokenLengthCapReached reports whether the generated token count meets or
+// exceeds the caller's max_tokens budget. Nil or non-positive caps disable the
+// check (streams terminate by backend signal only).
+//
+//	if isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
+//	    finishReason = "length"
+//	}
 func isTokenLengthCapReached(maxTokens *int, generated int) bool {
-	if maxTokens == nil {
-		return false
-	}
 	if maxTokens == nil || *maxTokens <= 0 {
 		return false
 	}
@@ -812,7 +867,7 @@ func mapResolverError(err error) (int, string, string, string) {
 
 func writeChatCompletionError(c *gin.Context, status int, errType, param, message, code string) {
 	if status <= 0 {
-		status = 500
+		status = http.StatusInternalServerError
 	}
 	resp := chatCompletionErrorResponse{
 		Error: chatCompletionError{
@@ -823,10 +878,13 @@ func writeChatCompletionError(c *gin.Context, status int, errType, param, messag
 		},
 	}
 	c.Header("Content-Type", "application/json")
-	c.JSON(status, resp)
 	if status == http.StatusServiceUnavailable {
+		// Retry-After must be set BEFORE c.JSON commits headers to the
+		// wire. RFC 9110 §10.2.3 allows either seconds or an HTTP-date;
+		// we use seconds for simplicity and OpenAI parity.
 		c.Header("Retry-After", "10")
 	}
+	c.JSON(status, resp)
 }
 
 func codeOrDefault(code, fallback string) string {
@@ -848,4 +906,3 @@ func decodeJSONBody(reader io.Reader, dest any) error {
 	decoder.DisallowUnknownFields()
 	return decoder.Decode(dest)
 }
-
