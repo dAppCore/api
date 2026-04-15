@@ -33,7 +33,7 @@ class McpApiController extends Controller
      * Server IDs are used in cache keys and filesystem lookups, so they must
      * stay within a narrow path-segment alphabet.
      */
-    protected const SERVER_ID_PATTERN = '/^[a-z0-9][a-z0-9-]{0,63}$/';
+    protected const SERVER_ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/';
 
     /**
      * List all available MCP servers.
@@ -629,7 +629,7 @@ class McpApiController extends Controller
         $uri = rawurldecode($uri);
 
         // Parse URI format: server://resource/path
-        if (! preg_match('/^([a-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
+        if (! preg_match('/^([A-Za-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
             return $this->validationErrorResponse([
                 'uri' => ['Invalid resource URI format. Expected pattern server://resource/path'],
             ], 400);
