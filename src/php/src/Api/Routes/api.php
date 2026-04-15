@@ -3,9 +3,14 @@
 declare(strict_types=1);
 
 use Core\Api\Controllers\Api\UnifiedPixelController;
+use Core\Api\Controllers\Api\AuthController;
+use Core\Api\Controllers\Api\BiolinkController;
 use Core\Api\Controllers\Api\EntitlementApiController;
 use Core\Api\Controllers\Api\ApiKeyController;
+use Core\Api\Controllers\Api\LinkController;
 use Core\Api\Controllers\Api\PaymentMethodController;
+use Core\Api\Controllers\Api\QrCodeController;
+use Core\Api\Controllers\Api\TicketController;
 use Core\Api\Controllers\Api\WorkspaceMemberController;
 use Core\Api\Controllers\Api\SeoReportController;
 use Core\Api\Controllers\Api\WebhookSecretController;
@@ -103,6 +108,16 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
 // Versioned API surface (workspace-scoped resource management)
 // ─────────────────────────────────────────────────────────────────────────────
 
+Route::prefix('v1/auth')
+    ->name('api.v1.auth.')
+    ->group(function () {
+        Route::post('/token', [AuthController::class, 'store'])->name('token.store');
+        Route::middleware(['auth.api'])->group(function () {
+            Route::delete('/token', [AuthController::class, 'destroy'])->name('token.destroy');
+            Route::get('/me', [AuthController::class, 'show'])->name('me');
+        });
+    });
+
 Route::middleware(['auth.api', 'api.scope.enforce'])
     ->prefix('v1')
     ->name('api.v1.')
@@ -133,6 +148,36 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
                         Route::get('/', [EntitlementApiController::class, 'show'])->name('show');
                         Route::get('/check/{feature}', [EntitlementApiController::class, 'check'])->name('check');
                         Route::get('/usage', [EntitlementApiController::class, 'usage'])->name('usage');
+                    });
+
+                Route::prefix('{workspace}/biolinks')
+                    ->name('biolinks.')
+                    ->group(function () {
+                        Route::get('/', [BiolinkController::class, 'index'])->name('index');
+                        Route::post('/', [BiolinkController::class, 'store'])->name('store');
+                        Route::get('/{id}', [BiolinkController::class, 'show'])->name('show');
+                        Route::patch('/{id}', [BiolinkController::class, 'update'])->name('update');
+                        Route::delete('/{id}', [BiolinkController::class, 'destroy'])->name('destroy');
+                    });
+
+                Route::prefix('{workspace}/links')
+                    ->name('links.')
+                    ->group(function () {
+                        Route::get('/', [LinkController::class, 'index'])->name('index');
+                        Route::post('/', [LinkController::class, 'store'])->name('store');
+                        Route::get('/{id}', [LinkController::class, 'show'])->name('show');
+                        Route::patch('/{id}', [LinkController::class, 'update'])->name('update');
+                        Route::delete('/{id}', [LinkController::class, 'destroy'])->name('destroy');
+                        Route::get('/{id}/stats', [LinkController::class, 'stats'])->name('stats');
+                    });
+
+                Route::prefix('{workspace}/qr-codes')
+                    ->name('qr-codes.')
+                    ->group(function () {
+                        Route::get('/', [QrCodeController::class, 'index'])->name('index');
+                        Route::post('/', [QrCodeController::class, 'store'])->name('store');
+                        Route::get('/{id}', [QrCodeController::class, 'show'])->name('show');
+                        Route::get('/{id}/download', [QrCodeController::class, 'download'])->name('download');
                     });
             });
 
@@ -180,6 +225,15 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
                 Route::patch('/{id}', [WebhookController::class, 'update'])->name('update');
                 Route::delete('/{id}', [WebhookController::class, 'destroy'])->name('destroy');
                 Route::get('/{id}/deliveries', [WebhookController::class, 'deliveries'])->name('deliveries');
+            });
+
+        Route::prefix('support/tickets')
+            ->name('support.tickets.')
+            ->group(function () {
+                Route::get('/', [TicketController::class, 'index'])->name('index');
+                Route::post('/', [TicketController::class, 'store'])->name('store');
+                Route::get('/{id}', [TicketController::class, 'show'])->name('show');
+                Route::post('/{id}/reply', [TicketController::class, 'reply'])->name('reply');
             });
     });
 

@@ -15,6 +15,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
+use Laravel\Passport\PassportServiceProvider;
 
 /**
  * API Module Boot.
@@ -65,6 +67,10 @@ class Boot extends ServiceProvider
 
         // Register API Documentation provider
         $this->app->register(DocumentationServiceProvider::class);
+
+        if (class_exists(PassportServiceProvider::class)) {
+            $this->app->register(PassportServiceProvider::class);
+        }
     }
 
     /**
@@ -74,6 +80,7 @@ class Boot extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__.'/Migrations');
         $this->configureRateLimiting();
+        $this->configureOAuth();
     }
 
     /**
@@ -98,6 +105,27 @@ class Boot extends ServiceProvider
                 ? Limit::perMinute(60)->by('user:'.$user->id)
                 : Limit::perMinute(20)->by($request->ip());
         });
+    }
+
+    /**
+     * Configure OAuth2 support when Passport is installed in the host app.
+     */
+    protected function configureOAuth(): void
+    {
+        if (! class_exists(Passport::class)) {
+            return;
+        }
+
+        Passport::tokensCan([
+            'read' => 'Read access to resources',
+            'write' => 'Write access to resources',
+            'delete' => 'Delete access to resources',
+        ]);
+        Passport::setDefaultScope(['read']);
+
+        if (method_exists(Passport::class, 'hashClientSecrets')) {
+            Passport::hashClientSecrets();
+        }
     }
 
     // -------------------------------------------------------------------------

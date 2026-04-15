@@ -99,7 +99,7 @@ return [
 
         // OAuth2 (if applicable)
         'oauth2' => [
-            'enabled' => false,
+            'enabled' => true,
             'flows' => [
                 'authorizationCode' => [
                     'authorizationUrl' => '/oauth/authorize',

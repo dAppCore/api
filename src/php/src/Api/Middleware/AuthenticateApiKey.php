@@ -7,6 +7,7 @@ namespace Core\Api\Middleware;
 use Core\Api\Models\ApiKey;
 use Core\Api\Services\IpRestrictionService;
 use Core\Api\Concerns\HasApiResponses;
+use Core\Tenant\Models\UserToken;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -101,6 +102,24 @@ class AuthenticateApiKey
         Closure $next,
         ?string $scope
     ): Response {
+        $bearerToken = $request->bearerToken();
+
+        if (is_string($bearerToken) && $bearerToken !== '') {
+            $accessToken = UserToken::findToken($bearerToken);
+
+            if ($accessToken instanceof UserToken && $accessToken->isValid()) {
+                $accessToken->recordUsage();
+
+                $request->setUserResolver(fn () => $accessToken->user);
+                $request->attributes->set('auth_type', 'access_token');
+                $request->attributes->set('access_token', $accessToken);
+                $request->attributes->set('principal', 'user-token:'.$accessToken->id);
+                $request->attributes->set('userID', (string) $accessToken->user_id);
+
+                return $next($request);
+            }
+        }
+
         // For API requests, use token authentication
         if (! $request->user()) {
             // Try to authenticate via Sanctum token
@@ -112,7 +131,7 @@ class AuthenticateApiKey
             $request->setUserResolver(fn () => $guard->user());
         }
 
-        $authType = $request->bearerToken() ? 'sanctum' : 'session';
+        $authType = $bearerToken ? 'sanctum' : 'session';
         $user = $request->user();
 
         $request->attributes->set('auth_type', $authType);
