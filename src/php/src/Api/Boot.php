@@ -100,6 +100,7 @@ class Boot extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Migrations');
         $this->configureRateLimiting();
         $this->configureOAuth();
+        $this->registerFallbackApiRoutes();
         $this->registerWebhookHooks();
     }
 
@@ -182,16 +183,10 @@ class Boot extends ServiceProvider
 
     public function onApiRoutes(ApiRoutesRegistering $event): void
     {
-        // Middleware aliases registered via event
-        $event->middleware('api.auth', Middleware\AuthenticateApiKey::class);
-        $event->middleware('api.scope', Middleware\CheckApiScope::class);
-        $event->middleware('api.scope.enforce', Middleware\EnforceApiScope::class);
-        $event->middleware('api.rate', Middleware\RateLimitApi::class);
-        $event->middleware('api.cache', Middleware\ApiCacheControl::class);
-        $event->middleware('auth.api', Middleware\AuthenticateApiKey::class);
+        $this->registerMiddlewareAliases();
 
         // Core API routes (SEO, Pixel, Entitlements, MCP)
-        if (file_exists(__DIR__.'/Routes/api.php')) {
+        if (file_exists(__DIR__.'/Routes/api.php') && ! $this->hasCoreApiRoutesRegistered()) {
             $event->routes(fn () => Route::middleware('api')->group(__DIR__.'/Routes/api.php'));
         }
 
@@ -202,17 +197,59 @@ class Boot extends ServiceProvider
 
     public function onConsole(ConsoleBooting $event): void
     {
-        // Register middleware aliases for CLI context (artisan route:list etc)
-        $event->middleware('api.auth', Middleware\AuthenticateApiKey::class);
-        $event->middleware('api.scope', Middleware\CheckApiScope::class);
-        $event->middleware('api.scope.enforce', Middleware\EnforceApiScope::class);
-        $event->middleware('api.rate', Middleware\RateLimitApi::class);
-        $event->middleware('api.cache', Middleware\ApiCacheControl::class);
-        $event->middleware('auth.api', Middleware\AuthenticateApiKey::class);
+        $this->registerMiddlewareAliases();
 
         // Register console commands
         $event->command(Console\Commands\CleanupExpiredGracePeriods::class);
         $event->command(Console\Commands\CheckApiUsageAlerts::class);
+    }
+
+    /**
+     * Register middleware aliases directly when the host event bus is not
+     * wiring this package into the main route stack.
+     *
+     * This keeps the module usable in standalone package contexts such as
+     * Testbench, route:list, and OpenAPI generation.
+     */
+    protected function registerMiddlewareAliases(): void
+    {
+        $router = $this->app['router'];
+
+        $router->aliasMiddleware('api.auth', Middleware\AuthenticateApiKey::class);
+        $router->aliasMiddleware('api.scope', Middleware\CheckApiScope::class);
+        $router->aliasMiddleware('api.scope.enforce', Middleware\EnforceApiScope::class);
+        $router->aliasMiddleware('api.rate', Middleware\RateLimitApi::class);
+        $router->aliasMiddleware('api.cache', Middleware\ApiCacheControl::class);
+        $router->aliasMiddleware('auth.api', Middleware\AuthenticateApiKey::class);
+    }
+
+    /**
+     * Register the core API routes when the host application has not already
+     * mounted them through the ApiRoutesRegistering event.
+     */
+    protected function registerFallbackApiRoutes(): void
+    {
+        $this->registerMiddlewareAliases();
+
+        if (! file_exists(__DIR__.'/Routes/api.php') || $this->hasCoreApiRoutesRegistered()) {
+            return;
+        }
+
+        Route::prefix('api')
+            ->middleware('api')
+            ->group(__DIR__.'/Routes/api.php');
+
+        if (class_exists(Passport::class) && ! Route::has('passport.token')) {
+            $this->registerOAuthRoutes();
+        }
+    }
+
+    /**
+     * Detect whether the package's core API routes have already been mounted.
+     */
+    protected function hasCoreApiRoutesRegistered(): bool
+    {
+        return Route::getRoutes()->getByName('api.pixel.track') !== null;
     }
 
     /**
