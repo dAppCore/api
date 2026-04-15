@@ -5,10 +5,14 @@ declare(strict_types=1);
 use Core\Api\Controllers\Api\UnifiedPixelController;
 use Core\Api\Controllers\Api\EntitlementApiController;
 use Core\Api\Controllers\Api\ApiKeyController;
+use Core\Api\Controllers\Api\PaymentMethodController;
+use Core\Api\Controllers\Api\WorkspaceMemberController;
 use Core\Api\Controllers\Api\SeoReportController;
 use Core\Api\Controllers\Api\WebhookSecretController;
 use Core\Api\Controllers\Api\WebhookController;
 use Core\Api\Controllers\McpApiController;
+use Core\Mod\Commerce\Controllers\Api\CommerceController;
+use Core\Tenant\Controllers\WorkspaceController;
 use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
 use Illuminate\Support\Facades\Route;
@@ -103,12 +107,68 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
     ->prefix('v1')
     ->name('api.v1.')
     ->group(function () {
+        Route::prefix('workspaces')
+            ->name('workspaces.')
+            ->group(function () {
+                Route::get('/', [WorkspaceController::class, 'index'])->name('index');
+                Route::get('/current', [WorkspaceController::class, 'current'])->name('current');
+                Route::post('/', [WorkspaceController::class, 'store'])->name('store');
+                Route::get('/{workspace}', [WorkspaceController::class, 'show'])->name('show');
+                Route::put('/{workspace}', [WorkspaceController::class, 'update'])->name('update');
+                Route::patch('/{workspace}', [WorkspaceController::class, 'update'])->name('patch');
+                Route::delete('/{workspace}', [WorkspaceController::class, 'destroy'])->name('destroy');
+                Route::post('/{workspace}/switch', [WorkspaceController::class, 'switch'])->name('switch');
+
+                Route::prefix('{workspace}/members')
+                    ->name('members.')
+                    ->group(function () {
+                        Route::get('/', [WorkspaceMemberController::class, 'index'])->name('index');
+                        Route::post('/', [WorkspaceMemberController::class, 'store'])->name('store');
+                        Route::delete('/{user}', [WorkspaceMemberController::class, 'destroy'])->name('destroy');
+                    });
+
+                Route::prefix('{workspace}/entitlements')
+                    ->name('entitlements.')
+                    ->group(function () {
+                        Route::get('/', [EntitlementApiController::class, 'show'])->name('show');
+                        Route::get('/check/{feature}', [EntitlementApiController::class, 'check'])->name('check');
+                        Route::get('/usage', [EntitlementApiController::class, 'usage'])->name('usage');
+                    });
+            });
+
         Route::prefix('api-keys')
             ->name('api-keys.')
             ->group(function () {
                 Route::get('/', [ApiKeyController::class, 'index'])->name('index');
                 Route::post('/', [ApiKeyController::class, 'store'])->name('store');
                 Route::delete('/{id}', [ApiKeyController::class, 'destroy'])->name('destroy');
+            });
+
+        Route::prefix('commerce')
+            ->name('commerce.')
+            ->group(function () {
+                Route::get('/subscriptions', [CommerceController::class, 'subscription'])->name('subscriptions.show');
+                Route::post('/subscriptions/change', [CommerceController::class, 'previewUpgrade'])->name('subscriptions.change');
+                Route::post('/subscriptions/change/confirm', [CommerceController::class, 'executeUpgrade'])->name('subscriptions.change.confirm');
+                Route::post('/subscriptions/cancel', [CommerceController::class, 'cancelSubscription'])->name('subscriptions.cancel');
+                Route::post('/subscriptions/resume', [CommerceController::class, 'resumeSubscription'])->name('subscriptions.resume');
+
+                Route::get('/invoices', [CommerceController::class, 'invoices'])->name('invoices.index');
+                Route::get('/invoices/{invoice}', [CommerceController::class, 'showInvoice'])->name('invoices.show');
+                Route::get('/invoices/{invoice}/pdf', [CommerceController::class, 'downloadInvoice'])->name('invoices.pdf');
+
+                Route::get('/payment-methods', [PaymentMethodController::class, 'index'])->name('payment-methods.index');
+                Route::post('/payment-methods', [PaymentMethodController::class, 'store'])->name('payment-methods.store');
+                Route::delete('/payment-methods/{id}', [PaymentMethodController::class, 'destroy'])->name('payment-methods.destroy');
+                Route::post('/payment-methods/{id}/default', [PaymentMethodController::class, 'default'])->name('payment-methods.default');
+
+                // Compatibility aliases for older route shapes.
+                Route::get('/subscription', [CommerceController::class, 'subscription'])->name('subscription');
+                Route::post('/cancel', [CommerceController::class, 'cancelSubscription'])->name('cancel');
+                Route::post('/resume', [CommerceController::class, 'resumeSubscription'])->name('resume');
+                Route::get('/invoices/{invoice}/download', [CommerceController::class, 'downloadInvoice'])->name('invoices.download');
+                Route::post('/upgrade/preview', [CommerceController::class, 'previewUpgrade'])->name('upgrade.preview');
+                Route::post('/upgrade', [CommerceController::class, 'executeUpgrade'])->name('upgrade');
             });
 
         Route::prefix('webhooks')

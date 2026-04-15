@@ -41,6 +41,14 @@ trait ResolvesWorkspace
             return $this->findWorkspaceForUser($request, (int) $workspaceId);
         }
 
+        $workspaceParam = $request->route('workspace');
+        if ($workspaceParam instanceof Workspace) {
+            return $workspaceParam;
+        }
+        if (is_scalar($workspaceParam) && $workspaceParam !== '') {
+            return $this->findWorkspaceForUser($request, (int) $workspaceParam);
+        }
+
         // Fall back to user's default workspace
         $user = $request->user();
         if ($user instanceof User) {

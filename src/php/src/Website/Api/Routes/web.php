@@ -19,6 +19,11 @@ Route::get('/guides/errors', [DocsController::class, 'errors'])->name('api.guide
 // API Reference
 Route::get('/reference', [DocsController::class, 'reference'])->name('api.reference');
 Route::get('/docs/api', [DocsController::class, 'api'])->name('api.docs.api');
+Route::get('/openapi.yaml', [DocsController::class, 'openapiYaml'])
+    ->middleware('throttle:60,1')
+    ->name('api.openapi.yaml');
+Route::get('/sdks', [DocsController::class, 'sdks'])->name('api.sdks');
+Route::get('/sdks/{language}', [DocsController::class, 'sdkDownload'])->name('api.sdks.language');
 
 // Swagger UI
 Route::get('/swagger', [DocsController::class, 'swagger'])->name('api.swagger');

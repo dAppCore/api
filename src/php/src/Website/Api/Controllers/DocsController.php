@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Core\Website\Api\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 use Core\Website\Api\Services\OpenApiGenerator;
+use Symfony\Component\Yaml\Yaml;
 
 class DocsController
 {
@@ -78,5 +80,28 @@ class DocsController
     public function openapi(OpenApiGenerator $generator): JsonResponse
     {
         return response()->json($generator->generate());
+    }
+
+    public function openapiYaml(OpenApiGenerator $generator): Response
+    {
+        return response(
+            Yaml::dump($generator->generate(), 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK),
+            200,
+            ['Content-Type' => 'application/x-yaml; charset=utf-8']
+        );
+    }
+
+    public function sdks(): View
+    {
+        return view('api::sdks', [
+            'language' => null,
+        ]);
+    }
+
+    public function sdkDownload(string $language): View
+    {
+        return view('api::sdks', [
+            'language' => $language,
+        ]);
     }
 }
