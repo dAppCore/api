@@ -43,7 +43,7 @@ class ApiKeyFactory extends Factory
     public function definition(): array
     {
         $plainKey = Str::random(48);
-        $prefix = Str::random(8);
+        $prefix = ApiKey::generatePrefix();
         $this->plainKey = "{$prefix}_{$plainKey}";
 
         return [
@@ -112,7 +112,7 @@ class ApiKeyFactory extends Factory
         $user ??= User::factory()->create();
 
         $plainKey = Str::random(48);
-        $prefix = Str::random(8);
+        $prefix = ApiKey::generatePrefix();
 
         $apiKey = ApiKey::create([
             'workspace_id' => $workspace->id,

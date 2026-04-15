@@ -55,6 +55,34 @@ class ApiKey extends Model
         self::SCOPE_DELETE,
     ];
 
+    /**
+     * Build the visible key prefix root used for new API keys.
+     *
+     * The configured prefix is normalised to end with an underscore so
+     * generated keys read as `hk_<random>_<token>`.
+     */
+    public static function keyPrefixRoot(): string
+    {
+        $prefix = trim((string) config('api.keys.prefix', 'hk_'));
+
+        if ($prefix === '') {
+            return 'hk_';
+        }
+
+        return str_ends_with($prefix, '_') ? $prefix : $prefix.'_';
+    }
+
+    /**
+     * Generate the visible prefix portion of a new API key.
+     *
+     * Example:
+     * `ApiKey::generatePrefix()` can return `hk_ab12cd34`.
+     */
+    public static function generatePrefix(): string
+    {
+        return static::keyPrefixRoot().Str::random(8);
+    }
+
     protected $fillable = [
         'workspace_id',
         'user_id',
@@ -100,7 +128,7 @@ class ApiKey extends Model
         ?\DateTimeInterface $expiresAt = null
     ): array {
         $plainKey = Str::random(48);
-        $prefix = Str::random(8);
+        $prefix = static::generatePrefix();
 
         $apiKey = static::create([
             'workspace_id' => $workspaceId,
@@ -133,19 +161,31 @@ class ApiKey extends Model
             return null;
         }
 
-        $parts = explode('_', $plainKey);
-        if (count($parts) < 2) {
-            return null;
+        $prefixRoot = static::keyPrefixRoot();
+        $prefix = null;
+        $key = null;
+
+        if (str_starts_with($plainKey, $prefixRoot)) {
+            $remainder = substr($plainKey, strlen($prefixRoot));
+            if ($remainder !== false && $remainder !== '' && str_contains($remainder, '_')) {
+                [$suffix, $key] = explode('_', $remainder, 2);
+                if ($suffix !== '') {
+                    $prefix = $prefixRoot.$suffix;
+                }
+            }
         }
 
-        // Support both the legacy hk_<prefix>_<token> layout and the RFC
-        // {prefix}_{token} layout used by new keys.
-        if ($parts[0] === 'hk' && count($parts) >= 3) {
-            $prefix = $parts[0].'_'.$parts[1];
-            $key = implode('_', array_slice($parts, 2));
-        } else {
-            $prefix = $parts[0];
-            $key = implode('_', array_slice($parts, 1));
+        if ($prefix === null || $key === null) {
+            $parts = explode('_', $plainKey, 2);
+            if (count($parts) < 2) {
+                return null;
+            }
+
+            [$prefix, $key] = $parts;
+        }
+
+        if ($prefix === '' || $key === '') {
+            return null;
         }
 
         // Find potential matches by prefix
