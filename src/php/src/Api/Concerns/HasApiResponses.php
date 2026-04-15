@@ -22,12 +22,18 @@ trait HasApiResponses
         array $meta = [],
         int $status = 400,
     ): JsonResponse {
-        return response()->json(array_merge([
+        $response = [
             'success' => false,
             'error' => $errorCode,
             'message' => $message,
             'error_code' => $errorCode,
-        ], $meta), $status);
+        ];
+
+        if ($meta !== []) {
+            $response['details'] = $meta;
+        }
+
+        return response()->json(array_merge($response, $meta), $status);
     }
 
     /**
@@ -63,7 +69,7 @@ trait HasApiResponses
     protected function limitReachedResponse(string $feature, ?string $message = null): JsonResponse
     {
         return $this->errorResponse(
-            errorCode: 'feature_limit_reached',
+            errorCode: 'entitlement_exceeded',
             message: $message ?? 'You have reached your limit for this feature.',
             meta: [
                 'feature' => $feature,
@@ -123,7 +129,7 @@ trait HasApiResponses
     protected function validationErrorResponse(array $errors, int $status = 422): JsonResponse
     {
         return $this->errorResponse(
-            errorCode: 'validation_failed',
+            errorCode: 'validation_error',
             message: 'The given data was invalid.',
             meta: [
                 'errors' => $errors,
