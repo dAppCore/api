@@ -122,6 +122,50 @@ func TestExportSpecToFile_Good_CreatesFile(t *testing.T) {
 	}
 }
 
+func TestExportSpecToFileIter_Good_CreatesFileFromIterator(t *testing.T) {
+	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+
+	group := &specStubGroup{
+		name:     "iter-file",
+		basePath: "/iter-file",
+		descs: []api.RouteDescription{
+			{
+				Method:  "GET",
+				Path:    "/ping",
+				Summary: "Ping iter-file group",
+				Response: map[string]any{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	groups := iter.Seq[api.RouteGroup](func(yield func(api.RouteGroup) bool) {
+		_ = yield(group)
+	})
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "subdir", "spec.json")
+
+	if err := api.ExportSpecToFileIter(path, "json", builder, groups); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("file content is not valid JSON: %v", err)
+	}
+
+	if spec["openapi"] != "3.1.0" {
+		t.Fatalf("expected openapi=3.1.0, got %v", spec["openapi"])
+	}
+}
+
 func TestExportSpec_Good_WithToolBridge(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

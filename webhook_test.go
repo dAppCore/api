@@ -291,3 +291,49 @@ func TestWebhook_IsTimestampValid_Good_UsesConfiguredTolerance(t *testing.T) {
 		t.Fatal("expected timestamp outside tolerance to be invalid")
 	}
 }
+
+// TestWebhook_IsTimestampValid_Good_HandlesFutureTimestamps exercises the
+// symmetric window used for replay protection.
+func TestWebhook_IsTimestampValid_Good_HandlesFutureTimestamps(t *testing.T) {
+	s := NewWebhookSignerWithTolerance("x", time.Minute)
+	future := time.Now().Add(30 * time.Second).Unix()
+	if !s.IsTimestampValid(future) {
+		t.Fatal("expected future timestamp within tolerance to be valid")
+	}
+}
+
+// TestWebhook_Tolerance_Ugly_NilReceiverFallsBackToDefault covers the
+// defensive nil-receiver branch used by verification helpers.
+func TestWebhook_Tolerance_Ugly_NilReceiverFallsBackToDefault(t *testing.T) {
+	var s *WebhookSigner
+	if got := s.Tolerance(); got != DefaultWebhookTolerance {
+		t.Fatalf("expected default tolerance for nil receiver, got %s", got)
+	}
+}
+
+// TestWebhook_Verify_Bad_NilReceiverReturnsFalse ensures callers can safely
+// invoke Verify on a nil signer without panicking.
+func TestWebhook_Verify_Bad_NilReceiverReturnsFalse(t *testing.T) {
+	var s *WebhookSigner
+	if s.Verify([]byte("body"), "sig", time.Now().Unix()) {
+		t.Fatal("expected nil receiver verification to fail")
+	}
+}
+
+// TestWebhook_VerifySignatureOnly_Bad_NilReceiverReturnsFalse mirrors Verify
+// for the signature-only variant.
+func TestWebhook_VerifySignatureOnly_Bad_NilReceiverReturnsFalse(t *testing.T) {
+	var s *WebhookSigner
+	if s.VerifySignatureOnly([]byte("body"), "sig", time.Now().Unix()) {
+		t.Fatal("expected nil receiver verification to fail")
+	}
+}
+
+// TestWebhook_IsTimestampValid_Ugly_NilReceiverFallsBackToDefault documents
+// that a nil receiver still applies the default tolerance window.
+func TestWebhook_IsTimestampValid_Ugly_NilReceiverFallsBackToDefault(t *testing.T) {
+	var s *WebhookSigner
+	if !s.IsTimestampValid(time.Now().Unix()) {
+		t.Fatal("expected nil receiver timestamp check to use default tolerance")
+	}
+}

@@ -258,6 +258,53 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 }
 
+func TestSpecBuilder_Good_IncludesCacheControlResponseHeader(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:       "Test",
+		Description: "Cache control test",
+		Version:     "0.0.1",
+	}
+
+	group := &specStubGroup{
+		name:     "cache",
+		basePath: "/cache",
+		descs: []api.RouteDescription{
+			{
+				Method:       "GET",
+				Path:         "/items/{id}",
+				Summary:      "Fetch cached item",
+				CacheControl: "public, max-age=60",
+				Response: map[string]any{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	getOp := paths["/cache/items/{id}"].(map[string]any)["get"].(map[string]any)
+	success := getOp["responses"].(map[string]any)["200"].(map[string]any)
+	headers := success["headers"].(map[string]any)
+	header, ok := headers["Cache-Control"].(map[string]any)
+	if !ok {
+		t.Fatal("expected Cache-Control response header in OpenAPI spec")
+	}
+	schema := header["schema"].(map[string]any)
+	if schema["example"] != "public, max-age=60" {
+		t.Fatalf("expected cache control example to match route description, got %v", schema["example"])
+	}
+}
+
 func TestSpecBuilder_Good_NilReceiverIsZeroValueSafe(t *testing.T) {
 	var sb *api.SpecBuilder
 
