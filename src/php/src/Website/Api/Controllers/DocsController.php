@@ -49,12 +49,12 @@ class DocsController
 
     public function reference(): View
     {
-        return $this->redoc();
+        return view('api::reference');
     }
 
     public function api(): View
     {
-        return $this->redoc();
+        return view('api::docs');
     }
 
     public function swagger(): View
