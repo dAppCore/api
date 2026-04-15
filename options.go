@@ -744,15 +744,7 @@ func WithChatCompletions(resolver *ModelResolver) Option {
 //	api.New(api.WithChatCompletionsPath("/api/v1/chat/completions"))
 func WithChatCompletionsPath(path string) Option {
 	return func(e *Engine) {
-		path = core.Trim(path)
-		if path == "" {
-			e.chatCompletionsPath = defaultChatCompletionsPath
-			return
-		}
-		if !core.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-		e.chatCompletionsPath = path
+		e.chatCompletionsPath = normaliseChatCompletionsPath(path)
 	}
 }
 
