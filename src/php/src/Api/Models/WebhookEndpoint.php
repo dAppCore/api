@@ -105,6 +105,18 @@ class WebhookEndpoint extends Model
     ];
 
     /**
+     * Ensure webhook URLs stay on public HTTP(S) destinations.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $webhook): void {
+            if ($webhook->isDirty('url')) {
+                self::assertSafeUrl((string) $webhook->url);
+            }
+        });
+    }
+
+    /**
      * Create a new webhook endpoint with auto-generated secret.
      */
     public static function createForWorkspace(
@@ -123,6 +135,127 @@ class WebhookEndpoint extends Model
             'description' => $description,
             'active' => true,
         ]);
+    }
+
+    /**
+     * Assert that a webhook URL is safe to use.
+     *
+     * Blocks non-HTTP(S) schemes and destinations that resolve to loopback,
+     * private, link-local, or otherwise reserved addresses.
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function assertSafeUrl(string $url): void
+    {
+        $parsed = parse_url($url);
+
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            throw new \InvalidArgumentException('The webhook URL must be an absolute HTTP or HTTPS URL.');
+        }
+
+        if (! in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+            throw new \InvalidArgumentException('Only HTTP and HTTPS webhook URLs are permitted.');
+        }
+
+        if (isset($parsed['user']) || isset($parsed['pass'])) {
+            throw new \InvalidArgumentException('Webhook URLs must not include embedded credentials.');
+        }
+
+        $host = $parsed['host'];
+        $normalisedHost = ltrim(rtrim($host, ']'), '[');
+
+        if (filter_var($normalisedHost, FILTER_VALIDATE_IP) !== false) {
+            if (self::isPrivateIp($normalisedHost)) {
+                throw new \InvalidArgumentException('Webhook URLs must not target private, loopback, or reserved addresses.');
+            }
+
+            return;
+        }
+
+        $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
+        if ($records === []) {
+            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+        }
+
+        foreach ($records as $record) {
+            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
+            if ($ip === null) {
+                continue;
+            }
+
+            if (self::isPrivateIp($ip)) {
+                throw new \InvalidArgumentException('Webhook URLs must not resolve to private, loopback, or reserved addresses.');
+            }
+        }
+    }
+
+    /**
+     * Return true when the IP falls within a private, loopback, link-local,
+     * or otherwise reserved range.
+     */
+    protected static function isPrivateIp(string $ip): bool
+    {
+        $packed = inet_pton($ip);
+        if ($packed === false) {
+            return true;
+        }
+
+        if (strlen($packed) === 4) {
+            return self::isPrivateIpv4($ip);
+        }
+
+        if (str_repeat("\x00", 10) . "\xff\xff" === substr($packed, 0, 12)) {
+            $ipv4 = inet_ntop(substr($packed, 12, 4));
+            if ($ipv4 !== false && self::isPrivateIpv4($ipv4)) {
+                return true;
+            }
+        }
+
+        if ($ip === '::1') {
+            return true;
+        }
+
+        $prefix2 = strtolower(substr(bin2hex($packed), 0, 2));
+        if ($prefix2 === 'fe') {
+            $secondNibble = hexdec(substr(bin2hex($packed), 2, 1));
+            if ($secondNibble >= 8 && $secondNibble <= 11) {
+                return true;
+            }
+        }
+
+        if (in_array($prefix2, ['fc', 'fd'], true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Return true when an IPv4 address falls within a reserved range.
+     */
+    protected static function isPrivateIpv4(string $ip): bool
+    {
+        $long = ip2long($ip);
+        if ($long === false) {
+            return true;
+        }
+
+        $privateRanges = [
+            ['start' => ip2long('0.0.0.0'), 'end' => ip2long('0.255.255.255')],
+            ['start' => ip2long('127.0.0.0'), 'end' => ip2long('127.255.255.255')],
+            ['start' => ip2long('10.0.0.0'), 'end' => ip2long('10.255.255.255')],
+            ['start' => ip2long('172.16.0.0'), 'end' => ip2long('172.31.255.255')],
+            ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')],
+            ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')],
+        ];
+
+        foreach ($privateRanges as $range) {
+            if ($long >= $range['start'] && $long <= $range['end']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

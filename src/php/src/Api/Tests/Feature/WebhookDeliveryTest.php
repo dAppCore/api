@@ -247,6 +247,48 @@ describe('Webhook Signature Service', function () {
 });
 
 // -----------------------------------------------------------------------------
+// Webhook URL Safety
+// -----------------------------------------------------------------------------
+
+describe('Webhook URL Safety', function () {
+    it('accepts public HTTP and HTTPS destinations', function () {
+        WebhookEndpoint::assertSafeUrl('https://1.1.1.1/webhooks');
+        WebhookEndpoint::assertSafeUrl('http://8.8.8.8/hooks');
+
+        expect(true)->toBeTrue();
+    });
+
+    it('rejects private and loopback destinations', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://127.0.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://10.0.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://[::1]/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects unsupported schemes', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('ftp://example.com/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects embedded credentials', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('https://user:pass@example.com/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects unsafe webhook URLs during creation', function () {
+        expect(fn () => WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'http://127.0.0.1/webhooks',
+            ['workspace.created']
+        ))->toThrow(\InvalidArgumentException::class);
+    });
+});
+
+// -----------------------------------------------------------------------------
 // Webhook Endpoint Signing
 // -----------------------------------------------------------------------------
 

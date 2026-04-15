@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core\Api\Jobs;
 
 use Core\Api\Models\WebhookDelivery;
+use Core\Api\Models\WebhookEndpoint;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -73,13 +74,25 @@ class DeliverWebhookJob implements ShouldQueue
             return;
         }
 
+        try {
+            WebhookEndpoint::assertSafeUrl($endpoint->url);
+        } catch (\InvalidArgumentException $e) {
+            $this->handleFailure(0, 'Unsafe webhook destination blocked.');
+            Log::warning('Webhook delivery blocked by URL safety check', [
+                'delivery_id' => $this->delivery->id,
+                'endpoint_url' => $this->redactUrlForLog($endpoint->url),
+            ]);
+
+            return;
+        }
+
         // Get delivery payload with signature headers
         $deliveryPayload = $this->delivery->getDeliveryPayload();
         $timeout = config('api.webhooks.timeout', 30);
 
         Log::info('Attempting webhook delivery', [
             'delivery_id' => $this->delivery->id,
-            'endpoint_url' => $endpoint->url,
+            'endpoint_url' => $this->redactUrlForLog($endpoint->url),
             'event_type' => $this->delivery->event_type,
             'attempt' => $this->delivery->attempt,
         ]);
@@ -178,5 +191,27 @@ class DeliverWebhookJob implements ShouldQueue
             'webhook:'.$this->delivery->webhook_endpoint_id,
             'event:'.$this->delivery->event_type,
         ];
+    }
+
+    /**
+     * Redact sensitive URL parts before logging.
+     */
+    protected function redactUrlForLog(string $url): string
+    {
+        $parsed = parse_url($url);
+        if ($parsed === false) {
+            return '[invalid-url]';
+        }
+
+        $scheme = $parsed['scheme'] ?? 'https';
+        $host = $parsed['host'] ?? '';
+        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
+        $path = $parsed['path'] ?? '';
+
+        if ($path === '') {
+            $path = '/';
+        }
+
+        return "{$scheme}://{$host}{$port}{$path}";
     }
 }

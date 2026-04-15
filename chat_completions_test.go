@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +13,12 @@ import (
 
 	api "dappco.re/go/core/api"
 )
+
+func newLoopbackRequest(method, target, body string) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1234"
+	return req
+}
 
 // TestChatCompletions_WithChatCompletions_Good verifies that WithChatCompletions
 // mounts the endpoint and unknown model names produce a 404 body conforming to
@@ -27,10 +32,10 @@ func TestChatCompletions_WithChatCompletions_Good(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+	req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", `{
 		"model": "missing-model",
 		"messages": [{"role":"user","content":"hi"}]
-	}`))
+	}`)
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
@@ -62,6 +67,32 @@ func TestChatCompletions_WithChatCompletions_Good(t *testing.T) {
 	}
 }
 
+// TestChatCompletions_RejectsNonLoopback verifies that the local inference
+// endpoint refuses requests that do not originate from loopback addresses.
+func TestChatCompletions_RejectsNonLoopback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	resolver := api.NewModelResolver()
+	engine, err := api.New(api.WithChatCompletions(resolver))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", `{
+		"model": "missing-model",
+		"messages": [{"role":"user","content":"hi"}]
+	}`)
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "8.8.8.8:1234"
+
+	rec := httptest.NewRecorder()
+	engine.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
 // TestChatCompletions_WithChatCompletionsPath_Good verifies the custom mount path override.
 func TestChatCompletions_WithChatCompletionsPath_Good(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -75,10 +106,10 @@ func TestChatCompletions_WithChatCompletionsPath_Good(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/chat", strings.NewReader(`{
+	req := newLoopbackRequest(http.MethodPost, "/chat", `{
 		"model": "missing-model",
 		"messages": [{"role":"user","content":"hi"}]
-	}`))
+	}`)
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
@@ -115,7 +146,7 @@ func TestChatCompletions_ValidateRequest_Bad(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader([]byte(tc.body)))
+			req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", tc.body)
 			req.Header.Set("Content-Type", "application/json")
 
 			rec := httptest.NewRecorder()
@@ -148,7 +179,7 @@ func TestChatCompletions_NoResolver_Ugly(t *testing.T) {
 
 	engine, _ := api.New()
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{}`))
+	req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", `{}`)
 	rec := httptest.NewRecorder()
 	engine.Handler().ServeHTTP(rec, req)
 

@@ -17,11 +17,11 @@ use Illuminate\Support\Str;
  * API Key - authenticates SDK and REST API requests.
  *
  * Keys are prefixed with a short random identifier for identification.
- * The actual key is hashed using SHA-256 and never stored in plain text.
+ * The actual key is hashed with a slow password hash and never stored in plain text.
  *
- * Security: Keys created before the bcrypt migration use SHA-256 (without salt).
- * The hash_algorithm column tracks which algorithm was used for each key.
- * Legacy SHA-256 keys should be rotated to use the secure bcrypt algorithm.
+ * Security: New keys use bcrypt; legacy SHA-256 keys remain readable only for
+ * migration/rotation. The hash_algorithm column tracks which algorithm was used
+ * for each key.
  */
 class ApiKey extends Model
 {
@@ -106,8 +106,8 @@ class ApiKey extends Model
             'workspace_id' => $workspaceId,
             'user_id' => $userId,
             'name' => $name,
-            'key' => hash('sha256', $plainKey),
-            'hash_algorithm' => self::HASH_SHA256,
+            'key' => Hash::driver('bcrypt')->make($plainKey),
+            'hash_algorithm' => self::HASH_BCRYPT,
             'prefix' => $prefix,
             'scopes' => $scopes,
             'expires_at' => $expiresAt,

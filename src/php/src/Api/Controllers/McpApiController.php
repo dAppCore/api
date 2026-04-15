@@ -414,7 +414,7 @@ class McpApiController extends Controller
 
             $response = [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => 'Tool execution failed.',
                 'server' => $validated['server'],
                 'tool' => $validated['tool'],
                 'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
@@ -425,7 +425,7 @@ class McpApiController extends Controller
 
             return $this->errorResponse(
                 errorCode: 'tool_execution_error',
-                message: $e->getMessage(),
+                message: 'Tool execution failed.',
                 meta: array_filter([
                     'server' => $validated['server'],
                     'tool' => $validated['tool'],
@@ -617,7 +617,7 @@ class McpApiController extends Controller
         } catch (\Throwable $e) {
             return $this->errorResponse(
                 errorCode: 'resource_read_error',
-                message: $e->getMessage(),
+                message: 'Resource read failed.',
                 meta: [
                     'uri' => $uri,
                 ],
@@ -851,7 +851,7 @@ class McpApiController extends Controller
                 toolName: $validated['tool'],
                 errorMessage: $error,
                 ipAddress: $request->ip(),
-                headers: $request->headers->all()
+                headers: $this->sanitizeHeaders($request->headers->all())
             );
         } catch (\Throwable $e) {
             // Don't let logging failures affect API response
@@ -910,6 +910,40 @@ class McpApiController extends Controller
             errorMessage: $error,
             workspaceId: $apiKey?->workspace_id
         );
+    }
+
+    /**
+     * Redact credential-bearing request headers before persisting them.
+     *
+     * @param  array<string, array<int, string>>  $headers
+     * @return array<string, array<int, string>>
+     */
+    protected function sanitizeHeaders(array $headers): array
+    {
+        $sensitiveHeaders = [
+            'authorization',
+            'proxy-authorization',
+            'x-api-key',
+            'cookie',
+            'set-cookie',
+        ];
+
+        $sanitized = [];
+
+        foreach ($headers as $name => $values) {
+            $lower = strtolower($name);
+            if (in_array($lower, $sensitiveHeaders, true)) {
+                $sanitized[$name] = ['[redacted]'];
+                continue;
+            }
+
+            $sanitized[$name] = array_values(array_map(
+                static fn ($value) => is_scalar($value) ? (string) $value : json_encode($value),
+                is_array($values) ? $values : [$values]
+            ));
+        }
+
+        return $sanitized;
     }
 
     // Registry loading methods (shared with McpRegistryController)

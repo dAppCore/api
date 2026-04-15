@@ -67,12 +67,18 @@ class WebhookController extends Controller
             'active' => ['sometimes', 'boolean'],
         ]);
 
-        $webhook = WebhookEndpoint::createForWorkspace(
-            workspaceId: $workspace->id,
-            url: $data['url'],
-            events: $data['events'],
-            description: $data['description'] ?? null,
-        );
+        try {
+            $webhook = WebhookEndpoint::createForWorkspace(
+                workspaceId: $workspace->id,
+                url: $data['url'],
+                events: $data['events'],
+                description: $data['description'] ?? null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->validationErrorResponse([
+                'url' => [$e->getMessage()],
+            ]);
+        }
 
         if (array_key_exists('active', $data) && ! (bool) $data['active']) {
             $webhook->update(['active' => false]);
@@ -122,8 +128,14 @@ class WebhookController extends Controller
 
         $updates = array_intersect_key($data, array_flip(['url', 'events', 'description', 'active']));
 
-        if ($updates !== []) {
-            $webhook->update($updates);
+        try {
+            if ($updates !== []) {
+                $webhook->update($updates);
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->validationErrorResponse([
+                'url' => [$e->getMessage()],
+            ]);
         }
 
         return response()->json([

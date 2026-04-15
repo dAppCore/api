@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -561,6 +562,11 @@ func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
 		return
 	}
 
+	if !isLoopbackRequest(c.Request) {
+		writeChatCompletionError(c, http.StatusForbidden, "invalid_request_error", "request", "chat completions is only available on loopback interfaces", "")
+		return
+	}
+
 	var req ChatCompletionRequest
 	if err := decodeJSONBody(c.Request.Body, &req); err != nil {
 		writeChatCompletionError(c, 400, "invalid_request_error", "body", "invalid request body", "")
@@ -884,6 +890,30 @@ func chatResolvedInt(v *int, def int) int {
 		return def
 	}
 	return *v
+}
+
+func isLoopbackRequest(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+
+	remoteAddr := strings.TrimSpace(r.RemoteAddr)
+	if remoteAddr == "" {
+		return true
+	}
+
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+
+	host = strings.Trim(host, "[]")
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback()
 }
 
 func normalizedStopSequences(stops []string) ([]string, error) {
