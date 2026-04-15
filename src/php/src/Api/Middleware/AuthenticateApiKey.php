@@ -39,12 +39,15 @@ class AuthenticateApiKey
             return $this->authenticateSanctum($request, $next, $scope);
         }
 
-        // API keys are underscore-delimited; try those before falling back to Sanctum.
+        // API keys are underscore-delimited; if a token looks like an API key,
+        // it must validate as one rather than falling through to Sanctum.
         if (str_contains($token, '_')) {
             $apiKey = ApiKey::findByPlainKey($token);
             if ($apiKey instanceof ApiKey) {
                 return $this->authenticateResolvedApiKey($request, $next, $apiKey, $scope);
             }
+
+            return $this->unauthorized('Invalid API key');
         }
 
         // Fall back to Sanctum for OAuth tokens
