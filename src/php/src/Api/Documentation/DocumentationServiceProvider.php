@@ -85,6 +85,25 @@ class DocumentationServiceProvider extends ServiceProvider
             ->prefix($path)
             ->group(__DIR__.'/Routes/docs.php');
 
+        // RFC compatibility alias: expose the same documentation surface at
+        // /docs/api for the public website route map while keeping the
+        // canonical /api/docs route and its names intact.
+        Route::middleware($middleware)
+            ->prefix('/docs/api')
+            ->group(function (): void {
+                Route::get('/', [DocumentationController::class, 'swagger']);
+                Route::get('/swagger', [DocumentationController::class, 'swagger']);
+                Route::get('/scalar', [DocumentationController::class, 'scalar']);
+                Route::get('/redoc', [DocumentationController::class, 'redoc']);
+                Route::get('/stoplight', [DocumentationController::class, 'stoplight']);
+
+                Route::get('/openapi.json', [DocumentationController::class, 'openApiJson'])
+                    ->middleware('throttle:60,1');
+
+                Route::get('/openapi.yaml', [DocumentationController::class, 'openApiYaml'])
+                    ->middleware('throttle:60,1');
+            });
+
         Route::middleware($middleware)
             ->get('/api/reference', [DocumentationController::class, 'redoc'])
             ->name('api.docs.reference.compat');
