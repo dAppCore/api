@@ -47,19 +47,21 @@ func TestCmdSpec_AddSpecCommand_Good(t *testing.T) {
 	c := core.New()
 	addSpecCommand(c)
 
-	r := c.Command("api/spec")
-	if !r.OK {
-		t.Fatalf("expected api/spec command to be registered")
-	}
-	cmd, ok := r.Value.(*core.Command)
-	if !ok {
-		t.Fatalf("expected *core.Command, got %T", r.Value)
-	}
-	if cmd.Action == nil {
-		t.Fatal("expected non-nil Action on api/spec")
-	}
-	if cmd.Description == "" {
-		t.Fatal("expected Description on api/spec")
+	for _, path := range []string{"api/spec", "build/spec"} {
+		r := c.Command(path)
+		if !r.OK {
+			t.Fatalf("expected %s command to be registered", path)
+		}
+		cmd, ok := r.Value.(*core.Command)
+		if !ok {
+			t.Fatalf("expected *core.Command for %s, got %T", path, r.Value)
+		}
+		if cmd.Action == nil {
+			t.Fatalf("expected non-nil Action on %s", path)
+		}
+		if cmd.Description == "" {
+			t.Fatalf("expected Description on %s", path)
+		}
 	}
 }
 

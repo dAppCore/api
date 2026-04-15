@@ -15,10 +15,12 @@ import (
 const defaultSpecToolBridgePath = "/v1/tools"
 
 func addSpecCommand(c *core.Core) {
-	c.Command("api/spec", core.Command{
+	cmd := core.Command{
 		Description: "Generate OpenAPI specification",
 		Action:      specAction,
-	})
+	}
+	c.Command("api/spec", cmd)
+	c.Command("build/spec", cmd)
 }
 
 func specAction(opts core.Options) core.Result {

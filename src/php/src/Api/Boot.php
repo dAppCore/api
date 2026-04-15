@@ -13,6 +13,7 @@ use Core\Api\Observers\BiolinkWebhookObserver;
 use Core\Api\Observers\LinkWebhookObserver;
 use Core\Api\Observers\SupportTicketReplyWebhookObserver;
 use Core\Api\Observers\SupportTicketWebhookObserver;
+use Core\Api\Observers\WorkspaceWebhookObserver;
 use Core\Events\AdminPanelBooting;
 use Core\Events\ApiRoutesRegistering;
 use Core\Events\ConsoleBooting;
@@ -31,6 +32,7 @@ use Laravel\Passport\Http\Controllers\ApproveAuthorizationController;
 use Laravel\Passport\Http\Controllers\AuthorizationController;
 use Laravel\Passport\Http\Controllers\DenyAuthorizationController;
 use Laravel\Passport\PassportServiceProvider;
+use Core\Tenant\Models\Workspace;
 
 /**
  * API Module Boot.
@@ -158,6 +160,7 @@ class Boot extends ServiceProvider
     {
         Event::listen(\Core\Mod\Commerce\Events\SubscriptionUpdated::class, DispatchSubscriptionWebhookEvents::class);
 
+        Workspace::observe(WorkspaceWebhookObserver::class);
         Biolink::observe(BiolinkWebhookObserver::class);
         Link::observe(LinkWebhookObserver::class);
         SupportTicket::observe(SupportTicketWebhookObserver::class);

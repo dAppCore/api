@@ -20,10 +20,12 @@ const (
 )
 
 func addSDKCommand(c *core.Core) {
-	c.Command("api/sdk", core.Command{
+	cmd := core.Command{
 		Description: "Generate client SDKs from OpenAPI spec",
 		Action:      sdkAction,
-	})
+	}
+	c.Command("api/sdk", cmd)
+	c.Command("build/sdk", cmd)
 }
 
 func sdkAction(opts core.Options) core.Result {

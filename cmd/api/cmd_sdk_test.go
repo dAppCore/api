@@ -16,19 +16,21 @@ func TestCmdSdk_AddSDKCommand_Good(t *testing.T) {
 	c := core.New()
 	addSDKCommand(c)
 
-	r := c.Command("api/sdk")
-	if !r.OK {
-		t.Fatalf("expected api/sdk command to be registered")
-	}
-	cmd, ok := r.Value.(*core.Command)
-	if !ok {
-		t.Fatalf("expected *core.Command, got %T", r.Value)
-	}
-	if cmd.Action == nil {
-		t.Fatal("expected non-nil Action on api/sdk")
-	}
-	if cmd.Description == "" {
-		t.Fatal("expected Description on api/sdk")
+	for _, path := range []string{"api/sdk", "build/sdk"} {
+		r := c.Command(path)
+		if !r.OK {
+			t.Fatalf("expected %s command to be registered", path)
+		}
+		cmd, ok := r.Value.(*core.Command)
+		if !ok {
+			t.Fatalf("expected *core.Command for %s, got %T", path, r.Value)
+		}
+		if cmd.Action == nil {
+			t.Fatalf("expected non-nil Action on %s", path)
+		}
+		if cmd.Description == "" {
+			t.Fatalf("expected Description on %s", path)
+		}
 	}
 }
 
