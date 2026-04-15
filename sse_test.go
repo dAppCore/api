@@ -48,6 +48,34 @@ func TestWithSSE_Good_EndpointExists(t *testing.T) {
 	}
 }
 
+func TestWithSSE_Good_LegacyVersionedPathExistsByDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/v1/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 from legacy /v1/events alias, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
+	}
+}
+
 func TestWithSSE_Good_CustomPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -83,6 +111,29 @@ func TestWithSSE_Good_CustomPath(t *testing.T) {
 
 	if notFoundResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 at default /events when custom path is configured, got %d", notFoundResp.StatusCode)
+	}
+}
+
+func TestWithSSE_Bad_CustomPathDoesNotExposeLegacyAlias(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker), api.WithSSEPath(" /stream/ "))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/v1/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 from legacy alias when custom SSE path is configured, got %d", resp.StatusCode)
 	}
 }
 
