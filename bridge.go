@@ -64,7 +64,7 @@ var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 //	bridge := api.NewToolBridge("/mcp")
 func NewToolBridge(basePath string) *ToolBridge {
 	return &ToolBridge{
-		basePath: basePath,
+		basePath: normaliseToolBridgePath(basePath),
 		name:     "tools",
 	}
 }
@@ -272,6 +272,22 @@ func isValidToolName(name string) bool {
 	}
 
 	return toolNamePattern.MatchString(name)
+}
+
+// normaliseToolBridgePath coerces the bridge base path into a stable form.
+// A blank value maps to "/" so the bridge still has a valid mount point.
+func normaliseToolBridgePath(path string) string {
+	path = core.Trim(path)
+	if path == "" {
+		return "/"
+	}
+
+	path = "/" + strings.Trim(path, "/")
+	if path == "/" {
+		return "/"
+	}
+
+	return path
 }
 
 // maxToolRequestBodyBytes is the maximum request body size accepted by the
