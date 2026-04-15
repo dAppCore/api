@@ -29,7 +29,7 @@ class ProtectDocumentation
         $config = config('api-docs.access', []);
 
         // Check if public access is allowed in current environment
-        $publicEnvironments = $config['public_environments'] ?? ['local', 'testing', 'staging'];
+        $publicEnvironments = $config['public_environments'] ?? ['local', 'testing', 'staging', 'production'];
         if (in_array(app()->environment(), $publicEnvironments, true)) {
             return $next($request);
         }
