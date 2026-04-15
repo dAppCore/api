@@ -83,6 +83,30 @@ func TestToolBridge_Good_BasePath(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Good_NormalisesConfiguredBasePath(t *testing.T) {
+	bridge := api.NewToolBridge(" /api/v1/tools/ ")
+
+	if bridge.BasePath() != "/api/v1/tools" {
+		t.Fatalf("expected BasePath=%q, got %q", "/api/v1/tools", bridge.BasePath())
+	}
+}
+
+func TestToolBridge_Bad_BlankBasePathFallsBackToRoot(t *testing.T) {
+	bridge := api.NewToolBridge("   ")
+
+	if bridge.BasePath() != "/" {
+		t.Fatalf("expected blank base path to fall back to %q, got %q", "/", bridge.BasePath())
+	}
+}
+
+func TestToolBridge_Ugly_CollapsesRepeatedSlashesInBasePath(t *testing.T) {
+	bridge := api.NewToolBridge("///mcp///")
+
+	if bridge.BasePath() != "/mcp" {
+		t.Fatalf("expected repeated slashes to normalise to %q, got %q", "/mcp", bridge.BasePath())
+	}
+}
+
 func TestToolBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	bridge := api.NewToolBridge("/tools")
@@ -924,6 +948,251 @@ func TestToolBridge_Ugly_ListingCoexistsWithToolEndpoint(t *testing.T) {
 	engine.ServeHTTP(toolW, toolReq)
 	if toolW.Code != http.StatusOK {
 		t.Fatalf("expected 200 from tool dispatch, got %d", toolW.Code)
+	}
+}
+
+func TestToolBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "tags",
+		Description: "Validate array input",
+		InputSchema: map[string]any{
+			"type":     "array",
+			"items":    map[string]any{"type": "string"},
+			"minItems": 2,
+			"maxItems": 3,
+		},
+	}, func(c *gin.Context) {
+		var payload []string
+		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+			t.Fatalf("handler could not read validated array body: %v", err)
+		}
+		c.JSON(http.StatusOK, api.OK(payload))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", bytes.NewBufferString(`["alpha","beta"]`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[[]string]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("expected Success=true")
+	}
+	if len(resp.Data) != 2 || resp.Data[0] != "alpha" || resp.Data[1] != "beta" {
+		t.Fatalf("expected validated array payload to round-trip, got %v", resp.Data)
+	}
+}
+
+func TestToolBridge_Bad_RejectsTooSmallArrayInputSchema(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "tags",
+		Description: "Validate array input",
+		InputSchema: map[string]any{
+			"type":     "array",
+			"items":    map[string]any{"type": "string"},
+			"minItems": 2,
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", bytes.NewBufferString(`["alpha"]`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Ugly_RejectsWrongArrayElementType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "tags",
+		Description: "Validate array input",
+		InputSchema: map[string]any{
+			"type":  "array",
+			"items": map[string]any{"type": "string"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", bytes.NewBufferString(`["alpha",123]`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Good_ValidatesNumericBounds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "score",
+		Description: "Validate numeric input",
+		InputSchema: map[string]any{
+			"type":    "number",
+			"minimum": 1,
+			"maximum": 10,
+		},
+	}, func(c *gin.Context) {
+		var payload float64
+		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+			t.Fatalf("handler could not read validated numeric body: %v", err)
+		}
+		c.JSON(http.StatusOK, api.OK(payload))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/score", bytes.NewBufferString(`5.5`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp api.Response[float64]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("expected Success=true")
+	}
+	if resp.Data != 5.5 {
+		t.Fatalf("expected validated numeric payload to round-trip, got %v", resp.Data)
+	}
+}
+
+func TestToolBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "score",
+		Description: "Validate numeric input",
+		InputSchema: map[string]any{
+			"type":    "number",
+			"minimum": 1,
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/score", bytes.NewBufferString(`0`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Ugly_RejectsNonNumericInput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "score",
+		Description: "Validate numeric input",
+		InputSchema: map[string]any{
+			"type": "number",
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/score", bytes.NewBufferString(`"oops"`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
 	}
 }
 
