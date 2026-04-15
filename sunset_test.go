@@ -80,6 +80,72 @@ func TestWithSunset_Good_AddsDeprecationHeaders(t *testing.T) {
 	}
 }
 
+func TestApiSunsetWith_Good_FormatsCommonSunsetDateForms(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name       string
+		sunsetDate string
+		want       string
+	}{
+		{
+			name:       "rfc3339",
+			sunsetDate: "2026-04-30T23:59:59Z",
+			want:       "Thu, 30 Apr 2026 23:59:59 GMT",
+		},
+		{
+			name:       "rfc7231",
+			sunsetDate: "Thu, 30 Apr 2026 23:59:59 GMT",
+			want:       "Thu, 30 Apr 2026 23:59:59 GMT",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mw := api.ApiSunsetWith(tc.sunsetDate, "POST /api/v2/billing/invoices")
+
+			r := gin.New()
+			r.Use(mw)
+			r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+			r.ServeHTTP(w, req)
+
+			if got := w.Header().Get("Sunset"); got != tc.want {
+				t.Fatalf("expected Sunset=%q, got %q", tc.want, got)
+			}
+			if got := w.Header().Get("Link"); got != "</api/v2/billing/invoices>; rel=\"successor-version\"" {
+				t.Fatalf("expected successor Link header, got %q", got)
+			}
+			if got := w.Header().Get("API-Suggested-Replacement"); got != "POST /api/v2/billing/invoices" {
+				t.Fatalf("expected API-Suggested-Replacement to preserve the original replacement, got %q", got)
+			}
+		})
+	}
+}
+
+func TestApiSunsetWith_Good_StripsMethodFromSuccessorLink(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "PATCH /api/v2/billing/invoices")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "</api/v2/billing/invoices>; rel=\"successor-version\"" {
+		t.Fatalf("expected method prefix to be stripped from successor Link, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "PATCH /api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the full replacement, got %q", got)
+	}
+}
+
 // TestApiSunsetWith_Good_AddsNoticeURLHeader exercises ApiSunsetWith with the
 // WithSunsetNoticeURL option to verify the spec §8 notice header is emitted.
 func TestApiSunsetWith_Good_AddsNoticeURLHeader(t *testing.T) {
@@ -196,5 +262,26 @@ func TestWithSunset_Good_PreservesExistingDeprecationHeaders(t *testing.T) {
 	}
 	if got := w.Header().Values("Link"); len(got) != 2 {
 		t.Fatalf("expected 2 Link header values, got %v", got)
+	}
+}
+
+func TestApiSunsetWith_Ugly_PreservesInvalidSunsetValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("not-a-date", "")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/broken", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/broken", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Sunset"); got != "not-a-date" {
+		t.Fatalf("expected invalid sunset value to be preserved, got %q", got)
+	}
+	if got := w.Header().Get("Deprecation"); got != "true" {
+		t.Fatalf("expected Deprecation=true even for invalid date, got %q", got)
 	}
 }

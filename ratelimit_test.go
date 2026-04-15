@@ -188,6 +188,87 @@ func TestWithRateLimit_Good_UsesBearerTokenWhenPresent(t *testing.T) {
 	}
 }
 
+func TestWithRateLimit_Good_PrioritisesPrincipalOverCredentialHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithMiddleware(func(c *gin.Context) {
+			if principal := c.GetHeader("X-Principal"); principal != "" {
+				c.Set("principal", principal)
+			}
+			c.Next()
+		}),
+		api.WithRateLimit(1),
+	)
+	e.Register(&rateLimitTestGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req1.RemoteAddr = "203.0.113.40:1234"
+	req1.Header.Set("X-Principal", "workspace-1")
+	req1.Header.Set("X-API-Key", "key-a")
+	req1.Header.Set("Authorization", "Bearer token-a")
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected first principal-scoped request to succeed, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req2.RemoteAddr = "203.0.113.41:1234"
+	req2.Header.Set("X-Principal", "workspace-1")
+	req2.Header.Set("X-API-Key", "key-b")
+	req2.Header.Set("Authorization", "Bearer token-b")
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected repeated principal to reuse the same bucket, got %d", w2.Code)
+	}
+}
+
+func TestWithRateLimit_Good_UsesUserIDWhenPrincipalMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithMiddleware(func(c *gin.Context) {
+			if userID := c.GetHeader("X-User-ID"); userID != "" {
+				c.Set("userID", userID)
+			}
+			c.Next()
+		}),
+		api.WithRateLimit(1),
+	)
+	e.Register(&rateLimitTestGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req1.RemoteAddr = "203.0.113.42:1234"
+	req1.Header.Set("X-User-ID", "user-1")
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected first user-scoped request to succeed, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req2.RemoteAddr = "203.0.113.42:1234"
+	req2.Header.Set("X-User-ID", "user-2")
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected a different user ID to have its own bucket, got %d", w2.Code)
+	}
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req3.RemoteAddr = "203.0.113.42:1234"
+	req3.Header.Set("X-User-ID", "user-1")
+	h.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected repeated user ID to be rate limited, got %d", w3.Code)
+	}
+}
+
 func TestWithRateLimit_Good_RefillsOverTime(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e, _ := api.New(api.WithRateLimit(1))
@@ -266,6 +347,32 @@ func TestWithRateLimit_Good_ConcurrentRequestsDoNotOversubscribe(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&successCount); got != 1 {
 		t.Fatalf("expected exactly one request to succeed, got %d", got)
+	}
+}
+
+func TestWithRateLimit_Ugly_MalformedBearerHeaderFallsBackToIP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRateLimit(1))
+	e.Register(&rateLimitTestGroup{})
+
+	h := e.Handler()
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req1.RemoteAddr = "203.0.113.60:1234"
+	req1.Header.Set("Authorization", "Token abc")
+	h.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected malformed bearer header to fall back to IP bucket, got %d", w1.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+	req2.RemoteAddr = "203.0.113.60:1234"
+	req2.Header.Set("Authorization", "Token def")
+	h.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected malformed bearer header to share the IP bucket, got %d", w2.Code)
 	}
 }
 
