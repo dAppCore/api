@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	core "dappco.re/go/core"
 
@@ -15,6 +16,14 @@ import (
 
 // defaultSSEPath is the URL path where the SSE endpoint is mounted.
 const defaultSSEPath = "/events"
+
+// legacySSEPath keeps the RFC's versioned SSE surface available alongside the
+// existing default /events mount point.
+const legacySSEPath = "/v1/events"
+
+// defaultSSEHeartbeatInterval keeps idle SSE connections alive without forcing
+// clients to reconnect.
+const defaultSSEHeartbeatInterval = 15 * time.Second
 
 // SSEBroker manages Server-Sent Events connections and broadcasts events
 // to subscribed clients. Clients connect via a GET endpoint and receive
@@ -80,6 +89,15 @@ func resolveSSEPath(path string) string {
 		return defaultSSEPath
 	}
 	return normaliseSSEPath(path)
+}
+
+// resolveLegacySSEPath returns the RFC versioned SSE alias when the broker is
+// mounted at the default /events path.
+func resolveLegacySSEPath(path string) string {
+	if resolveSSEPath(path) == defaultSSEPath {
+		return legacySSEPath
+	}
+	return ""
 }
 
 // Publish sends an event to all clients subscribed to the given channel.
@@ -161,12 +179,22 @@ func (b *SSEBroker) Handler() gin.HandlerFunc {
 
 		// Stream events until client disconnects.
 		ctx := c.Request.Context()
+		heartbeat := time.NewTicker(defaultSSEHeartbeatInterval)
+		defer heartbeat.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-client.done:
 				return
+			case <-heartbeat.C:
+				if _, err := c.Writer.Write([]byte(": keepalive\n\n")); err != nil {
+					return
+				}
+				if f, ok := c.Writer.(http.Flusher); ok {
+					f.Flush()
+				}
 			default:
 			}
 

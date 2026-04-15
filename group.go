@@ -87,8 +87,10 @@ type RouteDescription struct {
 	// SunsetDate marks when a deprecated operation will be removed.
 	// Use YYYY-MM-DD or an RFC 7231 HTTP date string.
 	SunsetDate string
-	// Replacement points to the successor endpoint URL, when known.
-	Replacement string
+	// ReplacementURL points to the successor endpoint URL, when known.
+	// Replacement is kept as a legacy alias for existing call sites.
+	ReplacementURL string
+	Replacement    string
 	// NoticeURL points to a detailed deprecation notice or migration guide,
 	// surfaced as the API-Deprecation-Notice-URL response header per spec §8.
 	NoticeURL string

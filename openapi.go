@@ -348,6 +348,14 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			makePathItemPublic(item)
 		}
 		paths[ssePath] = item
+		if ssePath == defaultSSEPath {
+			legacyPath := legacySSEPath
+			legacyItem := ssePathItem(legacyPath, operationIDs)
+			if isPublicPathForList(legacyPath, publicPaths) {
+				makePathItemPublic(legacyItem)
+			}
+			paths[legacyPath] = legacyItem
+		}
 	}
 
 	if sb.PprofEnabled {
@@ -388,8 +396,12 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		for _, rd := range g.descs {
 			fullPath := joinOpenAPIPath(g.basePath, rd.Path)
 			method := core.Lower(rd.Method)
-			deprecated := rd.Deprecated || core.Trim(rd.SunsetDate) != "" || core.Trim(rd.Replacement) != "" || core.Trim(rd.NoticeURL) != ""
-			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
+			replacement := core.Trim(rd.ReplacementURL)
+			if replacement == "" {
+				replacement = core.Trim(rd.Replacement)
+			}
+			deprecated := rd.Deprecated || core.Trim(rd.SunsetDate) != "" || replacement != "" || core.Trim(rd.NoticeURL) != ""
+			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, replacement)
 			if deprecated && core.Trim(rd.NoticeURL) != "" && deprecationHeaders != nil {
 				deprecationHeaders["API-Deprecation-Notice-URL"] = map[string]any{
 					"$ref": "#/components/headers/apiDeprecationNoticeURL",
@@ -405,7 +417,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, rd.Replacement, deprecationHeaders, sb.CacheEnabled),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, replacement, deprecationHeaders, sb.CacheEnabled),
 			}
 			if deprecated {
 				operation["deprecated"] = true

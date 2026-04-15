@@ -277,7 +277,12 @@ func (e *Engine) build() *gin.Engine {
 
 	// Mount SSE endpoint if configured.
 	if e.sseBroker != nil {
-		r.GET(resolveSSEPath(e.ssePath), e.sseBroker.Handler())
+		sseHandler := e.sseBroker.Handler()
+		ssePath := resolveSSEPath(e.ssePath)
+		r.GET(ssePath, sseHandler)
+		if legacyPath := resolveLegacySSEPath(e.ssePath); legacyPath != "" && legacyPath != ssePath {
+			r.GET(legacyPath, sseHandler)
+		}
 	}
 
 	// Mount GraphQL endpoint if configured.
