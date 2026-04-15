@@ -213,7 +213,7 @@ func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 		}
 	}
 
-	requested := core.Lower(strings.TrimSpace(name))
+	requested := strings.TrimSpace(name)
 	if requested == "" {
 		return nil, &modelResolutionError{
 			code:  "invalid_request_error",
@@ -227,13 +227,20 @@ func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 		r.mu.RUnlock()
 		return cached, nil
 	}
+	normalized := core.Lower(requested)
+	if normalized != requested {
+		if cached, ok := r.loadedByName[normalized]; ok {
+			r.mu.RUnlock()
+			return cached, nil
+		}
+	}
 	r.mu.RUnlock()
 
-	if path, ok := r.lookupModelPath(requested); ok {
+	if path, ok := r.lookupModelPath(normalized); ok {
 		return r.loadByPath(requested, path)
 	}
 
-	if path, ok := r.resolveDiscoveredPath(requested); ok {
+	if path, ok := r.resolveDiscoveredPath(normalized); ok {
 		return r.loadByPath(requested, path)
 	}
 
@@ -249,6 +256,10 @@ func (r *ModelResolver) loadByPath(name, path string) (inference.TextModel, erro
 	r.mu.Lock()
 	if cached, ok := r.loadedByPath[cleanPath]; ok {
 		r.loadedByName[name] = cached
+		normalizedName := core.Lower(name)
+		if normalizedName != name {
+			r.loadedByName[normalizedName] = cached
+		}
 		r.mu.Unlock()
 		return cached, nil
 	}
@@ -272,6 +283,10 @@ func (r *ModelResolver) loadByPath(name, path string) (inference.TextModel, erro
 
 	r.mu.Lock()
 	r.loadedByName[name] = loaded
+	normalizedName := core.Lower(name)
+	if normalizedName != name {
+		r.loadedByName[normalizedName] = loaded
+	}
 	r.loadedByPath[cleanPath] = loaded
 	r.mu.Unlock()
 	return loaded, nil
@@ -863,13 +878,25 @@ func validateChatRequest(req *ChatCompletionRequest) error {
 	}
 
 	for i, msg := range req.Messages {
-		if strings.TrimSpace(msg.Role) == "" {
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if role == "" {
 			return &chatCompletionRequestError{
 				Status:  400,
 				Type:    "invalid_request_error",
 				Code:    "invalid_request_error",
 				Param:   fmt.Sprintf("messages[%d].role", i),
 				Message: "message role is required",
+			}
+		}
+		switch role {
+		case "system", "user", "assistant":
+		default:
+			return &chatCompletionRequestError{
+				Status:  400,
+				Type:    "invalid_request_error",
+				Code:    "invalid_request_error",
+				Param:   fmt.Sprintf("messages[%d].role", i),
+				Message: "message role must be system, user, or assistant",
 			}
 		}
 	}
