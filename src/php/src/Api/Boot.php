@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 namespace Core\Api;
 
+use Core\Api\Listeners\DispatchSubscriptionWebhookEvents;
+use Core\Api\Models\Biolink;
+use Core\Api\Models\Link;
+use Core\Api\Models\SupportTicket;
+use Core\Api\Models\SupportTicketReply;
+use Core\Api\Observers\BiolinkWebhookObserver;
+use Core\Api\Observers\LinkWebhookObserver;
+use Core\Api\Observers\SupportTicketReplyWebhookObserver;
+use Core\Api\Observers\SupportTicketWebhookObserver;
 use Core\Events\AdminPanelBooting;
 use Core\Events\ApiRoutesRegistering;
 use Core\Events\ConsoleBooting;
@@ -12,10 +21,15 @@ use Core\Api\RateLimit\RateLimitService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
+use Laravel\Passport\Http\Controllers\AccessTokenController;
+use Laravel\Passport\Http\Controllers\ApproveAuthorizationController;
+use Laravel\Passport\Http\Controllers\AuthorizationController;
+use Laravel\Passport\Http\Controllers\DenyAuthorizationController;
 use Laravel\Passport\PassportServiceProvider;
 
 /**
@@ -68,6 +82,14 @@ class Boot extends ServiceProvider
         // Register API Documentation provider
         $this->app->register(DocumentationServiceProvider::class);
 
+        if (class_exists(\Dedoc\Scramble\Scramble::class)) {
+            \Dedoc\Scramble\Scramble::ignoreDefaultRoutes();
+        }
+
+        if (class_exists(\Dedoc\Scramble\ScrambleServiceProvider::class)) {
+            $this->app->register(\Dedoc\Scramble\ScrambleServiceProvider::class);
+        }
+
         if (class_exists(PassportServiceProvider::class)) {
             $this->app->register(PassportServiceProvider::class);
         }
@@ -81,6 +103,7 @@ class Boot extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Migrations');
         $this->configureRateLimiting();
         $this->configureOAuth();
+        $this->registerWebhookHooks();
     }
 
     /**
@@ -128,6 +151,19 @@ class Boot extends ServiceProvider
         }
     }
 
+    /**
+     * Register webhook dispatch hooks for domain changes owned by this module.
+     */
+    protected function registerWebhookHooks(): void
+    {
+        Event::listen(\Core\Mod\Commerce\Events\SubscriptionUpdated::class, DispatchSubscriptionWebhookEvents::class);
+
+        Biolink::observe(BiolinkWebhookObserver::class);
+        Link::observe(LinkWebhookObserver::class);
+        SupportTicket::observe(SupportTicketWebhookObserver::class);
+        SupportTicketReply::observe(SupportTicketReplyWebhookObserver::class);
+    }
+
     // -------------------------------------------------------------------------
     // Event-driven handlers
     // -------------------------------------------------------------------------
@@ -156,6 +192,10 @@ class Boot extends ServiceProvider
         if (file_exists(__DIR__.'/Routes/api.php')) {
             $event->routes(fn () => Route::middleware('api')->group(__DIR__.'/Routes/api.php'));
         }
+
+        if (class_exists(Passport::class)) {
+            $event->routes(fn () => $this->registerOAuthRoutes());
+        }
     }
 
     public function onConsole(ConsoleBooting $event): void
@@ -170,5 +210,26 @@ class Boot extends ServiceProvider
         // Register console commands
         $event->command(Console\Commands\CleanupExpiredGracePeriods::class);
         $event->command(Console\Commands\CheckApiUsageAlerts::class);
+    }
+
+    /**
+     * Register OAuth routes when Passport is installed in the host app.
+     */
+    protected function registerOAuthRoutes(): void
+    {
+        Route::prefix('oauth')->group(function () {
+            Route::post('/token', [AccessTokenController::class, 'issueToken'])
+                ->middleware(['throttle:60,1'])
+                ->name('passport.token');
+
+            Route::middleware(['web', 'auth'])->group(function () {
+                Route::get('/authorize', [AuthorizationController::class, 'authorize'])
+                    ->name('passport.authorizations.authorize');
+                Route::post('/authorize', [ApproveAuthorizationController::class, 'approve'])
+                    ->name('passport.authorizations.approve');
+                Route::delete('/authorize', [DenyAuthorizationController::class, 'deny'])
+                    ->name('passport.authorizations.deny');
+            });
+        });
     }
 }

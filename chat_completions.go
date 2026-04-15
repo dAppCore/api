@@ -290,7 +290,7 @@ func (r *ModelResolver) lookupModelPath(name string) (string, bool) {
 }
 
 func (r *ModelResolver) modelsYAMLMapping() (map[string]string, bool) {
-	configPath := core.Path(core.Env("DIR_HOME"), ".core", "models.yaml")
+	configPath := modelsYAMLConfigPath()
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, false
@@ -317,17 +317,44 @@ func (r *ModelResolver) modelsYAMLMapping() (map[string]string, bool) {
 	}
 
 	for key, raw := range root {
-		value, ok := raw.(string)
-		if !ok {
-			continue
+		if value, ok := modelMappingValue(raw); ok {
+			normalized[core.Lower(strings.TrimSpace(key))] = value
 		}
-		normalized[core.Lower(strings.TrimSpace(key))] = strings.TrimSpace(value)
 	}
 
 	if len(normalized) == 0 {
 		return nil, false
 	}
 	return normalized, true
+}
+
+func modelsYAMLConfigPath() string {
+	if home := strings.TrimSpace(core.Env("DIR_HOME")); home != "" {
+		return core.Path(home, ".core", "models.yaml")
+	}
+
+	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		return core.Path(home, ".core", "models.yaml")
+	}
+
+	return core.Path(".core", "models.yaml")
+}
+
+func modelMappingValue(raw any) (string, bool) {
+	switch value := raw.(type) {
+	case string:
+		trimmed := strings.TrimSpace(value)
+		return trimmed, trimmed != ""
+	case map[string]any:
+		path, ok := value["path"].(string)
+		if !ok {
+			return "", false
+		}
+		trimmed := strings.TrimSpace(path)
+		return trimmed, trimmed != ""
+	default:
+		return "", false
+	}
 }
 
 func (r *ModelResolver) resolveDiscoveredPath(name string) (string, bool) {
