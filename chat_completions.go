@@ -121,6 +121,34 @@ type ChatMessageDelta struct {
 	Content string `json:"content,omitempty"`
 }
 
+// MarshalJSON preserves the OpenAI-style priming chunk shape while still
+// omitting empty deltas for terminal chunks.
+//
+// The first streaming chunk carries the assistant role and an explicit empty
+// content string. A terminal chunk, by contrast, carries neither field.
+func (d ChatMessageDelta) MarshalJSON() ([]byte, error) {
+	if d.Role == "" && d.Content == "" {
+		return []byte("{}"), nil
+	}
+
+	payload := struct {
+		Role    *string `json:"role,omitempty"`
+		Content *string `json:"content,omitempty"`
+	}{}
+
+	if d.Role != "" {
+		role := d.Role
+		content := d.Content
+		payload.Role = &role
+		payload.Content = &content
+	} else if d.Content != "" {
+		content := d.Content
+		payload.Content = &content
+	}
+
+	return json.Marshal(payload)
+}
+
 type chatCompletionError struct {
 	Message string `json:"message"`
 	Type    string `json:"type"`
