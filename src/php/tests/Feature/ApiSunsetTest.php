@@ -73,6 +73,49 @@ it('formats the sunset date and keeps the replacement link', function () {
     expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated and will be removed on 2025-06-01.');
 });
 
+it('adds a deprecation notice url when provided', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle(
+        $request,
+        fn () => new Response('OK'),
+        '2025-06-01',
+        '/api/v2/users',
+        'https://docs.example.com/deprecation/users'
+    );
+
+    expect($response->headers->get('API-Deprecation-Notice-URL'))->toBe('https://docs.example.com/deprecation/users');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('/api/v2/users');
+});
+
+it('preserves already formatted sunset dates', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+    $sunset = 'Wed, 01 Jan 2025 00:00:00 GMT';
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), $sunset, '/api/v2/users');
+
+    expect($response->headers->get('Sunset'))->toBe($sunset);
+    expect($response->headers->get('X-API-Warn'))->toBe("This endpoint is deprecated and will be removed on {$sunset}.");
+});
+
+it('ApiSunset_formatSunsetDate_Ugly_preserves_invalid_sunset_values', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), 'not-a-date', '/api/v2/users');
+
+    expect($response->headers->get('Sunset'))->toBe('not-a-date');
+    expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated and will be removed on not-a-date.');
+});
+
 it('skips deprecation headers when they are disabled in configuration', function () {
     Config::set('api.headers.include_deprecation', false);
 
