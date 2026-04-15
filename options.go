@@ -58,6 +58,9 @@ func WithBearerAuth(token string) Option {
 			if swaggerPath := resolveSwaggerPath(e.swaggerPath); swaggerPath != "" {
 				skip = append(skip, swaggerPath)
 			}
+			if openAPISpecPath := resolveOpenAPISpecPath(e.openAPISpecPath); openAPISpecPath != "" {
+				skip = append(skip, openAPISpecPath)
+			}
 			return skip
 		}))
 	}
@@ -198,7 +201,10 @@ func WithAuthentik(cfg AuthentikConfig) Option {
 		snapshot := cloneAuthentikConfig(cfg)
 		e.authentikConfig = snapshot
 		e.middlewares = append(e.middlewares, authentikMiddleware(snapshot, func() []string {
-			return []string{resolveSwaggerPath(e.swaggerPath)}
+			return []string{
+				resolveSwaggerPath(e.swaggerPath),
+				resolveOpenAPISpecPath(e.openAPISpecPath),
+			}
 		}))
 	}
 }

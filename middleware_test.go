@@ -184,6 +184,23 @@ func TestBearerAuth_Good_HealthBypassesAuth(t *testing.T) {
 	}
 }
 
+func TestBearerAuth_Good_OpenAPISpecBypassesAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(
+		api.WithBearerAuth("s3cret"),
+		api.WithOpenAPISpec(),
+	)
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/openapi.json", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /v1/openapi.json, got %d", w.Code)
+	}
+}
+
 func TestBearerAuth_Bad_SimilarPrefixDoesNotBypassAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e, _ := api.New(api.WithBearerAuth("s3cret"))
