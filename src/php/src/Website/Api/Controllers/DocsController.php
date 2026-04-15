@@ -50,6 +50,11 @@ class DocsController
         return view('api::reference');
     }
 
+    public function api(): View
+    {
+        return $this->reference();
+    }
+
     public function swagger(): View
     {
         return view('api::swagger');

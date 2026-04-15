@@ -80,6 +80,9 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// CacheControl hints the framework that successful responses for this
+	// operation should advertise the given Cache-Control policy in docs.
+	CacheControl string
 	// Hidden omits the route from generated documentation.
 	Hidden bool
 	// Deprecated marks the operation as deprecated in OpenAPI.

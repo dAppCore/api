@@ -18,6 +18,7 @@ Route::get('/guides/errors', [DocsController::class, 'errors'])->name('api.guide
 
 // API Reference
 Route::get('/reference', [DocsController::class, 'reference'])->name('api.reference');
+Route::get('/docs/api', [DocsController::class, 'api'])->name('api.docs.api');
 
 // Swagger UI
 Route::get('/swagger', [DocsController::class, 'swagger'])->name('api.swagger');
