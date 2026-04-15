@@ -283,39 +283,91 @@ class McpApiController extends Controller
             'version' => 'nullable|string|max:32',
         ]);
 
-        $server = $this->loadServerFull($validated['server']);
-        if (! $server) {
+        return $this->executeToolCall(
+            request: $request,
+            server: $validated['server'],
+            tool: $validated['tool'],
+            arguments: $validated['arguments'] ?? [],
+            version: $validated['version'] ?? null,
+            requestPath: '/tools/call',
+        );
+    }
+
+    /**
+     * Execute a tool using the route parameters as the source of truth.
+     *
+     * POST /api/v1/mcp/servers/{server}/tools/{tool}
+     *
+     * Request body:
+     * - arguments: array (optional)
+     * - version: string (optional) - semver version to use, defaults to latest
+     */
+    public function callToolByRoute(Request $request, string $server, string $tool): JsonResponse
+    {
+        $validated = $request->validate([
+            'arguments' => 'nullable|array',
+            'version' => 'nullable|string|max:32',
+        ]);
+
+        return $this->executeToolCall(
+            request: $request,
+            server: $server,
+            tool: $tool,
+            arguments: $validated['arguments'] ?? [],
+            version: $validated['version'] ?? null,
+            requestPath: '/'.$request->path(),
+        );
+    }
+
+    /**
+     * Shared execution pipeline for both the generic and route-shaped tool endpoints.
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    protected function executeToolCall(
+        Request $request,
+        string $server,
+        string $tool,
+        array $arguments,
+        ?string $version,
+        string $requestPath
+    ): JsonResponse {
+        $validated = [
+            'server' => $server,
+            'tool' => $tool,
+            'arguments' => $arguments,
+            'version' => $version,
+        ];
+
+        $serverConfig = $this->loadServerFull($server);
+        if (! $serverConfig) {
             return $this->notFoundResponse('Server');
         }
 
-        // Verify tool exists in server definition
-        $toolDef = collect($server['tools'] ?? [])->firstWhere('name', $validated['tool']);
+        // Verify tool exists in server definition.
+        $toolDef = collect($serverConfig['tools'] ?? [])->firstWhere('name', $tool);
         if (! $toolDef) {
             return $this->notFoundResponse('Tool');
         }
 
-        // Version resolution
+        // Version resolution.
         $versionService = app(ToolVersionService::class);
-        $versionResult = $versionService->resolveVersion(
-            $validated['server'],
-            $validated['tool'],
-            $validated['version'] ?? null
-        );
+        $versionResult = $versionService->resolveVersion($server, $tool, $version);
 
-        // If version was requested but is sunset, block the call
+        // If version was requested but is sunset, block the call.
         if ($versionResult['error']) {
             $error = $versionResult['error'];
 
-            // Sunset versions return 410 Gone
+            // Sunset versions return 410 Gone.
             $status = ($error['code'] ?? '') === 'TOOL_VERSION_SUNSET' ? 410 : 400;
 
             return $this->errorResponse(
                 errorCode: $error['code'] ?? 'VERSION_ERROR',
                 message: $error['message'] ?? 'Version error',
                 meta: [
-                    'server' => $validated['server'],
-                    'tool' => $validated['tool'],
-                    'requested_version' => $validated['version'] ?? null,
+                    'server' => $server,
+                    'tool' => $tool,
+                    'requested_version' => $version,
                     'latest_version' => $error['latest_version'] ?? null,
                     'migration_notes' => $error['migration_notes'] ?? null,
                 ],
@@ -332,7 +384,7 @@ class McpApiController extends Controller
         if ($schemaForValidation) {
             $validationErrors = $this->validateToolArguments(
                 ['inputSchema' => $schemaForValidation],
-                $validated['arguments'] ?? []
+                $arguments
             );
 
             if (! empty($validationErrors)) {
@@ -341,8 +393,8 @@ class McpApiController extends Controller
                     message: 'Validation failed',
                     meta: [
                         'validation_errors' => $validationErrors,
-                        'server' => $validated['server'],
-                        'tool' => $validated['tool'],
+                        'server' => $server,
+                        'tool' => $tool,
                         'version' => $toolVersion?->version ?? 'unversioned',
                     ],
                     status: 422,
@@ -352,16 +404,15 @@ class McpApiController extends Controller
 
         // Get API key for logging
         $apiKey = $request->attributes->get('api_key');
-        $workspace = $apiKey?->workspace;
 
         $startTime = microtime(true);
 
         try {
             // Execute the tool via artisan command
             $result = $this->executeToolViaArtisan(
-                $validated['server'],
-                $validated['tool'],
-                $validated['arguments'] ?? [],
+                $server,
+                $tool,
+                $arguments,
                 $toolVersion?->version
             );
 
@@ -375,8 +426,8 @@ class McpApiController extends Controller
 
             $response = [
                 'success' => true,
-                'server' => $validated['server'],
-                'tool' => $validated['tool'],
+                'server' => $server,
+                'tool' => $tool,
                 'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
                 'result' => $result,
                 'duration_ms' => $durationMs,
@@ -388,7 +439,7 @@ class McpApiController extends Controller
             }
 
             // Log full request for debugging/replay
-            $this->logApiRequest($request, $validated, 200, $response, $durationMs, $apiKey);
+            $this->logApiRequest($request, $requestPath, $validated, 200, $response, $durationMs, $apiKey);
 
             // Build response with deprecation headers if needed
             $jsonResponse = response()->json($response);
@@ -415,20 +466,20 @@ class McpApiController extends Controller
             $response = [
                 'success' => false,
                 'error' => 'Tool execution failed.',
-                'server' => $validated['server'],
-                'tool' => $validated['tool'],
+                'server' => $server,
+                'tool' => $tool,
                 'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
             ];
 
             // Log full request for debugging/replay
-            $this->logApiRequest($request, $validated, 500, $response, $durationMs, $apiKey, $e->getMessage());
+            $this->logApiRequest($request, $requestPath, $validated, 500, $response, $durationMs, $apiKey, $e->getMessage());
 
             return $this->errorResponse(
                 errorCode: 'tool_execution_error',
                 message: 'Tool execution failed.',
                 meta: array_filter([
-                    'server' => $validated['server'],
-                    'tool' => $validated['tool'],
+                    'server' => $server,
+                    'tool' => $tool,
                     'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
                 ]),
                 status: 500,
@@ -830,6 +881,7 @@ class McpApiController extends Controller
      */
     protected function logApiRequest(
         Request $request,
+        string $path,
         array $validated,
         int $status,
         array $response,
@@ -840,7 +892,7 @@ class McpApiController extends Controller
         try {
             McpApiRequest::log(
                 method: $request->method(),
-                path: '/tools/call',
+                path: $path,
                 requestBody: $validated,
                 responseStatus: $status,
                 responseBody: $response,

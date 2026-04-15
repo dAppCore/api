@@ -211,6 +211,8 @@ Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce'])
             ->name('tools.version');
 
         // Tool execution (write)
+        Route::post('/servers/{server}/tools/{tool}', [McpApiController::class, 'callToolByRoute'])
+            ->name('tools.call.route');
         Route::post('/tools/call', [McpApiController::class, 'callTool'])
             ->name('tools.call');
 
