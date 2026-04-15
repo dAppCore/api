@@ -31,8 +31,11 @@ class AuthenticateApiKey
     {
         $token = $request->bearerToken();
 
+        // If no bearer token is present, allow Sanctum/session auth to try first.
+        // This keeps browser-based dashboard requests working while preserving
+        // the API-key path for SDK and server-to-server calls.
         if (! $token) {
-            return $this->unauthorized('API key required. Use Authorization: Bearer <api_key>');
+            return $this->authenticateSanctum($request, $next, $scope);
         }
 
         // API keys are underscore-delimited; try those before falling back to Sanctum.
@@ -84,6 +87,8 @@ class AuthenticateApiKey
         $request->attributes->set('workspace', $apiKey->workspace);
         $request->attributes->set('workspace_id', $apiKey->workspace_id);
         $request->attributes->set('auth_type', 'api_key');
+        $request->attributes->set('principal', 'api-key:'.$apiKey->id);
+        $request->attributes->set('userID', (string) $apiKey->user_id);
 
         return $next($request);
     }
@@ -107,7 +112,14 @@ class AuthenticateApiKey
             $request->setUserResolver(fn () => $guard->user());
         }
 
-        $request->attributes->set('auth_type', 'sanctum');
+        $authType = $request->bearerToken() ? 'sanctum' : 'session';
+        $user = $request->user();
+
+        $request->attributes->set('auth_type', $authType);
+        if ($user !== null && isset($user->id)) {
+            $request->attributes->set('principal', 'user:'.$user->id);
+            $request->attributes->set('userID', (string) $user->id);
+        }
 
         return $next($request);
     }
