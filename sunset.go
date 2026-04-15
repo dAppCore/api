@@ -102,14 +102,18 @@ func formatSunsetDate(sunsetDate string) string {
 	if sunsetDate == "" {
 		return ""
 	}
-	if core.Contains(sunsetDate, ",") {
-		return sunsetDate
+
+	if parsed, err := time.Parse(time.RFC3339, sunsetDate); err == nil {
+		return parsed.UTC().Format(http.TimeFormat)
 	}
 
-	parsed, err := time.Parse("2006-01-02", sunsetDate)
-	if err != nil {
-		return sunsetDate
+	if parsed, err := time.Parse("2006-01-02", sunsetDate); err == nil {
+		return parsed.UTC().Format(http.TimeFormat)
 	}
 
-	return parsed.UTC().Format(http.TimeFormat)
+	if parsed, err := http.ParseTime(sunsetDate); err == nil {
+		return parsed.UTC().Format(http.TimeFormat)
+	}
+
+	return sunsetDate
 }
