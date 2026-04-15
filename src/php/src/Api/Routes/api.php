@@ -73,7 +73,7 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
 // Webhook secret rotation (authenticated)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Route::middleware(['auth.api', 'api.scope.enforce'])
+Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
     ->prefix('webhooks')
     ->name('api.webhooks.')
     ->group(function () {
@@ -114,13 +114,13 @@ Route::prefix('v1/auth')
         Route::post('/token', [AuthController::class, 'store'])
             ->middleware('api.rate')
             ->name('token.store');
-        Route::middleware(['auth.api'])->group(function () {
+        Route::middleware(['auth.api', 'api.rate'])->group(function () {
             Route::delete('/token', [AuthController::class, 'destroy'])->name('token.destroy');
             Route::get('/me', [AuthController::class, 'show'])->name('me');
         });
     });
 
-Route::middleware(['auth.api', 'api.scope.enforce'])
+Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
     ->prefix('v1')
     ->name('api.v1.')
     ->group(function () {
@@ -243,7 +243,7 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
 // MCP HTTP Bridge (API key auth)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce'])
+Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce', 'api.rate'])
     ->prefix('mcp')
     ->name('api.mcp.')
     ->group(function () {

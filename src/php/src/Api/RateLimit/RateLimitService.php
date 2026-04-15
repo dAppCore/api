@@ -72,32 +72,22 @@ class RateLimitService
     public function hit(string $key, int $limit, int $window, float $burst = 1.0): RateLimitResult
     {
         $cacheKey = $this->getCacheKey($key);
-        $effectiveLimit = (int) floor($limit * $burst);
-        $now = Carbon::now();
-        $windowStart = $now->timestamp - $window;
-
-        // Get current window data and clean up old entries
-        $hits = $this->getWindowHits($cacheKey, $windowStart);
-        $currentCount = count($hits);
-
-        // Calculate reset time
-        $resetsAt = $this->calculateResetTime($hits, $window, $effectiveLimit);
-
-        if ($currentCount >= $effectiveLimit) {
-            // Find oldest hit to determine retry after
-            $oldestHit = min($hits);
-            $retryAfter = max(1, ($oldestHit + $window) - $now->timestamp);
-
-            return RateLimitResult::denied($limit, $retryAfter, $resetsAt);
+        if (! $this->supportsAtomicLocks()) {
+            return $this->hitWithoutLock($cacheKey, $limit, $window, $burst);
         }
 
-        // Record the hit
-        $hits[] = $now->timestamp;
-        $this->storeWindowHits($cacheKey, $hits, $window);
+        $lock = $this->acquireBucketLock($cacheKey);
+        if ($lock === null) {
+            // Fail closed when the cache backend supports locks but the lock
+            // cannot be acquired quickly enough to guarantee correctness.
+            return RateLimitResult::denied($limit, 1, Carbon::now()->addSecond());
+        }
 
-        $remaining = max(0, $effectiveLimit - count($hits));
-
-        return RateLimitResult::allowed($limit, $remaining, $resetsAt);
+        try {
+            return $this->hitWithoutLock($cacheKey, $limit, $window, $burst);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -213,6 +203,72 @@ class RateLimitService
         // Add buffer to TTL to handle clock drift
         $ttl = $window + 60;
         $this->cache->put($cacheKey, $hits, $ttl);
+    }
+
+    /**
+     * Perform the rate-limit update without acquiring a lock first.
+     *
+     * Callers should use this only when the cache backend cannot provide an
+     * atomic lock. The public `hit()` method guards this path.
+     */
+    protected function hitWithoutLock(string $cacheKey, int $limit, int $window, float $burst): RateLimitResult
+    {
+        $effectiveLimit = (int) floor($limit * $burst);
+        $now = Carbon::now();
+        $windowStart = $now->timestamp - $window;
+
+        // Get current window data and clean up old entries
+        $hits = $this->getWindowHits($cacheKey, $windowStart);
+        $currentCount = count($hits);
+
+        // Calculate reset time
+        $resetsAt = $this->calculateResetTime($hits, $window, $effectiveLimit);
+
+        if ($currentCount >= $effectiveLimit) {
+            // Find oldest hit to determine retry after
+            $oldestHit = min($hits);
+            $retryAfter = max(1, ($oldestHit + $window) - $now->timestamp);
+
+            return RateLimitResult::denied($limit, $retryAfter, $resetsAt);
+        }
+
+        // Record the hit
+        $hits[] = $now->timestamp;
+        $this->storeWindowHits($cacheKey, $hits, $window);
+
+        $remaining = max(0, $effectiveLimit - count($hits));
+
+        return RateLimitResult::allowed($limit, $remaining, $resetsAt);
+    }
+
+    /**
+     * Determine whether the cache backend exposes atomic locks.
+     */
+    protected function supportsAtomicLocks(): bool
+    {
+        return method_exists($this->cache, 'lock');
+    }
+
+    /**
+     * Try to acquire a lock for a specific rate-limit bucket.
+     */
+    protected function acquireBucketLock(string $cacheKey): mixed
+    {
+        if (! $this->supportsAtomicLocks()) {
+            return null;
+        }
+
+        try {
+            $lock = $this->cache->lock($cacheKey.':lock', 10);
+
+            if (method_exists($lock, 'get') && $lock->get()) {
+                return $lock;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return null;
     }
 
     /**
