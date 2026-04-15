@@ -128,18 +128,25 @@ class ApiKey extends Model
      */
     public static function findByPlainKey(string $plainKey): ?static
     {
-        // Expected format: hk_xxxxxxxx_xxxxx...
-        if (! str_starts_with($plainKey, 'hk_')) {
+        $plainKey = trim($plainKey);
+        if ($plainKey === '' || ! str_contains($plainKey, '_')) {
             return null;
         }
 
-        $parts = explode('_', $plainKey, 3);
-        if (count($parts) !== 3) {
+        $parts = explode('_', $plainKey);
+        if (count($parts) < 2) {
             return null;
         }
 
-        $prefix = $parts[0].'_'.$parts[1]; // hk_xxxxxxxx
-        $key = $parts[2];
+        // Support both the legacy hk_<prefix>_<token> layout and the RFC
+        // {prefix}_{token} layout used by new keys.
+        if ($parts[0] === 'hk' && count($parts) >= 3) {
+            $prefix = $parts[0].'_'.$parts[1];
+            $key = implode('_', array_slice($parts, 2));
+        } else {
+            $prefix = $parts[0];
+            $key = implode('_', array_slice($parts, 1));
+        }
 
         // Find potential matches by prefix
         $candidates = static::where('prefix', $prefix)

@@ -48,7 +48,7 @@ type ChatCompletionRequest struct {
 	TopK        *int          `json:"top_k,omitempty"`
 	MaxTokens   *int          `json:"max_tokens,omitempty"`
 	Stream      bool          `json:"stream,omitempty"`
-	Stop        []string      `json:"stop,omitempty"`
+	Stop        []string      `json:"stop,omitempty"` // Stop sequences, excluded from the final completion text.
 	User        string        `json:"user,omitempty"`
 }
 
@@ -556,7 +556,14 @@ func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
 		return
 	}
 
-	options, err := chatRequestOptions(&req)
+	reqForOptions := req
+	reqForOptions.Stop = nil
+	options, err := chatRequestOptions(&reqForOptions)
+	if err != nil {
+		writeChatCompletionError(c, 400, "invalid_request_error", "stop", err.Error(), "")
+		return
+	}
+	stopSequences, err := normalizedStopSequences(req.Stop)
 	if err != nil {
 		writeChatCompletionError(c, 400, "invalid_request_error", "stop", err.Error(), "")
 		return
@@ -571,13 +578,13 @@ func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
 	}
 
 	if req.Stream {
-		h.serveStreaming(c, model, req, messages, options...)
+		h.serveStreaming(c, model, req, messages, stopSequences, options...)
 		return
 	}
-	h.serveNonStreaming(c, model, req, messages, options...)
+	h.serveNonStreaming(c, model, req, messages, stopSequences, options...)
 }
 
-func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inference.TextModel, req ChatCompletionRequest, messages []inference.Message, opts ...inference.GenerateOption) {
+func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inference.TextModel, req ChatCompletionRequest, messages []inference.Message, stopSequences []string, opts ...inference.GenerateOption) {
 	ctx := c.Request.Context()
 	created := time.Now().Unix()
 	completionID := newChatCompletionID()
@@ -596,7 +603,7 @@ func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inferen
 	}
 
 	metrics := model.Metrics()
-	content := extractor.Content()
+	content := truncateAtStopSequence(extractor.Content(), stopSequences)
 	finishReason := "stop"
 	if isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
 		finishReason = "length"
@@ -630,7 +637,7 @@ func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inferen
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.TextModel, req ChatCompletionRequest, messages []inference.Message, opts ...inference.GenerateOption) {
+func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.TextModel, req ChatCompletionRequest, messages []inference.Message, stopSequences []string, opts ...inference.GenerateOption) {
 	ctx := c.Request.Context()
 	created := time.Now().Unix()
 	completionID := newChatCompletionID()
@@ -644,10 +651,21 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 	extractor := NewThinkingExtractor()
 	chunkFirst := true
 	sentAny := false
+	emittedContent := ""
 
 	for tok := range model.Chat(ctx, messages, opts...) {
 		contentDelta, thoughtDelta := extractor.writeDeltas(tok.Text)
-		if !chunkFirst && contentDelta == "" && thoughtDelta == "" {
+		candidateContent := emittedContent + contentDelta
+		stopCut, stopHit := firstStopSequenceCut(candidateContent, stopSequences)
+		if stopHit {
+			if stopCut <= len(emittedContent) {
+				contentDelta = ""
+			} else {
+				contentDelta = candidateContent[len(emittedContent):stopCut]
+			}
+		}
+
+		if !stopHit && !chunkFirst && contentDelta == "" && thoughtDelta == "" {
 			continue
 		}
 
@@ -679,6 +697,14 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 			c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
 			c.Writer.Flush()
 			sentAny = true
+		}
+		if stopHit {
+			emittedContent = candidateContent[:stopCut]
+		} else {
+			emittedContent = candidateContent
+		}
+		if stopHit {
+			break
 		}
 		chunkFirst = false
 	}
@@ -779,7 +805,6 @@ func chatRequestOptions(req *ChatCompletionRequest) ([]inference.GenerateOption,
 	opts = append(opts, inference.WithTopP(chatResolvedFloat(req.TopP, chatDefaultTopP)))
 	opts = append(opts, inference.WithTopK(chatResolvedInt(req.TopK, chatDefaultTopK)))
 	opts = append(opts, inference.WithMaxTokens(chatResolvedInt(req.MaxTokens, chatDefaultMaxTokens)))
-
 	stops, err := parsedStopTokens(req.Stop)
 	if err != nil {
 		return nil, err
@@ -816,6 +841,22 @@ func chatResolvedInt(v *int, def int) int {
 	return *v
 }
 
+func normalizedStopSequences(stops []string) ([]string, error) {
+	if len(stops) == 0 {
+		return nil, nil
+	}
+
+	out := make([]string, 0, len(stops))
+	for _, raw := range stops {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return nil, fmt.Errorf("stop entries cannot be empty")
+		}
+		out = append(out, raw)
+	}
+	return out, nil
+}
+
 func parsedStopTokens(stops []string) ([]int32, error) {
 	if len(stops) == 0 {
 		return nil, nil
@@ -834,6 +875,39 @@ func parsedStopTokens(stops []string) ([]int32, error) {
 		out = append(out, int32(parsed))
 	}
 	return out, nil
+}
+
+func firstStopSequenceCut(content string, stops []string) (int, bool) {
+	if len(stops) == 0 || content == "" {
+		return 0, false
+	}
+
+	cut := -1
+	for _, stop := range stops {
+		if stop == "" {
+			continue
+		}
+		idx := strings.Index(content, stop)
+		if idx < 0 {
+			continue
+		}
+		if cut < 0 || idx < cut {
+			cut = idx
+		}
+	}
+
+	if cut < 0 {
+		return 0, false
+	}
+	return cut, true
+}
+
+func truncateAtStopSequence(content string, stops []string) string {
+	cut, ok := firstStopSequenceCut(content, stops)
+	if !ok {
+		return content
+	}
+	return content[:cut]
 }
 
 // isTokenLengthCapReached reports whether the generated token count meets or

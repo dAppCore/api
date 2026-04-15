@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Authenticate requests using API keys or fall back to Sanctum.
  *
- * API keys are prefixed with 'hk_' and scoped to a workspace.
+ * API keys are underscore-delimited and scoped to a workspace.
  *
  * Register in bootstrap/app.php:
  *   ->withMiddleware(function (Middleware $middleware) {
@@ -35,9 +35,12 @@ class AuthenticateApiKey
             return $this->unauthorized('API key required. Use Authorization: Bearer <api_key>');
         }
 
-        // Check if it's an API key (prefixed with hk_)
-        if (str_starts_with($token, 'hk_')) {
-            return $this->authenticateApiKey($request, $next, $token, $scope);
+        // API keys are underscore-delimited; try those before falling back to Sanctum.
+        if (str_contains($token, '_')) {
+            $apiKey = ApiKey::findByPlainKey($token);
+            if ($apiKey instanceof ApiKey) {
+                return $this->authenticateResolvedApiKey($request, $next, $apiKey, $scope);
+            }
         }
 
         // Fall back to Sanctum for OAuth tokens
@@ -47,18 +50,12 @@ class AuthenticateApiKey
     /**
      * Authenticate using an API key.
      */
-    protected function authenticateApiKey(
+    protected function authenticateResolvedApiKey(
         Request $request,
         Closure $next,
-        string $token,
+        ApiKey $apiKey,
         ?string $scope
     ): Response {
-        $apiKey = ApiKey::findByPlainKey($token);
-
-        if (! $apiKey) {
-            return $this->unauthorized('Invalid API key');
-        }
-
         if ($apiKey->isExpired()) {
             return $this->unauthorized('API key has expired');
         }
