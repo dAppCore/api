@@ -251,7 +251,7 @@ return [
 
     'ui' => [
         // Default UI renderer: 'swagger', 'scalar', 'redoc', 'stoplight'
-        'default' => 'scalar',
+        'default' => 'swagger',
 
         // Swagger UI specific options
         'swagger' => [
