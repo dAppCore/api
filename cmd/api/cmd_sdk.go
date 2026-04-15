@@ -99,7 +99,7 @@ func sdkSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
 }
 
 func sdkSpecGroupsIter() iter.Seq[goapi.RouteGroup] {
-	return specGroupsIter(goapi.NewToolBridge("/tools"))
+	return specGroupsIter(goapi.NewToolBridge(defaultSpecToolBridgePath))
 }
 
 // sdkConfigFromOptions mirrors specConfigFromOptions but falls back to

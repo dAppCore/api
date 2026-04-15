@@ -71,13 +71,13 @@ func TestCmdSdk_SdkSpecGroupsIter_Good_IncludesToolBridge(t *testing.T) {
 
 	found := false
 	for _, g := range groups {
-		if g.BasePath() == "/tools" {
+		if g.BasePath() == defaultSpecToolBridgePath {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatal("expected /tools route group in sdk spec iterator")
+		t.Fatalf("expected %s route group in sdk spec iterator", defaultSpecToolBridgePath)
 	}
 }
 

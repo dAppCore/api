@@ -244,6 +244,9 @@ func (e *Engine) build() *gin.Engine {
 	for _, mw := range e.middlewares {
 		r.Use(mw)
 	}
+	if policies := cacheControlPolicies(e.groups); len(policies) > 0 {
+		r.Use(cacheControlMiddleware(policies))
+	}
 
 	// Built-in health check.
 	r.GET("/health", func(c *gin.Context) {

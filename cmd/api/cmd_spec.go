@@ -12,6 +12,8 @@ import (
 	goapi "dappco.re/go/core/api"
 )
 
+const defaultSpecToolBridgePath = "/v1/tools"
+
 func addSpecCommand(c *core.Core) {
 	c.Command("api/spec", core.Command{
 		Description: "Generate OpenAPI specification",
@@ -32,7 +34,7 @@ func specAction(opts core.Options) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	bridge := goapi.NewToolBridge("/tools")
+	bridge := goapi.NewToolBridge(defaultSpecToolBridgePath)
 	groups := specGroupsIter(bridge)
 
 	if output != "" {
