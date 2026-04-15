@@ -91,6 +91,11 @@ class VersionedRoutes
      */
     protected ?string $replacement = null;
 
+    /**
+     * @var string|null
+     */
+    protected ?string $noticeUrl = null;
+
     protected bool $isDeprecated = false;
 
     /**
@@ -184,12 +189,14 @@ class VersionedRoutes
      *
      * @param  string|null  $sunsetDate  Optional sunset date (YYYY-MM-DD or RFC7231 format)
      * @param  string|null  $replacement  Optional replacement endpoint URL
+     * @param  string|null  $noticeUrl  Optional deprecation notice URL
      */
-    public function deprecated(?string $sunsetDate = null, ?string $replacement = null): static
+    public function deprecated(?string $sunsetDate = null, ?string $replacement = null, ?string $noticeUrl = null): static
     {
         $this->isDeprecated = true;
         $this->sunsetDate = $sunsetDate;
         $this->replacement = $replacement;
+        $this->noticeUrl = $noticeUrl;
 
         return $this;
     }
@@ -249,12 +256,26 @@ class VersionedRoutes
         if ($this->isDeprecated) {
             if ($this->sunsetDate !== null && $this->sunsetDate !== '') {
                 if ($this->replacement !== null && $this->replacement !== '') {
-                    $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement}";
+                    if ($this->noticeUrl !== null && $this->noticeUrl !== '') {
+                        $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement},{$this->noticeUrl}";
+                    } else {
+                        $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement}";
+                    }
                 } else {
-                    $middleware[] = "api.sunset:{$this->sunsetDate}";
+                    if ($this->noticeUrl !== null && $this->noticeUrl !== '') {
+                        $middleware[] = "api.sunset:{$this->sunsetDate},,{$this->noticeUrl}";
+                    } else {
+                        $middleware[] = "api.sunset:{$this->sunsetDate}";
+                    }
                 }
             } elseif ($this->replacement !== null && $this->replacement !== '') {
-                $middleware[] = "api.sunset:,$this->replacement";
+                if ($this->noticeUrl !== null && $this->noticeUrl !== '') {
+                    $middleware[] = "api.sunset:,$this->replacement,{$this->noticeUrl}";
+                } else {
+                    $middleware[] = "api.sunset:,$this->replacement";
+                }
+            } elseif ($this->noticeUrl !== null && $this->noticeUrl !== '') {
+                $middleware[] = "api.sunset:,,{$this->noticeUrl}";
             } else {
                 $middleware[] = 'api.sunset';
             }

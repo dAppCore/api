@@ -52,6 +52,21 @@ class SunsetExtension implements Extension
             ],
         ];
 
+        $spec['components']['headers']['apiSuggestedReplacement'] = [
+            'description' => 'Suggested replacement endpoint for clients to migrate to.',
+            'schema' => [
+                'type' => 'string',
+            ],
+        ];
+
+        $spec['components']['headers']['apiDeprecationNoticeURL'] = [
+            'description' => 'URL pointing to a detailed deprecation notice.',
+            'schema' => [
+                'type' => 'string',
+                'format' => 'uri',
+            ],
+        ];
+
         return $spec;
     }
 
@@ -96,6 +111,18 @@ class SunsetExtension implements Extension
                     '$ref' => '#/components/headers/link',
                 ];
             }
+
+            if ($sunset['replacement'] !== null && $sunset['replacement'] !== '') {
+                $response['headers']['API-Suggested-Replacement'] = [
+                    '$ref' => '#/components/headers/apiSuggestedReplacement',
+                ];
+            }
+
+            if ($sunset['noticeUrl'] !== null && $sunset['noticeUrl'] !== '') {
+                $response['headers']['API-Deprecation-Notice-URL'] = [
+                    '$ref' => '#/components/headers/apiDeprecationNoticeURL',
+                ];
+            }
         }
         unset($response);
 
@@ -129,16 +156,21 @@ class SunsetExtension implements Extension
                 ];
             }
 
-            $parts = explode(',', $arguments, 2);
+            $parts = explode(',', $arguments, 3);
             $sunsetDate = trim($parts[0] ?? '');
             $replacement = isset($parts[1]) ? trim($parts[1]) : null;
+            $noticeUrl = isset($parts[2]) ? trim($parts[2]) : null;
             if ($replacement === '') {
                 $replacement = null;
+            }
+            if ($noticeUrl === '') {
+                $noticeUrl = null;
             }
 
             return [
                 'sunsetDate' => $sunsetDate !== '' ? $sunsetDate : null,
                 'replacement' => $replacement,
+                'noticeUrl' => $noticeUrl,
             ];
         }
 

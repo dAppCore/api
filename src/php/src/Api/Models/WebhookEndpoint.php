@@ -44,6 +44,7 @@ class WebhookEndpoint extends Model
         'workspace.deleted',
 
         // Subscription events
+        'subscription.changed',
         'subscription.created',
         'subscription.updated',
         'subscription.cancelled',
@@ -55,6 +56,9 @@ class WebhookEndpoint extends Model
         'invoice.failed',
 
         // BioLink events
+        'biolink.created',
+        'biolink.updated',
+        'biolink.deleted',
         'bio.created',
         'bio.updated',
         'bio.deleted',
@@ -71,6 +75,10 @@ class WebhookEndpoint extends Model
 
         // MCP events
         'mcp.tool.executed', // Tool execution completed
+
+        // Support events
+        'ticket.created',
+        'ticket.replied',
     ];
 
     protected $fillable = [
@@ -159,6 +167,8 @@ class WebhookEndpoint extends Model
      */
     public function shouldReceive(string $eventType): bool
     {
+        $eventTypes = self::eventTypeAliases($eventType);
+
         if (! $this->active) {
             return false;
         }
@@ -167,8 +177,17 @@ class WebhookEndpoint extends Model
             return false;
         }
 
-        return in_array($eventType, $this->events, true)
-            || in_array('*', $this->events, true);
+        if (in_array('*', $this->events, true)) {
+            return true;
+        }
+
+        foreach ($eventTypes as $type) {
+            if (in_array($type, $this->events, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -258,9 +277,48 @@ class WebhookEndpoint extends Model
 
     public function scopeForEvent($query, string $eventType)
     {
-        return $query->where(function ($q) use ($eventType) {
-            $q->whereJsonContains('events', $eventType)
-                ->orWhereJsonContains('events', '*');
+        $eventTypes = self::eventTypeAliases($eventType);
+
+        return $query->where(function ($q) use ($eventTypes) {
+            $q->whereJsonContains('events', '*');
+            foreach ($eventTypes as $type) {
+                $q->orWhereJsonContains('events', $type);
+            }
         });
+    }
+
+    /**
+     * Normalize an event type to its canonical name.
+     *
+     * Legacy "bio.*" event names are retained as aliases for the newer
+     * "biolink.*" namespace used by the RFC.
+     */
+    protected static function normalizeEventType(string $eventType): string
+    {
+        $eventType = trim($eventType);
+
+        return match ($eventType) {
+            'bio.created' => 'biolink.created',
+            'bio.updated' => 'biolink.updated',
+            'bio.deleted' => 'biolink.deleted',
+            default => $eventType,
+        };
+    }
+
+    /**
+     * Return the canonical event type and any legacy aliases that should match it.
+     *
+     * @return array<int, string>
+     */
+    protected static function eventTypeAliases(string $eventType): array
+    {
+        $normalized = self::normalizeEventType($eventType);
+
+        return match ($normalized) {
+            'biolink.created' => ['biolink.created', 'bio.created'],
+            'biolink.updated' => ['biolink.updated', 'bio.updated'],
+            'biolink.deleted' => ['biolink.deleted', 'bio.deleted'],
+            default => [$normalized],
+        };
     }
 }

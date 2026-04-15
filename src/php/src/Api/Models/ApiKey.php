@@ -16,8 +16,8 @@ use Illuminate\Support\Str;
 /**
  * API Key - authenticates SDK and REST API requests.
  *
- * Keys are prefixed with 'hk_' for identification.
- * The actual key is hashed using bcrypt and never stored in plain text.
+ * Keys are prefixed with a short random identifier for identification.
+ * The actual key is hashed using SHA-256 and never stored in plain text.
  *
  * Security: Keys created before the bcrypt migration use SHA-256 (without salt).
  * The hash_algorithm column tracks which algorithm was used for each key.
@@ -100,14 +100,14 @@ class ApiKey extends Model
         ?\DateTimeInterface $expiresAt = null
     ): array {
         $plainKey = Str::random(48);
-        $prefix = 'hk_'.Str::random(8);
+        $prefix = Str::random(8);
 
         $apiKey = static::create([
             'workspace_id' => $workspaceId,
             'user_id' => $userId,
             'name' => $name,
-            'key' => Hash::make($plainKey),
-            'hash_algorithm' => self::HASH_BCRYPT,
+            'key' => hash('sha256', $plainKey),
+            'hash_algorithm' => self::HASH_SHA256,
             'prefix' => $prefix,
             'scopes' => $scopes,
             'expires_at' => $expiresAt,

@@ -32,8 +32,9 @@ class ApiSunset
      *
      * @param  string  $sunsetDate  The sunset date (YYYY-MM-DD or RFC7231 format), or empty for deprecation-only
      * @param  string|null  $replacement  Optional successor endpoint URL
+     * @param  string|null  $noticeUrl  Optional deprecation notice URL
      */
-    public function handle(Request $request, Closure $next, string $sunsetDate = '', ?string $replacement = null): Response
+    public function handle(Request $request, Closure $next, string $sunsetDate = '', ?string $replacement = null, ?string $noticeUrl = null): Response
     {
         /** @var Response $response */
         $response = $next($request);
@@ -50,6 +51,11 @@ class ApiSunset
 
         if ($replacement !== null && $replacement !== '') {
             $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $replacement), false);
+            $response->headers->set('API-Suggested-Replacement', $replacement, false);
+        }
+
+        if ($noticeUrl !== null && $noticeUrl !== '') {
+            $response->headers->set('API-Deprecation-Notice-URL', $noticeUrl, false);
         }
 
         $warning = 'This endpoint is deprecated.';

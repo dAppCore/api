@@ -648,9 +648,29 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 	c.Status(200)
 	c.Writer.Flush()
 
+	// Emit the OpenAI-style role priming chunk before any generated content.
+	primingChunk := ChatCompletionChunk{
+		ID:      completionID,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   req.Model,
+		Choices: []ChatChunkChoice{
+			{
+				Index: 0,
+				Delta: ChatMessageDelta{
+					Role: "assistant",
+				},
+				FinishReason: nil,
+			},
+		},
+	}
+	if encoded, encodeErr := json.Marshal(primingChunk); encodeErr == nil {
+		c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
+		c.Writer.Flush()
+	}
+
 	extractor := NewThinkingExtractor()
-	chunkFirst := true
-	sentAny := false
+	sentAny := true
 	emittedContent := ""
 
 	for tok := range model.Chat(ctx, messages, opts...) {
@@ -665,15 +685,13 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 			}
 		}
 
-		if !stopHit && !chunkFirst && contentDelta == "" && thoughtDelta == "" {
+		if !stopHit && contentDelta == "" && thoughtDelta == "" {
 			continue
 		}
 
-		delta := ChatMessageDelta{}
-		if chunkFirst {
-			delta.Role = "assistant"
+		delta := ChatMessageDelta{
+			Content: contentDelta,
 		}
-		delta.Content = contentDelta
 
 		chunk := ChatCompletionChunk{
 			ID:      completionID,
@@ -706,7 +724,6 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 		if stopHit {
 			break
 		}
-		chunkFirst = false
 	}
 
 	if err := model.Err(); err != nil && !sentAny {
