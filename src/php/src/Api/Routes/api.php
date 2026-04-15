@@ -183,14 +183,6 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
                     });
             });
 
-        Route::prefix('api-keys')
-            ->name('api-keys.')
-            ->group(function () {
-                Route::get('/', [ApiKeyController::class, 'index'])->name('index');
-                Route::post('/', [ApiKeyController::class, 'store'])->name('store');
-                Route::delete('/{id}', [ApiKeyController::class, 'destroy'])->name('destroy');
-            });
-
         Route::prefix('commerce')
             ->name('commerce.')
             ->group(function () {
@@ -218,6 +210,28 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
                 Route::post('/upgrade', [CommerceController::class, 'executeUpgrade'])->name('upgrade');
             });
 
+        Route::prefix('support/tickets')
+            ->name('support.tickets.')
+            ->group(function () {
+                Route::get('/', [TicketController::class, 'index'])->name('index');
+                Route::post('/', [TicketController::class, 'store'])->name('store');
+                Route::get('/{id}', [TicketController::class, 'show'])->name('show');
+                Route::post('/{id}/reply', [TicketController::class, 'reply'])->name('reply');
+            });
+    });
+
+Route::middleware(['web', 'auth:sanctum', 'api.rate'])
+    ->prefix('v1')
+    ->name('api.v1.')
+    ->group(function () {
+        Route::prefix('api-keys')
+            ->name('api-keys.')
+            ->group(function () {
+                Route::get('/', [ApiKeyController::class, 'index'])->name('index');
+                Route::post('/', [ApiKeyController::class, 'store'])->name('store');
+                Route::delete('/{id}', [ApiKeyController::class, 'destroy'])->name('destroy');
+            });
+
         Route::prefix('webhooks')
             ->name('webhooks.')
             ->group(function () {
@@ -227,15 +241,6 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
                 Route::patch('/{id}', [WebhookController::class, 'update'])->name('update');
                 Route::delete('/{id}', [WebhookController::class, 'destroy'])->name('destroy');
                 Route::get('/{id}/deliveries', [WebhookController::class, 'deliveries'])->name('deliveries');
-            });
-
-        Route::prefix('support/tickets')
-            ->name('support.tickets.')
-            ->group(function () {
-                Route::get('/', [TicketController::class, 'index'])->name('index');
-                Route::post('/', [TicketController::class, 'store'])->name('store');
-                Route::get('/{id}', [TicketController::class, 'show'])->name('show');
-                Route::post('/{id}/reply', [TicketController::class, 'reply'])->name('reply');
             });
     });
 

@@ -153,6 +153,7 @@ class SunsetExtension implements Extension
                 return [
                     'sunsetDate' => null,
                     'replacement' => null,
+                    'noticeUrl' => null,
                 ];
             }
 
