@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use Core\Api\Controllers\Api\UnifiedPixelController;
 use Core\Api\Controllers\Api\EntitlementApiController;
+use Core\Api\Controllers\Api\ApiKeyController;
 use Core\Api\Controllers\Api\SeoReportController;
 use Core\Api\Controllers\Api\WebhookSecretController;
+use Core\Api\Controllers\Api\WebhookController;
 use Core\Api\Controllers\McpApiController;
 use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
@@ -90,6 +92,34 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
                     ->name('invalidate-previous');
                 Route::patch('/grace-period', [WebhookSecretController::class, 'updateContentGracePeriod'])
                     ->name('grace-period');
+            });
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Versioned API surface (workspace-scoped resource management)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Route::middleware(['auth.api', 'api.scope.enforce'])
+    ->prefix('v1')
+    ->name('api.v1.')
+    ->group(function () {
+        Route::prefix('api-keys')
+            ->name('api-keys.')
+            ->group(function () {
+                Route::get('/', [ApiKeyController::class, 'index'])->name('index');
+                Route::post('/', [ApiKeyController::class, 'store'])->name('store');
+                Route::delete('/{id}', [ApiKeyController::class, 'destroy'])->name('destroy');
+            });
+
+        Route::prefix('webhooks')
+            ->name('webhooks.')
+            ->group(function () {
+                Route::get('/', [WebhookController::class, 'index'])->name('index');
+                Route::post('/', [WebhookController::class, 'store'])->name('store');
+                Route::get('/{id}', [WebhookController::class, 'show'])->name('show');
+                Route::patch('/{id}', [WebhookController::class, 'update'])->name('update');
+                Route::delete('/{id}', [WebhookController::class, 'destroy'])->name('destroy');
+                Route::get('/{id}/deliveries', [WebhookController::class, 'deliveries'])->name('deliveries');
             });
     });
 
