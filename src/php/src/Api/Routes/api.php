@@ -290,3 +290,39 @@ Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce', 
             ->name('resources.show')
             ->defaults('api_cache_control', 'cacheable');
     });
+
+// Versioned MCP bridge aliases for RFC compatibility.
+Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce', 'api.rate', 'api.cache:ephemeral'])
+    ->prefix('v1/mcp')
+    ->name('api.v1.mcp.')
+    ->group(function () {
+        Route::get('/servers', [McpApiController::class, 'servers'])
+            ->name('servers')
+            ->defaults('api_cache_control', 'cacheable');
+        Route::get('/servers/{id}', [McpApiController::class, 'server'])
+            ->name('servers.show')
+            ->defaults('api_cache_control', 'cacheable');
+        Route::get('/servers/{id}/tools', [McpApiController::class, 'tools'])
+            ->name('servers.tools')
+            ->defaults('api_cache_control', 'cacheable');
+        Route::get('/servers/{id}/resources', [McpApiController::class, 'resources'])
+            ->name('servers.resources')
+            ->defaults('api_cache_control', 'cacheable');
+
+        Route::get('/servers/{server}/tools/{tool}/versions', [McpApiController::class, 'toolVersions'])
+            ->name('tools.versions')
+            ->defaults('api_cache_control', 'cacheable');
+        Route::get('/servers/{server}/tools/{tool}/versions/{version}', [McpApiController::class, 'toolVersion'])
+            ->name('tools.version')
+            ->defaults('api_cache_control', 'cacheable');
+
+        Route::post('/servers/{server}/tools/{tool}', [McpApiController::class, 'callToolByRoute'])
+            ->name('tools.call.route');
+        Route::post('/tools/call', [McpApiController::class, 'callTool'])
+            ->name('tools.call');
+
+        Route::get('/resources/{uri}', [McpApiController::class, 'resource'])
+            ->where('uri', '.*')
+            ->name('resources.show')
+            ->defaults('api_cache_control', 'cacheable');
+    });
