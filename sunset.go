@@ -4,6 +4,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -87,7 +88,8 @@ func ApiSunsetWith(sunsetDate, replacement string, opts ...SunsetOption) gin.Han
 			c.Writer.Header().Add("Sunset", formatted)
 		}
 		if replacement != "" {
-			c.Writer.Header().Add("Link", "<"+replacement+">; rel=\"successor-version\"")
+			linkTarget := successorLinkTarget(replacement)
+			c.Writer.Header().Add("Link", "<"+linkTarget+">; rel=\"successor-version\"")
 			c.Writer.Header().Add("API-Suggested-Replacement", replacement)
 		}
 		if noticeURL != "" {
@@ -95,6 +97,25 @@ func ApiSunsetWith(sunsetDate, replacement string, opts ...SunsetOption) gin.Han
 		}
 		c.Writer.Header().Add("X-API-Warn", warning)
 	}
+}
+
+func successorLinkTarget(replacement string) string {
+	replacement = core.Trim(replacement)
+	if replacement == "" {
+		return ""
+	}
+
+	fields := strings.Fields(replacement)
+	if len(fields) >= 2 {
+		switch strings.ToUpper(fields[0]) {
+		case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT":
+			if target := strings.TrimSpace(fields[1]); target != "" {
+				return target
+			}
+		}
+	}
+
+	return replacement
 }
 
 func formatSunsetDate(sunsetDate string) string {

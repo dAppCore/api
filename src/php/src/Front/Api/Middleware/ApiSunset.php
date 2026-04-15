@@ -54,7 +54,7 @@ class ApiSunset
         }
 
         if ($replacement !== null && $replacement !== '') {
-            $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $replacement), false);
+            $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $this->successorLinkTarget($replacement)), false);
             $response->headers->set('API-Suggested-Replacement', $replacement, false);
         }
 
@@ -70,6 +70,33 @@ class ApiSunset
         $response->headers->set('X-API-Warn', $warning, false);
 
         return $response;
+    }
+
+    /**
+     * Extract the actual successor URL/path from a replacement suggestion.
+     *
+     * The RFC allows human-friendly suggestions like "POST /api/v2/billing",
+     * but the Link header itself must contain just the target URI.
+     */
+    protected function successorLinkTarget(string $replacement): string
+    {
+        $replacement = trim($replacement);
+        if ($replacement === '') {
+            return $replacement;
+        }
+
+        $parts = preg_split('/\s+/', $replacement, 2);
+        if ($parts !== false && count($parts) === 2) {
+            $method = strtoupper(trim($parts[0]));
+            if (in_array($method, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'TRACE', 'CONNECT'], true)) {
+                $target = trim($parts[1]);
+                if ($target !== '') {
+                    return $target;
+                }
+            }
+        }
+
+        return $replacement;
     }
 
     /**
