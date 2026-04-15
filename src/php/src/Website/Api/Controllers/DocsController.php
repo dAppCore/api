@@ -17,6 +17,14 @@ class DocsController
         return view('api::index');
     }
 
+    /**
+     * RFC-compatible interactive docs entrypoint.
+     */
+    public function docs(): View
+    {
+        return $this->swagger();
+    }
+
     public function guides(): View
     {
         return view('api::guides.index');
@@ -42,9 +50,19 @@ class DocsController
         return view('api::guides.webhooks');
     }
 
+    public function rateLimits(): View
+    {
+        return view('api::guides.rate-limits');
+    }
+
     public function errors(): View
     {
         return view('api::guides.errors');
+    }
+
+    public function changelog(): View
+    {
+        return view('api::changelog');
     }
 
     public function reference(): View

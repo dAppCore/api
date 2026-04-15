@@ -61,6 +61,18 @@
             <p class="text-sm text-zinc-600 dark:text-zinc-400">Understand API error codes and how to handle them gracefully.</p>
         </a>
 
+        {{-- Rate Limiting --}}
+        <a href="{{ route('api.guides.rate-limits') }}" class="group block p-6 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-sm hover:border-cyan-300 dark:hover:border-cyan-600 transition-colors">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30 rounded-sm">
+                    <i class="fa-solid fa-gauge-high text-emerald-600 text-sm"></i>
+                </div>
+                <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Operations</span>
+            </div>
+            <h3 class="h4 mb-2 text-zinc-800 dark:text-zinc-100 group-hover:text-cyan-600 dark:group-hover:text-cyan-500">Rate Limits</h3>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400">See the standard headers, retry behaviour, and tier-based request budgets.</p>
+        </a>
+
     </div>
 </div>
 @endsection
