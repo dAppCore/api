@@ -72,16 +72,32 @@ class ApiKeyController extends Controller
             'server_scopes.*' => ['string', 'max:64', 'regex:'.ApiKey::SERVER_ID_PATTERN],
         ]);
 
-        $result = $this->service->create(
-            workspaceId: $workspace->id,
-            userId: (int) $request->user()->id,
-            name: $data['name'],
-            scopes: $data['scopes'] ?? [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE],
-            expiresAt: isset($data['expires_at']) && $data['expires_at'] !== null
-                ? Carbon::parse($data['expires_at'])
-                : null,
-            serverScopes: $data['server_scopes'] ?? null,
-        );
+        try {
+            $result = $this->service->create(
+                workspaceId: $workspace->id,
+                userId: (int) $request->user()->id,
+                name: $data['name'],
+                scopes: $data['scopes'] ?? [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE],
+                expiresAt: isset($data['expires_at']) && $data['expires_at'] !== null
+                    ? Carbon::parse($data['expires_at'])
+                    : null,
+                serverScopes: $data['server_scopes'] ?? null,
+            );
+        } catch (\RuntimeException $e) {
+            return $this->errorResponse(
+                errorCode: 'entitlement_exceeded',
+                message: $e->getMessage(),
+                meta: [
+                    'feature' => 'api_keys',
+                    'maximum' => (int) config('api.keys.max_per_workspace', 10),
+                ],
+                status: 422,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->validationErrorResponse([
+                'server_scopes' => [$e->getMessage()],
+            ]);
+        }
 
         return response()->json([
             'api_key' => ApiKeyResource::withPlainKey($result['api_key'], $result['plain_key'])->toArray($request),

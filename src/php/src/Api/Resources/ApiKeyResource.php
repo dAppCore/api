@@ -14,9 +14,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string $name
  * @property string $prefix
  * @property array|null $scopes
+ * @property array|null $server_scopes
+ * @property array|null $allowed_ips
  * @property \Carbon\Carbon|null $last_used_at
  * @property \Carbon\Carbon|null $expires_at
+ * @property \Carbon\Carbon|null $grace_period_ends_at
  * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
  * @property string $masked_key
  */
 class ApiKeyResource extends JsonResource
@@ -42,12 +46,18 @@ class ApiKeyResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'workspace_id' => $this->workspace_id,
             'name' => $this->name,
             'prefix' => $this->prefix,
             'scopes' => $this->scopes,
+            'server_scopes' => $this->server_scopes,
+            'allowed_ips' => $this->allowed_ips,
             'last_used_at' => $this->last_used_at?->toIso8601String(),
             'expires_at' => $this->expires_at?->toIso8601String(),
+            'grace_period_ends_at' => $this->grace_period_ends_at?->toIso8601String(),
+            'rotated_from_id' => $this->rotated_from_id,
             'created_at' => $this->created_at->toIso8601String(),
+            'updated_at' => $this->updated_at->toIso8601String(),
 
             // Only included on creation
             'key' => $this->when($this->plainKey !== null, $this->plainKey),
