@@ -1,0 +1,11 @@
+generatorName: php
+outputDir: ./sdks/php
+additionalProperties:
+  packageName: CoreSdk
+  invokerPackage: DappCore\Core
+  apiPackage: Api
+  modelPackage: Model
+  composerVendorName: dappcore
+  composerProjectName: core-sdk
+  gitUserId: dappcore
+  gitRepoId: core-php-sdk

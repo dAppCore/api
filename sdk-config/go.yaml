@@ -1,0 +1,5 @@
+generatorName: go
+outputDir: ./sdks/go
+additionalProperties:
+  packageName: core
+  moduleName: github.com/dappcore/core-go

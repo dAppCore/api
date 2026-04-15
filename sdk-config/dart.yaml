@@ -1,0 +1,6 @@
+generatorName: dart
+outputDir: ./sdks/dart
+additionalProperties:
+  pubName: core
+  pubVersion: "1.0.0"
+  pubAuthor: "Host"
