@@ -51,8 +51,14 @@ class McpApiController extends Controller
     public function servers(Request $request): JsonResponse
     {
         $registry = $this->loadRegistry();
+        $apiKey = $request->attributes->get('api_key');
 
         $servers = collect($registry['servers'] ?? [])
+            ->filter(function ($ref) use ($apiKey) {
+                return is_array($ref)
+                    && isset($ref['id'])
+                    && $this->canAccessServer($apiKey, (string) $ref['id']);
+            })
             ->map(fn ($ref) => $this->loadServerSummary($ref['id']))
             ->filter()
             ->values();
@@ -98,6 +104,10 @@ class McpApiController extends Controller
             ]);
         }
 
+        if ($denied = $this->ensureServerAccess($request, $id)) {
+            return $denied;
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -141,6 +151,10 @@ class McpApiController extends Controller
             return $this->validationErrorResponse([
                 'id' => ['The selected server id is invalid.'],
             ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $id)) {
+            return $denied;
         }
 
         $server = $this->loadServerFull($id);
@@ -204,6 +218,10 @@ class McpApiController extends Controller
             return $this->validationErrorResponse([
                 'id' => ['The selected server id is invalid.'],
             ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $id)) {
+            return $denied;
         }
 
         $server = $this->loadServerFull($id);
@@ -317,6 +335,10 @@ class McpApiController extends Controller
             'version' => 'nullable|string|max:32',
         ]);
 
+        if ($denied = $this->ensureServerAccess($request, $validated['server'])) {
+            return $denied;
+        }
+
         return $this->executeToolCall(
             request: $request,
             server: $validated['server'],
@@ -348,6 +370,10 @@ class McpApiController extends Controller
             return $this->validationErrorResponse([
                 'tool' => ['The selected tool name is invalid.'],
             ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
         }
 
         $validated = $request->validate([
@@ -384,6 +410,10 @@ class McpApiController extends Controller
             'arguments' => $arguments,
             'version' => $version,
         ];
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
 
         $serverConfig = $this->loadServerFull($server);
         if (! $serverConfig) {
@@ -608,6 +638,22 @@ class McpApiController extends Controller
      */
     public function toolVersions(Request $request, string $server, string $tool): JsonResponse
     {
+        if (! $this->isValidServerId($server)) {
+            return $this->validationErrorResponse([
+                'server' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
+
         $serverConfig = $this->loadServerFull($server);
         if (! $serverConfig) {
             return $this->notFoundResponse('Server');
@@ -637,6 +683,22 @@ class McpApiController extends Controller
      */
     public function toolVersion(Request $request, string $server, string $tool, string $version): JsonResponse
     {
+        if (! $this->isValidServerId($server)) {
+            return $this->validationErrorResponse([
+                'server' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
+
         $versionService = app(ToolVersionService::class);
         $toolVersion = $versionService->getToolAtVersion($server, $tool, $version);
 
@@ -675,6 +737,22 @@ class McpApiController extends Controller
 
         $serverId = $matches[1];
         $resourcePath = $matches[2];
+
+        if (! $this->isValidServerId($serverId)) {
+            return $this->validationErrorResponse([
+                'uri' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidResourcePath($resourcePath)) {
+            return $this->validationErrorResponse([
+                'uri' => ['The selected resource path is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $serverId)) {
+            return $denied;
+        }
 
         $server = $this->loadServerFull($serverId);
         if (! $server) {
@@ -1099,5 +1177,49 @@ class McpApiController extends Controller
     protected function isValidToolName(string $tool): bool
     {
         return (bool) preg_match(self::TOOL_NAME_PATTERN, $tool);
+    }
+
+    /**
+     * Check whether a resource path is safe to forward to an MCP server.
+     */
+    protected function isValidResourcePath(string $path): bool
+    {
+        $path = trim($path);
+
+        if ($path === '' || str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+            return false;
+        }
+
+        if (preg_match('/(^|\/)\.\.?(?:\/|$)/', $path)) {
+            return false;
+        }
+
+        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/', $path);
+    }
+
+    /**
+     * Return a 403 response when the authenticated API key cannot access the server.
+     */
+    protected function ensureServerAccess(Request $request, string $serverId): ?JsonResponse
+    {
+        $apiKey = $request->attributes->get('api_key');
+
+        if (! $this->canAccessServer($apiKey, $serverId)) {
+            return $this->forbiddenResponse('API key is not allowed to access this MCP server.');
+        }
+
+        return null;
+    }
+
+    /**
+     * Check whether an API key can access the given server.
+     */
+    protected function canAccessServer(mixed $apiKey, string $serverId): bool
+    {
+        if (! $apiKey instanceof ApiKey) {
+            return false;
+        }
+
+        return $apiKey->hasServerAccess($serverId);
     }
 }

@@ -100,3 +100,14 @@ it('lists resources for a server', function () {
     $response->assertJsonPath('resources.0.name', 'welcome');
     $response->assertJsonMissingPath('resources.0.content');
 });
+
+it('rejects unsafe resource paths before dispatching to the server', function () {
+    $encodedUri = rawurlencode('test-resource-server://../secrets');
+
+    $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['uri']);
+});
