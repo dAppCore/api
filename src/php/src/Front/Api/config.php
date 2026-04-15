@@ -58,6 +58,18 @@ return [
         'sunset' => [
             // Example: 1 => '2025-12-31',
         ],
+
+        // Optional successor endpoints for deprecated versions
+        // Format: [version => '/api/v2/...']
+        'replacement' => [
+            // Example: 1 => '/api/v2/users',
+        ],
+
+        // Optional deprecation notice URLs for deprecated versions
+        // Format: [version => 'https://docs.example.com/deprecation/v1']
+        'notice_url' => [
+            // Example: 1 => 'https://docs.example.com/deprecation/v1',
+        ],
     ],
 
     /*
