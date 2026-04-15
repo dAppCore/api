@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	core "dappco.re/go/core"
@@ -259,7 +260,18 @@ func describeToolList(defaultTag string) RouteDescription {
 }
 
 func isValidToolName(name string) bool {
-	return toolNamePattern.MatchString(core.Trim(name))
+	name = core.Trim(name)
+	if name == "" {
+		return false
+	}
+
+	// Keep the path segment safe even when callers try to smuggle in traversal
+	// syntax or path separators through a name that otherwise matches the regex.
+	if strings.ContainsAny(name, `/\*?`) || strings.Contains(name, "..") {
+		return false
+	}
+
+	return toolNamePattern.MatchString(name)
 }
 
 // maxToolRequestBodyBytes is the maximum request body size accepted by the
