@@ -160,7 +160,10 @@ class Boot extends ServiceProvider
     {
         Event::listen(\Core\Mod\Commerce\Events\SubscriptionUpdated::class, DispatchSubscriptionWebhookEvents::class);
 
-        Workspace::observe(WorkspaceWebhookObserver::class);
+        if (class_exists(Workspace::class)) {
+            Workspace::observe(WorkspaceWebhookObserver::class);
+        }
+
         Biolink::observe(BiolinkWebhookObserver::class);
         Link::observe(LinkWebhookObserver::class);
         SupportTicket::observe(SupportTicketWebhookObserver::class);
