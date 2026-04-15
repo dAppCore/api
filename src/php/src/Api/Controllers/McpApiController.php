@@ -28,6 +28,14 @@ class McpApiController extends Controller
     use HasApiResponses;
 
     /**
+     * Safe MCP server identifier pattern.
+     *
+     * Server IDs are used in cache keys and filesystem lookups, so they must
+     * stay within a narrow path-segment alphabet.
+     */
+    protected const SERVER_ID_PATTERN = '/^[a-z0-9][a-z0-9-]{0,63}$/';
+
+    /**
      * List all available MCP servers.
      *
      * GET /api/v1/mcp/servers
@@ -277,7 +285,7 @@ class McpApiController extends Controller
     public function callTool(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'server' => 'required|string|max:64',
+            'server' => ['required', 'string', 'max:64', 'regex:'.self::SERVER_ID_PATTERN],
             'tool' => 'required|string|max:128',
             'arguments' => 'nullable|array',
             'version' => 'nullable|string|max:32',
@@ -1011,6 +1019,10 @@ class McpApiController extends Controller
 
     protected function loadServerFull(string $id): ?array
     {
+        if (! $this->isValidServerId($id)) {
+            return null;
+        }
+
         return Cache::remember("mcp:server:{$id}", 600, function () use ($id) {
             $path = resource_path("mcp/servers/{$id}.yaml");
 
@@ -1033,5 +1045,13 @@ class McpApiController extends Controller
             'tool_count' => count($server['tools'] ?? []),
             'resource_count' => count($server['resources'] ?? []),
         ];
+    }
+
+    /**
+     * Check whether a server identifier is safe for filesystem-backed lookup.
+     */
+    protected function isValidServerId(string $id): bool
+    {
+        return (bool) preg_match(self::SERVER_ID_PATTERN, $id);
     }
 }

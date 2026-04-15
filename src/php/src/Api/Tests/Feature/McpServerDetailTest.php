@@ -114,3 +114,18 @@ it('includes tool versions and resource content on server detail requests when r
     $response->assertJsonPath('tool_count', 1);
     $response->assertJsonPath('resource_count', 1);
 });
+
+it('rejects unsafe server identifiers before filesystem-backed lookup', function () {
+    $response = $this->postJson('/api/mcp/tools/call', [
+        'server' => '../secrets',
+        'tool' => 'search',
+        'arguments' => [
+            'query' => 'status',
+        ],
+    ], [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['server']);
+});
