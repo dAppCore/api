@@ -7,9 +7,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -261,4 +265,120 @@ func (s *WebhookSigner) VerifyRequest(r *http.Request, payload []byte) bool {
 		return false
 	}
 	return s.Verify(payload, sig, ts)
+}
+
+// ValidateWebhookURL rejects webhook targets that are not absolute HTTP(S)
+// URLs or that resolve to loopback, private, link-local, multicast, or other
+// reserved IP space.
+//
+//	if err := api.ValidateWebhookURL("https://hooks.example.com/inbox"); err != nil {
+//	    return err
+//	}
+func ValidateWebhookURL(raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return core.E("ValidateWebhookURL", "parse webhook url", err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return core.E("ValidateWebhookURL", "webhook URL must be an absolute HTTP or HTTPS URL", nil)
+	}
+
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return core.E("ValidateWebhookURL", "only HTTP and HTTPS webhook URLs are permitted", nil)
+	}
+	if parsed.User != nil {
+		return core.E("ValidateWebhookURL", "webhook URLs must not include embedded credentials", nil)
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		return core.E("ValidateWebhookURL", "webhook URL must include a host", nil)
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		if isBlockedWebhookIP(ip) {
+			return core.E("ValidateWebhookURL", "webhook URLs must not target private, loopback, or reserved addresses", nil)
+		}
+		return nil
+	}
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return core.E("ValidateWebhookURL", "resolve webhook host", err)
+	}
+	if len(ips) == 0 {
+		return core.E("ValidateWebhookURL", "webhook URL must resolve to a public IP address", nil)
+	}
+	for _, ip := range ips {
+		if isBlockedWebhookIP(ip) {
+			return core.E("ValidateWebhookURL", "webhook URLs must not resolve to private, loopback, or reserved addresses", nil)
+		}
+	}
+
+	return nil
+}
+
+func isBlockedWebhookIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	if ip.IsMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	if !ip.IsGlobalUnicast() {
+		return true
+	}
+
+	for _, cidr := range blockedWebhookCIDRs() {
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func blockedWebhookCIDRs() []*net.IPNet {
+	return webhookBlockedCIDRs
+}
+
+var webhookBlockedCIDRs = mustParseWebhookCIDRs(
+	"0.0.0.0/8",
+	"100.64.0.0/10",
+	"127.0.0.0/8",
+	"169.254.0.0/16",
+	"192.0.0.0/24",
+	"192.0.2.0/24",
+	"198.18.0.0/15",
+	"198.51.100.0/24",
+	"203.0.113.0/24",
+	"224.0.0.0/4",
+	"240.0.0.0/4",
+	"::/128",
+	"::1/128",
+	"64:ff9b:1::/48",
+	"100::/64",
+	"2001::/32",
+	"2001:2::/48",
+	"2001:db8::/32",
+	"2002::/16",
+	"fc00::/7",
+	"fe80::/10",
+	"ff00::/8",
+)
+
+func mustParseWebhookCIDRs(values ...string) []*net.IPNet {
+	nets := make([]*net.IPNet, 0, len(values))
+	for _, value := range values {
+		_, network, err := net.ParseCIDR(value)
+		if err != nil {
+			panic(fmt.Sprintf("api: invalid webhook CIDR %q: %v", value, err))
+		}
+		nets = append(nets, network)
+	}
+	return nets
 }

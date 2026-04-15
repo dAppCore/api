@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Documentation UI routes
-Route::get('/', [DocumentationController::class, 'index'])->name('api.docs');
+Route::get('/', [DocumentationController::class, 'swagger'])->name('api.docs');
 Route::get('/swagger', [DocumentationController::class, 'swagger'])->name('api.docs.swagger');
 Route::get('/scalar', [DocumentationController::class, 'scalar'])->name('api.docs.scalar');
 Route::get('/redoc', [DocumentationController::class, 'redoc'])->name('api.docs.redoc');

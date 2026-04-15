@@ -79,9 +79,14 @@ class DocumentationServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         $path = config('api-docs.path', '/api/docs');
+        $middleware = ['web', ProtectDocumentation::class];
 
-        Route::middleware(['web', ProtectDocumentation::class])
+        Route::middleware($middleware)
             ->prefix($path)
             ->group(__DIR__.'/Routes/docs.php');
+
+        Route::middleware($middleware)
+            ->get('/api/reference', [DocumentationController::class, 'redoc'])
+            ->name('api.docs.reference.compat');
     }
 }

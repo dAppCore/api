@@ -84,13 +84,8 @@ class Boot extends ServiceProvider
         // Register API Documentation provider
         $this->app->register(DocumentationServiceProvider::class);
 
-        if (class_exists(\Dedoc\Scramble\Scramble::class)) {
-            \Dedoc\Scramble\Scramble::ignoreDefaultRoutes();
-        }
-
-        if (class_exists(\Dedoc\Scramble\ScrambleServiceProvider::class)) {
-            $this->app->register(\Dedoc\Scramble\ScrambleServiceProvider::class);
-        }
+        \Dedoc\Scramble\Scramble::ignoreDefaultRoutes();
+        $this->app->register(\Dedoc\Scramble\ScrambleServiceProvider::class);
 
         if (class_exists(PassportServiceProvider::class)) {
             $this->app->register(PassportServiceProvider::class);
@@ -192,6 +187,7 @@ class Boot extends ServiceProvider
         $event->middleware('api.scope', Middleware\CheckApiScope::class);
         $event->middleware('api.scope.enforce', Middleware\EnforceApiScope::class);
         $event->middleware('api.rate', Middleware\RateLimitApi::class);
+        $event->middleware('api.cache', Middleware\ApiCacheControl::class);
         $event->middleware('auth.api', Middleware\AuthenticateApiKey::class);
 
         // Core API routes (SEO, Pixel, Entitlements, MCP)
@@ -211,6 +207,7 @@ class Boot extends ServiceProvider
         $event->middleware('api.scope', Middleware\CheckApiScope::class);
         $event->middleware('api.scope.enforce', Middleware\EnforceApiScope::class);
         $event->middleware('api.rate', Middleware\RateLimitApi::class);
+        $event->middleware('api.cache', Middleware\ApiCacheControl::class);
         $event->middleware('auth.api', Middleware\AuthenticateApiKey::class);
 
         // Register console commands
