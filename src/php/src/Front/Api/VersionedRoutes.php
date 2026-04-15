@@ -254,28 +254,30 @@ class VersionedRoutes
         $middleware = ["api.version:{$this->version}"];
 
         if ($this->isDeprecated) {
-            if ($this->sunsetDate !== null && $this->sunsetDate !== '') {
-                if ($this->replacement !== null && $this->replacement !== '') {
-                    if ($this->noticeUrl !== null && $this->noticeUrl !== '') {
-                        $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement},{$this->noticeUrl}";
+            $sunsetDate = trim((string) $this->sunsetDate);
+            $replacement = trim((string) $this->replacement);
+            $noticeUrl = trim((string) $this->noticeUrl);
+
+            if ($sunsetDate !== '') {
+                if ($replacement !== '') {
+                    if ($noticeUrl !== '') {
+                        $middleware[] = "api.sunset:{$sunsetDate},{$replacement},{$noticeUrl}";
                     } else {
-                        $middleware[] = "api.sunset:{$this->sunsetDate},{$this->replacement}";
+                        $middleware[] = "api.sunset:{$sunsetDate},{$replacement}";
                     }
+                } elseif ($noticeUrl !== '') {
+                    $middleware[] = "api.sunset:{$sunsetDate},,{$noticeUrl}";
                 } else {
-                    if ($this->noticeUrl !== null && $this->noticeUrl !== '') {
-                        $middleware[] = "api.sunset:{$this->sunsetDate},,{$this->noticeUrl}";
-                    } else {
-                        $middleware[] = "api.sunset:{$this->sunsetDate}";
-                    }
+                    $middleware[] = "api.sunset:{$sunsetDate}";
                 }
-            } elseif ($this->replacement !== null && $this->replacement !== '') {
-                if ($this->noticeUrl !== null && $this->noticeUrl !== '') {
-                    $middleware[] = "api.sunset:,$this->replacement,{$this->noticeUrl}";
+            } elseif ($replacement !== '') {
+                if ($noticeUrl !== '') {
+                    $middleware[] = "api.sunset:,$replacement,{$noticeUrl}";
                 } else {
-                    $middleware[] = "api.sunset:,$this->replacement";
+                    $middleware[] = "api.sunset:,$replacement";
                 }
-            } elseif ($this->noticeUrl !== null && $this->noticeUrl !== '') {
-                $middleware[] = "api.sunset:,,{$this->noticeUrl}";
+            } elseif ($noticeUrl !== '') {
+                $middleware[] = "api.sunset:,,{$noticeUrl}";
             } else {
                 $middleware[] = 'api.sunset';
             }

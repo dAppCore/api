@@ -39,6 +39,10 @@ class ApiSunset
         /** @var Response $response */
         $response = $next($request);
 
+        $sunsetDate = trim($sunsetDate);
+        $replacement = $replacement !== null ? trim($replacement) : null;
+        $noticeUrl = $noticeUrl !== null ? trim($noticeUrl) : null;
+
         if (! (bool) config('api.headers.include_deprecation', true)) {
             return $response;
         }
