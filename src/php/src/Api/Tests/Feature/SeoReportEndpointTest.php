@@ -68,3 +68,32 @@ HTML, 200, [
     $response->assertJsonPath('data.score', 100);
     $response->assertJsonPath('data.issues', []);
 });
+
+it('rejects non-public seo targets before fetching', function () {
+    Http::fake();
+
+    $response = $this->getJson('/api/seo/report?url=http://127.0.0.1', [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['url']);
+
+    Http::assertNothingSent();
+});
+
+it('rejects oversized seo responses', function () {
+    Http::fake([
+        'https://example.com*' => Http::response(str_repeat('a', 1024), 200, [
+            'Content-Type' => 'text/html; charset=utf-8',
+            'Content-Length' => (string) (1024 * 1024 + 1),
+        ]),
+    ]);
+
+    $response = $this->getJson('/api/seo/report?url=https://example.com', [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(502);
+    $response->assertJsonPath('error.code', 'seo_unavailable');
+});

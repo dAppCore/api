@@ -234,6 +234,9 @@ return [
     'seo' => [
         // HTTP timeout when fetching a page for analysis
         'timeout' => env('API_SEO_TIMEOUT', 10),
+
+        // Maximum HTML body size to read when analysing a page.
+        'max_body_bytes' => env('API_SEO_MAX_BODY_BYTES', 1048576),
     ],
 
     /*

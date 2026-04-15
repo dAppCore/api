@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Mod\Api\Services;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Mod\Api\Models\ApiKey;
+use Core\Tenant\Models\Workspace;
 
 /**
  * API Key Service - manages API key lifecycle.
@@ -28,24 +30,39 @@ class ApiKeyService
         ?\DateTimeInterface $expiresAt = null,
         ?array $serverScopes = null
     ): array {
-        // Check workspace key limit
-        $maxKeys = config('api.keys.max_per_workspace', 10);
-        $currentCount = ApiKey::forWorkspace($workspaceId)->active()->count();
+        $result = DB::transaction(function () use (
+            $workspaceId,
+            $userId,
+            $name,
+            $scopes,
+            $expiresAt,
+            $serverScopes
+        ): array {
+            // Lock the owning workspace row so concurrent creates serialize.
+            Workspace::query()
+                ->whereKey($workspaceId)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($currentCount >= $maxKeys) {
-            throw new \RuntimeException(
-                "Workspace has reached the maximum number of API keys ({$maxKeys})"
-            );
-        }
+            $maxKeys = config('api.keys.max_per_workspace', 10);
+            $currentCount = ApiKey::forWorkspace($workspaceId)->active()->count();
 
-        $result = ApiKey::generate($workspaceId, $userId, $name, $scopes, $expiresAt);
+            if ($currentCount >= $maxKeys) {
+                throw new \RuntimeException(
+                    "Workspace has reached the maximum number of API keys ({$maxKeys})"
+                );
+            }
 
-        // Set server scopes if provided
-        if ($serverScopes !== null) {
-            $result['api_key']->update([
-                'server_scopes' => ApiKey::normaliseServerScopes($serverScopes),
-            ]);
-        }
+            $result = ApiKey::generate($workspaceId, $userId, $name, $scopes, $expiresAt);
+
+            if ($serverScopes !== null) {
+                $result['api_key']->update([
+                    'server_scopes' => ApiKey::normaliseServerScopes($serverScopes),
+                ]);
+            }
+
+            return $result;
+        });
 
         Log::info('API key created', [
             'key_id' => $result['api_key']->id,

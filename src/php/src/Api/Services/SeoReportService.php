@@ -6,6 +6,7 @@ namespace Core\Api\Services;
 
 use DOMDocument;
 use DOMXPath;
+use Illuminate\Http\Client\Response as HttpResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -19,9 +20,15 @@ use Throwable;
 class SeoReportService
 {
     /**
+     * Maximum number of bytes to read from the fetched page.
+     */
+    protected const MAX_BODY_BYTES = 1_048_576;
+
+    /**
      * Analyse a URL and return a technical SEO report.
      *
-     * @throws RuntimeException when the URL is blocked for SSRF reasons or the fetch fails.
+     * @throws \InvalidArgumentException when the URL is blocked for SSRF reasons.
+     * @throws RuntimeException when the fetch fails or the response is too large.
      */
     public function analyse(string $url): array
     {
@@ -33,20 +40,24 @@ class SeoReportService
                 'Accept' => 'text/html,application/xhtml+xml',
             ])
                 ->timeout((int) config('api.seo.timeout', 10))
-                ->withoutRedirecting();
+                ->withoutRedirecting()
+                ->withOptions([
+                    'stream' => true,
+                ]);
 
             if ($curlOptions !== []) {
                 $request = $request->withOptions($curlOptions);
             }
 
+            /** @var HttpResponse $response */
             $response = $request->get($url)->throw();
+            $html = $this->readBodyWithLimit($response);
         } catch (RuntimeException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
             throw new RuntimeException('Unable to fetch the requested URL.', 0, $exception);
         }
 
-        $html = (string) $response->body();
         $xpath = $this->loadXPath($html);
 
         $title = $this->extractSingleText($xpath, '//title');
@@ -93,6 +104,35 @@ class SeoReportService
             'issues' => $issues,
             'recommendations' => $this->buildRecommendations($issues),
         ];
+    }
+
+    /**
+     * Read the fetched page without allowing unbounded memory growth.
+     */
+    protected function readBodyWithLimit(HttpResponse $response): string
+    {
+        $maxBytes = (int) config('api.seo.max_body_bytes', self::MAX_BODY_BYTES);
+        if ($maxBytes < 1) {
+            throw new RuntimeException('SEO response size limit is invalid.');
+        }
+
+        $contentLength = $response->header('Content-Length');
+        if (is_numeric($contentLength) && (int) $contentLength > $maxBytes) {
+            throw new RuntimeException('The requested URL returned a response that is too large.');
+        }
+
+        $stream = $response->toPsrResponse()->getBody();
+        $body = '';
+
+        while (! $stream->eof()) {
+            $body .= $stream->read(8192);
+
+            if (strlen($body) > $maxBytes) {
+                throw new RuntimeException('The requested URL returned a response that is too large.');
+            }
+        }
+
+        return $body;
     }
 
     /**
@@ -383,20 +423,20 @@ class SeoReportService
      *  - Link-local ranges (169.254.0.0/16, fe80::/10)
      *  - IPv6 ULA (fc00::/7)
      *
-     * @throws RuntimeException when the URL fails SSRF validation.
+     * @throws \InvalidArgumentException when the URL fails SSRF validation.
      */
     protected function prepareUrlForSsrf(string $url): array
     {
         $parsed = parse_url($url);
 
         if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
-            throw new RuntimeException('The supplied URL is not valid.');
+            throw new \InvalidArgumentException('The supplied URL is not valid.');
         }
 
         $scheme = strtolower((string) $parsed['scheme']);
 
         if (! in_array($scheme, ['http', 'https'], true)) {
-            throw new RuntimeException('Only HTTP and HTTPS URLs are permitted.');
+            throw new \InvalidArgumentException('Only HTTP and HTTPS URLs are permitted.');
         }
 
         $host = $parsed['host'];
@@ -406,7 +446,7 @@ class SeoReportService
         $resolveEntries = [];
 
         if (isset($parsed['user']) || isset($parsed['pass'])) {
-            throw new RuntimeException('The supplied URL is not valid.');
+            throw new \InvalidArgumentException('The supplied URL is not valid.');
         }
 
         // If the host is an IP literal (IPv4 or bracketed IPv6), validate it
@@ -416,7 +456,7 @@ class SeoReportService
         $normalised = ltrim(rtrim($host, ']'), '['); // strip IPv6 brackets
         if (filter_var($normalised, FILTER_VALIDATE_IP) !== false) {
             if ($this->isPrivateIp($normalised)) {
-                throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+                throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
             }
 
             // Valid public IP literal — no DNS lookup required.
@@ -441,7 +481,7 @@ class SeoReportService
                 continue;
             }
             if ($this->isPrivateIp($ip)) {
-                throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+                throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
             }
 
             $resolveEntries[] = sprintf(
@@ -453,7 +493,7 @@ class SeoReportService
         }
 
         if ($resolveEntries === []) {
-            throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+            throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
         }
 
         return [
