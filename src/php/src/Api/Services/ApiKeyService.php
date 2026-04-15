@@ -42,7 +42,9 @@ class ApiKeyService
 
         // Set server scopes if provided
         if ($serverScopes !== null) {
-            $result['api_key']->update(['server_scopes' => $serverScopes]);
+            $result['api_key']->update([
+                'server_scopes' => ApiKey::normaliseServerScopes($serverScopes),
+            ]);
         }
 
         Log::info('API key created', [
@@ -175,11 +177,13 @@ class ApiKeyService
      */
     public function updateServerScopes(ApiKey $apiKey, ?array $serverScopes): void
     {
-        $apiKey->update(['server_scopes' => $serverScopes]);
+        $apiKey->update([
+            'server_scopes' => ApiKey::normaliseServerScopes($serverScopes),
+        ]);
 
         Log::info('API key server scopes updated', [
             'key_id' => $apiKey->id,
-            'server_scopes' => $serverScopes,
+            'server_scopes' => $apiKey->server_scopes,
         ]);
     }
 

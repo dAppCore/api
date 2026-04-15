@@ -56,6 +56,11 @@ class ApiKey extends Model
     ];
 
     /**
+     * Safe MCP server identifier pattern for server-scoped API keys.
+     */
+    public const SERVER_ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/';
+
+    /**
      * Build the visible key prefix root used for new API keys.
      *
      * The configured prefix is normalised to end with an underscore so
@@ -409,6 +414,38 @@ class ApiKey extends Model
     public function getAllowedServers(): ?array
     {
         return $this->server_scopes;
+    }
+
+    /**
+     * Normalise and validate a list of server scopes.
+     *
+     * Returns null unchanged, preserves an empty array as an explicit
+     * "no servers allowed" scope set, and rejects malformed identifiers.
+     *
+     * @param  array<int, string>|null  $serverScopes
+     * @return array<int, string>|null
+     */
+    public static function normaliseServerScopes(?array $serverScopes): ?array
+    {
+        if ($serverScopes === null) {
+            return null;
+        }
+
+        $normalised = [];
+        foreach ($serverScopes as $serverId) {
+            if (! is_string($serverId)) {
+                throw new \InvalidArgumentException('Server scopes must be valid MCP server identifiers.');
+            }
+
+            $serverId = trim($serverId);
+            if ($serverId === '' || ! preg_match(self::SERVER_ID_PATTERN, $serverId)) {
+                throw new \InvalidArgumentException('Server scopes must be valid MCP server identifiers.');
+            }
+
+            $normalised[$serverId] = true;
+        }
+
+        return array_keys($normalised);
     }
 
     /**

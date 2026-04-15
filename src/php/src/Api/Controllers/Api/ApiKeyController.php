@@ -69,7 +69,7 @@ class ApiKeyController extends Controller
             'scopes.*' => ['string', Rule::in(ApiKey::ALL_SCOPES)],
             'expires_at' => ['sometimes', 'nullable', 'date'],
             'server_scopes' => ['sometimes', 'nullable', 'array'],
-            'server_scopes.*' => ['string'],
+            'server_scopes.*' => ['string', 'max:64', 'regex:'.ApiKey::SERVER_ID_PATTERN],
         ]);
 
         $result = $this->service->create(
