@@ -36,6 +36,14 @@ class McpApiController extends Controller
     protected const SERVER_ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/';
 
     /**
+     * Safe MCP tool identifier pattern.
+     *
+     * Tool names may be used in route segments and cache keys, so they must
+     * stay within a conservative path-segment alphabet.
+     */
+    protected const TOOL_NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/';
+
+    /**
      * List all available MCP servers.
      *
      * GET /api/v1/mcp/servers
@@ -84,6 +92,12 @@ class McpApiController extends Controller
     )]
     public function server(Request $request, string $id): JsonResponse
     {
+        if (! $this->isValidServerId($id)) {
+            return $this->validationErrorResponse([
+                'id' => ['The selected server id is invalid.'],
+            ]);
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -123,6 +137,12 @@ class McpApiController extends Controller
     )]
     public function tools(Request $request, string $id): JsonResponse
     {
+        if (! $this->isValidServerId($id)) {
+            return $this->validationErrorResponse([
+                'id' => ['The selected server id is invalid.'],
+            ]);
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -180,6 +200,12 @@ class McpApiController extends Controller
     )]
     public function resources(Request $request, string $id): JsonResponse
     {
+        if (! $this->isValidServerId($id)) {
+            return $this->validationErrorResponse([
+                'id' => ['The selected server id is invalid.'],
+            ]);
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -286,7 +312,7 @@ class McpApiController extends Controller
     {
         $validated = $request->validate([
             'server' => ['required', 'string', 'max:64', 'regex:'.self::SERVER_ID_PATTERN],
-            'tool' => 'required|string|max:128',
+            'tool' => ['required', 'string', 'max:128', 'regex:'.self::TOOL_NAME_PATTERN],
             'arguments' => 'nullable|array',
             'version' => 'nullable|string|max:32',
         ]);
@@ -312,6 +338,18 @@ class McpApiController extends Controller
      */
     public function callToolByRoute(Request $request, string $server, string $tool): JsonResponse
     {
+        if (! $this->isValidServerId($server)) {
+            return $this->validationErrorResponse([
+                'server' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
         $validated = $request->validate([
             'arguments' => 'nullable|array',
             'version' => 'nullable|string|max:32',
@@ -1053,5 +1091,13 @@ class McpApiController extends Controller
     protected function isValidServerId(string $id): bool
     {
         return (bool) preg_match(self::SERVER_ID_PATTERN, $id);
+    }
+
+    /**
+     * Check whether a tool identifier is safe for route and cache usage.
+     */
+    protected function isValidToolName(string $tool): bool
+    {
+        return (bool) preg_match(self::TOOL_NAME_PATTERN, $tool);
     }
 }
