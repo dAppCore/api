@@ -111,3 +111,14 @@ it('rejects unsafe resource paths before dispatching to the server', function ()
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['uri']);
 });
+
+it('rejects double-encoded traversal in resource paths', function () {
+    $encodedUri = rawurlencode('test-resource-server://%252e%252e/secrets');
+
+    $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['uri']);
+});

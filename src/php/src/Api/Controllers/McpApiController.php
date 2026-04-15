@@ -863,7 +863,7 @@ class McpApiController extends Controller
 
         return [
             'jsonrpc' => '2.0',
-            'id' => uniqid(),
+            'id' => bin2hex(random_bytes(16)),
             'method' => 'tools/call',
             'params' => $params,
         ];
@@ -881,7 +881,7 @@ class McpApiController extends Controller
 
         $mcpRequest = [
             'jsonrpc' => '2.0',
-            'id' => uniqid(),
+            'id' => bin2hex(random_bytes(16)),
             'method' => 'resources/read',
             'params' => [
                 'uri' => "{$server}://{$path}",
@@ -1187,6 +1187,10 @@ class McpApiController extends Controller
         $path = trim($path);
 
         if ($path === '' || str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+            return false;
+        }
+
+        if (str_contains($path, '%')) {
             return false;
         }
 

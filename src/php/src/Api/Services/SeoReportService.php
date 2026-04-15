@@ -393,7 +393,9 @@ class SeoReportService
             throw new RuntimeException('The supplied URL is not valid.');
         }
 
-        if (! in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+        $scheme = strtolower((string) $parsed['scheme']);
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
             throw new RuntimeException('Only HTTP and HTTPS URLs are permitted.');
         }
 
@@ -402,6 +404,10 @@ class SeoReportService
             ? (int) $parsed['port']
             : ($scheme === 'https' ? 443 : 80);
         $resolveEntries = [];
+
+        if (isset($parsed['user']) || isset($parsed['pass'])) {
+            throw new RuntimeException('The supplied URL is not valid.');
+        }
 
         // If the host is an IP literal (IPv4 or bracketed IPv6), validate it
         // directly. dns_get_record returns nothing for IP literals and

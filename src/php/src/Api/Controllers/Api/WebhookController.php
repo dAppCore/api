@@ -74,9 +74,9 @@ class WebhookController extends Controller
                 events: $data['events'],
                 description: $data['description'] ?? null,
             );
-        } catch (\InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException) {
             return $this->validationErrorResponse([
-                'url' => [$e->getMessage()],
+                'url' => ['The webhook URL must be a public HTTP or HTTPS endpoint.'],
             ]);
         }
 
@@ -132,9 +132,9 @@ class WebhookController extends Controller
             if ($updates !== []) {
                 $webhook->update($updates);
             }
-        } catch (\InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException) {
             return $this->validationErrorResponse([
-                'url' => [$e->getMessage()],
+                'url' => ['The webhook URL must be a public HTTP or HTTPS endpoint.'],
             ]);
         }
 

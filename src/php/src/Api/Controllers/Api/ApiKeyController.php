@@ -83,19 +83,19 @@ class ApiKeyController extends Controller
                     : null,
                 serverScopes: $data['server_scopes'] ?? null,
             );
-        } catch (\RuntimeException $e) {
+        } catch (\RuntimeException) {
             return $this->errorResponse(
                 errorCode: 'entitlement_exceeded',
-                message: $e->getMessage(),
+                message: 'Workspace has reached the maximum number of API keys.',
                 meta: [
                     'feature' => 'api_keys',
                     'maximum' => (int) config('api.keys.max_per_workspace', 10),
                 ],
                 status: 422,
             );
-        } catch (\InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException) {
             return $this->validationErrorResponse([
-                'server_scopes' => [$e->getMessage()],
+                'server_scopes' => ['One or more server scopes are invalid.'],
             ]);
         }
 
