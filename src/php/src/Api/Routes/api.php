@@ -49,7 +49,7 @@ Route::middleware([PublicApiCors::class, 'api.rate'])
 // SEO analysis (authenticated)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Route::middleware(['auth.api', 'api.scope.enforce'])
+Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
     ->prefix('seo')
     ->name('api.seo.')
     ->group(function () {
@@ -61,7 +61,7 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
 // Entitlements (authenticated)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Route::middleware(['auth.api', 'api.scope.enforce'])
+Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate'])
     ->prefix('entitlements')
     ->name('api.entitlements.')
     ->group(function () {
@@ -111,7 +111,9 @@ Route::middleware(['auth.api', 'api.scope.enforce'])
 Route::prefix('v1/auth')
     ->name('api.v1.auth.')
     ->group(function () {
-        Route::post('/token', [AuthController::class, 'store'])->name('token.store');
+        Route::post('/token', [AuthController::class, 'store'])
+            ->middleware('api.rate')
+            ->name('token.store');
         Route::middleware(['auth.api'])->group(function () {
             Route::delete('/token', [AuthController::class, 'destroy'])->name('token.destroy');
             Route::get('/me', [AuthController::class, 'show'])->name('me');

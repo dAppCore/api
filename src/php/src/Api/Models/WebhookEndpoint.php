@@ -143,9 +143,39 @@ class WebhookEndpoint extends Model
      * Blocks non-HTTP(S) schemes and destinations that resolve to loopback,
      * private, link-local, or otherwise reserved addresses.
      *
+     * This also resolves the destination so callers can pin the request to the
+     * validated IP and reduce DNS rebinding risk.
+     *
      * @throws \InvalidArgumentException
      */
     public static function assertSafeUrl(string $url): void
+    {
+        self::resolvePublicDestination($url);
+    }
+
+    /**
+     * Build CURL resolve options for a validated webhook URL.
+     *
+     * Returns an empty array for literal IP destinations because no DNS lookup
+     * is needed in that case.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function curlResolveOptionsFor(string $url): array
+    {
+        $resolved = self::resolvePublicDestination($url);
+
+        return $resolved['curl_options'];
+    }
+
+    /**
+     * Resolve and validate a public HTTP(S) destination.
+     *
+     * @return array{curl_options: array<string, array<int, string>>}
+     *
+     * @throws \InvalidArgumentException
+     */
+    protected static function resolvePublicDestination(string $url): array
     {
         $parsed = parse_url($url);
 
@@ -153,7 +183,8 @@ class WebhookEndpoint extends Model
             throw new \InvalidArgumentException('The webhook URL must be an absolute HTTP or HTTPS URL.');
         }
 
-        if (! in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+        $scheme = strtolower((string) $parsed['scheme']);
+        if (! in_array($scheme, ['http', 'https'], true)) {
             throw new \InvalidArgumentException('Only HTTP and HTTPS webhook URLs are permitted.');
         }
 
@@ -161,15 +192,20 @@ class WebhookEndpoint extends Model
             throw new \InvalidArgumentException('Webhook URLs must not include embedded credentials.');
         }
 
-        $host = $parsed['host'];
-        $normalisedHost = ltrim(rtrim($host, ']'), '[');
+        $host = (string) $parsed['host'];
+        $port = isset($parsed['port'])
+            ? (int) $parsed['port']
+            : ($scheme === 'https' ? 443 : 80);
 
+        $normalisedHost = ltrim(rtrim($host, ']'), '[');
         if (filter_var($normalisedHost, FILTER_VALIDATE_IP) !== false) {
             if (self::isPrivateIp($normalisedHost)) {
                 throw new \InvalidArgumentException('Webhook URLs must not target private, loopback, or reserved addresses.');
             }
 
-            return;
+            return [
+                'curl_options' => [],
+            ];
         }
 
         $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
@@ -177,6 +213,7 @@ class WebhookEndpoint extends Model
             throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
         }
 
+        $resolveEntries = [];
         foreach ($records as $record) {
             $ip = $record['ip'] ?? $record['ipv6'] ?? null;
             if ($ip === null) {
@@ -186,7 +223,26 @@ class WebhookEndpoint extends Model
             if (self::isPrivateIp($ip)) {
                 throw new \InvalidArgumentException('Webhook URLs must not resolve to private, loopback, or reserved addresses.');
             }
+
+            $resolveEntries[] = sprintf(
+                '%s:%d:%s',
+                $host,
+                $port,
+                str_contains($ip, ':') ? '['.$ip.']' : $ip
+            );
         }
+
+        if ($resolveEntries === []) {
+            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+        }
+
+        return [
+            'curl_options' => defined('CURLOPT_RESOLVE')
+                ? [
+                    CURLOPT_RESOLVE => array_values(array_unique($resolveEntries)),
+                ]
+                : [],
+        ];
     }
 
     /**

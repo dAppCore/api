@@ -75,7 +75,7 @@ class DeliverWebhookJob implements ShouldQueue
         }
 
         try {
-            WebhookEndpoint::assertSafeUrl($endpoint->url);
+            $curlOptions = WebhookEndpoint::curlResolveOptionsFor($endpoint->url);
         } catch (\InvalidArgumentException $e) {
             $this->handleFailure(0, 'Unsafe webhook destination blocked.');
             Log::warning('Webhook delivery blocked by URL safety check', [
@@ -98,11 +98,16 @@ class DeliverWebhookJob implements ShouldQueue
         ]);
 
         try {
-            $response = Http::timeout($timeout)
+            $request = Http::timeout($timeout)
                 ->withoutRedirecting()
                 ->withHeaders($deliveryPayload['headers'])
-                ->withBody($deliveryPayload['body'], 'application/json')
-                ->post($endpoint->url);
+                ->withBody($deliveryPayload['body'], 'application/json');
+
+            if ($curlOptions !== []) {
+                $request = $request->withOptions($curlOptions);
+            }
+
+            $response = $request->post($endpoint->url);
 
             $statusCode = $response->status();
             $responseBody = $response->body();

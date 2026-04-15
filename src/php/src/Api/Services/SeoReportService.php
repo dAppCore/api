@@ -25,17 +25,21 @@ class SeoReportService
      */
     public function analyse(string $url): array
     {
-        $this->validateUrlForSsrf($url);
+        $curlOptions = $this->prepareUrlForSsrf($url);
 
         try {
-            $response = Http::withHeaders([
+            $request = Http::withHeaders([
                 'User-Agent' => config('app.name', 'Core API').' SEO Reporter/1.0',
                 'Accept' => 'text/html,application/xhtml+xml',
             ])
                 ->timeout((int) config('api.seo.timeout', 10))
-                ->withoutRedirecting()
-                ->get($url)
-                ->throw();
+                ->withoutRedirecting();
+
+            if ($curlOptions !== []) {
+                $request = $request->withOptions($curlOptions);
+            }
+
+            $response = $request->get($url)->throw();
         } catch (RuntimeException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -381,7 +385,7 @@ class SeoReportService
      *
      * @throws RuntimeException when the URL fails SSRF validation.
      */
-    protected function validateUrlForSsrf(string $url): void
+    protected function prepareUrlForSsrf(string $url): array
     {
         $parsed = parse_url($url);
 
@@ -394,6 +398,10 @@ class SeoReportService
         }
 
         $host = $parsed['host'];
+        $port = isset($parsed['port'])
+            ? (int) $parsed['port']
+            : ($scheme === 'https' ? 443 : 80);
+        $resolveEntries = [];
 
         // If the host is an IP literal (IPv4 or bracketed IPv6), validate it
         // directly. dns_get_record returns nothing for IP literals and
@@ -406,7 +414,9 @@ class SeoReportService
             }
 
             // Valid public IP literal — no DNS lookup required.
-            return;
+            return [
+                'curl_options' => [],
+            ];
         }
 
         $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
@@ -427,7 +437,26 @@ class SeoReportService
             if ($this->isPrivateIp($ip)) {
                 throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
             }
+
+            $resolveEntries[] = sprintf(
+                '%s:%d:%s',
+                $host,
+                $port,
+                str_contains($ip, ':') ? '['.$ip.']' : $ip
+            );
         }
+
+        if ($resolveEntries === []) {
+            throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+        }
+
+        return [
+            'curl_options' => defined('CURLOPT_RESOLVE')
+                ? [
+                    CURLOPT_RESOLVE => array_values(array_unique($resolveEntries)),
+                ]
+                : [],
+        ];
     }
 
     /**
