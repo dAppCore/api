@@ -23,6 +23,12 @@ class RateLimitService
      */
     protected const CACHE_PREFIX = 'rate_limit:';
 
+    /**
+     * TTL for advisory bucket locks when the cache backend does not expose a
+     * native lock primitive.
+     */
+    protected const LOCK_TTL_SECONDS = 10;
+
     public function __construct(
         protected CacheRepository $cache,
     ) {}
@@ -255,7 +261,7 @@ class RateLimitService
     protected function acquireBucketLock(string $cacheKey): mixed
     {
         if (! $this->supportsAtomicLocks()) {
-            return null;
+            return $this->acquireAdvisoryLock($cacheKey);
         }
 
         try {
@@ -269,6 +275,52 @@ class RateLimitService
         }
 
         return null;
+    }
+
+    /**
+     * Acquire a best-effort cache-backed lock using atomic add semantics.
+     *
+     * This path is used on cache drivers that do not expose a dedicated lock
+     * primitive but still support atomic "add" operations. It prevents
+     * parallel requests from oversubscribing the same bucket on common cache
+     * stores such as the array, file, and Redis drivers.
+     */
+    protected function acquireAdvisoryLock(string $cacheKey): mixed
+    {
+        if (! method_exists($this->cache, 'add')) {
+            return null;
+        }
+
+        $lockKey = $cacheKey.':lock';
+        $token = bin2hex(random_bytes(8));
+
+        try {
+            if (! $this->cache->add($lockKey, $token, self::LOCK_TTL_SECONDS)) {
+                return null;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return new class($this->cache, $lockKey, $token) {
+            public function __construct(
+                protected CacheRepository $cache,
+                protected string $lockKey,
+                protected string $token,
+            ) {
+            }
+
+            public function release(): void
+            {
+                try {
+                    if ($this->cache->get($this->lockKey) === $this->token) {
+                        $this->cache->forget($this->lockKey);
+                    }
+                } catch (\Throwable) {
+                    // Best-effort cleanup only.
+                }
+            }
+        };
     }
 
     /**
