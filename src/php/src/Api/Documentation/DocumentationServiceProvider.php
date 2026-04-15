@@ -20,11 +20,21 @@ class DocumentationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Merge configuration
-        $this->mergeConfigFrom(
-            __DIR__.'/config.php',
-            'api-docs'
-        );
+        // Merge documentation configuration under both the package-local
+        // `api-docs` namespace and the RFC-facing `scramble` namespace so
+        // either config file shape can drive the same documentation surface.
+        $this->mergeConfigFrom(__DIR__.'/config.php', 'api-docs');
+        $this->mergeConfigFrom(__DIR__.'/config.php', 'scramble');
+
+        $baseConfig = require __DIR__.'/config.php';
+        $scrambleConfig = config('scramble', []);
+        $apiDocsConfig = config('api-docs', []);
+        $effectiveConfig = array_replace_recursive($baseConfig, $scrambleConfig, $apiDocsConfig);
+
+        config([
+            'api-docs' => $effectiveConfig,
+            'scramble' => $effectiveConfig,
+        ]);
 
         // Register OpenApiBuilder as singleton
         $this->app->singleton(OpenApiBuilder::class, function ($app) {
@@ -50,6 +60,10 @@ class DocumentationServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/config.php' => config_path('api-docs.php'),
             ], 'api-docs-config');
+
+            $this->publishes([
+                __DIR__.'/config.php' => config_path('scramble.php'),
+            ], 'scramble-config');
 
             $this->publishes([
                 __DIR__.'/Views' => resource_path('views/vendor/api-docs'),
