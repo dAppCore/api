@@ -21,7 +21,7 @@ Route::get('/changelog', [DocsController::class, 'changelog'])->name('api.change
 
 // API Reference
 Route::get('/reference', [DocsController::class, 'reference'])->name('api.reference');
-Route::get('/api/reference', [DocsController::class, 'reference'])->name('api.reference.compat');
+Route::get('/api/reference', [DocsController::class, 'redoc'])->name('api.reference.compat');
 Route::get('/docs/api', [DocsController::class, 'swagger'])->name('api.docs.api');
 Route::get('/openapi.yaml', [DocsController::class, 'openapiYaml'])
     ->middleware('throttle:60,1')
