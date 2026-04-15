@@ -269,6 +269,14 @@ describe('Webhook URL Safety', function () {
             ->toThrow(\InvalidArgumentException::class);
     });
 
+    it('rejects reserved and multicast destinations', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://224.0.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://100.64.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
     it('rejects unsupported schemes', function () {
         expect(fn () => WebhookEndpoint::assertSafeUrl('ftp://example.com/webhooks'))
             ->toThrow(\InvalidArgumentException::class);

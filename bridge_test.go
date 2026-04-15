@@ -83,6 +83,22 @@ func TestToolBridge_Good_BasePath(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	bridge := api.NewToolBridge("/tools")
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected Add to reject an unsafe tool name")
+		}
+	}()
+
+	bridge.Add(api.ToolDescriptor{
+		Name:        "../health",
+		Description: "Invalid tool name",
+	}, func(c *gin.Context) {})
+}
+
 func TestToolBridge_Good_Describe(t *testing.T) {
 	bridge := api.NewToolBridge("/tools")
 	bridge.Add(api.ToolDescriptor{

@@ -195,67 +195,11 @@ class WebhookEndpoint extends Model
      */
     protected static function isPrivateIp(string $ip): bool
     {
-        $packed = inet_pton($ip);
-        if ($packed === false) {
-            return true;
-        }
-
-        if (strlen($packed) === 4) {
-            return self::isPrivateIpv4($ip);
-        }
-
-        if (str_repeat("\x00", 10) . "\xff\xff" === substr($packed, 0, 12)) {
-            $ipv4 = inet_ntop(substr($packed, 12, 4));
-            if ($ipv4 !== false && self::isPrivateIpv4($ipv4)) {
-                return true;
-            }
-        }
-
-        if ($ip === '::1') {
-            return true;
-        }
-
-        $prefix2 = strtolower(substr(bin2hex($packed), 0, 2));
-        if ($prefix2 === 'fe') {
-            $secondNibble = hexdec(substr(bin2hex($packed), 2, 1));
-            if ($secondNibble >= 8 && $secondNibble <= 11) {
-                return true;
-            }
-        }
-
-        if (in_array($prefix2, ['fc', 'fd'], true)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Return true when an IPv4 address falls within a reserved range.
-     */
-    protected static function isPrivateIpv4(string $ip): bool
-    {
-        $long = ip2long($ip);
-        if ($long === false) {
-            return true;
-        }
-
-        $privateRanges = [
-            ['start' => ip2long('0.0.0.0'), 'end' => ip2long('0.255.255.255')],
-            ['start' => ip2long('127.0.0.0'), 'end' => ip2long('127.255.255.255')],
-            ['start' => ip2long('10.0.0.0'), 'end' => ip2long('10.255.255.255')],
-            ['start' => ip2long('172.16.0.0'), 'end' => ip2long('172.31.255.255')],
-            ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')],
-            ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')],
-        ];
-
-        foreach ($privateRanges as $range) {
-            if ($long >= $range['start'] && $long <= $range['end']) {
-                return true;
-            }
-        }
-
-        return false;
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) === false;
     }
 
     /**

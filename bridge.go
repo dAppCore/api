@@ -54,6 +54,8 @@ type boundTool struct {
 var _ RouteGroup = (*ToolBridge)(nil)
 var _ DescribableGroup = (*ToolBridge)(nil)
 
+var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
 // NewToolBridge creates a bridge that mounts tool endpoints at basePath.
 //
 // Example:
@@ -72,6 +74,9 @@ func NewToolBridge(basePath string) *ToolBridge {
 //
 //	bridge.Add(api.ToolDescriptor{Name: "ping", Description: "Ping the service"}, handler)
 func (b *ToolBridge) Add(desc ToolDescriptor, handler gin.HandlerFunc) {
+	if !isValidToolName(desc.Name) {
+		panic(core.E("ToolBridge.Add", "invalid tool name", nil))
+	}
 	if validator := newToolInputValidator(desc.OutputSchema); validator != nil {
 		handler = wrapToolResponseHandler(handler, validator)
 	}
@@ -251,6 +256,10 @@ func describeToolList(defaultTag string) RouteDescription {
 			},
 		},
 	}
+}
+
+func isValidToolName(name string) bool {
+	return toolNamePattern.MatchString(core.Trim(name))
 }
 
 // maxToolRequestBodyBytes is the maximum request body size accepted by the

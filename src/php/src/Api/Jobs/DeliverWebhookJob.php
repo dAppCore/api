@@ -99,6 +99,7 @@ class DeliverWebhookJob implements ShouldQueue
 
         try {
             $response = Http::timeout($timeout)
+                ->withoutRedirecting()
                 ->withHeaders($deliveryPayload['headers'])
                 ->withBody($deliveryPayload['body'], 'application/json')
                 ->post($endpoint->url);
@@ -131,8 +132,8 @@ class DeliverWebhookJob implements ShouldQueue
 
             Log::error('Webhook delivery unexpected error', [
                 'delivery_id' => $this->delivery->id,
+                'error_type' => $e::class,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
         }
     }

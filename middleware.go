@@ -27,8 +27,10 @@ const requestStartContextKey = "request_start"
 // and avoids Gin's default plain-text 500 response.
 func recoveryMiddleware() gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
-		_, _ = gin.DefaultErrorWriter.Write([]byte(core.Sprintf("[Recovery] panic recovered: %v\n", recovered)))
-		debug.PrintStack()
+		if gin.IsDebugging() {
+			_, _ = gin.DefaultErrorWriter.Write([]byte(core.Sprintf("[Recovery] panic recovered: %v\n", recovered)))
+			debug.PrintStack()
+		}
 		c.AbortWithStatusJSON(http.StatusInternalServerError, Fail(
 			"internal_server_error",
 			"Internal server error",
