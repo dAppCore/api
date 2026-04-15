@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -218,6 +220,52 @@ func TestWithRateLimit_Good_RefillsOverTime(t *testing.T) {
 	h.ServeHTTP(w3, req3)
 	if w3.Code != http.StatusOK {
 		t.Fatalf("expected bucket to refill after waiting, got %d", w3.Code)
+	}
+}
+
+func TestWithRateLimit_Good_ConcurrentRequestsDoNotOversubscribe(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	e, _ := api.New(api.WithRateLimit(1))
+	e.Register(&rateLimitTestGroup{})
+
+	h := e.Handler()
+
+	const requests = 24
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var successCount int32
+	errCh := make(chan string, requests)
+
+	for i := 0; i < requests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
+			req.RemoteAddr = "203.0.113.50:1234"
+			h.ServeHTTP(w, req)
+
+			switch w.Code {
+			case http.StatusOK:
+				atomic.AddInt32(&successCount, 1)
+			case http.StatusTooManyRequests:
+			default:
+				errCh <- w.Body.String()
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errCh)
+
+	if len(errCh) > 0 {
+		t.Fatalf("unexpected response code(s): %v", <-errCh)
+	}
+	if got := atomic.LoadInt32(&successCount); got != 1 {
+		t.Fatalf("expected exactly one request to succeed, got %d", got)
 	}
 }
 

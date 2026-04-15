@@ -99,6 +99,74 @@ func TestToolBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
 	}, func(c *gin.Context) {})
 }
 
+func TestToolBridge_Good_AcceptsSafeToolNames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []string{
+		"ping",
+		"file.read",
+		"file-read",
+		"file_read",
+		"A1",
+	}
+
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			engine := gin.New()
+			bridge := api.NewToolBridge("/tools")
+			bridge.Add(api.ToolDescriptor{
+				Name:        name,
+				Description: "Safe tool name",
+			}, func(c *gin.Context) {
+				c.JSON(http.StatusOK, api.OK(name))
+			})
+
+			rg := engine.Group(bridge.BasePath())
+			bridge.RegisterRoutes(rg)
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(http.MethodPost, "/tools/"+name, nil)
+			engine.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200 for %q, got %d", name, w.Code)
+			}
+		})
+	}
+}
+
+func TestToolBridge_Ugly_RejectsUnsafeToolNameForms(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []string{
+		"",
+		" ",
+		"../health",
+		"foo/bar",
+		"foo\\bar",
+		"foo*bar",
+		"foo?bar",
+		"foo..bar",
+	}
+
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			bridge := api.NewToolBridge("/tools")
+
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("expected Add to reject tool name %q", name)
+				}
+			}()
+
+			bridge.Add(api.ToolDescriptor{
+				Name:        name,
+				Description: "Invalid tool name",
+			}, func(c *gin.Context) {})
+		})
+	}
+}
+
 func TestToolBridge_Good_Describe(t *testing.T) {
 	bridge := api.NewToolBridge("/tools")
 	bridge.Add(api.ToolDescriptor{

@@ -677,6 +677,35 @@ describe('Webhook Delivery Job', function () {
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_PENDING);
     });
+
+    it('revalidates the destination before each outbound request', function () {
+        Http::fake();
+
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        WebhookEndpoint::query()
+            ->whereKey($endpoint->id)
+            ->update(['url' => 'http://127.0.0.1/webhook']);
+
+        $job = new DeliverWebhookJob($delivery);
+        $job->handle();
+
+        Http::assertNothingSent();
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
+        expect($delivery->response_code)->toBe(0);
+    });
 });
 
 // -----------------------------------------------------------------------------
