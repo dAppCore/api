@@ -16,6 +16,7 @@ use Core\Mod\Mcp\Services\ToolVersionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -816,11 +817,27 @@ class McpApiController extends Controller
                 'content' => $content,
             ]);
         } catch (\Throwable $e) {
+            try {
+                report($e);
+
+                Log::error('MCP resource read failed', [
+                    'server_id' => $serverId,
+                    'resource_path' => $resourcePath,
+                    'uri' => $uri,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
+            } catch (\Throwable $logException) {
+                report($logException);
+            }
+
             return $this->errorResponse(
                 errorCode: 'resource_read_error',
                 message: 'Resource read failed.',
                 meta: [
                     'uri' => $uri,
+                    'server' => $serverId,
+                    'resource' => $resourcePath,
                 ],
                 status: 500,
             );
