@@ -32,7 +32,7 @@ $_SERVER['argv'][1] = $_SERVER['argv'][1] ?? 'route:list';
 
 abstract class TestCase extends Orchestra\Testbench\TestCase
 {
-    protected function getPackageProviders(mixed $app): array
+    protected function getPackageProviders(\Illuminate\Contracts\Foundation\Application $app): array
     {
         return [
             Core\Api\Boot::class,
