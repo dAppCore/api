@@ -139,7 +139,12 @@ class SeoReportService
 
         try {
             while (! $stream->eof()) {
-                $body .= $stream->read(8192);
+                $chunk = $stream->read(8192);
+                if ($chunk === '' && ! $stream->eof()) {
+                    throw new RuntimeException('Unable to read the requested URL response body.');
+                }
+
+                $body .= $chunk;
 
                 if (strlen($body) > $maxBytes) {
                     throw new RuntimeException('The requested URL returned a response that is too large.');

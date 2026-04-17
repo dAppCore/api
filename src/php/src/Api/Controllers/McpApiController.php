@@ -919,7 +919,7 @@ class McpApiController extends Controller
     {
         $deadline = microtime(true) + self::MCP_COMMAND_TIMEOUT_SECONDS;
         $process = proc_open(
-            ['php', 'artisan', $command],
+            [PHP_BINARY, 'artisan', $command],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -943,8 +943,17 @@ class McpApiController extends Controller
                 throw new \RuntimeException("{$context} command failed to start");
             }
 
-            if (fwrite($pipes[0], $payload."\n") === false) {
-                throw new \RuntimeException("Unable to write {$context} payload to subprocess");
+            $buffer = $payload."\n";
+            $offset = 0;
+            $length = strlen($buffer);
+
+            while ($offset < $length) {
+                $written = fwrite($pipes[0], substr($buffer, $offset));
+                if ($written === false || $written === 0) {
+                    throw new \RuntimeException("Unable to write {$context} payload to subprocess");
+                }
+
+                $offset += $written;
             }
 
             fclose($pipes[0]);
