@@ -118,6 +118,46 @@ func TestWSEndpoint_Good_CustomPath(t *testing.T) {
 	}
 }
 
+func TestWSEndpoint_Ugly_RootPathFallsBackToDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	wsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Logf("upgrade error: %v", err)
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("root"))
+	})
+
+	e, err := api.New(api.WithWSPath(" / "), api.WithWSHandler(wsHandler))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to dial normalised WebSocket path: %v", err)
+	}
+	defer conn.Close()
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read message: %v", err)
+	}
+	if string(msg) != "root" {
+		t.Fatalf("expected message=%q, got %q", "root", string(msg))
+	}
+}
+
 func TestWSEndpoint_Ugly_NormalisesWhitespaceWrappedPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

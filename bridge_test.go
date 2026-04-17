@@ -107,6 +107,14 @@ func TestToolBridge_Ugly_CollapsesRepeatedSlashesInBasePath(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Ugly_RootBasePathFallsBackToRoot(t *testing.T) {
+	bridge := api.NewToolBridge(" / ")
+
+	if bridge.BasePath() != "/" {
+		t.Fatalf("expected root base path to normalise to %q, got %q", "/", bridge.BasePath())
+	}
+}
+
 func TestToolBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	bridge := api.NewToolBridge("/tools")

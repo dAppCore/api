@@ -444,10 +444,12 @@ func TestWebhook_ValidateWebhookURL_Bad_RejectsBlockedDestinations(t *testing.T)
 		"http://169.254.1.1/inbox",
 		"http://203.0.113.10/inbox",
 		"http://0.0.0.0/inbox",
+		"http://255.255.255.255/inbox",
 		"http://224.0.0.1/inbox",
 		"http://[::1]/inbox",
 		"http://[fc00::1]/inbox",
 		"http://[::]/inbox",
+		"http://[ff01::1]/inbox",
 		"http://[ff00::1]/inbox",
 		"https://localhost/inbox",
 	}
@@ -467,7 +469,9 @@ func TestWebhook_ValidateWebhookURL_Ugly_RejectsMalformedAndCredentialedURLs(t *
 		"https://user:pass@8.8.8.8/inbox",
 		"not-a-url",
 		"http:///missing-host",
+		"https://:443/inbox",
 		"https://[::1",
+		"https://%zz",
 	}
 
 	for _, raw := range cases {
@@ -495,10 +499,12 @@ func TestWebhook_isBlockedWebhookIP_Bad_RejectsReservedAndPrivateIPs(t *testing.
 		"169.254.1.1",
 		"203.0.113.10",
 		"0.0.0.0",
+		"255.255.255.255",
 		"224.0.0.1",
 		"::1",
 		"fc00::1",
 		"::",
+		"ff01::1",
 		"ff00::1",
 	}
 

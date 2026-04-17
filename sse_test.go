@@ -137,6 +137,39 @@ func TestWithSSE_Bad_CustomPathDoesNotExposeLegacyAlias(t *testing.T) {
 	}
 }
 
+func TestWithSSE_Ugly_RootPathFallsBackToDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	broker := api.NewSSEBroker()
+	e, err := api.New(api.WithSSE(broker), api.WithSSEPath(" / "))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 at default SSE path after root path normalisation, got %d", resp.StatusCode)
+	}
+
+	legacyResp, err := http.Get(srv.URL + "/v1/events")
+	if err != nil {
+		t.Fatalf("legacy alias request failed: %v", err)
+	}
+	defer legacyResp.Body.Close()
+
+	if legacyResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 at legacy SSE alias after root path normalisation, got %d", legacyResp.StatusCode)
+	}
+}
+
 func TestWithSSE_Good_ReceivesPublishedEvent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
