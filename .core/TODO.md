@@ -1,0 +1,1 @@
+- @bug src/php/src/Api/Controllers/McpApiController.php:832 — JSON-encoding the subprocess request can still fail silently on malformed payloads, which should be handled before writing to the MCP process.

@@ -846,4 +846,22 @@ describe('Delivery Payload Headers', function () {
         $isValid = $endpoint->verifySignature($body, $signature, $timestamp);
         expect($isValid)->toBeTrue();
     });
+
+    it('rejects payloads that cannot be encoded as json', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $delivery = new WebhookDelivery([
+            'event_id' => 'evt_invalid_payload',
+            'event_type' => 'bio.created',
+            'payload' => ['message' => "\xB1"],
+        ]);
+        $delivery->setRelation('endpoint', $endpoint);
+
+        expect(fn () => $delivery->getDeliveryPayload())
+            ->toThrow(RuntimeException::class, 'Unable to encode webhook payload as JSON.');
+    });
 });

@@ -166,6 +166,10 @@ class WebhookDelivery extends Model
         $timestamp ??= time();
         $jsonPayload = json_encode($this->payload);
 
+        if ($jsonPayload === false) {
+            throw new \RuntimeException('Unable to encode webhook payload as JSON.');
+        }
+
         return [
             'headers' => [
                 'Content-Type' => 'application/json',
