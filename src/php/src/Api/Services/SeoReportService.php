@@ -494,6 +494,10 @@ class SeoReportService
             }
         }
 
+        if ($records === []) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
         foreach ($records as $record) {
             $ip = $record['ip'] ?? $record['ipv6'] ?? null;
             if ($ip === null) {
@@ -512,7 +516,7 @@ class SeoReportService
         }
 
         if ($resolveEntries === []) {
-            throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
         }
 
         return [

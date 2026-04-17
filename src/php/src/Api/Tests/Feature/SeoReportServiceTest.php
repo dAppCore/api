@@ -149,6 +149,15 @@ it('SeoReportService_analyse_Ugly_blocks_unsafe_urls_before_fetching', function 
     Http::assertNothingSent();
 });
 
+it('SeoReportService_analyse_Ugly_blocks_unresolvable_hostnames', function () {
+    Http::fake();
+
+    expect(fn () => seoReportService()->analyse('https://seo-unresolvable.example.invalid/article'))
+        ->toThrow(\InvalidArgumentException::class, 'The supplied URL could not be resolved to any address.');
+
+    Http::assertNothingSent();
+});
+
 it('SeoReportService_analyse_Ugly_blocks_reserved_ip_literals', function () {
     Http::fake();
 
