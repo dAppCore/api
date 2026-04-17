@@ -112,11 +112,7 @@ class TicketController extends Controller
             'last_replied_at' => now(),
         ])->save();
 
-        $freshTicket = $ticket->fresh();
-        if ($freshTicket instanceof SupportTicket) {
-            $ticket = $freshTicket;
-        }
-
+        $ticket->refresh();
         $ticket->load('replies');
 
         return response()->json([

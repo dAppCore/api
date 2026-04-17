@@ -164,6 +164,8 @@ class PaymentMethodController extends Controller
      */
     protected function refreshPaymentMethod(PaymentMethod $paymentMethod): PaymentMethod
     {
-        return $paymentMethod->fresh() ?? $paymentMethod;
+        $paymentMethod->refresh();
+
+        return $paymentMethod;
     }
 }
