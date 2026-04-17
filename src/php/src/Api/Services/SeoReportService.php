@@ -38,11 +38,12 @@ class SeoReportService
         try {
             /** @var HttpResponse $response */
             $response = $this->buildRequest($curlOptions['curl_options'] ?? [])->get($url);
-            $html = $this->readBodyWithLimit($response);
 
             if (! $response->successful()) {
                 throw new RuntimeException('The requested URL returned an unsuccessful status code.');
             }
+
+            $html = $this->readBodyWithLimit($response);
         } catch (RuntimeException $exception) {
             throw $exception;
         } catch (Throwable $exception) {

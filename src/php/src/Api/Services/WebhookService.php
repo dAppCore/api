@@ -59,8 +59,13 @@ class WebhookService
                         $data,
                         $workspaceId
                     ) {
+                        $freshEndpoint = $endpoint->fresh();
+                        if (! $freshEndpoint instanceof WebhookEndpoint || ! $freshEndpoint->shouldReceive($eventType)) {
+                            return null;
+                        }
+
                         $delivery = WebhookDelivery::createForEvent(
-                            $endpoint,
+                            $freshEndpoint,
                             $eventType,
                             $data,
                             $workspaceId
