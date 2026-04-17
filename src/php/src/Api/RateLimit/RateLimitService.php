@@ -265,6 +265,10 @@ class RateLimitService
 
         // Get current window data and clean up old entries
         $hits = $this->getWindowHits($cacheKey, $windowStart);
+        if ($hits === null) {
+            return RateLimitResult::denied($limit, 1, $now->copy()->addSecond());
+        }
+
         $currentCount = count($hits);
 
         // Calculate reset time
