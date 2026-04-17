@@ -1,0 +1,1 @@
+- @docs src/php/src/Website/Api/View/Blade/guides/authentication.blade.php:68 — The API key guide hard-codes `hk_` as if it were fixed, but the prefix is configurable in code and the docs should reflect that.
