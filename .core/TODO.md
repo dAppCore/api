@@ -1,0 +1,1 @@
+- @observability src/php/src/Api/Controllers/McpApiController.php:818 — Resource-read failures return a generic 500 without structured logging or reporting.

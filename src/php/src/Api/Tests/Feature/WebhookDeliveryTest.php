@@ -429,6 +429,31 @@ describe('Webhook Service', function () {
         expect($deliveries[0]->status)->toBe(WebhookDelivery::STATUS_PENDING);
     });
 
+    it('does not return phantom deliveries when queuing rolls back', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $service = new class extends WebhookService
+        {
+            protected function queueDelivery(WebhookDelivery $delivery): void
+            {
+                throw new RuntimeException('queue failed');
+            }
+        };
+
+        $deliveries = $service->dispatch(
+            $this->workspace->id,
+            'bio.created',
+            ['bio_id' => 123, 'name' => 'Test Bio']
+        );
+
+        expect($deliveries)->toBeEmpty();
+        expect(WebhookDelivery::query()->count())->toBe(0);
+    });
+
     it('does not dispatch to endpoints not subscribed to event', function () {
         WebhookEndpoint::createForWorkspace(
             $this->workspace->id,

@@ -51,13 +51,13 @@ class WebhookService
                 try {
                     // Keep each endpoint isolated so one failure does not stop
                     // the rest of the workspace's subscriptions from receiving
-                    // the event.
-                    DB::transaction(function () use (
+                    // the event. Return the delivery from the transaction so
+                    // rollbacks cannot leak phantom records into the result.
+                    $delivery = DB::transaction(function () use (
                         $endpoint,
                         $eventType,
                         $data,
-                        $workspaceId,
-                        &$deliveries
+                        $workspaceId
                     ) {
                         $delivery = WebhookDelivery::createForEvent(
                             $endpoint,
@@ -66,17 +66,20 @@ class WebhookService
                             $workspaceId
                         );
 
-                        $deliveries[] = $delivery;
-
-                        // Queue the delivery job after the transaction commits.
-                        DeliverWebhookJob::dispatch($delivery)->afterCommit();
+                        $this->queueDelivery($delivery);
 
                         Log::info('Webhook delivery queued', [
                             'delivery_id' => $delivery->id,
                             'endpoint_id' => $endpoint->id,
                             'event_type' => $eventType,
                         ]);
+
+                        return $delivery;
                     });
+
+                    if ($delivery instanceof WebhookDelivery) {
+                        $deliveries[] = $delivery;
+                    }
                 } catch (\Throwable $endpointException) {
                     report($endpointException);
                     Log::warning('Webhook delivery failed for endpoint', [
@@ -122,7 +125,7 @@ class WebhookService
                     'next_retry_at' => null,
                 ]);
 
-                DeliverWebhookJob::dispatch($delivery)->afterCommit();
+                $this->queueDelivery($delivery);
 
                 Log::info('Manual webhook retry queued', [
                     'delivery_id' => $delivery->id,
@@ -189,7 +192,7 @@ class WebhookService
                 // Mark as queued to prevent duplicate processing
                 $delivery->update(['status' => WebhookDelivery::STATUS_QUEUED]);
 
-                DeliverWebhookJob::dispatch($delivery)->afterCommit();
+                $this->queueDelivery($delivery);
                 $count++;
             });
             } catch (\Throwable $exception) {
@@ -207,6 +210,14 @@ class WebhookService
         }
 
         return $count;
+    }
+
+    /**
+     * Queue a webhook delivery job after the surrounding transaction commits.
+     */
+    protected function queueDelivery(WebhookDelivery $delivery): void
+    {
+        DeliverWebhookJob::dispatch($delivery)->afterCommit();
     }
 
     /**
