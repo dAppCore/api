@@ -111,7 +111,7 @@ class AuthenticateApiKey
             $accessToken = UserToken::findToken($bearerToken);
 
             if ($accessToken instanceof UserToken && $accessToken->isValid()) {
-                if ($scope !== null) {
+                if ($scope !== null && ! $this->userTokenHasScope($accessToken, $scope)) {
                     return $this->forbidden("Token missing required scope: {$scope}");
                 }
 
@@ -148,6 +148,30 @@ class AuthenticateApiKey
         }
 
         return $next($request);
+    }
+
+    /**
+     * Determine whether a user token grants the requested scope.
+     *
+     * The tenant package can expose scope checks through different token APIs,
+     * so we try the common ones without coupling this middleware to one exact
+     * implementation.
+     */
+    protected function userTokenHasScope(UserToken $accessToken, string $scope): bool
+    {
+        if (method_exists($accessToken, 'hasScope')) {
+            return $accessToken->hasScope($scope);
+        }
+
+        if (method_exists($accessToken, 'tokenCan')) {
+            return $accessToken->tokenCan($scope);
+        }
+
+        if (method_exists($accessToken, 'can')) {
+            return $accessToken->can($scope);
+        }
+
+        return false;
     }
 
     /**
