@@ -185,6 +185,28 @@ it('SeoReportService_analyse_Bad_blocks_hostnames_that_resolve_to_private_ips', 
     Http::assertNothingSent();
 });
 
+it('SeoReportService_analyse_Bad_rejects_hostnames_when_pinning_is_unavailable', function () {
+    Http::fake();
+
+    $service = new class extends SeoReportService
+    {
+        public function exposePrepareUrlForSsrf(string $url): array
+        {
+            return $this->prepareUrlForSsrf($url);
+        }
+
+        protected function supportsPinnedResolution(): bool
+        {
+            return false;
+        }
+    };
+
+    expect(fn () => $service->exposePrepareUrlForSsrf('https://seo-pinned.example.test/article'))
+        ->toThrow(\InvalidArgumentException::class, 'cannot be safely pinned');
+
+    Http::assertNothingSent();
+});
+
 it('SeoReportService_analyse_Good_disables_redirects_and_pins_resolved_destinations', function () {
     if (! defined('CURLOPT_RESOLVE')) {
         $this->markTestSkipped('cURL extension is unavailable.');

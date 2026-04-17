@@ -163,7 +163,7 @@ class WebhookEndpoint extends Model
      */
     public static function curlResolveOptionsFor(string $url): array
     {
-        $resolved = self::resolvePublicDestination($url);
+        $resolved = static::resolvePublicDestination($url);
 
         return $resolved['curl_options'];
     }
@@ -208,6 +208,10 @@ class WebhookEndpoint extends Model
             ];
         }
 
+        if (! static::supportsPinnedResolution()) {
+            throw new \InvalidArgumentException('Webhook URLs must be pinnable to validated public IPs on this platform.');
+        }
+
         $ips = self::resolvePublicIps($host);
         $resolveEntries = array_map(
             static fn (string $ip): string => sprintf(
@@ -230,6 +234,14 @@ class WebhookEndpoint extends Model
                 ]
                 : [],
         ];
+    }
+
+    /**
+     * Determine whether the current HTTP client stack can pin resolved hosts.
+     */
+    protected static function supportsPinnedResolution(): bool
+    {
+        return defined('CURLOPT_RESOLVE');
     }
 
     /**

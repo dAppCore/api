@@ -493,6 +493,10 @@ class SeoReportService
             ];
         }
 
+        if (! $this->supportsPinnedResolution()) {
+            throw new \InvalidArgumentException('The supplied URL cannot be safely pinned on this platform.');
+        }
+
         $ips = $this->resolvePublicIps($host);
         foreach ($ips as $ip) {
             $resolveEntries[] = sprintf(
@@ -514,6 +518,14 @@ class SeoReportService
                 ]
                 : [],
         ];
+    }
+
+    /**
+     * Determine whether the current HTTP client stack can pin resolved hosts.
+     */
+    protected function supportsPinnedResolution(): bool
+    {
+        return defined('CURLOPT_RESOLVE');
     }
 
     /**

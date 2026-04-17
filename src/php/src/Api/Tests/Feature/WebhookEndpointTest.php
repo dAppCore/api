@@ -83,6 +83,19 @@ it('WebhookEndpoint_curlResolveOptionsFor_Bad_blocks_cname_chains_to_private_ips
         ->toThrow(\InvalidArgumentException::class, 'private, loopback, or reserved addresses');
 });
 
+it('WebhookEndpoint_curlResolveOptionsFor_Bad_rejects_hostnames_when_pinning_is_unavailable', function () {
+    $endpoint = new class extends WebhookEndpoint
+    {
+        protected static function supportsPinnedResolution(): bool
+        {
+            return false;
+        }
+    };
+
+    expect(fn () => $endpoint::curlResolveOptionsFor('https://webhook-cname.example.test/webhooks'))
+        ->toThrow(\InvalidArgumentException::class, 'pinnable to validated public IPs');
+});
+
 it('WebhookEndpoint_shouldReceive_Bad_rejects_inactive_endpoints', function () {
     $endpoint = new WebhookEndpoint([
         'events' => ['biolink.created'],
