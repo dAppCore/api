@@ -305,7 +305,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"description": "Returns server health status",
 				"tags":        []string{"system"},
 				"operationId": operationID("get", "/health", operationIDs),
-				"responses":   healthResponses(),
+				"responses":   healthResponses(sb.CacheEnabled),
 			},
 		},
 	}
@@ -313,7 +313,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	graphqlPath := sb.effectiveGraphQLPath()
 	if graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
-		item := graphqlPathItem(graphqlPath, operationIDs)
+		item := graphqlPathItem(graphqlPath, operationIDs, sb.CacheEnabled)
 		if isPublicPathForList(graphqlPath, publicPaths) {
 			makePathItemPublic(item)
 		}
@@ -708,7 +708,12 @@ func successResponseDescription(statusCode int) string {
 
 // healthResponses builds the response set for the built-in health endpoint.
 // It stays public, but rate limiting and timeouts can still apply.
-func healthResponses() map[string]any {
+func healthResponses(cacheEnabled bool) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	if cacheEnabled {
+		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
+
 	return map[string]any{
 		"200": map[string]any{
 			"description": "Server is healthy",
@@ -717,7 +722,7 @@ func healthResponses() map[string]any {
 					"schema": envelopeSchema(map[string]any{"type": "string"}),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), cacheSuccessHeaders()),
+			"headers": successHeaders,
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -1026,7 +1031,7 @@ func sortTags(tags []map[string]any) {
 	})
 }
 
-func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
+func graphqlPathItem(path string, operationIDs map[string]int, cacheEnabled bool) map[string]any {
 	return map[string]any{
 		"get": map[string]any{
 			"summary":     "GraphQL query",
@@ -1039,7 +1044,7 @@ func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 				},
 			},
 			"parameters": graphqlQueryParameters(),
-			"responses":  graphqlResponses(),
+			"responses":  graphqlResponses(cacheEnabled),
 		},
 		"post": map[string]any{
 			"summary":     "GraphQL query",
@@ -1059,7 +1064,7 @@ func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 					},
 				},
 			},
-			"responses": graphqlResponses(),
+			"responses": graphqlResponses(cacheEnabled),
 		},
 	}
 }
@@ -1628,8 +1633,11 @@ func graphqlQueryParameters() []map[string]any {
 	}
 }
 
-func graphqlResponses() map[string]any {
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), cacheSuccessHeaders())
+func graphqlResponses(cacheEnabled bool) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	if cacheEnabled {
+		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
 	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
 
 	return map[string]any{

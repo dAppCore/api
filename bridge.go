@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"io"
 	"iter"
+	"math"
+	"math/big"
 	"net"
 	"net/http"
 	"reflect"
@@ -15,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	core "dappco.re/go/core"
@@ -56,6 +59,7 @@ var _ RouteGroup = (*ToolBridge)(nil)
 var _ DescribableGroup = (*ToolBridge)(nil)
 
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+var regexPatternCache sync.Map
 
 // NewToolBridge creates a bridge that mounts tool endpoints at basePath.
 //
@@ -592,7 +596,7 @@ func validateStringConstraints(value string, schema map[string]any, path string)
 		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be at most %d characters long", displayPath(path), maxLength), nil)
 	}
 	if pattern, ok := schema["pattern"].(string); ok && pattern != "" {
-		re, err := regexp.Compile(pattern)
+		re, err := compiledPattern(pattern)
 		if err != nil {
 			return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s has an invalid pattern %q", displayPath(path), pattern), err)
 		}
@@ -702,6 +706,11 @@ func schemaFloat(value any) (float64, bool) {
 }
 
 func numericLessThan(value any, limit float64) bool {
+	if integral, ok := integralNumericValue(value); ok {
+		if cmp, ok := compareIntegralNumericToFloat64(integral, limit); ok {
+			return cmp < 0
+		}
+	}
 	if n, ok := numericValue(value); ok {
 		return n < limit
 	}
@@ -709,6 +718,11 @@ func numericLessThan(value any, limit float64) bool {
 }
 
 func numericGreaterThan(value any, limit float64) bool {
+	if integral, ok := integralNumericValue(value); ok {
+		if cmp, ok := compareIntegralNumericToFloat64(integral, limit); ok {
+			return cmp > 0
+		}
+	}
 	if n, ok := numericValue(value); ok {
 		return n > limit
 	}
@@ -942,6 +956,11 @@ func enumValues(rawEnum any) []any {
 
 func valuesEqual(left, right any) bool {
 	if isNumericValue(left) && isNumericValue(right) {
+		if li, lok := integralNumericValue(left); lok {
+			if ri, rok := integralNumericValue(right); rok {
+				return li.Cmp(ri) == 0
+			}
+		}
 		lv, lok := numericValue(left)
 		rv, rok := numericValue(right)
 		return lok && rok && lv == rv
@@ -991,6 +1010,92 @@ func numericValue(value any) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func compiledPattern(pattern string) (*regexp.Regexp, error) {
+	if cached, ok := regexPatternCache.Load(pattern); ok {
+		return cached.(*regexp.Regexp), nil
+	}
+
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	if actual, loaded := regexPatternCache.LoadOrStore(pattern, re); loaded {
+		return actual.(*regexp.Regexp), nil
+	}
+
+	return re, nil
+}
+
+func integralNumericValue(value any) (*big.Int, bool) {
+	switch v := value.(type) {
+	case int:
+		return big.NewInt(int64(v)), true
+	case int8:
+		return big.NewInt(int64(v)), true
+	case int16:
+		return big.NewInt(int64(v)), true
+	case int32:
+		return big.NewInt(int64(v)), true
+	case int64:
+		return big.NewInt(v), true
+	case uint:
+		return new(big.Int).SetUint64(uint64(v)), true
+	case uint8:
+		return new(big.Int).SetUint64(uint64(v)), true
+	case uint16:
+		return new(big.Int).SetUint64(uint64(v)), true
+	case uint32:
+		return new(big.Int).SetUint64(uint64(v)), true
+	case uint64:
+		return new(big.Int).SetUint64(v), true
+	case float32:
+		return integralBigIntFromFloat64(float64(v))
+	case float64:
+		return integralBigIntFromFloat64(v)
+	case json.Number:
+		text := strings.TrimSpace(v.String())
+		if text == "" || strings.ContainsAny(text, ".eE") {
+			return nil, false
+		}
+		n := new(big.Int)
+		if _, ok := n.SetString(text, 10); ok {
+			return n, true
+		}
+	}
+	return nil, false
+}
+
+func integralBigIntFromFloat64(v float64) (*big.Int, bool) {
+	if !isIntegralFloat64(v) {
+		return nil, false
+	}
+	i, _ := new(big.Float).SetFloat64(v).Int(nil)
+	if i == nil {
+		return nil, false
+	}
+	return i, true
+}
+
+func compareIntegralNumericToFloat64(value *big.Int, limit float64) (int, bool) {
+	if !isIntegralFloat64(limit) {
+		return 0, false
+	}
+
+	precision := uint(value.BitLen() + 1)
+	if precision < 64 {
+		precision = 64
+	}
+
+	left := new(big.Float).SetPrec(precision).SetInt(value)
+	right := new(big.Float).SetPrec(precision).SetFloat64(limit)
+	return left.Cmp(right), true
+}
+
+func isIntegralFloat64(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0) && math.Trunc(v) == v
 }
 
 func describeJSONValue(value any) string {

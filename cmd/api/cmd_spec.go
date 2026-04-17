@@ -36,7 +36,7 @@ func specAction(opts core.Options) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	bridge := goapi.NewToolBridge(defaultSpecToolBridgePath)
+	bridge := specToolBridge(defaultSpecToolBridgePath)
 	groups := specGroupsIter(bridge)
 
 	if output != "" {

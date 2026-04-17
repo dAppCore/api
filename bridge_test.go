@@ -1119,6 +1119,45 @@ func TestToolBridge_Good_ValidatesNumericBounds(t *testing.T) {
 	}
 }
 
+func TestToolBridge_Bad_RejectsLargeIntegerAboveMaximum(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "quota",
+		Description: "Validate large integer input",
+		InputSchema: map[string]any{
+			"type":    "integer",
+			"maximum": 9007199254740992,
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/quota", bytes.NewBufferString(`9007199254740993`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for large integer maximum failure, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
 func TestToolBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

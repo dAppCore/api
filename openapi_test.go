@@ -216,8 +216,8 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 	health200 := health["responses"].(map[string]any)["200"].(map[string]any)
 	health200Headers := health200["headers"].(map[string]any)
-	if _, ok := health200Headers["X-Cache"]; !ok {
-		t.Fatal("expected X-Cache header on /health 200 response")
+	if _, ok := health200Headers["X-Cache"]; ok {
+		t.Fatal("expected /health 200 response to omit X-Cache when cache is disabled")
 	}
 
 	// Verify system tag exists.
@@ -581,10 +581,11 @@ func TestSpecBuilder_Good_OmitsNonPositiveCacheTTLExtension(t *testing.T) {
 
 func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
-		Title:       "Test",
-		Description: "GraphQL test",
-		Version:     "1.0.0",
-		GraphQLPath: "/graphql",
+		Title:        "Test",
+		Description:  "GraphQL test",
+		Version:      "1.0.0",
+		GraphQLPath:  "/graphql",
+		CacheEnabled: true,
 	}
 
 	data, err := sb.Build(nil)

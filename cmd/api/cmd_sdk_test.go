@@ -5,6 +5,8 @@ package api
 import (
 	"testing"
 
+	"github.com/gin-gonic/gin"
+
 	core "dappco.re/go/core"
 
 	api "dappco.re/go/core/api"
@@ -81,6 +83,50 @@ func TestCmdSdk_SdkSpecGroupsIter_Good_IncludesToolBridge(t *testing.T) {
 	if !found {
 		t.Fatalf("expected %s route group in sdk spec iterator", defaultSpecToolBridgePath)
 	}
+}
+
+// TestCmdSdk_SdkSpecGroupsIter_Good_PopulatesBundledToolDescriptors verifies
+// that the synthesized SDK bridge mirrors registered tool descriptors.
+func TestCmdSdk_SdkSpecGroupsIter_Good_PopulatesBundledToolDescriptors(t *testing.T) {
+	snapshot := api.RegisteredSpecGroups()
+	api.ResetSpecGroups()
+	t.Cleanup(func() {
+		api.ResetSpecGroups()
+		api.RegisterSpecGroups(snapshot...)
+	})
+
+	source := api.NewToolBridge("/source-tools")
+	source.Add(api.ToolDescriptor{
+		Name:        "ping",
+		Description: "Ping tool",
+		Group:       "system",
+	}, func(*gin.Context) {})
+	api.RegisterSpecGroups(source)
+
+	groups := collectRouteGroups(sdkSpecGroupsIter())
+	for _, g := range groups {
+		if g.BasePath() != defaultSpecToolBridgePath {
+			continue
+		}
+
+		toolSource, ok := g.(interface {
+			Tools() []api.ToolDescriptor
+		})
+		if !ok {
+			t.Fatalf("expected bundled bridge to expose tools, got %T", g)
+		}
+
+		tools := toolSource.Tools()
+		if len(tools) != 1 {
+			t.Fatalf("expected 1 bundled tool descriptor, got %d", len(tools))
+		}
+		if tools[0].Name != "ping" {
+			t.Fatalf("expected bundled tool descriptor to be copied from registry, got %q", tools[0].Name)
+		}
+		return
+	}
+
+	t.Fatalf("expected %s route group in sdk spec iterator", defaultSpecToolBridgePath)
 }
 
 // TestCmdSdk_SdkConfigFromOptions_Ugly_FallsBackToSDKDefaults exercises the
