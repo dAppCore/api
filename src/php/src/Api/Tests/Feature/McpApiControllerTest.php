@@ -63,3 +63,21 @@ it('rejects malformed MCP payloads before writing to a subprocess', function () 
         ],
     ]))->toThrow(RuntimeException::class, 'Unable to encode MCP tool call request as JSON.');
 });
+
+it('rejects malformed tool responses from the subprocess bridge', function () {
+    $controller = new class extends McpApiController
+    {
+        public function call(string $server, string $tool, array $arguments = []): mixed
+        {
+            return $this->executeToolViaArtisan($server, $tool, $arguments, null);
+        }
+
+        protected function runMcpServerCommand(string $command, string $payload, string $context): string
+        {
+            return 'not-json';
+        }
+    };
+
+    expect(fn () => $controller->call('hosthub-agent', 'search'))
+        ->toThrow(RuntimeException::class, 'Invalid MCP tool response');
+});

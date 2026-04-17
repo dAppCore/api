@@ -130,3 +130,45 @@ it('denies access to disallowed mcp servers', function () {
     $response->assertStatus(403);
     $response->assertJsonPath('error', 'forbidden');
 });
+
+it('falls back to an empty registry when the registry file cannot be parsed', function () {
+    file_put_contents($this->registryFile, <<<YAML
+servers:
+  - id: allowed-server
+    name: [
+YAML);
+
+    $response = $this->getJson('/api/mcp/servers', [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertOk();
+    $response->assertJsonPath('count', 0);
+    $response->assertJsonPath('servers', []);
+});
+
+it('returns a not found response when a server definition cannot be parsed', function () {
+    file_put_contents($this->serverDir.'/allowed-server.yaml', <<<YAML
+id: allowed-server
+name: Allowed Server
+status: available
+tools:
+  - name: ping
+    description: Ping the server
+    inputSchema:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    description: [
+YAML);
+
+    $response = $this->getJson('/api/mcp/servers/allowed-server', [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertNotFound();
+    $response->assertJsonPath('error', 'not_found');
+});

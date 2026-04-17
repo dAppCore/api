@@ -1,1 +1,1 @@
-
+- @bug src/php/src/Api/Controllers/McpApiController.php:921 — stdout and stderr are still drained sequentially, so a chatty subprocess could block on a full stderr pipe.

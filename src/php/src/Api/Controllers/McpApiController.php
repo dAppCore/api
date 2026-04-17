@@ -813,33 +813,12 @@ class McpApiController extends Controller
 
         $mcpRequest = $this->buildToolCallRequest($tool, $arguments, $version);
         $payload = $this->encodeMcpRequest($mcpRequest, 'MCP tool call');
-
-        // Execute via process
-        $process = proc_open(
-            ['php', 'artisan', $command],
-            [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes,
-            base_path()
-        );
-
-        if (! is_resource($process)) {
-            throw new \RuntimeException('Failed to start MCP server process');
-        }
-
-        fwrite($pipes[0], $payload."\n");
-        fclose($pipes[0]);
-
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        proc_close($process);
+        $output = $this->runMcpServerCommand($command, $payload, 'MCP tool call');
 
         $response = json_decode($output, true);
+        if (! is_array($response)) {
+            throw new \RuntimeException('Invalid MCP tool response');
+        }
 
         if (isset($response['error'])) {
             throw new \RuntimeException($response['error']['message'] ?? 'Tool execution failed');
@@ -902,7 +881,25 @@ class McpApiController extends Controller
             ],
         ];
         $payload = $this->encodeMcpRequest($mcpRequest, 'MCP resource read');
+        $output = $this->runMcpServerCommand($command, $payload, 'MCP resource read');
 
+        $response = json_decode($output, true);
+        if (! is_array($response)) {
+            throw new \RuntimeException('Invalid MCP resource response');
+        }
+
+        if (isset($response['error'])) {
+            throw new \RuntimeException($response['error']['message'] ?? 'Resource read failed');
+        }
+
+        return $response['result'] ?? null;
+    }
+
+    /**
+     * Execute an MCP artisan command and return the captured stdout.
+     */
+    protected function runMcpServerCommand(string $command, string $payload, string $context): string
+    {
         $process = proc_open(
             ['php', 'artisan', $command],
             [
@@ -918,25 +915,34 @@ class McpApiController extends Controller
             throw new \RuntimeException('Failed to start MCP server process');
         }
 
-        fwrite($pipes[0], $payload."\n");
-        fclose($pipes[0]);
+        $output = '';
+        $errorOutput = '';
 
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        try {
+            fwrite($pipes[0], $payload."\n");
+            fclose($pipes[0]);
 
-        proc_close($process);
+            $output = stream_get_contents($pipes[1]);
+            $errorOutput = stream_get_contents($pipes[2]);
+        } finally {
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    fclose($pipe);
+                }
+            }
 
-        $response = json_decode($output, true);
-        if (! is_array($response)) {
-            throw new \RuntimeException('Invalid MCP resource response');
+            $exitCode = proc_close($process);
         }
 
-        if (isset($response['error'])) {
-            throw new \RuntimeException($response['error']['message'] ?? 'Resource read failed');
+        if ($exitCode !== 0) {
+            $suffix = trim((string) $errorOutput);
+
+            throw new \RuntimeException($suffix !== ''
+                ? "{$context} command failed: {$suffix}"
+                : "{$context} command failed");
         }
 
-        return $response['result'] ?? null;
+        return is_string($output) ? $output : '';
     }
 
     /**
@@ -1140,11 +1146,38 @@ class McpApiController extends Controller
 
     protected function loadRegistry(): array
     {
-        return Cache::remember('mcp:registry', 600, function () {
-            $path = resource_path('mcp/registry.yaml');
+        $cacheKey = 'mcp:registry';
+        try {
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        } catch (\Throwable) {
+            // Fall back to the on-disk registry if cache is unavailable.
+        }
 
-            return file_exists($path) ? Yaml::parseFile($path) : ['servers' => []];
-        });
+        $path = resource_path('mcp/registry.yaml');
+        if (! file_exists($path)) {
+            return ['servers' => []];
+        }
+
+        try {
+            $registry = Yaml::parseFile($path);
+        } catch (\Throwable) {
+            return ['servers' => []];
+        }
+
+        if (! is_array($registry)) {
+            return ['servers' => []];
+        }
+
+        try {
+            Cache::put($cacheKey, $registry, 600);
+        } catch (\Throwable) {
+            // Cache is best-effort for MCP metadata.
+        }
+
+        return $registry;
     }
 
     protected function loadServerFull(string $id): ?array
@@ -1153,11 +1186,38 @@ class McpApiController extends Controller
             return null;
         }
 
-        return Cache::remember("mcp:server:{$id}", 600, function () use ($id) {
-            $path = resource_path("mcp/servers/{$id}.yaml");
+        $cacheKey = "mcp:server:{$id}";
+        try {
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        } catch (\Throwable) {
+            // Fall back to the on-disk server definition if cache is unavailable.
+        }
 
-            return file_exists($path) ? Yaml::parseFile($path) : null;
-        });
+        $path = resource_path("mcp/servers/{$id}.yaml");
+        if (! file_exists($path)) {
+            return null;
+        }
+
+        try {
+            $server = Yaml::parseFile($path);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! is_array($server)) {
+            return null;
+        }
+
+        try {
+            Cache::put($cacheKey, $server, 600);
+        } catch (\Throwable) {
+            // Cache is best-effort for MCP metadata.
+        }
+
+        return $server;
     }
 
     protected function loadServerSummary(string $id): ?array
@@ -1168,8 +1228,8 @@ class McpApiController extends Controller
         }
 
         return [
-            'id' => $server['id'],
-            'name' => $server['name'],
+            'id' => $server['id'] ?? $id,
+            'name' => $server['name'] ?? $id,
             'tagline' => $server['tagline'] ?? '',
             'status' => $server['status'] ?? 'available',
             'tool_count' => count($server['tools'] ?? []),
