@@ -154,7 +154,9 @@ class Boot extends ServiceProvider
      */
     protected function registerWebhookHooks(): void
     {
-        Event::listen(\Core\Mod\Commerce\Events\SubscriptionUpdated::class, DispatchSubscriptionWebhookEvents::class);
+        if (class_exists(\Core\Mod\Commerce\Events\SubscriptionUpdated::class)) {
+            Event::listen(\Core\Mod\Commerce\Events\SubscriptionUpdated::class, DispatchSubscriptionWebhookEvents::class);
+        }
 
         if (class_exists(Workspace::class)) {
             Workspace::observe(WorkspaceWebhookObserver::class);
