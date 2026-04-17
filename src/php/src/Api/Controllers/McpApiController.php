@@ -944,6 +944,7 @@ class McpApiController extends Controller
     protected function runMcpServerCommand(string $command, string $payload, string $context): string
     {
         $deadline = microtime(true) + self::MCP_COMMAND_TIMEOUT_SECONDS;
+        $pipes = [];
         $process = proc_open(
             [PHP_BINARY, 'artisan', $command],
             [
@@ -1086,7 +1087,9 @@ class McpApiController extends Controller
                 }
             }
 
-            $exitCode = proc_close($process);
+            if (is_resource($process)) {
+                $exitCode = proc_close($process);
+            }
         }
 
         if ($timedOut) {
@@ -1348,7 +1351,7 @@ class McpApiController extends Controller
         try {
             $cached = Cache::get($cacheKey);
             if (is_array($cached)) {
-                return $cached;
+                return $this->normalizeServerDefinition($cached);
             }
         } catch (\Throwable) {
             // Fall back to the on-disk server definition if cache is unavailable.
@@ -1368,6 +1371,8 @@ class McpApiController extends Controller
         if (! is_array($server)) {
             return null;
         }
+
+        $server = $this->normalizeServerDefinition($server);
 
         try {
             Cache::put($cacheKey, $server, 600);
@@ -1422,6 +1427,22 @@ class McpApiController extends Controller
             'tool_count' => count($server['tools'] ?? []),
             'resource_count' => count($server['resources'] ?? []),
         ];
+    }
+
+    /**
+     * Normalise a server definition so list and detail responses stay nil-safe.
+     */
+    protected function normalizeServerDefinition(array $server): array
+    {
+        if (! isset($server['tools']) || ! is_array($server['tools'])) {
+            $server['tools'] = [];
+        }
+
+        if (! isset($server['resources']) || ! is_array($server['resources'])) {
+            $server['resources'] = [];
+        }
+
+        return $server;
     }
 
     /**
