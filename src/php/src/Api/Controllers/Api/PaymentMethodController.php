@@ -69,10 +69,7 @@ class PaymentMethodController extends Controller
             user: $request->user(),
             gateway: $data['gateway'] ?? 'stripe',
         );
-        $freshPaymentMethod = $paymentMethod->fresh();
-        if ($freshPaymentMethod instanceof PaymentMethod) {
-            $paymentMethod = $freshPaymentMethod;
-        }
+        $paymentMethod = $this->refreshPaymentMethod($paymentMethod);
 
         return response()->json([
             'payment_method' => $this->serialize($paymentMethod),
@@ -133,10 +130,7 @@ class PaymentMethodController extends Controller
         }
 
         $this->service->setDefaultPaymentMethod($workspace, $paymentMethod);
-        $freshPaymentMethod = $paymentMethod->fresh();
-        if ($freshPaymentMethod instanceof PaymentMethod) {
-            $paymentMethod = $freshPaymentMethod;
-        }
+        $paymentMethod = $this->refreshPaymentMethod($paymentMethod);
 
         return response()->json([
             'payment_method' => $this->serialize($paymentMethod),
@@ -163,5 +157,13 @@ class PaymentMethodController extends Controller
             'created_at' => $paymentMethod->created_at?->toIso8601String(),
             'updated_at' => $paymentMethod->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Refresh a payment method if it still exists.
+     */
+    protected function refreshPaymentMethod(PaymentMethod $paymentMethod): PaymentMethod
+    {
+        return $paymentMethod->fresh() ?? $paymentMethod;
     }
 }

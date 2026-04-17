@@ -78,14 +78,10 @@ class RateLimitService
     public function hit(string $key, int $limit, int $window, float $burst = 1.0): RateLimitResult
     {
         $cacheKey = $this->getCacheKey($key);
-        if (! $this->supportsAtomicLocks()) {
-            return $this->hitWithoutLock($cacheKey, $limit, $window, $burst);
-        }
-
         $lock = $this->acquireBucketLock($cacheKey);
         if ($lock === null) {
-            // Fail closed when the cache backend supports locks but the lock
-            // cannot be acquired quickly enough to guarantee correctness.
+            // Fail closed only when neither the native lock path nor the
+            // advisory lock fallback can safely protect the bucket.
             return RateLimitResult::denied($limit, 1, Carbon::now()->addSecond());
         }
 
@@ -260,21 +256,19 @@ class RateLimitService
      */
     protected function acquireBucketLock(string $cacheKey): mixed
     {
-        if (! $this->supportsAtomicLocks()) {
-            return $this->acquireAdvisoryLock($cacheKey);
-        }
+        if ($this->supportsAtomicLocks()) {
+            try {
+                $lock = $this->cache->lock($cacheKey.':lock', 10);
 
-        try {
-            $lock = $this->cache->lock($cacheKey.':lock', 10);
-
-            if (method_exists($lock, 'get') && $lock->get()) {
-                return $lock;
+                if (method_exists($lock, 'get') && $lock->get()) {
+                    return $lock;
+                }
+            } catch (\Throwable) {
+                // Fall through to the advisory lock fallback below.
             }
-        } catch (\Throwable) {
-            return null;
         }
 
-        return null;
+        return $this->acquireAdvisoryLock($cacheKey);
     }
 
     /**
