@@ -103,7 +103,12 @@ class BiolinkController extends Controller
         }
         $biolink->save();
 
-        return response()->json(['data' => $this->modelPayload($biolink->fresh())]);
+        $freshBiolink = $biolink->fresh();
+        if ($freshBiolink instanceof Biolink) {
+            $biolink = $freshBiolink;
+        }
+
+        return response()->json(['data' => $this->modelPayload($biolink)]);
     }
 
     public function destroy(Request $request, string $workspace, string $id): JsonResponse

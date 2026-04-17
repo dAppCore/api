@@ -101,7 +101,12 @@ class LinkController extends Controller
         $link->fill($data);
         $link->save();
 
-        return response()->json(['data' => $this->modelPayload($link->fresh())]);
+        $freshLink = $link->fresh();
+        if ($freshLink instanceof Link) {
+            $link = $freshLink;
+        }
+
+        return response()->json(['data' => $this->modelPayload($link)]);
     }
 
     public function destroy(Request $request, string $workspace, string $id): JsonResponse

@@ -138,8 +138,13 @@ class WebhookController extends Controller
             ]);
         }
 
+        $freshWebhook = $webhook->fresh();
+        if ($freshWebhook instanceof WebhookEndpoint) {
+            $webhook = $freshWebhook;
+        }
+
         return response()->json([
-            'webhook' => (new WebhookEndpointResource($webhook->fresh()))->toArray($request),
+            'webhook' => (new WebhookEndpointResource($webhook))->toArray($request),
         ]);
     }
 
