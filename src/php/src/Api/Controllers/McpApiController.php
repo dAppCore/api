@@ -812,6 +812,7 @@ class McpApiController extends Controller
         }
 
         $mcpRequest = $this->buildToolCallRequest($tool, $arguments, $version);
+        $payload = $this->encodeMcpRequest($mcpRequest, 'MCP tool call');
 
         // Execute via process
         $process = proc_open(
@@ -829,7 +830,7 @@ class McpApiController extends Controller
             throw new \RuntimeException('Failed to start MCP server process');
         }
 
-        fwrite($pipes[0], json_encode($mcpRequest)."\n");
+        fwrite($pipes[0], $payload."\n");
         fclose($pipes[0]);
 
         $output = stream_get_contents($pipes[1]);
@@ -870,6 +871,18 @@ class McpApiController extends Controller
     }
 
     /**
+     * Encode an MCP request before writing it to a subprocess.
+     */
+    protected function encodeMcpRequest(array $mcpRequest, string $context): string
+    {
+        try {
+            return json_encode($mcpRequest, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new \RuntimeException("Unable to encode {$context} request as JSON.", previous: $e);
+        }
+    }
+
+    /**
      * Read resource via artisan MCP server command.
      */
     protected function readResourceViaArtisan(string $server, string $path): mixed
@@ -888,6 +901,7 @@ class McpApiController extends Controller
                 'path' => $path,
             ],
         ];
+        $payload = $this->encodeMcpRequest($mcpRequest, 'MCP resource read');
 
         $process = proc_open(
             ['php', 'artisan', $command],
@@ -904,7 +918,7 @@ class McpApiController extends Controller
             throw new \RuntimeException('Failed to start MCP server process');
         }
 
-        fwrite($pipes[0], json_encode($mcpRequest)."\n");
+        fwrite($pipes[0], $payload."\n");
         fclose($pipes[0]);
 
         $output = stream_get_contents($pipes[1]);

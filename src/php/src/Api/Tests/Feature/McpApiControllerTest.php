@@ -41,3 +41,25 @@ it('omits the version field when one is not requested', function () {
     ]);
     expect($payload['params'])->not->toHaveKey('version');
 });
+
+it('rejects malformed MCP payloads before writing to a subprocess', function () {
+    $controller = new class extends McpApiController
+    {
+        public function encode(array $payload): string
+        {
+            return $this->encodeMcpRequest($payload, 'MCP tool call');
+        }
+    };
+
+    expect(fn () => $controller->encode([
+        'jsonrpc' => '2.0',
+        'id' => 'test',
+        'method' => 'tools/call',
+        'params' => [
+            'name' => 'search',
+            'arguments' => [
+                'query' => "\xB1",
+            ],
+        ],
+    ]))->toThrow(RuntimeException::class, 'Unable to encode MCP tool call request as JSON.');
+});
