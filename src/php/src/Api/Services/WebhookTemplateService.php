@@ -498,7 +498,7 @@ class WebhookTemplateService
      */
     protected function isSupportedMustacheBlockTag(string $tag): bool
     {
-        return (bool) preg_match('/^(?:#(?:if|unless|each)\s+[a-zA-Z0-9_\.]+|\/(?:if|unless|each))$/', $tag);
+        return (bool) preg_match('/^(?:#(?:if|unless|each)\s+@?[a-zA-Z0-9_\.]+|\/(?:if|unless|each))$/', $tag);
     }
 
     /**

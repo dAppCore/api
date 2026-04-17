@@ -108,6 +108,18 @@ it('WebhookTemplateService_validateTemplate_Good_accepts_supported_mustache_bloc
     ]);
 });
 
+it('WebhookTemplateService_validateTemplate_Good_accepts_loop_context_variables_in_mustache_blocks', function () {
+    $result = $this->service->validateTemplate(
+        '{"is_first":{{#if @first}}true{{/if}}}',
+        WebhookTemplateFormat::MUSTACHE,
+    );
+
+    expect($result)->toBe([
+        'valid' => true,
+        'errors' => [],
+    ]);
+});
+
 it('WebhookTemplateService_buildDefaultPayload_Good_uses_the_event_contract', function () {
     $result = $this->service->buildDefaultPayload(new WebhookTemplateServiceTestEvent());
 
