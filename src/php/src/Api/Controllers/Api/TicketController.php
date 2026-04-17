@@ -132,12 +132,14 @@ class TicketController extends Controller
         $query = SupportTicket::query()->with('replies');
 
         $workspace = $this->resolveWorkspace($request);
+        $user = $request->user();
+
         if ($workspace !== null) {
             $query->forWorkspace($workspace->id);
         }
 
-        if ($request->user()?->id !== null) {
-            $query->where('user_id', $request->user()->id);
+        if ($user?->id !== null) {
+            $query->where('user_id', $user->id);
         }
 
         return $query->find($id);

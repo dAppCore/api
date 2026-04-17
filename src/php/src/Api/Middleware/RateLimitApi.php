@@ -273,6 +273,7 @@ class RateLimitApi
         // Build identifier based on auth context
         $apiKey = $request->attributes->get('api_key');
         $workspace = $request->attributes->get('workspace');
+        $user = $request->user();
 
         if ($apiKey instanceof ApiKey) {
             $parts[] = "api_key:{$apiKey->id}";
@@ -281,8 +282,8 @@ class RateLimitApi
             if ($perWorkspace && $workspace) {
                 $parts[] = "ws:{$workspace->id}";
             }
-        } elseif ($request->user()) {
-            $parts[] = "user:{$request->user()->id}";
+        } elseif ($user !== null) {
+            $parts[] = "user:{$user->id}";
 
             if ($perWorkspace && $workspace) {
                 $parts[] = "ws:{$workspace->id}";
