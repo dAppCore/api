@@ -4,10 +4,24 @@ package api_test
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	api "dappco.re/go/core/api"
 )
+
+type attachRequestMetaTestGroup struct {
+	handler gin.HandlerFunc
+}
+
+func (g attachRequestMetaTestGroup) Name() string     { return "attach-request-meta" }
+func (g attachRequestMetaTestGroup) BasePath() string { return "/v1" }
+func (g attachRequestMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/meta", g.handler)
+}
 
 // ── OK ──────────────────────────────────────────────────────────────────
 
@@ -201,5 +215,119 @@ func TestPaginated_Good_JSONIncludesMeta(t *testing.T) {
 	}
 	if meta["total"].(float64) != 50 {
 		t.Fatalf("expected total=50, got %v", meta["total"])
+	}
+}
+
+func TestResponse_AttachRequestMeta_Good_FillsMetaFromRequestIDMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithRequestID())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	e.Register(attachRequestMetaTestGroup{
+		handler: func(c *gin.Context) {
+			resp := api.AttachRequestMeta(c, api.OK("classified"))
+			c.JSON(http.StatusOK, resp)
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req.Header.Set("X-Request-ID", "client-id-meta")
+	e.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Meta.Page != 0 || resp.Meta.PerPage != 0 || resp.Meta.Total != 0 {
+		t.Fatalf("expected empty pagination metadata when none was provided, got %+v", resp.Meta)
+	}
+}
+
+func TestResponse_AttachRequestMeta_Bad_ReturnsResponseUnchangedWithoutRequestMeta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	e.Register(attachRequestMetaTestGroup{
+		handler: func(c *gin.Context) {
+			resp := api.AttachRequestMeta(c, api.OK("plain"))
+			c.JSON(http.StatusOK, resp)
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	e.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta != nil {
+		t.Fatalf("expected Meta to remain nil, got %+v", resp.Meta)
+	}
+}
+
+func TestResponse_AttachRequestMeta_Ugly_PreservesExistingMetaFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithRequestID())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	e.Register(attachRequestMetaTestGroup{
+		handler: func(c *gin.Context) {
+			resp := api.Paginated("classified", 7, 25, 100)
+			resp = api.AttachRequestMeta(c, resp)
+			c.JSON(http.StatusOK, resp)
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
+	req.Header.Set("X-Request-ID", "client-id-meta")
+	e.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp api.Response[string]
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Meta == nil {
+		t.Fatal("expected Meta to be present")
+	}
+	if resp.Meta.RequestID != "client-id-meta" {
+		t.Fatalf("expected request_id=%q, got %q", "client-id-meta", resp.Meta.RequestID)
+	}
+	if resp.Meta.Duration == "" {
+		t.Fatal("expected duration to be populated")
+	}
+	if resp.Meta.Page != 7 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
+		t.Fatalf("expected existing pagination metadata to be preserved, got %+v", resp.Meta)
 	}
 }

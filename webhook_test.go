@@ -3,6 +3,7 @@
 package api
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -335,5 +336,91 @@ func TestWebhook_IsTimestampValid_Ugly_NilReceiverFallsBackToDefault(t *testing.
 	var s *WebhookSigner
 	if !s.IsTimestampValid(time.Now().Unix()) {
 		t.Fatal("expected nil receiver timestamp check to use default tolerance")
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Good_AllowsPublicHTTPIP(t *testing.T) {
+	if err := ValidateWebhookURL("https://8.8.8.8/inbox"); err != nil {
+		t.Fatalf("expected public IP URL to be accepted, got %v", err)
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Bad_RejectsBlockedDestinations(t *testing.T) {
+	cases := []string{
+		"http://127.0.0.1/inbox",
+		"http://10.0.0.1/inbox",
+		"http://169.254.1.1/inbox",
+		"http://203.0.113.10/inbox",
+		"http://0.0.0.0/inbox",
+		"http://224.0.0.1/inbox",
+		"http://[::1]/inbox",
+		"http://[fc00::1]/inbox",
+		"http://[::]/inbox",
+		"http://[ff00::1]/inbox",
+		"https://localhost/inbox",
+	}
+
+	for _, raw := range cases {
+		t.Run(raw, func(t *testing.T) {
+			if err := ValidateWebhookURL(raw); err == nil {
+				t.Fatalf("expected blocked destination %q to be rejected", raw)
+			}
+		})
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Ugly_RejectsMalformedAndCredentialedURLs(t *testing.T) {
+	cases := []string{
+		"ftp://8.8.8.8/inbox",
+		"https://user:pass@8.8.8.8/inbox",
+		"not-a-url",
+		"http:///missing-host",
+		"https://[::1",
+	}
+
+	for _, raw := range cases {
+		t.Run(raw, func(t *testing.T) {
+			if err := ValidateWebhookURL(raw); err == nil {
+				t.Fatalf("expected malformed URL %q to be rejected", raw)
+			}
+		})
+	}
+}
+
+func TestWebhook_isBlockedWebhookIP_Good_AllowsPublicIP(t *testing.T) {
+	if isBlockedWebhookIP(net.ParseIP("8.8.8.8")) {
+		t.Fatal("expected public IPv4 address to be allowed")
+	}
+	if isBlockedWebhookIP(net.ParseIP("2001:4860:4860::8888")) {
+		t.Fatal("expected public IPv6 address to be allowed")
+	}
+}
+
+func TestWebhook_isBlockedWebhookIP_Bad_RejectsReservedAndPrivateIPs(t *testing.T) {
+	cases := []string{
+		"127.0.0.1",
+		"10.0.0.1",
+		"169.254.1.1",
+		"203.0.113.10",
+		"0.0.0.0",
+		"224.0.0.1",
+		"::1",
+		"fc00::1",
+		"::",
+		"ff00::1",
+	}
+
+	for _, raw := range cases {
+		t.Run(raw, func(t *testing.T) {
+			if !isBlockedWebhookIP(net.ParseIP(raw)) {
+				t.Fatalf("expected %q to be blocked", raw)
+			}
+		})
+	}
+}
+
+func TestWebhook_isBlockedWebhookIP_Ugly_TreatsNilAsBlocked(t *testing.T) {
+	if !isBlockedWebhookIP(nil) {
+		t.Fatal("expected nil IP to be blocked")
 	}
 }
