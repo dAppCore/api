@@ -90,6 +90,28 @@ func (g *traceBodyGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	})
 }
 
+type traceNoopGroup struct {
+	sawRecording bool
+}
+
+func (g *traceNoopGroup) Name() string     { return "trace-noop" }
+func (g *traceNoopGroup) BasePath() string { return "/trace" }
+func (g *traceNoopGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/noop", func(c *gin.Context) {
+		g.sawRecording = trace.SpanFromContext(c.Request.Context()).IsRecording()
+		c.Status(http.StatusOK)
+	})
+}
+
+type traceEmptyGroup struct{}
+
+func (g *traceEmptyGroup) Name() string     { return "trace-empty" }
+func (g *traceEmptyGroup) BasePath() string { return "/trace" }
+func (g *traceEmptyGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/empty", func(c *gin.Context) {
+	})
+}
+
 // ── WithTracing ─────────────────────────────────────────────────────────
 
 func TestWithTracing_Good_CreatesSpan(t *testing.T) {
@@ -387,6 +409,67 @@ func TestTracing_WithTracing_Good_AttachesDurationAndSizeAttributes(t *testing.T
 		t.Fatal("expected span to record response body size")
 	} else if kv.Value.AsInt64() != 4 {
 		t.Fatalf("expected response body size 4, got %d", kv.Value.AsInt64())
+	}
+	if _, ok := hasAttribute(span.Attributes, attribute.Key("http.server.duration_ms")); !ok {
+		t.Fatal("expected span to record server duration")
+	}
+}
+
+func TestTracing_WithTracing_Bad_SkipsAttributesWhenSpanIsNotRecording(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	prevTP := otel.GetTracerProvider()
+	prevProp := otel.GetTextMapPropagator()
+	otel.SetTracerProvider(trace.NewNoopTracerProvider())
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+	})
+
+	e, _ := api.New(api.WithTracing("noop-service"))
+	group := &traceNoopGroup{}
+	e.Register(group)
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/trace/noop", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if group.sawRecording {
+		t.Fatal("expected no-op tracer provider to expose a non-recording span")
+	}
+}
+
+func TestTracing_WithTracing_Ugly_OmitsResponseSizeForEmptyResponses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	exporter, cleanup := setupTracing(t)
+	defer cleanup()
+
+	e, _ := api.New(api.WithTracing("trace-service"))
+	e.Register(&traceEmptyGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/trace/empty", nil)
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	spans := exporter.GetSpans()
+	if len(spans) == 0 {
+		t.Fatal("expected at least one span")
+	}
+
+	span := spans[0]
+	if _, ok := hasAttribute(span.Attributes, attribute.Key("http.response.body.size")); ok {
+		t.Fatal("expected empty responses to skip the response body size attribute")
 	}
 	if _, ok := hasAttribute(span.Attributes, attribute.Key("http.server.duration_ms")); !ok {
 		t.Fatal("expected span to record server duration")
