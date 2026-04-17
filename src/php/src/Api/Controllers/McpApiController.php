@@ -44,6 +44,11 @@ class McpApiController extends Controller
     protected const TOOL_NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/';
 
     /**
+     * Hard wall-clock timeout for artisan-backed MCP subprocess calls.
+     */
+    protected const MCP_COMMAND_TIMEOUT_SECONDS = 30;
+
+    /**
      * List all available MCP servers.
      *
      * GET /api/v1/mcp/servers
@@ -900,6 +905,7 @@ class McpApiController extends Controller
      */
     protected function runMcpServerCommand(string $command, string $payload, string $context): string
     {
+        $deadline = microtime(true) + self::MCP_COMMAND_TIMEOUT_SECONDS;
         $process = proc_open(
             ['php', 'artisan', $command],
             [
@@ -918,6 +924,7 @@ class McpApiController extends Controller
         $output = '';
         $errorOutput = '';
         $exitCode = null;
+        $timedOut = false;
 
         try {
             if (! is_resource($pipes[0]) || ! is_resource($pipes[1]) || ! is_resource($pipes[2])) {
@@ -947,9 +954,17 @@ class McpApiController extends Controller
                     break;
                 }
 
+                $remaining = $deadline - microtime(true);
+                if ($remaining <= 0) {
+                    $timedOut = true;
+                    break;
+                }
+
                 $write = [];
                 $except = [];
-                $selected = stream_select($read, $write, $except, 5);
+                $seconds = (int) floor($remaining);
+                $microseconds = (int) floor(($remaining - $seconds) * 1000000);
+                $selected = stream_select($read, $write, $except, $seconds, $microseconds);
 
                 if ($selected === false) {
                     throw new \RuntimeException("Unable to read {$context} output");
@@ -976,7 +991,28 @@ class McpApiController extends Controller
                         break;
                     }
 
-                    continue;
+                    $timedOut = true;
+                    break;
+                }
+
+                $status = proc_get_status($process);
+                if (! ($status['running'] ?? false)) {
+                    foreach ([1, 2] as $index) {
+                        if (isset($pipes[$index]) && is_resource($pipes[$index])) {
+                            $chunk = stream_get_contents($pipes[$index]);
+                            if ($chunk === false) {
+                                throw new \RuntimeException("Unable to read {$context} output");
+                            }
+
+                            if ($index === 1) {
+                                $output .= $chunk;
+                            } else {
+                                $errorOutput .= $chunk;
+                            }
+                        }
+                    }
+
+                    break;
                 }
 
                 foreach ($read as $pipe) {
@@ -993,6 +1029,10 @@ class McpApiController extends Controller
                 }
             }
         } finally {
+            if ($timedOut && is_resource($process)) {
+                @proc_terminate($process, 9);
+            }
+
             foreach ($pipes as $pipe) {
                 if (is_resource($pipe)) {
                     fclose($pipe);
@@ -1000,6 +1040,10 @@ class McpApiController extends Controller
             }
 
             $exitCode = proc_close($process);
+        }
+
+        if ($timedOut) {
+            throw new \RuntimeException("{$context} command timed out after ".self::MCP_COMMAND_TIMEOUT_SECONDS.' seconds');
         }
 
         if ($exitCode !== 0) {
