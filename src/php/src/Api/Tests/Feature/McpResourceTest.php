@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Cache;
+use Core\Api\Controllers\McpApiController;
 use Core\Api\Models\ApiKey;
 use Mod\Tenant\Models\User;
 use Mod\Tenant\Models\Workspace;
+use Illuminate\Http\Request;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -27,6 +29,7 @@ beforeEach(function () {
     );
 
     $this->plainKey = $result['plain_key'];
+    $this->apiKey = $result['api_key'];
 
     $this->serverId = 'test-resource-server';
     $this->serverDir = resource_path('mcp/servers');
@@ -85,6 +88,26 @@ it('reads a resource from the server definition', function () {
         'message' => 'Hello from the MCP resource bridge',
         'version' => 1,
     ]);
+});
+
+it('does not alias resource names to unrelated resource paths', function () {
+    $controller = new class extends McpApiController
+    {
+        protected function readResourceViaArtisan(string $server, string $path): mixed
+        {
+            return null;
+        }
+    };
+
+    $encodedUri = rawurlencode('test-resource-server://archive/welcome');
+
+    $request = Request::create("/api/mcp/resources/{$encodedUri}", 'GET');
+    $request->attributes->set('api_key', $this->apiKey);
+
+    $response = $controller->resource($request, $encodedUri);
+
+    $response->assertNotFound();
+    $response->assertJsonPath('error', 'not_found');
 });
 
 it('lists resources for a server', function () {

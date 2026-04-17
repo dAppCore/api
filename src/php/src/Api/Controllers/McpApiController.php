@@ -1042,9 +1042,8 @@ class McpApiController extends Controller
 
             $resourceUri = $resource['uri'] ?? null;
             $resourcePath = $resource['path'] ?? null;
-            $resourceName = $resource['name'] ?? null;
 
-            if ($resourceUri === $uri || $resourcePath === $path || $resourceName === basename($path)) {
+            if ($resourceUri === $uri || $resourcePath === $path) {
                 return $resource;
             }
         }

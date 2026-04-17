@@ -1,0 +1,1 @@
+- @security src/php/src/Api/Controllers/McpApiController.php:901 — MCP subprocess execution still lacks a hard wall-clock timeout and can hang indefinitely on a stalled artisan command.
