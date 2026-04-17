@@ -58,7 +58,7 @@ class RateLimitService
 
         if ($currentCount >= $effectiveLimit) {
             // Find oldest hit to determine retry after
-            $oldestHit = min($hits);
+            $oldestHit = $hits !== [] ? min($hits) : $now->timestamp;
             $retryAfter = max(1, ($oldestHit + $window) - $now->timestamp);
 
             return RateLimitResult::denied($limit, $retryAfter, $resetsAt);
@@ -232,7 +232,7 @@ class RateLimitService
 
         if ($currentCount >= $effectiveLimit) {
             // Find oldest hit to determine retry after
-            $oldestHit = min($hits);
+            $oldestHit = $hits !== [] ? min($hits) : $now->timestamp;
             $retryAfter = max(1, ($oldestHit + $window) - $now->timestamp);
 
             return RateLimitResult::denied($limit, $retryAfter, $resetsAt);

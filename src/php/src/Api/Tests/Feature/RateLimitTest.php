@@ -156,6 +156,15 @@ class RateLimitTest extends TestCase
         $this->assertGreaterThan(0, $result->retryAfter);
     }
 
+    public function test_service_handles_zero_effective_limit_without_crashing(): void
+    {
+        $result = $this->rateLimitService->hit('zero-limit-key', 0, 60);
+
+        $this->assertFalse($result->allowed);
+        $this->assertSame(0, $result->remaining);
+        $this->assertGreaterThan(0, $result->retryAfter);
+    }
+
     public function test_check_method_does_not_increment_counter(): void
     {
         // Hit once
