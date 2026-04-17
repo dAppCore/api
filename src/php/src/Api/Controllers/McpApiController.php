@@ -340,6 +340,12 @@ class McpApiController extends Controller
             'version' => 'nullable|string|max:32',
         ]);
 
+        if (! $this->isValidToolName($validated['tool'])) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
         if ($denied = $this->ensureServerAccess($request, $validated['server'])) {
             return $denied;
         }
@@ -409,6 +415,12 @@ class McpApiController extends Controller
         ?string $version,
         string $requestPath
     ): JsonResponse {
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
         $validated = [
             'server' => $server,
             'tool' => $tool,
@@ -1361,6 +1373,20 @@ class McpApiController extends Controller
      */
     protected function isValidToolName(string $tool): bool
     {
+        $tool = trim($tool);
+
+        if ($tool === '') {
+            return false;
+        }
+
+        if (str_contains($tool, '/') || str_contains($tool, '\\') || str_contains($tool, '*') || str_contains($tool, '?')) {
+            return false;
+        }
+
+        if (str_contains($tool, '..')) {
+            return false;
+        }
+
         return (bool) preg_match(self::TOOL_NAME_PATTERN, $tool);
     }
 

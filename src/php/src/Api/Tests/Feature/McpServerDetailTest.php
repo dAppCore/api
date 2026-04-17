@@ -275,3 +275,28 @@ it('McpApiController_callToolByRoute_Ugly_rejects_invalid_tool_names', function 
         ],
     ]);
 });
+
+it('McpApiController_callTool_Bad_rejects_traversal_style_tool_names', function () {
+    $controller = new class extends McpApiController
+    {
+    };
+
+    $request = Request::create('/api/mcp/tools/call', 'POST', [
+        'server' => 'test-detail-server',
+        'tool' => 'foo..bar',
+        'arguments' => [
+            'query' => 'status',
+        ],
+    ]);
+    $request->attributes->set('api_key', $this->apiKey);
+
+    $response = $controller->callTool($request);
+
+    expect($response->getStatusCode())->toBe(422);
+    expect($response->getData(true))->toMatchArray([
+        'error' => 'validation_error',
+        'errors' => [
+            'tool' => ['The selected tool name is invalid.'],
+        ],
+    ]);
+});
