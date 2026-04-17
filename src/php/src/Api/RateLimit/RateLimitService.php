@@ -92,7 +92,11 @@ class RateLimitService
         try {
             return $this->hitWithoutLock($cacheKey, $limit, $window, $burst);
         } finally {
-            $lock->release();
+            try {
+                $lock->release();
+            } catch (\Throwable) {
+                // Best-effort unlock only.
+            }
         }
     }
 

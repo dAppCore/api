@@ -489,29 +489,8 @@ class SeoReportService
             ];
         }
 
-        $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
-
-        // Fall back to gethostbyname for hosts not returned by dns_get_record.
-        if (empty($records)) {
-            $resolved = gethostbyname($host);
-            if ($resolved !== $host) {
-                $records[] = ['ip' => $resolved];
-            }
-        }
-
-        if ($records === []) {
-            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
-        }
-
-        foreach ($records as $record) {
-            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
-            if ($ip === null) {
-                continue;
-            }
-            if ($this->isPrivateIp($ip)) {
-                throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
-            }
-
+        $ips = $this->resolvePublicIps($host);
+        foreach ($ips as $ip) {
             $resolveEntries[] = sprintf(
                 '%s:%d:%s',
                 $host,
@@ -531,6 +510,62 @@ class SeoReportService
                 ]
                 : [],
         ];
+    }
+
+    /**
+     * Resolve a hostname to public IPs, following CNAME chains.
+     *
+     * @return array<int, string>
+     */
+    protected function resolvePublicIps(string $host, array &$visitedHosts = [], int $depth = 0): array
+    {
+        $normalisedHost = strtolower(rtrim($host, '.'));
+
+        if ($normalisedHost === '' || isset($visitedHosts[$normalisedHost])) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        if ($depth > 8) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        $visitedHosts[$normalisedHost] = true;
+
+        $records = dns_get_record($host, DNS_A | DNS_AAAA | DNS_CNAME) ?: [];
+        if ($records === []) {
+            $resolved = gethostbyname($host);
+            if ($resolved !== $host) {
+                $records[] = ['ip' => $resolved];
+            }
+        }
+
+        if ($records === []) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        $ips = [];
+
+        foreach ($records as $record) {
+            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
+            if ($ip !== null) {
+                if ($this->isPrivateIp($ip)) {
+                    throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
+                }
+
+                $ips[] = $ip;
+
+                continue;
+            }
+
+            if (($record['type'] ?? null) === 'CNAME' && ! empty($record['target'])) {
+                $ips = array_merge(
+                    $ips,
+                    $this->resolvePublicIps((string) $record['target'], $visitedHosts, $depth + 1)
+                );
+            }
+        }
+
+        return array_values(array_unique($ips));
     }
 
     /**
