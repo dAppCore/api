@@ -11,6 +11,7 @@ use Core\Api\RateLimit\RateLimit;
 use Core\Api\RateLimit\RateLimitResult;
 use Core\Api\RateLimit\RateLimitService;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -28,6 +29,11 @@ class RateLimitTest extends TestCase
 
     protected RateLimitService $rateLimitService;
 
+    /**
+     * @param Application $app
+     *
+     * @return array<int, class-string>
+     */
     protected function getPackageProviders($app): array
     {
         return [
