@@ -99,6 +99,23 @@ it('SeoReportService_analyse_Bad_rejects_oversized_responses', function () {
         ->toThrow(RuntimeException::class);
 });
 
+it('SeoReportService_analyse_Ugly_caps_streamed_bodies_without_content_length', function () {
+    config(['api.seo.max_body_bytes' => 16]);
+
+    try {
+        Http::fake([
+            'https://1.1.1.1/*' => Http::response('abcdefghijklmnopq', 200, [
+                'Content-Type' => 'text/html; charset=utf-8',
+            ]),
+        ]);
+
+        expect(fn () => seoReportService()->analyse('https://1.1.1.1/article'))
+            ->toThrow(RuntimeException::class);
+    } finally {
+        config()->offsetUnset('api.seo.max_body_bytes');
+    }
+});
+
 it('SeoReportService_analyse_Ugly_blocks_unsafe_urls_before_fetching', function () {
     Http::fake();
 

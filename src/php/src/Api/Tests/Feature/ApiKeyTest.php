@@ -351,6 +351,36 @@ describe('Server Scopes', function () {
     });
 });
 
+describe('Server Scope Normalisation', function () {
+    it('ApiKeyTest_normaliseServerScopes_Good_accepts_null_and_empty_lists', function () {
+        expect(ApiKey::normaliseServerScopes(null))->toBeNull();
+        expect(ApiKey::normaliseServerScopes([]))->toBe([]);
+    });
+
+    it('ApiKeyTest_normaliseServerScopes_Bad_rejects_malformed_identifiers', function () {
+        $cases = [
+            '',
+            ' ',
+            '../secrets',
+            '/etc/passwd',
+            'bio_host',
+            '-leading',
+            str_repeat('a', 65),
+            123,
+        ];
+
+        foreach ($cases as $case) {
+            expect(fn () => ApiKey::normaliseServerScopes([$case]))
+                ->toThrow(InvalidArgumentException::class);
+        }
+    });
+
+    it('ApiKeyTest_normaliseServerScopes_Ugly_trims_and_deduplicates_valid_identifiers', function () {
+        expect(ApiKey::normaliseServerScopes([' commerce ', 'biohost', 'commerce']))
+            ->toBe(['commerce', 'biohost']);
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Key Revocation
 // ─────────────────────────────────────────────────────────────────────────────

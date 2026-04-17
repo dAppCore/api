@@ -1,0 +1,8 @@
+- @bug tracing.go:79 — Guard `http.response.body.size` when Gin reports `-1` so telemetry does not record a sentinel negative size.
+- @bug scripts/publish-sdks.sh:19 — Clean `dist/` before Python publishing so stale artifacts are not uploaded.
+- @bug scripts/publish-sdks.sh:42 — Replace the recursive `.nupkg` glob with a safe file lookup and pass `--api-key` for NuGet publishing.
+- @bug scripts/publish-sdks.sh:47 — Make `dart pub publish` non-interactive in CI with `--force`.
+- @bug swagger_test.go:959 — Use a prefix check for `Content-Type` instead of slicing the header string unsafely.
+- @bug tests/Pest.php:33 — Add the missing parameter type hint on `getPackageProviders($app)`.
+- @bug src/php/src/Api/Controllers/Api/PaymentMethodController.php:66 — Make the `fresh()` result null-safe before serialising the default payment method response.
+- @bug src/php/src/Api/RateLimit/RateLimitService.php:81 — The default cache path still bypasses the lock fallback, so rate-limit concurrency safety needs a seam or wiring fix.

@@ -122,3 +122,21 @@ it('rejects double-encoded traversal in resource paths', function () {
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['uri']);
 });
+
+it('McpApiController_resource_Ugly_rejects_non_relative_resource_paths', function () {
+    $cases = [
+        'test-resource-server:///secrets',
+        'test-resource-server://documents\\secrets',
+    ];
+
+    foreach ($cases as $uri) {
+        $encodedUri = rawurlencode($uri);
+
+        $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+            'Authorization' => "Bearer {$this->plainKey}",
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['uri']);
+    }
+});
