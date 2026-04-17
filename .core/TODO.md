@@ -1,1 +1,1 @@
-- @docs src/php/src/Website/Api/View/Blade/guides/quickstart.blade.php:114 — The quickstart guide still hard-codes the `hk_` example prefix in its cURL snippets instead of using the configurable API key prefix root.
+- @docs src/php/src/Website/Api/View/Blade/index.blade.php:88 — The landing page still hard-codes the API key prefix in its cURL example.
