@@ -28,49 +28,61 @@ class WebhookService
      */
     public function dispatch(int $workspaceId, string $eventType, array $data): array
     {
-        // Find all active endpoints for this workspace that subscribe to this event
-        $endpoints = WebhookEndpoint::query()
-            ->forWorkspace($workspaceId)
-            ->active()
-            ->forEvent($eventType)
-            ->get();
+        try {
+            // Find all active endpoints for this workspace that subscribe to this event
+            $endpoints = WebhookEndpoint::query()
+                ->forWorkspace($workspaceId)
+                ->active()
+                ->forEvent($eventType)
+                ->get();
 
-        if ($endpoints->isEmpty()) {
-            Log::debug('No webhook endpoints found for event', [
+            if ($endpoints->isEmpty()) {
+                Log::debug('No webhook endpoints found for event', [
+                    'workspace_id' => $workspaceId,
+                    'event_type' => $eventType,
+                ]);
+
+                return [];
+            }
+
+            $deliveries = [];
+
+            // Wrap all deliveries in a transaction to ensure atomicity
+            DB::transaction(function () use ($endpoints, $eventType, $data, $workspaceId, &$deliveries) {
+                foreach ($endpoints as $endpoint) {
+                    // Create delivery record
+                    $delivery = WebhookDelivery::createForEvent(
+                        $endpoint,
+                        $eventType,
+                        $data,
+                        $workspaceId
+                    );
+
+                    $deliveries[] = $delivery;
+
+                    // Queue the delivery job after the transaction commits
+                    DeliverWebhookJob::dispatch($delivery)->afterCommit();
+
+                    Log::info('Webhook delivery queued', [
+                        'delivery_id' => $delivery->id,
+                        'endpoint_id' => $endpoint->id,
+                        'event_type' => $eventType,
+                    ]);
+                }
+            });
+
+            return $deliveries;
+        } catch (\Throwable $exception) {
+            report($exception);
+            Log::error('Webhook dispatch failed', [
                 'workspace_id' => $workspaceId,
                 'event_type' => $eventType,
+                'error_type' => $exception::class,
+                'error' => $exception->getMessage(),
             ]);
 
             return [];
         }
-
-        $deliveries = [];
-
-        // Wrap all deliveries in a transaction to ensure atomicity
-        DB::transaction(function () use ($endpoints, $eventType, $data, $workspaceId, &$deliveries) {
-            foreach ($endpoints as $endpoint) {
-                // Create delivery record
-                $delivery = WebhookDelivery::createForEvent(
-                    $endpoint,
-                    $eventType,
-                    $data,
-                    $workspaceId
-                );
-
-                $deliveries[] = $delivery;
-
-                // Queue the delivery job after the transaction commits
-                DeliverWebhookJob::dispatch($delivery)->afterCommit();
-
-                Log::info('Webhook delivery queued', [
-                    'delivery_id' => $delivery->id,
-                    'endpoint_id' => $endpoint->id,
-                    'event_type' => $eventType,
-                ]);
-            }
-        });
-
-        return $deliveries;
     }
 
     /**
@@ -84,22 +96,33 @@ class WebhookService
             return false;
         }
 
-        DB::transaction(function () use ($delivery) {
-            // Reset status for manual retry but preserve attempt history
-            $delivery->update([
-                'status' => WebhookDelivery::STATUS_PENDING,
-                'next_retry_at' => null,
-            ]);
+        try {
+            DB::transaction(function () use ($delivery) {
+                // Reset status for manual retry but preserve attempt history
+                $delivery->update([
+                    'status' => WebhookDelivery::STATUS_PENDING,
+                    'next_retry_at' => null,
+                ]);
 
-            DeliverWebhookJob::dispatch($delivery)->afterCommit();
+                DeliverWebhookJob::dispatch($delivery)->afterCommit();
 
-            Log::info('Manual webhook retry queued', [
+                Log::info('Manual webhook retry queued', [
+                    'delivery_id' => $delivery->id,
+                    'attempt' => $delivery->attempt,
+                ]);
+            });
+
+            return true;
+        } catch (\Throwable $exception) {
+            report($exception);
+            Log::error('Manual webhook retry failed', [
                 'delivery_id' => $delivery->id,
-                'attempt' => $delivery->attempt,
+                'error_type' => $exception::class,
+                'error' => $exception->getMessage(),
             ]);
-        });
 
-        return true;
+            return false;
+        }
     }
 
     /**
@@ -120,7 +143,8 @@ class WebhookService
             ->pluck('id');
 
         foreach ($deliveryIds as $deliveryId) {
-            DB::transaction(function () use ($deliveryId, &$count) {
+            try {
+                DB::transaction(function () use ($deliveryId, &$count) {
                 // Lock the row for update to prevent concurrent processing
                 $delivery = WebhookDelivery::query()
                     ->with('endpoint')
@@ -150,6 +174,14 @@ class WebhookService
                 DeliverWebhookJob::dispatch($delivery)->afterCommit();
                 $count++;
             });
+            } catch (\Throwable $exception) {
+                report($exception);
+                Log::warning('Webhook queue processing failed for delivery', [
+                    'delivery_id' => $deliveryId,
+                    'error_type' => $exception::class,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         if ($count > 0) {
