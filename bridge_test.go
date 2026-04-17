@@ -357,7 +357,7 @@ func TestToolBridge_Good_ValidatesResponseBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", nil)
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(""))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -456,6 +456,126 @@ func TestToolBridge_Bad_InvalidRequestBody(t *testing.T) {
 	}
 	if resp.Success {
 		t.Fatal("expected Success=false")
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("   "))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for whitespace-only request body, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(`{"path":`))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for malformed JSON, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
+		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)
+	}
+}
+
+func TestToolBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	bridge := api.NewToolBridge("/tools")
+	bridge.Add(api.ToolDescriptor{
+		Name:        "file_read",
+		Description: "Read a file from disk",
+		Group:       "files",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string"},
+			},
+			"required": []any{"path"},
+		},
+	}, func(c *gin.Context) {
+		c.JSON(http.StatusOK, api.OK("should not run"))
+	})
+
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBuffer(bytes.Repeat([]byte("a"), 10<<20+1)))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 for oversized request body, got %d", w.Code)
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
 		t.Fatalf("expected invalid_request_body error, got %#v", resp.Error)

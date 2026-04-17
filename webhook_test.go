@@ -3,6 +3,7 @@
 package api
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -61,6 +62,48 @@ func TestWebhook_GenerateWebhookSecret_Good_Returns64HexChars(t *testing.T) {
 		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
 			t.Fatalf("expected lowercase hex characters, got %q", secret)
 		}
+	}
+}
+
+func TestWebhook_GenerateWebhookSecret_Bad_ReturnsErrorWhenReaderFails(t *testing.T) {
+	original := randomRead
+	randomRead = func([]byte) (int, error) {
+		return 0, io.ErrUnexpectedEOF
+	}
+	defer func() { randomRead = original }()
+
+	secret, err := GenerateWebhookSecret()
+	if err == nil {
+		t.Fatal("expected GenerateWebhookSecret to fail when the random reader errors")
+	}
+	if secret != "" {
+		t.Fatalf("expected empty secret on error, got %q", secret)
+	}
+}
+
+func TestWebhook_GenerateWebhookSecret_Ugly_ReturnsErrorAfterPartialRead(t *testing.T) {
+	original := randomRead
+	randomRead = func(p []byte) (int, error) {
+		if len(p) == 0 {
+			return 0, io.ErrUnexpectedEOF
+		}
+		n := len(p) / 2
+		if n == 0 {
+			n = 1
+		}
+		for i := 0; i < n; i++ {
+			p[i] = byte(i)
+		}
+		return n, io.ErrUnexpectedEOF
+	}
+	defer func() { randomRead = original }()
+
+	secret, err := GenerateWebhookSecret()
+	if err == nil {
+		t.Fatal("expected GenerateWebhookSecret to fail when the random reader is truncated")
+	}
+	if secret != "" {
+		t.Fatalf("expected empty secret on partial-read error, got %q", secret)
 	}
 }
 
@@ -342,6 +385,55 @@ func TestWebhook_IsTimestampValid_Ugly_NilReceiverFallsBackToDefault(t *testing.
 func TestWebhook_ValidateWebhookURL_Good_AllowsPublicHTTPIP(t *testing.T) {
 	if err := ValidateWebhookURL("https://8.8.8.8/inbox"); err != nil {
 		t.Fatalf("expected public IP URL to be accepted, got %v", err)
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Good_AllowsResolvablePublicHostname(t *testing.T) {
+	original := lookupIP
+	lookupIP = func(host string) ([]net.IP, error) {
+		if host != "hooks.example.test" {
+			return nil, net.UnknownNetworkError("unexpected host")
+		}
+		return []net.IP{
+			net.ParseIP("1.1.1.1"),
+			net.ParseIP("2606:4700:4700::1111"),
+		}, nil
+	}
+	defer func() { lookupIP = original }()
+
+	if err := ValidateWebhookURL("https://hooks.example.test/inbox"); err != nil {
+		t.Fatalf("expected hostname resolving to public IPs to be accepted, got %v", err)
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Bad_RejectsHostnameResolvingToPrivateIP(t *testing.T) {
+	original := lookupIP
+	lookupIP = func(string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("10.0.0.1")}, nil
+	}
+	defer func() { lookupIP = original }()
+
+	if err := ValidateWebhookURL("https://hooks.example.test/inbox"); err == nil {
+		t.Fatal("expected hostname resolving to a private IP to be rejected")
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Ugly_RejectsLookupFailuresAndEmptyResults(t *testing.T) {
+	original := lookupIP
+	defer func() { lookupIP = original }()
+
+	lookupIP = func(string) ([]net.IP, error) {
+		return nil, net.UnknownNetworkError("lookup failed")
+	}
+	if err := ValidateWebhookURL("https://hooks.example.test/inbox"); err == nil {
+		t.Fatal("expected lookup failure to be rejected")
+	}
+
+	lookupIP = func(string) ([]net.IP, error) {
+		return []net.IP{}, nil
+	}
+	if err := ValidateWebhookURL("https://hooks.example.test/inbox"); err == nil {
+		t.Fatal("expected empty lookup results to be rejected")
 	}
 }
 

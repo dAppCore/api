@@ -146,6 +146,69 @@ func TestApiSunsetWith_Good_StripsMethodFromSuccessorLink(t *testing.T) {
 	}
 }
 
+func TestApiSunsetWith_Good_PreservesRawSuccessorTarget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "/api/v2/billing/invoices")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "</api/v2/billing/invoices>; rel=\"successor-version\"" {
+		t.Fatalf("expected raw replacement path to be preserved in Link header, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "/api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the raw replacement, got %q", got)
+	}
+}
+
+func TestApiSunsetWith_Ugly_PreservesUnknownMethodPrefixAsRawTarget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "PURGE /api/v2/billing/invoices")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "<PURGE /api/v2/billing/invoices>; rel=\"successor-version\"" {
+		t.Fatalf("expected unknown method prefix to be preserved, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "PURGE /api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the raw replacement, got %q", got)
+	}
+}
+
+func TestApiSunsetWith_Ugly_PreservesBareReplacementToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "POST")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "<POST>; rel=\"successor-version\"" {
+		t.Fatalf("expected bare replacement token to be preserved, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "POST" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the bare token, got %q", got)
+	}
+}
+
 // TestApiSunsetWith_Good_AddsNoticeURLHeader exercises ApiSunsetWith with the
 // WithSunsetNoticeURL option to verify the spec §8 notice header is emitted.
 func TestApiSunsetWith_Good_AddsNoticeURLHeader(t *testing.T) {

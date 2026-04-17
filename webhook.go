@@ -140,7 +140,7 @@ func NewWebhookSignerWithTolerance(secret string, tolerance time.Duration) *Webh
 //	// secret = "9f1a..." (64 hex chars)
 func GenerateWebhookSecret() (string, error) {
 	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
+	if _, err := randomRead(buf); err != nil {
 		return "", core.E("WebhookSigner.GenerateSecret", "read random bytes", err)
 	}
 	return hex.EncodeToString(buf), nil
@@ -303,7 +303,7 @@ func ValidateWebhookURL(raw string) error {
 		return nil
 	}
 
-	ips, err := net.LookupIP(host)
+	ips, err := lookupIP(host)
 	if err != nil {
 		return core.E("ValidateWebhookURL", "resolve webhook host", err)
 	}
@@ -370,6 +370,9 @@ var webhookBlockedCIDRs = mustParseWebhookCIDRs(
 	"fe80::/10",
 	"ff00::/8",
 )
+
+var randomRead = rand.Read
+var lookupIP = net.LookupIP
 
 func mustParseWebhookCIDRs(values ...string) []*net.IPNet {
 	nets := make([]*net.IPNet, 0, len(values))
