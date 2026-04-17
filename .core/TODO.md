@@ -1,1 +1,0 @@
-- @docs src/php/src/Website/Api/View/Blade/index.blade.php:88 — The landing page still hard-codes the API key prefix in its cURL example.
