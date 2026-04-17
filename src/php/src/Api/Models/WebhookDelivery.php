@@ -71,12 +71,14 @@ class WebhookDelivery extends Model
         array $data,
         ?int $workspaceId = null
     ): static {
+        $eventId = 'evt_'.Str::random(24);
+
         return static::create([
             'webhook_endpoint_id' => $endpoint->id,
-            'event_id' => 'evt_'.Str::random(24),
+            'event_id' => $eventId,
             'event_type' => $eventType,
             'payload' => [
-                'id' => 'evt_'.Str::random(24),
+                'id' => $eventId,
                 'type' => $eventType,
                 'created_at' => now()->toIso8601String(),
                 'data' => $data,

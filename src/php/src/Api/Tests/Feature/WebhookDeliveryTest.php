@@ -866,6 +866,25 @@ describe('Delivery Payload Headers', function () {
         expect($payload['headers'])->toHaveKey('X-Webhook-Signature');
     });
 
+    it('uses the same delivery id in the payload and headers', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $payload = $delivery->getDeliveryPayload();
+
+        expect($payload['headers']['X-Webhook-Id'])->toBe($delivery->event_id);
+        expect(json_decode($payload['body'], true)['id'] ?? null)->toBe($delivery->event_id);
+    });
+
     it('uses provided timestamp', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
