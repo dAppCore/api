@@ -7,6 +7,7 @@ namespace Core\Api\Services;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Http\Client\Response as HttpResponse;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -35,22 +36,8 @@ class SeoReportService
         $curlOptions = $this->prepareUrlForSsrf($url);
 
         try {
-            $request = Http::withHeaders([
-                'User-Agent' => config('app.name', 'Core API').' SEO Reporter/1.0',
-                'Accept' => 'text/html,application/xhtml+xml',
-            ])
-                ->timeout((int) config('api.seo.timeout', 10))
-                ->withoutRedirecting()
-                ->withOptions([
-                    'stream' => true,
-                ]);
-
-            if ($curlOptions !== []) {
-                $request = $request->withOptions($curlOptions);
-            }
-
             /** @var HttpResponse $response */
-            $response = $request->get($url)->throw();
+            $response = $this->buildRequest($curlOptions['curl_options'] ?? [])->get($url)->throw();
             $html = $this->readBodyWithLimit($response);
         } catch (RuntimeException $exception) {
             throw $exception;
@@ -104,6 +91,32 @@ class SeoReportService
             'issues' => $issues,
             'recommendations' => $this->buildRecommendations($issues),
         ];
+    }
+
+    /**
+     * Build the SEO fetch request with SSRF-safe client options.
+     *
+     * @param  array<string, array<int, string>>  $curlOptions
+     */
+    protected function buildRequest(array $curlOptions): PendingRequest
+    {
+        $request = Http::withHeaders([
+            'User-Agent' => config('app.name', 'Core API').' SEO Reporter/1.0',
+            'Accept' => 'text/html,application/xhtml+xml',
+        ])
+            ->timeout((int) config('api.seo.timeout', 10))
+            ->withoutRedirecting()
+            ->withOptions([
+                'stream' => true,
+            ]);
+
+        if ($curlOptions !== []) {
+            $request = $request->withOptions([
+                'curl' => $curlOptions,
+            ]);
+        }
+
+        return $request;
     }
 
     /**

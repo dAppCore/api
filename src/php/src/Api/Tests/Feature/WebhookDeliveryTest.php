@@ -2,15 +2,39 @@
 
 declare(strict_types=1);
 
+namespace Core\Api\Models {
+    function dns_get_record(string $hostname, int $type = DNS_A | DNS_AAAA, mixed ...$args): array|false
+    {
+        if ($hostname === 'webhook-pinned.example.test') {
+            return [
+                ['ip' => '1.1.1.1'],
+                ['ipv6' => '2606:4700:4700::1111'],
+            ];
+        }
+
+        return \dns_get_record($hostname, $type, ...$args);
+    }
+}
+
+namespace {
+
 use Core\Api\Jobs\DeliverWebhookJob;
 use Core\Api\Models\WebhookDelivery;
 use Core\Api\Models\WebhookEndpoint;
 use Core\Api\Services\WebhookService;
 use Core\Api\Services\WebhookSignature;
 use Core\Tenant\Models\Workspace;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+
+function webhookPendingRequestOptions(PendingRequest $request): array
+{
+    $reflection = new ReflectionProperty($request, 'options');
+
+    return $reflection->getValue($request);
+}
 
 beforeEach(function () {
     Http::fake();
@@ -706,6 +730,44 @@ describe('Webhook Delivery Job', function () {
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
         expect($delivery->response_code)->toBe(0);
     });
+
+    it('disables redirects and pins validated webhook destinations', function () {
+        if (! defined('CURLOPT_RESOLVE')) {
+            $this->markTestSkipped('cURL extension is unavailable.');
+        }
+
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://webhook-pinned.example.test/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $job = new class($delivery) extends DeliverWebhookJob
+        {
+            public function exposeBuildRequest(array $deliveryPayload, int $timeout, array $curlOptions): PendingRequest
+            {
+                return $this->buildRequest($deliveryPayload, $timeout, $curlOptions);
+            }
+        };
+
+        $request = $job->exposeBuildRequest(
+            $delivery->getDeliveryPayload(),
+            (int) config('api.webhooks.timeout', 30),
+            WebhookEndpoint::curlResolveOptionsFor($endpoint->url)
+        );
+
+        $options = webhookPendingRequestOptions($request);
+
+        expect($options['allow_redirects'] ?? null)->toBeFalse();
+        expect($options['curl'][CURLOPT_RESOLVE] ?? [])->toContain('webhook-pinned.example.test:443:1.1.1.1');
+        expect($options['curl'][CURLOPT_RESOLVE] ?? [])->toContain('webhook-pinned.example.test:443:[2606:4700:4700::1111]');
+    });
 });
 
 // -----------------------------------------------------------------------------
@@ -865,3 +927,5 @@ describe('Delivery Payload Headers', function () {
             ->toThrow(RuntimeException::class, 'Unable to encode webhook payload as JSON.');
     });
 });
+
+}

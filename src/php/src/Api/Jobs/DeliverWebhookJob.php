@@ -7,6 +7,7 @@ namespace Core\Api\Jobs;
 use Core\Api\Models\WebhookDelivery;
 use Core\Api\Models\WebhookEndpoint;
 use Illuminate\Bus\Queueable;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -98,16 +99,8 @@ class DeliverWebhookJob implements ShouldQueue
         ]);
 
         try {
-            $request = Http::timeout($timeout)
-                ->withoutRedirecting()
-                ->withHeaders($deliveryPayload['headers'])
-                ->withBody($deliveryPayload['body'], 'application/json');
-
-            if ($curlOptions !== []) {
-                $request = $request->withOptions($curlOptions);
-            }
-
-            $response = $request->post($endpoint->url);
+            $response = $this->buildRequest($deliveryPayload, $timeout, $curlOptions)
+                ->post($endpoint->url);
 
             $statusCode = $response->status();
             $responseBody = $response->body();
@@ -141,6 +134,28 @@ class DeliverWebhookJob implements ShouldQueue
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Build the outbound webhook request with the full safety contract applied.
+     *
+     * @param  array{headers: array<string, string|int>, body: string}  $deliveryPayload
+     * @param  array<string, array<int, string>>  $curlOptions
+     */
+    protected function buildRequest(array $deliveryPayload, int $timeout, array $curlOptions): PendingRequest
+    {
+        $request = Http::timeout($timeout)
+            ->withoutRedirecting()
+            ->withHeaders($deliveryPayload['headers'])
+            ->withBody($deliveryPayload['body'], 'application/json');
+
+        if ($curlOptions !== []) {
+            $request = $request->withOptions([
+                'curl' => $curlOptions,
+            ]);
+        }
+
+        return $request;
     }
 
     /**

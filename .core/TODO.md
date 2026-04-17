@@ -1,2 +1,0 @@
-- @test src/php/src/Api/Jobs/DeliverWebhookJob.php:101 — add direct coverage for the no-redirect outbound webhook contract and resolved-destination pinning.
-- @test src/php/src/Api/Services/SeoReportService.php:38 — add direct coverage for the no-redirect SEO fetch contract and resolved-destination pinning.

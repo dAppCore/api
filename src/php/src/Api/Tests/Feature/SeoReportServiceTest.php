@@ -2,12 +2,36 @@
 
 declare(strict_types=1);
 
+namespace Core\Api\Services {
+    function dns_get_record(string $hostname, int $type = DNS_A | DNS_AAAA, mixed ...$args): array|false
+    {
+        if ($hostname === 'seo-pinned.example.test') {
+            return [
+                ['ip' => '1.1.1.1'],
+                ['ipv6' => '2606:4700:4700::1111'],
+            ];
+        }
+
+        return \dns_get_record($hostname, $type, ...$args);
+    }
+}
+
+namespace {
+
 use Core\Api\Services\SeoReportService;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 
 function seoReportService(): SeoReportService
 {
     return app(SeoReportService::class);
+}
+
+function seoPendingRequestOptions(PendingRequest $request): array
+{
+    $reflection = new ReflectionProperty($request, 'options');
+
+    return $reflection->getValue($request);
 }
 
 it('SeoReportService_analyse_Good_extracts_technical_signals', function () {
@@ -124,3 +148,33 @@ it('SeoReportService_analyse_Ugly_blocks_unsafe_urls_before_fetching', function 
 
     Http::assertNothingSent();
 });
+
+it('SeoReportService_analyse_Good_disables_redirects_and_pins_resolved_destinations', function () {
+    if (! defined('CURLOPT_RESOLVE')) {
+        $this->markTestSkipped('cURL extension is unavailable.');
+    }
+
+    $service = new class extends SeoReportService
+    {
+        public function exposePrepareUrlForSsrf(string $url): array
+        {
+            return $this->prepareUrlForSsrf($url);
+        }
+
+        public function exposeBuildRequest(array $curlOptions): PendingRequest
+        {
+            return $this->buildRequest($curlOptions);
+        }
+    };
+
+    $curlOptions = $service->exposePrepareUrlForSsrf('https://seo-pinned.example.test/article');
+    $request = $service->exposeBuildRequest($curlOptions['curl_options']);
+    $options = seoPendingRequestOptions($request);
+
+    expect($options['allow_redirects'] ?? null)->toBeFalse();
+    expect($options['stream'] ?? null)->toBeTrue();
+    expect($options['curl'][CURLOPT_RESOLVE] ?? [])->toContain('seo-pinned.example.test:443:1.1.1.1');
+    expect($options['curl'][CURLOPT_RESOLVE] ?? [])->toContain('seo-pinned.example.test:443:[2606:4700:4700::1111]');
+});
+
+}
