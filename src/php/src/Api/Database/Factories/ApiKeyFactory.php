@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Mod\Api\Database\Factories;
+namespace Core\Api\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Mod\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Api\Models\ApiKey;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 
 /**
  * Factory for generating ApiKey test instances.

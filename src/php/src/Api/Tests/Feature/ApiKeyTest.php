@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Cache;
-use Mod\Api\Database\Factories\ApiKeyFactory;
-use Mod\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Api\Database\Factories\ApiKeyFactory;
+use Core\Api\Models\ApiKey;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
