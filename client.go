@@ -339,7 +339,7 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 	}
 	applyRequestParameters(req, op, merged)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := doHTTPClientRequest(c.httpClient, req)
 	if err != nil {
 		return nil, err
 	}

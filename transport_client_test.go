@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,35 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+type trackingReadCloser struct {
+	io.ReadCloser
+	closed *bool
+}
+
+func (t trackingReadCloser) Close() error {
+	*t.closed = true
+	return t.ReadCloser.Close()
+}
+
+type trackingRoundTripper struct {
+	base   http.RoundTripper
+	closed *bool
+}
+
+func (t trackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil || resp == nil || resp.Body == nil {
+		return resp, err
+	}
+
+	resp.Body = trackingReadCloser{
+		ReadCloser: resp.Body,
+		closed:     t.closed,
+	}
+
+	return resp, err
+}
 
 func TestTransportClient_WithWebSocketHeaders_Good_CopiesValues(t *testing.T) {
 	client := &WebSocketClient{}
@@ -236,6 +266,34 @@ func TestTransportClient_Connect_Bad_RejectsNonOKStatus(t *testing.T) {
 	client := NewSSEClient(srv.URL)
 	if _, err := client.Connect(context.Background()); err == nil {
 		t.Fatal("expected non-200 SSE response to fail")
+	}
+}
+
+func TestTransportClient_Connect_Bad_ClosesResponseBodyOnRedirectError(t *testing.T) {
+	var closed bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", "/redirect-target")
+		w.WriteHeader(http.StatusFound)
+		_, _ = io.WriteString(w, "redirecting")
+	}))
+	defer srv.Close()
+
+	client := NewSSEClient(srv.URL, WithSSEHTTPClient(&http.Client{
+		Transport: trackingRoundTripper{
+			base:   http.DefaultTransport,
+			closed: &closed,
+		},
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("redirect blocked")
+		},
+	}))
+
+	if _, err := client.Connect(context.Background()); err == nil {
+		t.Fatal("expected redirect error")
+	}
+	if !closed {
+		t.Fatal("expected redirect response body to be closed")
 	}
 }
 
