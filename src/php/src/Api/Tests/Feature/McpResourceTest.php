@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Cache;
-use Mod\Api\Models\ApiKey;
+use Core\Api\Models\ApiKey;
 use Mod\Tenant\Models\User;
 use Mod\Tenant\Models\Workspace;
 

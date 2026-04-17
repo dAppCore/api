@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
-use Mod\Api\Services\ApiKeyService;
+use Core\Api\Services\ApiKeyService;
 
 /**
  * API key management endpoints.

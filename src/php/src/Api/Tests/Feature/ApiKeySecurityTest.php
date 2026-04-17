@@ -5,9 +5,9 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Mod\Api\Database\Factories\ApiKeyFactory;
-use Mod\Api\Models\ApiKey;
-use Mod\Api\Services\ApiKeyService;
+use Core\Api\Database\Factories\ApiKeyFactory;
+use Core\Api\Models\ApiKey;
+use Core\Api\Services\ApiKeyService;
 use Mod\Tenant\Models\User;
 use Mod\Tenant\Models\Workspace;
 

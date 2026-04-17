@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Core\Mod\Mcp\Services\ToolVersionService;
 use Illuminate\Support\Facades\Cache;
 use Core\Api\Controllers\McpApiController;
-use Mod\Api\Models\ApiKey;
+use Core\Api\Models\ApiKey;
 use Mod\Tenant\Models\User;
 use Mod\Tenant\Models\Workspace;
 use Illuminate\Http\Request;

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Mod\Api\Services;
+namespace Core\Api\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Mod\Api\Models\ApiKey;
+use Core\Api\Models\ApiKey;
 use Core\Tenant\Models\Workspace;
 
 /**
