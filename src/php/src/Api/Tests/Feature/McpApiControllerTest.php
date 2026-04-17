@@ -81,3 +81,30 @@ it('rejects malformed tool responses from the subprocess bridge', function () {
     expect(fn () => $controller->call('hosthub-agent', 'search'))
         ->toThrow(RuntimeException::class, 'Invalid MCP tool response');
 });
+
+it('rejects stringified numeric arguments for typed MCP tool schemas', function () {
+    $controller = new class extends McpApiController
+    {
+        public function validate(array $toolDef, array $arguments): array
+        {
+            return $this->validateToolArguments($toolDef, $arguments);
+        }
+    };
+
+    $errors = $controller->validate([
+        'inputSchema' => [
+            'type' => 'object',
+            'properties' => [
+                'count' => ['type' => 'integer'],
+                'ratio' => ['type' => 'number'],
+            ],
+            'required' => ['count', 'ratio'],
+        ],
+    ], [
+        'count' => '3',
+        'ratio' => '1.5',
+    ]);
+
+    expect($errors)->toContain("Argument 'count' must be of type integer");
+    expect($errors)->toContain("Argument 'ratio' must be of type number");
+});

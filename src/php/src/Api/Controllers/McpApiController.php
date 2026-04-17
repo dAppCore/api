@@ -626,8 +626,8 @@ class McpApiController extends Controller
     {
         return match ($type) {
             'string' => is_string($value),
-            'integer' => is_int($value) || (is_numeric($value) && floor((float) $value) == $value),
-            'number' => is_numeric($value),
+            'integer' => is_int($value),
+            'number' => is_int($value) || is_float($value),
             'boolean' => is_bool($value),
             'array' => is_array($value) && array_is_list($value),
             'object' => is_array($value) && ! array_is_list($value),
