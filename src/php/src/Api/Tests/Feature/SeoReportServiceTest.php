@@ -12,6 +12,12 @@ namespace Core\Api\Services {
             ];
         }
 
+        if ($hostname === 'seo-private.example.test') {
+            return [
+                ['ip' => '10.0.0.1'],
+            ];
+        }
+
         return \dns_get_record($hostname, $type, ...$args);
     }
 }
@@ -166,6 +172,15 @@ it('SeoReportService_analyse_Ugly_blocks_reserved_ip_literals', function () {
 
     expect(fn () => seoReportService()->analyse('https://[2001:db8::1]/article'))
         ->toThrow(\InvalidArgumentException::class);
+
+    Http::assertNothingSent();
+});
+
+it('SeoReportService_analyse_Bad_blocks_hostnames_that_resolve_to_private_ips', function () {
+    Http::fake();
+
+    expect(fn () => seoReportService()->analyse('https://seo-private.example.test/article'))
+        ->toThrow(\InvalidArgumentException::class, 'private or reserved address');
 
     Http::assertNothingSent();
 });

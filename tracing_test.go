@@ -4,8 +4,10 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -54,6 +56,38 @@ func hasAttribute(attrs []attribute.KeyValue, key attribute.Key) (attribute.KeyV
 		}
 	}
 	return attribute.KeyValue{}, false
+}
+
+type tracingTestExporter struct {
+	exports int
+}
+
+func (e *tracingTestExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnlySpan) error {
+	e.exports += len(spans)
+	return nil
+}
+
+func (e *tracingTestExporter) Shutdown(context.Context) error { return nil }
+
+type failingTracingTestExporter struct {
+	exports int
+}
+
+func (e *failingTracingTestExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnlySpan) error {
+	e.exports += len(spans)
+	return errors.New("tracing exporter failed")
+}
+
+func (e *failingTracingTestExporter) Shutdown(context.Context) error { return nil }
+
+type traceBodyGroup struct{}
+
+func (g *traceBodyGroup) Name() string     { return "trace-body" }
+func (g *traceBodyGroup) BasePath() string { return "/trace" }
+func (g *traceBodyGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.POST("/echo", func(c *gin.Context) {
+		c.String(http.StatusOK, "pong")
+	})
 }
 
 // ── WithTracing ─────────────────────────────────────────────────────────
@@ -248,5 +282,113 @@ func TestWithTracing_Good_ServiceNameInSpan(t *testing.T) {
 		t.Error("expected span to have server.address attribute for service name")
 	} else if kv.Value.AsString() != serviceName {
 		t.Errorf("expected server.address=%q, got %q", serviceName, kv.Value.AsString())
+	}
+}
+
+func TestTracing_NewTracerProvider_Good_ExportsSpansAndSetsGlobals(t *testing.T) {
+	exporter := &tracingTestExporter{}
+	prevTP := otel.GetTracerProvider()
+	prevProp := otel.GetTextMapPropagator()
+
+	tp := api.NewTracerProvider(exporter)
+	t.Cleanup(func() {
+		_ = tp.Shutdown(context.Background())
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+	})
+
+	if got := otel.GetTracerProvider(); got != tp {
+		t.Fatalf("expected global tracer provider to be replaced, got %T", got)
+	}
+	if _, ok := otel.GetTextMapPropagator().(propagation.TraceContext); !ok {
+		t.Fatalf("expected TraceContext propagator, got %T", otel.GetTextMapPropagator())
+	}
+
+	tracer := otel.Tracer("tracing-test")
+	_, span := tracer.Start(context.Background(), "exported-span")
+	span.End()
+
+	if got := exporter.exports; got != 1 {
+		t.Fatalf("expected exporter to receive one span, got %d", got)
+	}
+}
+
+func TestTracing_NewTracerProvider_Bad_AllowsNilExporter(t *testing.T) {
+	prevTP := otel.GetTracerProvider()
+	prevProp := otel.GetTextMapPropagator()
+
+	tp := api.NewTracerProvider(nil)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+	})
+
+	if got := otel.GetTracerProvider(); got != tp {
+		t.Fatalf("expected global tracer provider to be replaced, got %T", got)
+	}
+
+	tracer := otel.Tracer("tracing-test")
+	_, span := tracer.Start(context.Background(), "nil-exporter-span")
+	span.End()
+}
+
+func TestTracing_NewTracerProvider_Ugly_HandlesExporterErrors(t *testing.T) {
+	exporter := &failingTracingTestExporter{}
+	prevTP := otel.GetTracerProvider()
+	prevProp := otel.GetTextMapPropagator()
+
+	tp := api.NewTracerProvider(exporter)
+	t.Cleanup(func() {
+		_ = tp.Shutdown(context.Background())
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+	})
+
+	tracer := otel.Tracer("tracing-test")
+	_, span := tracer.Start(context.Background(), "failing-exporter-span")
+	span.End()
+
+	if got := exporter.exports; got != 1 {
+		t.Fatalf("expected failing exporter to be invoked once, got %d", got)
+	}
+}
+
+func TestTracing_WithTracing_Good_AttachesDurationAndSizeAttributes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	exporter, cleanup := setupTracing(t)
+	defer cleanup()
+
+	e, _ := api.New(api.WithTracing("trace-service"))
+	e.Register(&traceBodyGroup{})
+
+	h := e.Handler()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/trace/echo", strings.NewReader("abc"))
+	req.Header.Set("Content-Type", "text/plain")
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	spans := exporter.GetSpans()
+	if len(spans) == 0 {
+		t.Fatal("expected at least one span")
+	}
+
+	span := spans[0]
+	if kv, ok := hasAttribute(span.Attributes, attribute.Key("http.request.body.size")); !ok {
+		t.Fatal("expected span to record request body size")
+	} else if kv.Value.AsInt64() != 3 {
+		t.Fatalf("expected request body size 3, got %d", kv.Value.AsInt64())
+	}
+	if kv, ok := hasAttribute(span.Attributes, attribute.Key("http.response.body.size")); !ok {
+		t.Fatal("expected span to record response body size")
+	} else if kv.Value.AsInt64() != 4 {
+		t.Fatalf("expected response body size 4, got %d", kv.Value.AsInt64())
+	}
+	if _, ok := hasAttribute(span.Attributes, attribute.Key("http.server.duration_ms")); !ok {
+		t.Fatal("expected span to record server duration")
 	}
 }
