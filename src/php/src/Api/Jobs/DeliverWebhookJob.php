@@ -184,12 +184,15 @@ class DeliverWebhookJob implements ShouldQueue
                 'next_retry_at' => $this->delivery->next_retry_at->toIso8601String(),
             ]);
 
-            $freshDelivery = $this->delivery->fresh() ?? $this->delivery;
+            $freshDelivery = $this->delivery->fresh();
 
-            // Dispatch retry with calculated delay when the delivery record still exists.
-            if ($freshDelivery instanceof WebhookDelivery) {
-                self::dispatch($freshDelivery)->delay($delay);
+            // Only reschedule when the delivery still exists. If it was deleted
+            // while the job was processing, there is nothing left to retry.
+            if (! $freshDelivery instanceof WebhookDelivery) {
+                return;
             }
+
+            self::dispatch($freshDelivery)->delay($delay);
         }
     }
 
