@@ -69,9 +69,13 @@ class PaymentMethodController extends Controller
             user: $request->user(),
             gateway: $data['gateway'] ?? 'stripe',
         );
+        $freshPaymentMethod = $paymentMethod->fresh();
+        if ($freshPaymentMethod instanceof PaymentMethod) {
+            $paymentMethod = $freshPaymentMethod;
+        }
 
         return response()->json([
-            'payment_method' => $this->serialize($paymentMethod->fresh()),
+            'payment_method' => $this->serialize($paymentMethod),
         ], 201);
     }
 
@@ -129,9 +133,13 @@ class PaymentMethodController extends Controller
         }
 
         $this->service->setDefaultPaymentMethod($workspace, $paymentMethod);
+        $freshPaymentMethod = $paymentMethod->fresh();
+        if ($freshPaymentMethod instanceof PaymentMethod) {
+            $paymentMethod = $freshPaymentMethod;
+        }
 
         return response()->json([
-            'payment_method' => $this->serialize($paymentMethod->fresh()),
+            'payment_method' => $this->serialize($paymentMethod),
         ]);
     }
 

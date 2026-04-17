@@ -111,6 +111,10 @@ class AuthenticateApiKey
             $accessToken = UserToken::findToken($bearerToken);
 
             if ($accessToken instanceof UserToken && $accessToken->isValid()) {
+                if ($scope !== null) {
+                    return $this->forbidden("Token missing required scope: {$scope}");
+                }
+
                 $accessToken->recordUsage();
 
                 $request->setUserResolver(fn () => $accessToken->user);

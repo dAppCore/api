@@ -160,10 +160,21 @@ class Boot extends ServiceProvider
             Workspace::observe(WorkspaceWebhookObserver::class);
         }
 
-        Biolink::observe(BiolinkWebhookObserver::class);
-        Link::observe(LinkWebhookObserver::class);
-        SupportTicket::observe(SupportTicketWebhookObserver::class);
-        SupportTicketReply::observe(SupportTicketReplyWebhookObserver::class);
+        if (class_exists(Biolink::class)) {
+            Biolink::observe(BiolinkWebhookObserver::class);
+        }
+
+        if (class_exists(Link::class)) {
+            Link::observe(LinkWebhookObserver::class);
+        }
+
+        if (class_exists(SupportTicket::class)) {
+            SupportTicket::observe(SupportTicketWebhookObserver::class);
+        }
+
+        if (class_exists(SupportTicketReply::class)) {
+            SupportTicketReply::observe(SupportTicketReplyWebhookObserver::class);
+        }
     }
 
     // -------------------------------------------------------------------------

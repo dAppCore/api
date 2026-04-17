@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -957,7 +958,7 @@ func TestOpenAPISpecEndpoint_Good(t *testing.T) {
 	}
 
 	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" || contentType[:len("application/json")] != "application/json" {
+	if !strings.HasPrefix(contentType, "application/json") {
 		t.Fatalf("expected application/json content type, got %q", contentType)
 	}
 

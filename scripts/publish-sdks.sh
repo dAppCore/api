@@ -17,6 +17,7 @@ npm publish --access public
 cd ../..
 
 cd sdks/python
+rm -rf dist
 python -m build
 twine upload dist/*
 cd ../..
@@ -40,8 +41,11 @@ cd sdks/java
 cd ../..
 
 cd sdks/csharp
+: "${NUGET_API_KEY:?NUGET_API_KEY must be set}"
 dotnet pack -c Release
-dotnet nuget push **/*.nupkg --source https://api.nuget.org/v3/index.json
+while IFS= read -r -d '' pkg; do
+  dotnet nuget push "$pkg" --source https://api.nuget.org/v3/index.json --api-key "${NUGET_API_KEY}"
+done < <(find . -name '*.nupkg' -print0)
 cd ../..
 
 cd sdks/dart

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -76,9 +76,13 @@ func tracingAttributesMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		size := c.Writer.Size()
 		attrs := []attribute.KeyValue{
-			attribute.Int("http.response.body.size", c.Writer.Size()),
 			attribute.Int64("http.server.duration_ms", time.Since(start).Milliseconds()),
+		}
+
+		if size >= 0 {
+			attrs = append(attrs, attribute.Int("http.response.body.size", size))
 		}
 
 		if size := c.Request.ContentLength; size >= 0 {

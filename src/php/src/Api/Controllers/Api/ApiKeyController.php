@@ -72,10 +72,19 @@ class ApiKeyController extends Controller
             'server_scopes.*' => ['string', 'max:64', 'regex:'.ApiKey::SERVER_ID_PATTERN],
         ]);
 
+        $userId = $request->user()?->id;
+        if ($userId === null) {
+            return $this->errorResponse(
+                errorCode: 'unauthorized',
+                message: 'Authentication required.',
+                status: 401,
+            );
+        }
+
         try {
             $result = $this->service->create(
                 workspaceId: $workspace->id,
-                userId: (int) $request->user()->id,
+                userId: (int) $userId,
                 name: $data['name'],
                 scopes: $data['scopes'] ?? [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE],
                 expiresAt: isset($data['expires_at']) && $data['expires_at'] !== null

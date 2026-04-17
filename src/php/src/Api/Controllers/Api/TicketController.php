@@ -21,17 +21,23 @@ class TicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $workspace = $this->resolveWorkspace($request);
+        $user = $request->user();
+
+        if ($workspace === null && $user === null) {
+            return $this->forbiddenResponse('Authentication or workspace context required.');
+        }
+
         $query = SupportTicket::query()
             ->with('replies')
             ->latest();
 
-        $workspace = $this->resolveWorkspace($request);
         if ($workspace !== null) {
             $query->forWorkspace($workspace->id);
         }
 
-        if ($request->user()?->id !== null) {
-            $query->where('user_id', $request->user()->id);
+        if ($user?->id !== null) {
+            $query->where('user_id', $user->id);
         }
 
         $tickets = $query->paginate((int) min($request->integer('per_page', 25), 100));
@@ -106,9 +112,16 @@ class TicketController extends Controller
             'last_replied_at' => now(),
         ])->save();
 
+        $freshTicket = $ticket->fresh();
+        if ($freshTicket instanceof SupportTicket) {
+            $ticket = $freshTicket;
+        }
+
+        $ticket->load('replies');
+
         return response()->json([
             'data' => [
-                'ticket' => $this->ticketPayload($ticket->fresh()->load('replies')),
+                'ticket' => $this->ticketPayload($ticket),
                 'reply' => $reply->attributesToArray(),
             ],
         ]);
