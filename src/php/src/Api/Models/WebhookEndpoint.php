@@ -251,6 +251,28 @@ class WebhookEndpoint extends Model
      */
     protected static function isPrivateIp(string $ip): bool
     {
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return true;
+        }
+
+        $packed = inet_pton($ip);
+        if ($packed === false) {
+            return true;
+        }
+
+        if (strlen($packed) === 16 && str_repeat("\x00", 10)."\xff\xff" === substr($packed, 0, 12)) {
+            $embeddedIpv4 = inet_ntop(substr($packed, 12, 4));
+            if ($embeddedIpv4 === false) {
+                return true;
+            }
+
+            return filter_var(
+                $embeddedIpv4,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+            ) === false;
+        }
+
         return filter_var(
             $ip,
             FILTER_VALIDATE_IP,

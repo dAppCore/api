@@ -149,6 +149,18 @@ it('SeoReportService_analyse_Ugly_blocks_unsafe_urls_before_fetching', function 
     Http::assertNothingSent();
 });
 
+it('SeoReportService_analyse_Ugly_blocks_reserved_ip_literals', function () {
+    Http::fake();
+
+    expect(fn () => seoReportService()->analyse('https://224.0.0.1/article'))
+        ->toThrow(\InvalidArgumentException::class);
+
+    expect(fn () => seoReportService()->analyse('https://[2001:db8::1]/article'))
+        ->toThrow(\InvalidArgumentException::class);
+
+    Http::assertNothingSent();
+});
+
 it('SeoReportService_analyse_Good_disables_redirects_and_pins_resolved_destinations', function () {
     if (! defined('CURLOPT_RESOLVE')) {
         $this->markTestSkipped('cURL extension is unavailable.');

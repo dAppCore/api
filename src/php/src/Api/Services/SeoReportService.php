@@ -530,79 +530,35 @@ class SeoReportService
      */
     protected function isPrivateIp(string $ip): bool
     {
-        // inet_pton returns false for invalid addresses.
-        $packed = inet_pton($ip);
-        if ($packed === false) {
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return true; // Treat unresolvable as unsafe.
         }
 
-        if (strlen($packed) === 4) {
-            return $this->isPrivateIpv4($ip);
-        }
-
-        // IPv6 checks.
-
-        // ::ffff:0:0/96 — IPv4-mapped addresses (e.g. ::ffff:127.0.0.1).
-        // The first 10 bytes are 0x00, bytes 10-11 are 0xff 0xff, then 4
-        // bytes of IPv4. Evaluate the embedded IPv4 address against the
-        // standard private ranges.
-        if (str_repeat("\x00", 10) . "\xff\xff" === substr($packed, 0, 12)) {
-            $ipv4 = inet_ntop(substr($packed, 12, 4));
-            if ($ipv4 !== false && $this->isPrivateIpv4($ipv4)) {
-                return true;
-            }
-        }
-
-        // Loopback (::1).
-        if ($ip === '::1') {
-            return true;
-        }
-        $prefix2 = strtolower(substr(bin2hex($packed), 0, 2));
-        // fe80::/10 — first byte 0xfe, second byte 0x80–0xbf
-        if ($prefix2 === 'fe') {
-            $secondNibble = hexdec(substr(bin2hex($packed), 2, 1));
-            if ($secondNibble >= 8 && $secondNibble <= 11) {
-                return true;
-            }
-        }
-        // fc00::/7 — first byte 0xfc or 0xfd
-        if (in_array($prefix2, ['fc', 'fd'], true)) {
+        $packed = inet_pton($ip);
+        if ($packed === false) {
             return true;
         }
 
-        return false;
-    }
-
-    /**
-     * Return true when an IPv4 address string falls within a private,
-     * loopback, link-local, or reserved range.
-     *
-     * Handles 0.0.0.0/8 (RFC 1122 "this network"), 127/8 (loopback),
-     * 10/8, 172.16/12, 192.168/16 (RFC 1918), and 169.254/16 (link-local).
-     */
-    protected function isPrivateIpv4(string $ip): bool
-    {
-        $long = ip2long($ip);
-        if ($long === false) {
-            return true; // Treat unparsable as unsafe.
-        }
-
-        $privateRanges = [
-            ['start' => ip2long('0.0.0.0'),     'end' => ip2long('0.255.255.255')],   // 0.0.0.0/8 (RFC 1122)
-            ['start' => ip2long('127.0.0.0'),   'end' => ip2long('127.255.255.255')], // loopback
-            ['start' => ip2long('10.0.0.0'),    'end' => ip2long('10.255.255.255')],  // RFC-1918
-            ['start' => ip2long('172.16.0.0'),  'end' => ip2long('172.31.255.255')],  // RFC-1918
-            ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')], // RFC-1918
-            ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')], // link-local
-        ];
-
-        foreach ($privateRanges as $range) {
-            if ($long >= $range['start'] && $long <= $range['end']) {
+        // Preserve support for public IPv4-mapped IPv6 literals while still
+        // applying the reserved-range guard to the embedded IPv4 address.
+        if (strlen($packed) === 16 && str_repeat("\x00", 10)."\xff\xff" === substr($packed, 0, 12)) {
+            $embeddedIpv4 = inet_ntop(substr($packed, 12, 4));
+            if ($embeddedIpv4 === false) {
                 return true;
             }
+
+            return filter_var(
+                $embeddedIpv4,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+            ) === false;
         }
 
-        return false;
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) === false;
     }
 
     /**

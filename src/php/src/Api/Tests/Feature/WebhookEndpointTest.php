@@ -20,6 +20,12 @@ it('WebhookEndpoint_curlResolveOptionsFor_Good_returns_empty_options_for_literal
     expect($options)->toBe([]);
 });
 
+it('WebhookEndpoint_curlResolveOptionsFor_Good_allows_public_ipv4_mapped_ipv6_literals', function () {
+    $options = WebhookEndpoint::curlResolveOptionsFor('https://[::ffff:1.1.1.1]/webhooks');
+
+    expect($options)->toBe([]);
+});
+
 it('WebhookEndpoint_shouldReceive_Bad_rejects_inactive_endpoints', function () {
     $endpoint = new WebhookEndpoint([
         'events' => ['biolink.created'],
