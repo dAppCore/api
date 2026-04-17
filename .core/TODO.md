@@ -1,1 +1,0 @@
-- @bug src/php/src/Api/Services/WebhookTemplateService.php:475 — `validateSimple()` still rejects mustache block syntax even though the comment says it should allow `#if`, `#unless`, and `#each` tokens.

@@ -96,6 +96,18 @@ it('WebhookTemplateService_validateTemplate_Ugly_reports_unknown_filters_and_mis
     );
 });
 
+it('WebhookTemplateService_validateTemplate_Good_accepts_supported_mustache_blocks', function () {
+    $result = $this->service->validateTemplate(
+        '{"labels":[{{#each data.tags}}"{{this}}"{{/each}}],"has_user":{{#if data.user}}true{{/if}},"has_optional":{{#unless data.optional}}false{{/unless}}}',
+        WebhookTemplateFormat::MUSTACHE,
+    );
+
+    expect($result)->toBe([
+        'valid' => true,
+        'errors' => [],
+    ]);
+});
+
 it('WebhookTemplateService_buildDefaultPayload_Good_uses_the_event_contract', function () {
     $result = $this->service->buildDefaultPayload(new WebhookTemplateServiceTestEvent());
 
