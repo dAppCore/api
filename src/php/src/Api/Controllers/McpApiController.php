@@ -1280,7 +1280,7 @@ class McpApiController extends Controller
         }
 
         $path = resource_path('mcp/registry.yaml');
-        if (! file_exists($path)) {
+        if (! $this->isSafeYamlPath($path, resource_path('mcp'))) {
             return ['servers' => []];
         }
 
@@ -1320,7 +1320,7 @@ class McpApiController extends Controller
         }
 
         $path = resource_path("mcp/servers/{$id}.yaml");
-        if (! file_exists($path)) {
+        if (! $this->isSafeYamlPath($path, resource_path('mcp/servers'))) {
             return null;
         }
 
@@ -1341,6 +1341,35 @@ class McpApiController extends Controller
         }
 
         return $server;
+    }
+
+    /**
+     * Check whether a YAML file path stays inside the expected directory and
+     * is not a symlink to somewhere else on disk.
+     */
+    protected function isSafeYamlPath(string $path, string $baseDirectory): bool
+    {
+        if (is_link($baseDirectory)) {
+            return false;
+        }
+
+        $baseDirectory = realpath($baseDirectory);
+        if ($baseDirectory === false) {
+            return false;
+        }
+
+        if (! file_exists($path) || is_link($path)) {
+            return false;
+        }
+
+        $realPath = realpath($path);
+        if ($realPath === false) {
+            return false;
+        }
+
+        $prefix = $baseDirectory.DIRECTORY_SEPARATOR;
+
+        return $realPath === $baseDirectory || str_starts_with($realPath, $prefix);
     }
 
     protected function loadServerSummary(string $id): ?array

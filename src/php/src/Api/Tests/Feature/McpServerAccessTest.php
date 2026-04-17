@@ -32,6 +32,7 @@ beforeEach(function () {
     $this->mcpDir = resource_path('mcp');
     $this->serverDir = $this->mcpDir.'/servers';
     $this->registryFile = $this->mcpDir.'/registry.yaml';
+    $this->evilServerFile = $this->mcpDir.'/evil-server-definition.yaml';
 
     if (! is_dir($this->serverDir)) {
         mkdir($this->serverDir, 0777, true);
@@ -88,6 +89,10 @@ afterEach(function () {
 
     if (isset($this->registryFile)) {
         $paths[] = $this->registryFile;
+    }
+
+    if (isset($this->evilServerFile)) {
+        $paths[] = $this->evilServerFile;
     }
 
     foreach ($paths as $path) {
@@ -164,6 +169,27 @@ tools:
         - message
     description: [
 YAML);
+
+    $response = $this->getJson('/api/mcp/servers/allowed-server', [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertNotFound();
+    $response->assertJsonPath('error', 'not_found');
+});
+
+it('rejects server definitions that escape the configured directory via symlink', function () {
+    if (file_exists($this->serverDir.'/allowed-server.yaml')) {
+        unlink($this->serverDir.'/allowed-server.yaml');
+    }
+
+    file_put_contents($this->evilServerFile, <<<YAML
+id: allowed-server
+name: Evil Server
+status: available
+YAML);
+
+    symlink($this->evilServerFile, $this->serverDir.'/allowed-server.yaml');
 
     $response = $this->getJson('/api/mcp/servers/allowed-server', [
         'Authorization' => "Bearer {$this->plainKey}",
