@@ -113,6 +113,89 @@ describe('API Key Creation', function () {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// API Key Prefix Root
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('API Key Prefix Root', function () {
+    it('ApiKey_keyPrefixRoot_Good_uses_a_custom_prefix_root_for_generated_keys', function () {
+        $originalPrefix = config('api.keys.prefix');
+
+        try {
+            config(['api.keys.prefix' => 'acme']);
+
+            $result = ApiKey::generate(
+                $this->workspace->id,
+                $this->user->id,
+                'Custom Prefix Key'
+            );
+
+            expect(ApiKey::keyPrefixRoot())->toBe('acme_');
+            expect($result['plain_key'])->toStartWith('acme_');
+
+            $foundKey = ApiKey::findByPlainKey($result['plain_key']);
+            expect($foundKey)->not->toBeNull();
+            expect($foundKey->id)->toBe($result['api_key']->id);
+        } finally {
+            if ($originalPrefix === null) {
+                config()->offsetUnset('api.keys.prefix');
+            } else {
+                config(['api.keys.prefix' => $originalPrefix]);
+            }
+        }
+    });
+
+    it('ApiKey_keyPrefixRoot_Bad_falls_back_to_the_default_prefix_when_blank', function () {
+        $originalPrefix = config('api.keys.prefix');
+
+        try {
+            config(['api.keys.prefix' => '   ']);
+
+            $result = ApiKey::generate(
+                $this->workspace->id,
+                $this->user->id,
+                'Default Prefix Key'
+            );
+
+            expect(ApiKey::keyPrefixRoot())->toBe('hk_');
+            expect($result['plain_key'])->toStartWith('hk_');
+        } finally {
+            if ($originalPrefix === null) {
+                config()->offsetUnset('api.keys.prefix');
+            } else {
+                config(['api.keys.prefix' => $originalPrefix]);
+            }
+        }
+    });
+
+    it('ApiKey_keyPrefixRoot_Ugly_trims_whitespace_before_generating_and_finding_keys', function () {
+        $originalPrefix = config('api.keys.prefix');
+
+        try {
+            config(['api.keys.prefix' => '  acme  ']);
+
+            $result = ApiKey::generate(
+                $this->workspace->id,
+                $this->user->id,
+                'Whitespace Prefix Key'
+            );
+
+            expect(ApiKey::keyPrefixRoot())->toBe('acme_');
+            expect($result['plain_key'])->toStartWith('acme_');
+
+            $foundKey = ApiKey::findByPlainKey($result['plain_key']);
+            expect($foundKey)->not->toBeNull();
+            expect($foundKey->id)->toBe($result['api_key']->id);
+        } finally {
+            if ($originalPrefix === null) {
+                config()->offsetUnset('api.keys.prefix');
+            } else {
+                config(['api.keys.prefix' => $originalPrefix]);
+            }
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API Key Authentication
 // ─────────────────────────────────────────────────────────────────────────────
 

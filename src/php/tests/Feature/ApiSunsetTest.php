@@ -35,6 +35,43 @@ it('adds a replacement link without a sunset date', function () {
     expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated.');
 });
 
+it('ApiSunset_successorLinkTarget_Good_strips_a_method_prefix_from_the_replacement_target', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), '2025-06-01', 'POST /api/v2/users');
+
+    expect($response->headers->get('Link'))->toBe('</api/v2/users>; rel="successor-version"');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('POST /api/v2/users');
+    expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated and will be removed on 2025-06-01.');
+});
+
+it('ApiSunset_successorLinkTarget_Bad_keeps_plain_replacement_paths_unchanged', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), '2025-06-01', '/api/v2/users');
+
+    expect($response->headers->get('Link'))->toBe('</api/v2/users>; rel="successor-version"');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('/api/v2/users');
+});
+
+it('ApiSunset_successorLinkTarget_Ugly_preserves_unrecognised_prefixes_verbatim', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), '2025-06-01', 'FETCH /api/v2/users');
+
+    expect($response->headers->get('Link'))->toBe('<FETCH /api/v2/users>; rel="successor-version"');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('FETCH /api/v2/users');
+});
+
 it('preserves existing deprecation headers while appending sunset metadata', function () {
     Config::set('api.headers.include_deprecation', true);
 
