@@ -43,15 +43,16 @@ cd ../..
 cd sdks/csharp
 : "${NUGET_API_KEY:?NUGET_API_KEY must be set}"
 dotnet pack -c Release
-mapfile -d '' -t pkgs < <(find . -name '*.nupkg' -print0)
-if [ "${#pkgs[@]}" -eq 0 ]; then
+pkg_count=0
+while IFS= read -r -d '' pkg; do
+  pkg_count=$((pkg_count + 1))
+  dotnet nuget push "$pkg" --source https://api.nuget.org/v3/index.json --api-key "${NUGET_API_KEY}"
+done < <(find . -name '*.nupkg' -print0)
+
+if [ "${pkg_count}" -eq 0 ]; then
   echo "Error: no .nupkg files found after dotnet pack" >&2
   exit 1
 fi
-
-for pkg in "${pkgs[@]}"; do
-  dotnet nuget push "$pkg" --source https://api.nuget.org/v3/index.json --api-key "${NUGET_API_KEY}"
-done
 cd ../..
 
 cd sdks/dart
