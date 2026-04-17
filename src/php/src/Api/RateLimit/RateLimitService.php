@@ -50,6 +50,10 @@ class RateLimitService
 
         // Get current window data
         $hits = $this->getWindowHits($cacheKey, $windowStart);
+        if ($hits === null) {
+            return RateLimitResult::denied($limit, 1, $now->copy()->addSecond());
+        }
+
         $currentCount = count($hits);
         $remaining = max(0, $effectiveLimit - $currentCount);
 
@@ -107,6 +111,9 @@ class RateLimitService
         $windowStart = Carbon::now()->timestamp - $window;
 
         $hits = $this->getWindowHits($cacheKey, $windowStart);
+        if ($hits === null) {
+            return 0;
+        }
 
         return max(0, $effectiveLimit - count($hits));
     }
@@ -117,7 +124,12 @@ class RateLimitService
     public function reset(string $key): void
     {
         $cacheKey = $this->getCacheKey($key);
-        $this->cache->forget($cacheKey);
+
+        try {
+            $this->cache->forget($cacheKey);
+        } catch (\Throwable) {
+            // Best-effort cleanup only.
+        }
     }
 
     /**
@@ -128,7 +140,9 @@ class RateLimitService
         $cacheKey = $this->getCacheKey($key);
         $windowStart = Carbon::now()->timestamp - $window;
 
-        return count($this->getWindowHits($cacheKey, $windowStart));
+        $hits = $this->getWindowHits($cacheKey, $windowStart);
+
+        return $hits === null ? 0 : count($hits);
     }
 
     /**
@@ -184,15 +198,38 @@ class RateLimitService
     /**
      * Get hits within the sliding window.
      *
-     * @return array<int> Array of timestamps
+     * @return array<int>|null Array of timestamps, or null when the cache value
+     *                         is unavailable or malformed.
      */
-    protected function getWindowHits(string $cacheKey, int $windowStart): array
+    protected function getWindowHits(string $cacheKey, int $windowStart): ?array
     {
-        /** @var array<int> $hits */
-        $hits = $this->cache->get($cacheKey, []);
+        try {
+            $hits = $this->cache->get($cacheKey, []);
+        } catch (\Throwable) {
+            return null;
+        }
 
-        // Filter to only include hits within the window
-        return array_values(array_filter($hits, fn (int $timestamp) => $timestamp >= $windowStart));
+        if (! is_array($hits)) {
+            return null;
+        }
+
+        $filtered = [];
+
+        foreach ($hits as $hit) {
+            if (is_int($hit)) {
+                $timestamp = $hit;
+            } elseif (is_string($hit) && preg_match('/^-?\d+$/', $hit)) {
+                $timestamp = (int) $hit;
+            } else {
+                return null;
+            }
+
+            if ($timestamp >= $windowStart) {
+                $filtered[] = $timestamp;
+            }
+        }
+
+        return array_values($filtered);
     }
 
     /**
@@ -200,11 +237,18 @@ class RateLimitService
      *
      * @param  array<int>  $hits  Array of timestamps
      */
-    protected function storeWindowHits(string $cacheKey, array $hits, int $window): void
+    protected function storeWindowHits(string $cacheKey, array $hits, int $window): bool
     {
         // Add buffer to TTL to handle clock drift
         $ttl = $window + 60;
-        $this->cache->put($cacheKey, $hits, $ttl);
+
+        try {
+            $this->cache->put($cacheKey, $hits, $ttl);
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
@@ -236,7 +280,9 @@ class RateLimitService
 
         // Record the hit
         $hits[] = $now->timestamp;
-        $this->storeWindowHits($cacheKey, $hits, $window);
+        if (! $this->storeWindowHits($cacheKey, $hits, $window)) {
+            return RateLimitResult::denied($limit, 1, $now->copy()->addSecond());
+        }
 
         $remaining = max(0, $effectiveLimit - count($hits));
 
@@ -286,7 +332,11 @@ class RateLimitService
         }
 
         $lockKey = $cacheKey.':lock';
-        $token = bin2hex(random_bytes(8));
+        try {
+            $token = bin2hex(random_bytes(8));
+        } catch (\Throwable) {
+            return null;
+        }
 
         try {
             if (! $this->cache->add($lockKey, $token, self::LOCK_TTL_SECONDS)) {

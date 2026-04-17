@@ -289,6 +289,18 @@ class RateLimitTest extends TestCase
         $this->assertTrue($cache->has('rate_limit:locked-key'));
     }
 
+    public function test_service_fails_closed_when_cached_hits_are_malformed(): void
+    {
+        Cache::put('rate_limit:corrupt-key', 'corrupt', 60);
+
+        $result = $this->rateLimitService->hit('corrupt-key', 10, 60);
+
+        $this->assertFalse($result->allowed);
+        $this->assertSame(10, $result->limit);
+        $this->assertSame(0, $result->remaining);
+        $this->assertSame(1, $result->retryAfter);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // RateLimitService - Sliding Window Algorithm Tests
     // ─────────────────────────────────────────────────────────────────────────
