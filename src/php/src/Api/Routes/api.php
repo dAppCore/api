@@ -249,7 +249,7 @@ Route::middleware(['web', 'auth:sanctum', 'api.rate', 'api.cache:ephemeral'])
 // MCP HTTP Bridge (API key auth)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce', 'api.rate', 'api.cache:ephemeral'])
+Route::middleware([McpApiKeyAuth::class, 'api.scope.enforce', 'api.rate', 'api.cache:ephemeral'])
     ->prefix('mcp')
     ->name('api.mcp.')
     ->group(function () {
@@ -292,7 +292,7 @@ Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce', 
     });
 
 // Versioned MCP bridge aliases for RFC compatibility.
-Route::middleware(['throttle:120,1', McpApiKeyAuth::class, 'api.scope.enforce', 'api.rate', 'api.cache:ephemeral'])
+Route::middleware([McpApiKeyAuth::class, 'api.scope.enforce', 'api.rate', 'api.cache:ephemeral'])
     ->prefix('v1/mcp')
     ->name('api.v1.mcp.')
     ->group(function () {
