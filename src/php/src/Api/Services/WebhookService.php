@@ -47,29 +47,47 @@ class WebhookService
 
             $deliveries = [];
 
-            // Wrap all deliveries in a transaction to ensure atomicity
-            DB::transaction(function () use ($endpoints, $eventType, $data, $workspaceId, &$deliveries) {
-                foreach ($endpoints as $endpoint) {
-                    // Create delivery record
-                    $delivery = WebhookDelivery::createForEvent(
+            foreach ($endpoints as $endpoint) {
+                try {
+                    // Keep each endpoint isolated so one failure does not stop
+                    // the rest of the workspace's subscriptions from receiving
+                    // the event.
+                    DB::transaction(function () use (
                         $endpoint,
                         $eventType,
                         $data,
-                        $workspaceId
-                    );
+                        $workspaceId,
+                        &$deliveries
+                    ) {
+                        $delivery = WebhookDelivery::createForEvent(
+                            $endpoint,
+                            $eventType,
+                            $data,
+                            $workspaceId
+                        );
 
-                    $deliveries[] = $delivery;
+                        $deliveries[] = $delivery;
 
-                    // Queue the delivery job after the transaction commits
-                    DeliverWebhookJob::dispatch($delivery)->afterCommit();
+                        // Queue the delivery job after the transaction commits.
+                        DeliverWebhookJob::dispatch($delivery)->afterCommit();
 
-                    Log::info('Webhook delivery queued', [
-                        'delivery_id' => $delivery->id,
+                        Log::info('Webhook delivery queued', [
+                            'delivery_id' => $delivery->id,
+                            'endpoint_id' => $endpoint->id,
+                            'event_type' => $eventType,
+                        ]);
+                    });
+                } catch (\Throwable $endpointException) {
+                    report($endpointException);
+                    Log::warning('Webhook delivery failed for endpoint', [
+                        'workspace_id' => $workspaceId,
                         'endpoint_id' => $endpoint->id,
                         'event_type' => $eventType,
+                        'error_type' => $endpointException::class,
+                        'error' => $endpointException->getMessage(),
                     ]);
                 }
-            });
+            }
 
             return $deliveries;
         } catch (\Throwable $exception) {
