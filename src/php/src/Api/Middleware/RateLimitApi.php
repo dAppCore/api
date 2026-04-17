@@ -230,7 +230,7 @@ class RateLimitApi
     protected function getTierRateLimit(Request $request): ?array
     {
         $workspace = $request->attributes->get('workspace');
-        if (! $workspace) {
+        if (! is_object($workspace)) {
             return null;
         }
 
@@ -279,14 +279,16 @@ class RateLimitApi
             $parts[] = "api_key:{$apiKey->id}";
 
             // Include workspace if per_workspace is enabled
-            if ($perWorkspace && $workspace) {
-                $parts[] = "ws:{$workspace->id}";
+            $workspaceId = $this->resolveWorkspaceId($workspace);
+            if ($perWorkspace && $workspaceId !== null) {
+                $parts[] = "ws:{$workspaceId}";
             }
         } elseif ($user !== null) {
             $parts[] = "user:{$user->id}";
 
-            if ($perWorkspace && $workspace) {
-                $parts[] = "ws:{$workspace->id}";
+            $workspaceId = $this->resolveWorkspaceId($workspace);
+            if ($perWorkspace && $workspaceId !== null) {
+                $parts[] = "ws:{$workspaceId}";
             }
         } else {
             $parts[] = "ip:{$request->ip()}";
@@ -310,6 +312,10 @@ class RateLimitApi
      */
     protected function getWorkspaceTier(mixed $workspace): string
     {
+        if (! is_object($workspace)) {
+            return 'free';
+        }
+
         // Check if workspace has an active package/subscription
         if (method_exists($workspace, 'activePackages')) {
             $package = $workspace->activePackages()->first();
@@ -328,6 +334,37 @@ class RateLimitApi
         }
 
         return 'free';
+    }
+
+    /**
+     * Resolve a workspace identifier from the request context.
+     *
+     * Malformed workspace attributes are treated as absent so the middleware
+     * fails closed instead of dereferencing untrusted values.
+     */
+    protected function resolveWorkspaceId(mixed $workspace): int|string|null
+    {
+        if (! is_object($workspace)) {
+            return null;
+        }
+
+        if (method_exists($workspace, 'getKey')) {
+            $key = $workspace->getKey();
+
+            if (is_int($key) || is_string($key)) {
+                return $key;
+            }
+        }
+
+        if (property_exists($workspace, 'id')) {
+            $id = $workspace->id;
+
+            if (is_int($id) || is_string($id)) {
+                return $id;
+            }
+        }
+
+        return null;
     }
 
     /**
