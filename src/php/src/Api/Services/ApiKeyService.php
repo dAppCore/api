@@ -98,13 +98,14 @@ class ApiKeyService
         }
 
         $result = $apiKey->rotate($gracePeriodHours);
+        $freshApiKey = $apiKey->fresh() ?? $apiKey;
 
         Log::info('API key rotated', [
             'old_key_id' => $apiKey->id,
             'new_key_id' => $result['api_key']->id,
             'workspace_id' => $apiKey->workspace_id,
             'grace_period_hours' => $gracePeriodHours,
-            'grace_period_ends_at' => $apiKey->fresh()->grace_period_ends_at?->toIso8601String(),
+            'grace_period_ends_at' => $freshApiKey->grace_period_ends_at?->toIso8601String(),
         ]);
 
         return $result;

@@ -169,8 +169,12 @@ class DeliverWebhookJob implements ShouldQueue
                 'next_retry_at' => $this->delivery->next_retry_at->toIso8601String(),
             ]);
 
-            // Dispatch retry with calculated delay
-            self::dispatch($this->delivery->fresh())->delay($delay);
+            $freshDelivery = $this->delivery->fresh() ?? $this->delivery;
+
+            // Dispatch retry with calculated delay when the delivery record still exists.
+            if ($freshDelivery instanceof WebhookDelivery) {
+                self::dispatch($freshDelivery)->delay($delay);
+            }
         }
     }
 
