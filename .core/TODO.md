@@ -1,1 +1,0 @@
-- @security src/php/src/Api/Middleware/AuthenticateApiKey.php:114 — UserToken auth currently rejects any scoped route without a token-scope API; verify the intended policy before depending on this branch.
