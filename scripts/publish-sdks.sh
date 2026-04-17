@@ -49,7 +49,7 @@ done < <(find . -name '*.nupkg' -print0)
 cd ../..
 
 cd sdks/dart
-dart pub publish
+dart pub publish --force
 cd ../..
 
 echo "All SDKs published at version ${VERSION}"
