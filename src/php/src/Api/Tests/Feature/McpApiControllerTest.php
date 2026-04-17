@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Core\Api\Controllers\McpApiController;
+use Illuminate\Http\Request;
 
 it('includes the requested tool version in the MCP JSON-RPC payload', function () {
     $controller = new class extends McpApiController
@@ -107,4 +108,101 @@ it('rejects stringified numeric arguments for typed MCP tool schemas', function 
 
     expect($errors)->toContain("Argument 'count' must be of type integer");
     expect($errors)->toContain("Argument 'ratio' must be of type number");
+});
+
+it('continues returning a successful MCP response when tool logging fails', function () {
+    $controller = new class extends McpApiController
+    {
+        public function call(Request $request): \Illuminate\Http\JsonResponse
+        {
+            return $this->executeToolCall(
+                request: $request,
+                server: 'hosthub-agent',
+                tool: 'search',
+                arguments: ['query' => 'status'],
+                version: null,
+                requestPath: '/api/mcp/tools/call'
+            );
+        }
+
+        protected function ensureServerAccess(Request $request, string $serverId): ?\Illuminate\Http\JsonResponse
+        {
+            return null;
+        }
+
+        protected function loadServerFull(string $id): ?array
+        {
+            return [
+                'id' => $id,
+                'tools' => [
+                    [
+                        'name' => 'search',
+                    ],
+                ],
+            ];
+        }
+
+        protected function executeToolViaArtisan(string $server, string $tool, array $arguments, ?string $version = null): mixed
+        {
+            return [
+                'ok' => true,
+                'server' => $server,
+                'tool' => $tool,
+                'arguments' => $arguments,
+                'version' => $version,
+            ];
+        }
+
+        protected function logToolCall(
+            ?\Core\Api\Models\ApiKey $apiKey,
+            array $request,
+            mixed $result,
+            int $durationMs,
+            bool $success,
+            ?string $error = null
+        ): void {
+            throw new RuntimeException('logging failed');
+        }
+
+        protected function dispatchWebhook(
+            ?\Core\Api\Models\ApiKey $apiKey,
+            array $request,
+            bool $success,
+            int $durationMs,
+            ?string $error = null
+        ): void {
+        }
+
+        protected function logApiRequest(
+            Request $request,
+            string $path,
+            array $validated,
+            int $status,
+            array $response,
+            int $durationMs,
+            ?\Core\Api\Models\ApiKey $apiKey,
+            ?string $error = null
+        ): void {
+        }
+    };
+
+    $request = Request::create('/api/mcp/tools/call', 'POST');
+
+    $response = $controller->call($request);
+
+    expect($response->getStatusCode())->toBe(200);
+    expect($response->getData(true))->toMatchArray([
+        'success' => true,
+        'server' => 'hosthub-agent',
+        'tool' => 'search',
+        'result' => [
+            'ok' => true,
+            'server' => 'hosthub-agent',
+            'tool' => 'search',
+            'arguments' => [
+                'query' => 'status',
+            ],
+            'version' => null,
+        ],
+    ]);
 });

@@ -511,8 +511,13 @@ class McpApiController extends Controller
 
             $durationMs = (int) ((microtime(true) - $startTime) * 1000);
 
-            // Log the call
-            $this->logToolCall($apiKey, $validated, $result, $durationMs, true);
+            // Log the call best-effort so observability failures do not break
+            // a successful tool execution response.
+            try {
+                $this->logToolCall($apiKey, $validated, $result, $durationMs, true);
+            } catch (\Throwable $logException) {
+                report($logException);
+            }
 
             // Dispatch webhooks
             $this->dispatchWebhook($apiKey, $validated, true, $durationMs);
@@ -551,7 +556,11 @@ class McpApiController extends Controller
         } catch (\Throwable $e) {
             $durationMs = (int) ((microtime(true) - $startTime) * 1000);
 
-            $this->logToolCall($apiKey, $validated, null, $durationMs, false, $e->getMessage());
+            try {
+                $this->logToolCall($apiKey, $validated, null, $durationMs, false, $e->getMessage());
+            } catch (\Throwable $logException) {
+                report($logException);
+            }
 
             // Dispatch webhooks (even on failure)
             $this->dispatchWebhook($apiKey, $validated, false, $durationMs, $e->getMessage());
