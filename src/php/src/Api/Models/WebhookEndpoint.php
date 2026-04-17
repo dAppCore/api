@@ -208,29 +208,16 @@ class WebhookEndpoint extends Model
             ];
         }
 
-        $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
-        if ($records === []) {
-            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
-        }
-
-        $resolveEntries = [];
-        foreach ($records as $record) {
-            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
-            if ($ip === null) {
-                continue;
-            }
-
-            if (self::isPrivateIp($ip)) {
-                throw new \InvalidArgumentException('Webhook URLs must not resolve to private, loopback, or reserved addresses.');
-            }
-
-            $resolveEntries[] = sprintf(
+        $ips = self::resolvePublicIps($host);
+        $resolveEntries = array_map(
+            static fn (string $ip): string => sprintf(
                 '%s:%d:%s',
                 $host,
                 $port,
                 str_contains($ip, ':') ? '['.$ip.']' : $ip
-            );
-        }
+            ),
+            $ips
+        );
 
         if ($resolveEntries === []) {
             throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
@@ -243,6 +230,51 @@ class WebhookEndpoint extends Model
                 ]
                 : [],
         ];
+    }
+
+    /**
+     * Resolve a hostname to public IPs, following CNAME chains.
+     *
+     * @return array<int, string>
+     */
+    protected static function resolvePublicIps(string $host, array &$visitedHosts = [], int $depth = 0): array
+    {
+        $normalisedHost = strtolower(rtrim($host, '.'));
+
+        if ($normalisedHost === '' || isset($visitedHosts[$normalisedHost])) {
+            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+        }
+
+        if ($depth > 8) {
+            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+        }
+
+        $visitedHosts[$normalisedHost] = true;
+
+        $records = dns_get_record($host, DNS_A | DNS_AAAA | DNS_CNAME) ?: [];
+        $ips = [];
+
+        foreach ($records as $record) {
+            $ip = $record['ip'] ?? $record['ipv6'] ?? null;
+            if ($ip !== null) {
+                if (self::isPrivateIp($ip)) {
+                    throw new \InvalidArgumentException('Webhook URLs must not resolve to private, loopback, or reserved addresses.');
+                }
+
+                $ips[] = $ip;
+
+                continue;
+            }
+
+            if (($record['type'] ?? null) === 'CNAME' && ! empty($record['target'])) {
+                $ips = array_merge(
+                    $ips,
+                    self::resolvePublicIps((string) $record['target'], $visitedHosts, $depth + 1)
+                );
+            }
+        }
+
+        return array_values(array_unique($ips));
     }
 
     /**

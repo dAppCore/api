@@ -1,1 +1,0 @@
-- @bug src/php/src/Api/Models/WebhookEndpoint.php:211 — Public webhook hosts that resolve through CNAME chains can be rejected because the validator only inspects direct A/AAAA records.
