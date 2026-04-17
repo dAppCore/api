@@ -1,1 +1,1 @@
-- @docs src/php/src/Website/Api/View/Blade/guides/authentication.blade.php:68 — The API key guide hard-codes `hk_` as if it were fixed, but the prefix is configurable in code and the docs should reflect that.
+- @docs src/php/src/Website/Api/View/Blade/guides/quickstart.blade.php:114 — The quickstart guide still hard-codes the `hk_` example prefix in its cURL snippets instead of using the configurable API key prefix root.

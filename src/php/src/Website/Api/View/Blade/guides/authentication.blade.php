@@ -3,6 +3,7 @@
 @section('title', 'Authentication')
 
 @section('content')
+@php($apiKeyPrefix = \Core\Api\Models\ApiKey::keyPrefixRoot())
 <div class="flex">
 
     {{-- Sidebar --}}
@@ -65,7 +66,7 @@
                     The API uses API keys for authentication. Each API key is scoped to a specific workspace and has configurable permissions.
                 </p>
                 <p class="text-zinc-600 dark:text-zinc-400">
-                    API keys are prefixed with <code class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-sm">hk_</code> to make them easily identifiable.
+                    API keys are prefixed with <code class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-sm">{{ $apiKeyPrefix }}</code> to make them easily identifiable.
                 </p>
             </section>
 
@@ -107,7 +108,7 @@
                     <div class="flex items-center justify-between px-4 py-2 border-b border-zinc-700">
                         <span class="text-sm text-zinc-400">HTTP Header</span>
                     </div>
-                    <pre class="overflow-x-auto p-4 text-sm"><code class="font-pt-mono text-zinc-300">Authorization: Bearer hk_your_api_key_here</code></pre>
+                    <pre class="overflow-x-auto p-4 text-sm"><code class="font-pt-mono text-zinc-300">Authorization: Bearer {{ $apiKeyPrefix }}your_api_key_here</code></pre>
                 </div>
 
                 <p class="text-zinc-600 dark:text-zinc-400 mb-4">
@@ -120,7 +121,7 @@
                     </div>
                     <pre class="overflow-x-auto p-4 text-sm"><code class="font-pt-mono text-zinc-300"><span class="text-teal-400">curl</span> <span class="text-zinc-500">--request</span> GET \
   <span class="text-zinc-500">--url</span> <span class="text-amber-400">'https://api.lthn.ai/v1/brain/recall'</span> \
-  <span class="text-zinc-500">--header</span> <span class="text-amber-400">'Authorization: Bearer hk_your_api_key'</span></code></pre>
+  <span class="text-zinc-500">--header</span> <span class="text-amber-400">'Authorization: Bearer {{ $apiKeyPrefix }}your_api_key'</span></code></pre>
                 </div>
             </section>
 
