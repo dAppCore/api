@@ -129,15 +129,14 @@ class SeoReportService
             throw new RuntimeException('SEO response size limit is invalid.');
         }
 
-        $contentLength = $response->header('Content-Length');
-        if (is_numeric($contentLength) && (int) $contentLength > $maxBytes) {
-            throw new RuntimeException('The requested URL returned a response that is too large.');
-        }
-
         $stream = $response->toPsrResponse()->getBody();
-        $body = '';
-
         try {
+            $contentLength = $response->header('Content-Length');
+            if (is_numeric($contentLength) && (int) $contentLength > $maxBytes) {
+                throw new RuntimeException('The requested URL returned a response that is too large.');
+            }
+
+            $body = '';
             while (! $stream->eof()) {
                 $chunk = $stream->read(8192);
                 if ($chunk === '' && ! $stream->eof()) {
@@ -150,11 +149,11 @@ class SeoReportService
                     throw new RuntimeException('The requested URL returned a response that is too large.');
                 }
             }
+
+            return $body;
         } finally {
             $stream->close();
         }
-
-        return $body;
     }
 
     /**
