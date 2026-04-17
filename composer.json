@@ -8,8 +8,18 @@
         "php": "^8.2",
         "laravel/passport": "^12.0",
         "lthn/php": "*",
+        "lthn/php-tenant": "*",
         "symfony/yaml": "^7.0"
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../php-tenant",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Core\\Api\\": "src/php/src/Api/",
