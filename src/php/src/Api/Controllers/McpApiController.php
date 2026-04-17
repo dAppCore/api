@@ -917,13 +917,81 @@ class McpApiController extends Controller
 
         $output = '';
         $errorOutput = '';
+        $exitCode = null;
 
         try {
-            fwrite($pipes[0], $payload."\n");
-            fclose($pipes[0]);
+            if (! is_resource($pipes[0]) || ! is_resource($pipes[1]) || ! is_resource($pipes[2])) {
+                throw new \RuntimeException("{$context} command failed to start");
+            }
 
-            $output = stream_get_contents($pipes[1]);
-            $errorOutput = stream_get_contents($pipes[2]);
+            if (fwrite($pipes[0], $payload."\n") === false) {
+                throw new \RuntimeException("Unable to write {$context} payload to subprocess");
+            }
+
+            fclose($pipes[0]);
+            unset($pipes[0]);
+
+            stream_set_blocking($pipes[1], false);
+            stream_set_blocking($pipes[2], false);
+
+            while (true) {
+                $read = [];
+
+                foreach ([1, 2] as $index) {
+                    if (isset($pipes[$index]) && is_resource($pipes[$index]) && ! feof($pipes[$index])) {
+                        $read[] = $pipes[$index];
+                    }
+                }
+
+                if ($read === []) {
+                    break;
+                }
+
+                $write = [];
+                $except = [];
+                $selected = stream_select($read, $write, $except, 5);
+
+                if ($selected === false) {
+                    throw new \RuntimeException("Unable to read {$context} output");
+                }
+
+                if ($selected === 0) {
+                    $status = proc_get_status($process);
+                    if (! ($status['running'] ?? false)) {
+                        foreach ([1, 2] as $index) {
+                            if (isset($pipes[$index]) && is_resource($pipes[$index])) {
+                                $chunk = stream_get_contents($pipes[$index]);
+                                if ($chunk === false) {
+                                    throw new \RuntimeException("Unable to read {$context} output");
+                                }
+
+                                if ($index === 1) {
+                                    $output .= $chunk;
+                                } else {
+                                    $errorOutput .= $chunk;
+                                }
+                            }
+                        }
+
+                        break;
+                    }
+
+                    continue;
+                }
+
+                foreach ($read as $pipe) {
+                    $chunk = fread($pipe, 8192);
+                    if ($chunk === false) {
+                        throw new \RuntimeException("Unable to read {$context} output");
+                    }
+
+                    if ($pipe === $pipes[1]) {
+                        $output .= $chunk;
+                    } else {
+                        $errorOutput .= $chunk;
+                    }
+                }
+            }
         } finally {
             foreach ($pipes as $pipe) {
                 if (is_resource($pipe)) {
