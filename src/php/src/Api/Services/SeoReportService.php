@@ -137,12 +137,16 @@ class SeoReportService
         $stream = $response->toPsrResponse()->getBody();
         $body = '';
 
-        while (! $stream->eof()) {
-            $body .= $stream->read(8192);
+        try {
+            while (! $stream->eof()) {
+                $body .= $stream->read(8192);
 
-            if (strlen($body) > $maxBytes) {
-                throw new RuntimeException('The requested URL returned a response that is too large.');
+                if (strlen($body) > $maxBytes) {
+                    throw new RuntimeException('The requested URL returned a response that is too large.');
+                }
             }
+        } finally {
+            $stream->close();
         }
 
         return $body;
@@ -154,14 +158,16 @@ class SeoReportService
     protected function loadXPath(string $html): DOMXPath
     {
         $previous = libxml_use_internal_errors(true);
+        try {
+            $document = new DOMDocument();
+            $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
 
-        $document = new DOMDocument();
-        $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+            libxml_clear_errors();
 
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        return new DOMXPath($document);
+            return new DOMXPath($document);
+        } finally {
+            libxml_use_internal_errors($previous);
+        }
     }
 
     /**
