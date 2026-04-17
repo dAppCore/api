@@ -1,0 +1,7 @@
+- @bug tracing.go:79 — Skip recording `http.response.body.size` when `c.Writer.Size()` returns `-1` so the trace attribute is not misleading.
+- @bug scripts/publish-sdks.sh:19 — Clean `sdks/python/dist` before building so stale Python artifacts are not uploaded.
+- @bug scripts/publish-sdks.sh:42 — Replace the NuGet glob with an explicit `.nupkg` lookup and require `NUGET_API_KEY` for non-interactive publishing.
+- @bug swagger_test.go:959 — Use a safe `HasPrefix` check for `Content-Type` instead of slicing the header string.
+- @bug tests/Pest.php:33 — Add the missing `Application` type hint to `getPackageProviders`.
+- @bug src/php/src/Api/Controllers/Api/PaymentMethodController.php:66 — Avoid passing `fresh()` directly into serialization because it can return `null`.
+- @bug src/php/src/Api/Controllers/Api/PaymentMethodController.php:131 — Apply the same `fresh()` null-safety fix after setting the default payment method.

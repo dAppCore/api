@@ -59,8 +59,12 @@ class AccessTokenGuard
             return null;
         }
 
-        // Update last used timestamp
-        $accessToken->recordUsage();
+        // Update last used timestamp without failing auth if persistence is unavailable.
+        try {
+            $accessToken->recordUsage();
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         return $accessToken->user;
     }

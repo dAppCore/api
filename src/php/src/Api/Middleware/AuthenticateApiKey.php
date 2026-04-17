@@ -115,7 +115,11 @@ class AuthenticateApiKey
                     return $this->forbidden("Token missing required scope: {$scope}");
                 }
 
-                $accessToken->recordUsage();
+                try {
+                    $accessToken->recordUsage();
+                } catch (\Throwable $exception) {
+                    report($exception);
+                }
 
                 $request->setUserResolver(fn () => $accessToken->user);
                 $request->attributes->set('auth_type', 'access_token');

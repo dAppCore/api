@@ -313,7 +313,11 @@ class ApiKey extends Model
      */
     public function recordUsage(): void
     {
-        $this->update(['last_used_at' => now()]);
+        try {
+            $this->update(['last_used_at' => now()]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 
     /**

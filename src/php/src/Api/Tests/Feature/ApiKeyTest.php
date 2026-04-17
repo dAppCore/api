@@ -266,6 +266,24 @@ describe('API Key Authentication', function () {
 
         expect($result['api_key']->fresh()->last_used_at)->not->toBeNull();
     });
+
+    it('does not fail if usage tracking persistence is unavailable', function () {
+        $key = new class extends ApiKey
+        {
+            public bool $updateCalled = false;
+
+            public function update(array $attributes = [], array $options = []): bool
+            {
+                $this->updateCalled = true;
+
+                throw new \RuntimeException('database unavailable');
+            }
+        };
+
+        $key->recordUsage();
+
+        expect($key->updateCalled)->toBeTrue();
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
