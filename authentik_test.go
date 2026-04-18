@@ -92,6 +92,42 @@ func TestAuthentikConfig_Good(t *testing.T) {
 	}
 }
 
+func TestAuthentikConfig_Ugly_BlankPublicPathsCollapseToNil(t *testing.T) {
+	e, err := api.New(api.WithAuthentik(api.AuthentikConfig{
+		TrustedProxy: true,
+		PublicPaths:  []string{" ", "\t", ""},
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.AuthentikConfig()
+	if cfg.PublicPaths != nil {
+		t.Fatalf("expected nil public paths after normalisation, got %v", cfg.PublicPaths)
+	}
+}
+
+func TestAuthentikConfig_Ugly_RootPublicPathIsPreserved(t *testing.T) {
+	e, err := api.New(api.WithAuthentik(api.AuthentikConfig{
+		TrustedProxy: true,
+		PublicPaths:  []string{" / ", "/docs/", "/docs"},
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.AuthentikConfig()
+	want := []string{"/", "/docs"}
+	if len(cfg.PublicPaths) != len(want) {
+		t.Fatalf("expected %d public paths, got %v", len(want), cfg.PublicPaths)
+	}
+	for i, path := range want {
+		if cfg.PublicPaths[i] != path {
+			t.Fatalf("expected public path %q at index %d, got %q", path, i, cfg.PublicPaths[i])
+		}
+	}
+}
+
 // ── Forward auth middleware ────────────────────────────────────────────
 
 func TestForwardAuthHeaders_Good(t *testing.T) {

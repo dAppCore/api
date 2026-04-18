@@ -3,11 +3,15 @@
 package api
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 
 	core "dappco.re/go/core"
+	"dappco.re/go/core/cli/pkg/cli"
 
 	api "dappco.re/go/core/api"
 )
@@ -55,6 +59,65 @@ func TestCmdSdk_SdkAction_Bad_EmptyLanguageList(t *testing.T) {
 	r := sdkAction(opts)
 	if r.OK {
 		t.Fatal("expected sdk action to fail when --lang only contains separators")
+	}
+}
+
+// TestCmdSdk_SdkAction_Good_InvokesGeneratorForUniqueLanguages verifies the
+// happy path using a fake openapi-generator-cli binary on PATH so the action
+// can be exercised deterministically without external dependencies.
+func TestCmdSdk_SdkAction_Good_InvokesGeneratorForUniqueLanguages(t *testing.T) {
+	workDir := t.TempDir()
+
+	binDir := filepath.Join(workDir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("failed to create fake bin dir: %v", err)
+	}
+
+	logFile := filepath.Join(workDir, "generator-args.log")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$SDK_ACTION_LOG\"\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(binDir, "openapi-generator-cli"), []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake generator: %v", err)
+	}
+
+	path := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+path)
+	t.Setenv("SDK_ACTION_LOG", logFile)
+
+	if err := cli.Init(cli.Options{AppName: "core-api-test"}); err != nil {
+		t.Fatalf("failed to initialise CLI runtime: %v", err)
+	}
+	t.Cleanup(cli.Shutdown)
+
+	opts := core.NewOptions(
+		core.Option{Key: "lang", Value: " go , python , go "},
+		core.Option{Key: "output", Value: filepath.Join(workDir, "sdk")},
+	)
+
+	r := sdkAction(opts)
+	if !r.OK {
+		t.Fatalf("expected sdk action to succeed, got %v", r.Value)
+	}
+
+	for _, lang := range []string{"go", "python"} {
+		if _, err := os.Stat(filepath.Join(workDir, "sdk", lang)); err != nil {
+			t.Fatalf("expected output directory for %s: %v", lang, err)
+		}
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("expected generator log to exist: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 generator invocations, got %d: %q", len(lines), string(data))
+	}
+	if !strings.Contains(lines[0], "-g go") || !strings.Contains(lines[0], "packageName=lethean") {
+		t.Fatalf("expected default package name and go generator in first invocation, got %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "-g python") || !strings.Contains(lines[1], "packageName=lethean") {
+		t.Fatalf("expected default package name and python generator in second invocation, got %q", lines[1])
 	}
 }
 

@@ -444,6 +444,34 @@ func TestWithCache_Ugly_NonPositiveTTLDisablesMiddleware(t *testing.T) {
 	}
 }
 
+// TestWithCache_Ugly_ExplicitZeroLimitsDisableMiddleware verifies that
+// explicitly passing zero entry and byte limits disables caching even when
+// the TTL is positive.
+func TestWithCache_Ugly_ExplicitZeroLimitsDisableMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	grp := &cacheCounterGroup{}
+	e, _ := api.New(api.WithCache(5*time.Second, 0, 0))
+	e.Register(grp)
+
+	h := e.Handler()
+
+	for i := 0; i < 2; i++ {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected request %d to succeed with disabled cache, got %d", i+1, w.Code)
+		}
+		if got := w.Header().Get("X-Cache"); got != "" {
+			t.Fatalf("expected no X-Cache header with disabled cache, got %q", got)
+		}
+	}
+
+	if grp.counter.Load() != 2 {
+		t.Fatalf("expected counter=2 with disabled cache, got %d", grp.counter.Load())
+	}
+}
+
 func TestWithCache_Good_ExpiredCacheMisses(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	grp := &cacheCounterGroup{}
