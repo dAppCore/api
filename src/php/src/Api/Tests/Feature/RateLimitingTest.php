@@ -24,7 +24,11 @@ beforeEach(function () {
     $this->rateLimitService = app(RateLimitService::class);
     $this->middleware = new RateLimitApi($this->rateLimitService);
 
-    $this->user = User::factory()->create();
+    $this->user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $this->workspace = Workspace::factory()->create();
     $this->workspace->users()->attach($this->user->id, [
         'role' => 'owner',
@@ -791,7 +795,11 @@ function createWorkspaceWithTier(string $tier): MockTieredWorkspace
 
 function createApiKeyForWorkspace(Workspace $workspace): ApiKey
 {
-    $user = User::factory()->create();
+    $user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $result = ApiKey::generate(
         $workspace->id,
         $user->id,

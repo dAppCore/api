@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Cache;
 use Core\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
     Cache::flush();
 
-    $this->user = User::factory()->create();
+    $this->user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $this->workspace = Workspace::factory()->create();
     $this->workspace->users()->attach($this->user->id, [
         'role' => 'owner',

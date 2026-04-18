@@ -1,2 +1,0 @@
-- @bug src/php/src/Api/Tests/Feature/McpServerAccessTest.php:15 — The feature suite still references `Mod\Tenant\Models\User`, which does not match the current user model namespace.
-- @bug src/php/src/Api/Tests/Feature/RateLimitingTest.php:27 — The test factory writes an `account_type` column that is not present in the in-memory `users` table schema.
