@@ -679,3 +679,43 @@ func TestChatCompletions_ServeHTTP_Good_StreamingResponseEmitsSSEChunks(t *testi
 		t.Fatalf("expected stream terminator, got %s", body)
 	}
 }
+
+func TestChatCompletions_ServeHTTP_Bad_StreamingModelLoadingReturnsErrorBeforeBytes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	model := &chatModelStub{
+		err: fmt.Errorf("model is loading"),
+	}
+	handler := newChatHandlerWithModel(model)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = newChatLoopbackRequest(t, `{
+		"model": "lemer",
+		"messages": [{"role":"user","content":"hi"}],
+		"stream": true
+	}`)
+
+	handler.ServeHTTP(ctx)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Retry-After"); got != "10" {
+		t.Fatalf("expected Retry-After=10, got %q", got)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected JSON error content type, got %q", got)
+	}
+
+	var payload chatCompletionErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid JSON error response: %v", err)
+	}
+	if payload.Error.Code != "model_loading" {
+		t.Fatalf("expected model_loading code, got %q", payload.Error.Code)
+	}
+	if payload.Error.Param != "model" {
+		t.Fatalf("expected param=model, got %q", payload.Error.Param)
+	}
+}
