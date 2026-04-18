@@ -5,8 +5,8 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Cache;
 use Core\Api\Controllers\McpApiController;
 use Core\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 use Illuminate\Http\Request;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
@@ -14,7 +14,11 @@ uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 beforeEach(function () {
     Cache::flush();
 
-    $this->user = User::factory()->create();
+    $this->user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $this->workspace = Workspace::factory()->create();
     $this->workspace->users()->attach($this->user->id, [
         'role' => 'owner',
@@ -90,6 +94,21 @@ it('reads a resource from the server definition', function () {
     ]);
 });
 
+it('McpResourceTest_resource_Bad_denies_access_to_servers_outside_the_api_key_scope', function () {
+    $this->apiKey->update([
+        'server_scopes' => ['another-server'],
+    ]);
+
+    $encodedUri = rawurlencode('test-resource-server://documents/welcome');
+
+    $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertForbidden();
+    $response->assertJsonPath('error', 'forbidden');
+});
+
 it('does not alias resource names to unrelated resource paths', function () {
     $controller = new class extends McpApiController
     {
@@ -106,8 +125,10 @@ it('does not alias resource names to unrelated resource paths', function () {
 
     $response = $controller->resource($request, $encodedUri);
 
-    $response->assertNotFound();
-    $response->assertJsonPath('error', 'not_found');
+    expect($response->getStatusCode())->toBe(404);
+    expect($response->getData(true))->toMatchArray([
+        'error' => 'not_found',
+    ]);
 });
 
 it('lists resources for a server', function () {
