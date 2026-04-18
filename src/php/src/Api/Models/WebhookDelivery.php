@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Webhook Delivery - individual delivery attempt.
@@ -94,15 +95,17 @@ class WebhookDelivery extends Model
      */
     public function markSuccess(int $responseCode, ?string $responseBody = null): void
     {
-        $this->update([
-            'status' => self::STATUS_SUCCESS,
-            'response_code' => $responseCode,
-            'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
-            'delivered_at' => now(),
-            'next_retry_at' => null,
-        ]);
+        DB::transaction(function () use ($responseCode, $responseBody): void {
+            $this->update([
+                'status' => self::STATUS_SUCCESS,
+                'response_code' => $responseCode,
+                'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
+                'delivered_at' => now(),
+                'next_retry_at' => null,
+            ]);
 
-        $this->endpoint->recordSuccess();
+            $this->endpoint->recordSuccess();
+        });
     }
 
     /**
@@ -110,29 +113,31 @@ class WebhookDelivery extends Model
      */
     public function markFailed(int $responseCode, ?string $responseBody = null): void
     {
-        $this->endpoint->recordFailure();
+        DB::transaction(function () use ($responseCode, $responseBody): void {
+            $this->endpoint->recordFailure();
 
-        if ($this->attempt >= self::MAX_RETRIES) {
+            if ($this->attempt >= self::MAX_RETRIES) {
+                $this->update([
+                    'status' => self::STATUS_FAILED,
+                    'response_code' => $responseCode,
+                    'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
+                ]);
+
+                return;
+            }
+
+            // Schedule retry
+            $nextAttempt = $this->attempt + 1;
+            $delayMinutes = self::RETRY_DELAYS[$nextAttempt] ?? 1440;
+
             $this->update([
-                'status' => self::STATUS_FAILED,
+                'status' => self::STATUS_RETRYING,
                 'response_code' => $responseCode,
                 'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
+                'attempt' => $nextAttempt,
+                'next_retry_at' => now()->addMinutes($delayMinutes),
             ]);
-
-            return;
-        }
-
-        // Schedule retry
-        $nextAttempt = $this->attempt + 1;
-        $delayMinutes = self::RETRY_DELAYS[$nextAttempt] ?? 1440;
-
-        $this->update([
-            'status' => self::STATUS_RETRYING,
-            'response_code' => $responseCode,
-            'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
-            'attempt' => $nextAttempt,
-            'next_retry_at' => now()->addMinutes($delayMinutes),
-        ]);
+        });
     }
 
     /**
