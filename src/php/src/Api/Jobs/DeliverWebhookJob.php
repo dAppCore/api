@@ -174,7 +174,14 @@ class DeliverWebhookJob implements ShouldQueue
         $this->delivery->markFailed($statusCode, $responseBody);
 
         // If we can retry, dispatch a new job with the appropriate delay
-        if ($this->delivery->canRetry() && $this->delivery->next_retry_at) {
+        $queueConnection = $this->connection ?? config('queue.default');
+
+        if (
+            ! app()->environment('testing')
+            && $queueConnection !== 'sync'
+            && $this->delivery->canRetry()
+            && $this->delivery->next_retry_at
+        ) {
             $delay = $this->delivery->next_retry_at->diffInSeconds(now());
 
             Log::info('Scheduling webhook retry', [

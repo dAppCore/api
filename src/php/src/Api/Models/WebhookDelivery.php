@@ -58,7 +58,6 @@ class WebhookDelivery extends Model
     ];
 
     protected $casts = [
-        'payload' => 'array',
         'delivered_at' => 'datetime',
         'next_retry_at' => 'datetime',
     ];
@@ -73,18 +72,25 @@ class WebhookDelivery extends Model
         ?int $workspaceId = null
     ): static {
         $eventId = 'evt_'.Str::random(24);
+        $payload = [
+            'id' => $eventId,
+            'type' => $eventType,
+            'created_at' => now()->toIso8601String(),
+            'data' => $data,
+            'workspace_id' => $workspaceId,
+        ];
+
+        try {
+            $payloadJson = json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Unable to encode webhook payload as JSON.', 0, $exception);
+        }
 
         return static::create([
             'webhook_endpoint_id' => $endpoint->id,
             'event_id' => $eventId,
             'event_type' => $eventType,
-            'payload' => [
-                'id' => $eventId,
-                'type' => $eventType,
-                'created_at' => now()->toIso8601String(),
-                'data' => $data,
-                'workspace_id' => $workspaceId,
-            ],
+            'payload' => $payloadJson,
             'status' => self::STATUS_PENDING,
             'attempt' => 1,
         ]);
@@ -171,10 +177,10 @@ class WebhookDelivery extends Model
     public function getDeliveryPayload(?int $timestamp = null): array
     {
         $timestamp ??= time();
-        $jsonPayload = json_encode($this->payload);
-
-        if ($jsonPayload === false) {
-            throw new \RuntimeException('Unable to encode webhook payload as JSON.');
+        try {
+            $jsonPayload = json_encode($this->payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Unable to encode webhook payload as JSON.', 0, $exception);
         }
 
         return [
@@ -187,6 +193,29 @@ class WebhookDelivery extends Model
             ],
             'body' => $jsonPayload,
         ];
+    }
+
+    /**
+     * Decode the stored payload lazily so invalid in-memory payloads can be
+     * rejected at delivery formatting time instead of during model hydration.
+     */
+    public function getPayloadAttribute(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return (array) $value;
     }
 
     // Relationships

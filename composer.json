@@ -23,6 +23,7 @@
     "autoload": {
         "psr-4": {
             "Core\\Api\\": "src/php/src/Api/",
+            "Core\\Tenant\\": "../php-tenant/",
             "Core\\Front\\Api\\": "src/php/src/Front/Api/",
             "Core\\Website\\Api\\": "src/php/src/Website/Api/"
         }
