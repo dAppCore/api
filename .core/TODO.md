@@ -1,0 +1,1 @@
+- @test /Users/snider/Code/core/api/tests/Pest.php:35 — Testbench signature mismatch prevents Pest from booting locally.
