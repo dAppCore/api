@@ -569,6 +569,29 @@ describe('Webhook Delivery Job', function () {
         expect($delivery->delivered_at)->not->toBeNull();
     });
 
+    it('keeps success state when the endpoint disappears during bookkeeping', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $endpoint->delete();
+
+        $delivery->markSuccess(204);
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_SUCCESS);
+        expect($delivery->response_code)->toBe(204);
+        expect($delivery->delivered_at)->not->toBeNull();
+    });
+
     it('marks delivery as retrying on 5xx response', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
@@ -587,6 +610,30 @@ describe('Webhook Delivery Job', function () {
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
         expect($delivery->response_code)->toBe(500);
+        expect($delivery->attempt)->toBe(2);
+        expect($delivery->next_retry_at)->not->toBeNull();
+    });
+
+    it('keeps retry state when the endpoint disappears during bookkeeping', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $endpoint->delete();
+
+        $delivery->markFailed(503, 'Service Unavailable');
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
+        expect($delivery->response_code)->toBe(503);
         expect($delivery->attempt)->toBe(2);
         expect($delivery->next_retry_at)->not->toBeNull();
     });

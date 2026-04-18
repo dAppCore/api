@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Webhook Delivery - individual delivery attempt.
@@ -109,9 +110,9 @@ class WebhookDelivery extends Model
                 'delivered_at' => now(),
                 'next_retry_at' => null,
             ]);
-
-            $this->endpoint->recordSuccess();
         });
+
+        $this->updateEndpointSuccess();
     }
 
     /**
@@ -120,8 +121,6 @@ class WebhookDelivery extends Model
     public function markFailed(int $responseCode, ?string $responseBody = null): void
     {
         DB::transaction(function () use ($responseCode, $responseBody): void {
-            $this->endpoint->recordFailure();
-
             if ($this->attempt >= self::MAX_RETRIES) {
                 $this->update([
                     'status' => self::STATUS_FAILED,
@@ -144,6 +143,8 @@ class WebhookDelivery extends Model
                 'next_retry_at' => now()->addMinutes($delayMinutes),
             ]);
         });
+
+        $this->updateEndpointFailure();
     }
 
     /**
@@ -245,5 +246,60 @@ class WebhookDelivery extends Model
                         ->where('next_retry_at', '<=', now());
                 });
         });
+    }
+
+    /**
+     * Best-effort bookkeeping for a successful delivery.
+     *
+     * The delivery status must not be rolled back if the endpoint record has
+     * been deleted or its counter update fails.
+     */
+    protected function updateEndpointSuccess(): void
+    {
+        $this->updateEndpointState('recordSuccess', 'success');
+    }
+
+    /**
+     * Best-effort bookkeeping for a failed delivery.
+     *
+     * The delivery status must not be rolled back if the endpoint record has
+     * been deleted or its counter update fails.
+     */
+    protected function updateEndpointFailure(): void
+    {
+        $this->updateEndpointState('recordFailure', 'failure');
+    }
+
+    /**
+     * Apply endpoint bookkeeping without risking the delivery state update.
+     */
+    protected function updateEndpointState(string $method, string $outcome): void
+    {
+        try {
+            $endpoint = $this->endpoint;
+
+            if (! $endpoint instanceof WebhookEndpoint) {
+                Log::warning('Webhook delivery endpoint bookkeeping skipped', [
+                    'delivery_id' => $this->id,
+                    'webhook_endpoint_id' => $this->webhook_endpoint_id,
+                    'outcome' => $outcome,
+                    'reason' => 'missing_endpoint',
+                ]);
+
+                return;
+            }
+
+            $endpoint->{$method}();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            Log::warning('Webhook delivery endpoint bookkeeping failed', [
+                'delivery_id' => $this->id,
+                'webhook_endpoint_id' => $this->webhook_endpoint_id,
+                'outcome' => $outcome,
+                'error_type' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }
