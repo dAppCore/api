@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Core\Api\Models\ApiKey;
+use Core\Api\Middleware\AuthenticateApiKey;
 use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 use Illuminate\Http\Request;
@@ -95,4 +96,28 @@ it('AuthenticateApiKey_handle_Ugly rejects malformed bearer tokens and unauthent
     $noAuthResponse->assertUnauthorized();
     expect($noAuthResponse->json('error'))->toBe('unauthorized');
     expect($noAuthResponse->json('message'))->toBe('Invalid authentication token');
+});
+
+it('AuthenticateApiKey_handle_Bad returns service unavailable when api key lookup fails', function () {
+    $middleware = new class extends AuthenticateApiKey
+    {
+        protected function resolveApiKey(string $token): ?ApiKey
+        {
+            throw new RuntimeException('database unavailable');
+        }
+    };
+
+    $request = Request::create('/api/test-auth/scoped', 'GET', server: [
+        'HTTP_AUTHORIZATION' => 'Bearer hk_lookup_failure_'.str_repeat('x', 48),
+    ]);
+
+    $response = $middleware->handle(
+        $request,
+        fn () => response()->json(['ok' => true]),
+        'read'
+    );
+
+    $response->assertStatus(503);
+    expect($response->json('error'))->toBe('service_unavailable');
+    expect($response->json('message'))->toBe('API key authentication is temporarily unavailable.');
 });

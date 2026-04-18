@@ -42,7 +42,16 @@ class AuthenticateApiKey
         // API keys are underscore-delimited; if a token looks like an API key,
         // it must validate as one rather than falling through to Sanctum.
         if (str_contains($token, '_')) {
-            $apiKey = ApiKey::findByPlainKey($token);
+            try {
+                $apiKey = $this->resolveApiKey($token);
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $this->serviceUnavailable(
+                    'API key authentication is temporarily unavailable.'
+                );
+            }
+
             if ($apiKey instanceof ApiKey) {
                 return $this->authenticateResolvedApiKey($request, $next, $apiKey, $scope);
             }
@@ -52,6 +61,14 @@ class AuthenticateApiKey
 
         // Fall back to Sanctum for OAuth tokens
         return $this->authenticateSanctum($request, $next, $scope);
+    }
+
+    /**
+     * Resolve an API key from a bearer token.
+     */
+    protected function resolveApiKey(string $token): ?ApiKey
+    {
+        return ApiKey::findByPlainKey($token);
     }
 
     /**
@@ -196,5 +213,17 @@ class AuthenticateApiKey
     protected function forbidden(string $message): Response
     {
         return $this->forbiddenResponse($message, status: 403);
+    }
+
+    /**
+     * Return 503 Service Unavailable response.
+     */
+    protected function serviceUnavailable(string $message): Response
+    {
+        return $this->errorResponse(
+            errorCode: 'service_unavailable',
+            message: $message,
+            status: 503,
+        );
     }
 }
