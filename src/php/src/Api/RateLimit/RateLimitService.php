@@ -317,6 +317,12 @@ class RateLimitService
                 if (method_exists($lock, 'get') && $lock->get()) {
                     return $lock;
                 }
+
+                // When the native lock primitive exists but cannot be
+                // acquired, fail closed instead of falling through to the
+                // advisory lock path. Mixing the two mechanisms can allow a
+                // contended bucket to be entered twice.
+                return null;
             } catch (\Throwable) {
                 // Fall through to the advisory lock fallback below.
             }
