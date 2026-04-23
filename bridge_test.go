@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -195,6 +196,51 @@ func TestToolBridge_Ugly_RejectsUnsafeToolNameForms(t *testing.T) {
 				Name:        name,
 				Description: "Invalid tool name",
 			}, func(c *gin.Context) {})
+		})
+	}
+}
+
+func TestMCPServerID_Good_AcceptsSafeIDs(t *testing.T) {
+	cases := []string{
+		"core",
+		"core-mcp",
+		"A1",
+		"server-01",
+		"a" + strings.Repeat("b", 63),
+	}
+
+	for _, id := range cases {
+		t.Run(id, func(t *testing.T) {
+			if !api.IsValidMCPServerID(id) {
+				t.Fatalf("expected server_id %q to be accepted", id)
+			}
+		})
+	}
+}
+
+func TestMCPServerID_Bad_RejectsMalformedIDs(t *testing.T) {
+	cases := []string{
+		"",
+		" ",
+		"_core",
+		"-core",
+		"core_mcp",
+		"core.mcp",
+		"core/mcp",
+		"core\\mcp",
+		"../secrets",
+		"core/../secrets",
+		"/etc/passwd",
+		`C:\Windows`,
+		"core\x00mcp",
+		"a" + strings.Repeat("b", 64),
+	}
+
+	for _, id := range cases {
+		t.Run(id, func(t *testing.T) {
+			if api.IsValidMCPServerID(id) {
+				t.Fatalf("expected server_id %q to be rejected", id)
+			}
 		})
 	}
 }

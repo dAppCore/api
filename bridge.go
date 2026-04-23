@@ -59,6 +59,7 @@ var _ RouteGroup = (*ToolBridge)(nil)
 var _ DescribableGroup = (*ToolBridge)(nil)
 
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+var mcpServerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,63}$`)
 var regexPatternCache sync.Map
 
 // NewToolBridge creates a bridge that mounts tool endpoints at basePath.
@@ -206,6 +207,12 @@ func (b *ToolBridge) ToolsIter() iter.Seq[ToolDescriptor] {
 	}
 }
 
+// IsValidMCPServerID reports whether id is safe to use as an MCP HTTP bridge
+// server_id path segment or filesystem-backed lookup key.
+func IsValidMCPServerID(id string) bool {
+	return isValidMCPServerID(id)
+}
+
 func (b *ToolBridge) snapshotTools() []boundTool {
 	if len(b.tools) == 0 {
 		return nil
@@ -276,6 +283,18 @@ func isValidToolName(name string) bool {
 	}
 
 	return toolNamePattern.MatchString(name)
+}
+
+func isValidMCPServerID(id string) bool {
+	if id == "" {
+		return false
+	}
+
+	if strings.ContainsRune(id, '\x00') || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+		return false
+	}
+
+	return mcpServerIDPattern.MatchString(id)
 }
 
 // normaliseToolBridgePath coerces the bridge base path into a stable form.
