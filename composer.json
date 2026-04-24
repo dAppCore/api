@@ -4,7 +4,7 @@
     "keywords": ["api", "rest", "laravel", "openapi"],
     "license": "EUPL-1.2",
     "require": {
-        "dedoc/scramble": "^0.12",
+        "dedoc/scramble": "^0.13",
         "php": "^8.2",
         "laravel/passport": "^12.0",
         "lthn/php": "*",
