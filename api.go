@@ -342,25 +342,19 @@ func (e *Engine) build() *gin.Engine {
 }
 
 func isNilRouteGroup(group RouteGroup) bool {
-	if group == nil {
-		return true
-	}
-
-	value := reflect.ValueOf(group)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
+	return isNilValue(group)
 }
 
 func isNilStreamGroup(group apistream.StreamGroup) bool {
-	if group == nil {
+	return isNilValue(group)
+}
+
+func isNilValue(v any) bool {
+	if v == nil {
 		return true
 	}
 
-	value := reflect.ValueOf(group)
+	value := reflect.ValueOf(v)
 	switch value.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return value.IsNil()

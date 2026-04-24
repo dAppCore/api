@@ -416,7 +416,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			operation := map[string]any{
 				"summary":     rd.Summary,
 				"description": rd.Description,
-				"operationId": operationID(method, fullPath, operationIDs),
+				"operationId": resolvedOperationID(rd, method, fullPath, operationIDs),
 				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, replacement, deprecationHeaders, sb.CacheEnabled, rd.CacheControl),
 			}
 			if deprecated {
@@ -466,6 +466,9 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 						"application/json": requestMediaType,
 					},
 				}
+			}
+			if renderHints := resolvedRenderHints(rd); len(renderHints) > 0 {
+				operation["x-render-hints"] = renderHints
 			}
 
 			// Create or extend path item.
@@ -1936,10 +1939,11 @@ func collectRouteDescriptions(g RouteGroup) []RouteDescription {
 
 	descs := make([]RouteDescription, 0)
 	for rd := range descIter {
-		if rd.Hidden {
+		resolved := resolveRouteDescription(rd)
+		if resolved.Hidden {
 			continue
 		}
-		descs = append(descs, cloneRouteDescription(rd))
+		descs = append(descs, resolved)
 	}
 
 	return descs
@@ -1974,6 +1978,197 @@ func routeDescriptions(g RouteGroup) iter.Seq[RouteDescription] {
 		}
 	}
 	return nil
+}
+
+func resolveRouteDescription(rd RouteDescription) RouteDescription {
+	resolved := cloneRouteDescription(rd)
+	handler := routeDescribable(resolved.Handler)
+	if handler == nil {
+		return resolved
+	}
+
+	handlerDesc := cloneRouteDescription(handler.Describe())
+
+	if core.Trim(resolved.Method) == "" {
+		resolved.Method = handlerDesc.Method
+	}
+	if core.Trim(resolved.Path) == "" {
+		resolved.Path = handlerDesc.Path
+	}
+	if core.Trim(resolved.Summary) == "" {
+		resolved.Summary = firstNonEmpty(handler.Summary(), handlerDesc.Summary)
+	}
+	if core.Trim(resolved.Description) == "" {
+		resolved.Description = firstNonEmpty(handler.Description(), handlerDesc.Description)
+	}
+	if tags := cleanTags(resolved.Tags); len(tags) > 0 {
+		resolved.Tags = tags
+	} else if tags := cleanTags(handler.Tags()); len(tags) > 0 {
+		resolved.Tags = tags
+	} else {
+		resolved.Tags = cleanTags(handlerDesc.Tags)
+	}
+	if core.Trim(resolved.CacheControl) == "" {
+		resolved.CacheControl = handlerDesc.CacheControl
+	}
+	if !resolved.Hidden && handlerDesc.Hidden {
+		resolved.Hidden = true
+	}
+	if !resolved.Deprecated && handlerDesc.Deprecated {
+		resolved.Deprecated = true
+	}
+	if core.Trim(resolved.SunsetDate) == "" {
+		resolved.SunsetDate = handlerDesc.SunsetDate
+	}
+	if core.Trim(resolved.ReplacementURL) == "" {
+		resolved.ReplacementURL = handlerDesc.ReplacementURL
+	}
+	if core.Trim(resolved.Replacement) == "" {
+		resolved.Replacement = handlerDesc.Replacement
+	}
+	if core.Trim(resolved.NoticeURL) == "" {
+		resolved.NoticeURL = handlerDesc.NoticeURL
+	}
+	if resolved.StatusCode == 0 {
+		resolved.StatusCode = handlerDesc.StatusCode
+	}
+	if resolved.Security == nil && handlerDesc.Security != nil {
+		resolved.Security = cloneSecurityRequirements(handlerDesc.Security)
+	}
+	if resolved.Parameters == nil && handlerDesc.Parameters != nil {
+		resolved.Parameters = cloneParameterDescriptions(handlerDesc.Parameters)
+	}
+	if resolved.RequestBody == nil && handlerDesc.RequestBody != nil {
+		resolved.RequestBody = cloneOpenAPIObject(handlerDesc.RequestBody)
+	}
+	if resolved.RequestExample == nil && handlerDesc.RequestExample != nil {
+		resolved.RequestExample = cloneOpenAPIValue(handlerDesc.RequestExample)
+	}
+	if resolved.Response == nil && handlerDesc.Response != nil {
+		resolved.Response = cloneOpenAPIObject(handlerDesc.Response)
+	}
+	if resolved.ResponseExample == nil && handlerDesc.ResponseExample != nil {
+		resolved.ResponseExample = cloneOpenAPIValue(handlerDesc.ResponseExample)
+	}
+	if resolved.ResponseHeaders == nil && handlerDesc.ResponseHeaders != nil {
+		resolved.ResponseHeaders = cloneStringMap(handlerDesc.ResponseHeaders)
+	}
+
+	return resolved
+}
+
+func routeDescribable(handler any) Describable {
+	if isNilValue(handler) {
+		return nil
+	}
+
+	d, ok := handler.(Describable)
+	if !ok || isNilValue(d) {
+		return nil
+	}
+
+	return d
+}
+
+func routeRenderable(handler any) Renderable {
+	if isNilValue(handler) {
+		return nil
+	}
+
+	r, ok := handler.(Renderable)
+	if !ok || isNilValue(r) {
+		return nil
+	}
+
+	return r
+}
+
+func resolvedOperationID(rd RouteDescription, method, path string, operationIDs map[string]int) string {
+	if handler := routeDescribable(rd.Handler); handler != nil {
+		if operationID := registerOperationID(handler.OperationID(), operationIDs); operationID != "" {
+			return operationID
+		}
+	}
+
+	return operationID(method, path, operationIDs)
+}
+
+func registerOperationID(id string, operationIDs map[string]int) string {
+	id = core.Trim(id)
+	if id == "" {
+		return ""
+	}
+	if operationIDs == nil {
+		return id
+	}
+
+	count := operationIDs[id]
+	operationIDs[id] = count + 1
+	if count == 0 {
+		return id
+	}
+
+	return id + "_" + strconv.Itoa(count+1)
+}
+
+func resolvedRenderHints(rd RouteDescription) map[string]any {
+	handler := routeRenderable(rd.Handler)
+	if handler == nil {
+		return nil
+	}
+
+	return renderHintsExtension(handler.Render())
+}
+
+func renderHintsExtension(hints RenderHints) map[string]any {
+	extension := map[string]any{}
+
+	if kind := core.Trim(hints.Kind); kind != "" {
+		extension["kind"] = kind
+	}
+	if fields := cloneFieldHints(hints.Fields); len(fields) > 0 {
+		extension["fields"] = fields
+	}
+	if actions := cloneActionHints(hints.Actions); len(actions) > 0 {
+		extension["actions"] = actions
+	}
+	if len(extension) == 0 {
+		return nil
+	}
+
+	return extension
+}
+
+func cloneFieldHints(fields []FieldHint) []FieldHint {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	out := make([]FieldHint, len(fields))
+	for i, field := range fields {
+		out[i] = field
+		out[i].Validation = cloneOpenAPIObject(field.Validation)
+	}
+
+	return out
+}
+
+func cloneActionHints(actions []ActionHint) []ActionHint {
+	if len(actions) == 0 {
+		return nil
+	}
+
+	return slices.Clone(actions)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value = core.Trim(value); value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 // pathParameters extracts unique OpenAPI path parameters from a path template.
