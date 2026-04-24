@@ -13,6 +13,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
+	apistream "dappco.re/go/core/api/pkg/stream"
 
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-contrib/pprof"
@@ -37,6 +38,7 @@ const shutdownTimeout = 10 * time.Second
 type Engine struct {
 	addr                           string
 	groups                         []RouteGroup
+	streamGroups                   []apistream.StreamGroup
 	middlewares                    []gin.HandlerFunc
 	chatCompletionsResolver        *ModelResolver
 	chatCompletionsPath            string
@@ -137,6 +139,18 @@ func (e *Engine) Register(group RouteGroup) {
 		return
 	}
 	e.groups = append(e.groups, group)
+}
+
+// RegisterStreamGroup adds a declarative SSE/WebSocket handler group to the engine.
+//
+// Example:
+//
+//	engine.RegisterStreamGroup(stream.NewGroup("events"))
+func (e *Engine) RegisterStreamGroup(group apistream.StreamGroup) {
+	if isNilStreamGroup(group) {
+		return
+	}
+	e.streamGroups = append(e.streamGroups, group)
 }
 
 // Channels returns all WebSocket channel names from registered StreamGroups.
@@ -268,6 +282,14 @@ func (e *Engine) build() *gin.Engine {
 		g.RegisterRoutes(rg)
 	}
 
+	// Mount each registered declarative stream group at the engine root.
+	for _, g := range e.streamGroups {
+		if isNilStreamGroup(g) {
+			continue
+		}
+		g.Register(r)
+	}
+
 	// Mount WebSocket handler if configured. WithWebSocket (gin-native) takes
 	// precedence over WithWSHandler (http.Handler) when both are supplied so
 	// the more specific gin form wins.
@@ -320,6 +342,20 @@ func (e *Engine) build() *gin.Engine {
 }
 
 func isNilRouteGroup(group RouteGroup) bool {
+	if group == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(group)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+func isNilStreamGroup(group apistream.StreamGroup) bool {
 	if group == nil {
 		return true
 	}
