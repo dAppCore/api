@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 func TestEngine_GraphQLConfig_Good_SnapshotsCurrentSettings(t *testing.T) {

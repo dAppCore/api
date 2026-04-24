@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/api"
+	"dappco.re/go/api/pkg/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

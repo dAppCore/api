@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // ── ToolBridge ─────────────────────────────────────────────────────────

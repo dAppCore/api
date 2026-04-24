@@ -15,7 +15,7 @@ import (
 
 	"slices"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 type trackingReadCloser struct {

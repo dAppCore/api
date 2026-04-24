@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // ── SDKGenerator tests ─────────────────────────────────────────────────────

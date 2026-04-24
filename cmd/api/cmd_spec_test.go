@@ -11,7 +11,7 @@ import (
 	core "dappco.re/go/core"
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 type specCmdStubGroup struct{}

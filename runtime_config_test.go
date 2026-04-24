@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings verifies the

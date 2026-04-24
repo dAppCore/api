@@ -7,10 +7,10 @@ import (
 	"os"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
 
-	goapi "dappco.re/go/core/api"
-	coreio "dappco.re/go/core/io"
+	goapi "dappco.re/go/api"
+	coreio "dappco.re/go/io"
 )
 
 const (

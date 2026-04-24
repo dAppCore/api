@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sync"
 
-	"dappco.re/go/core/api"
+	"dappco.re/go/api"
 )
 
 // Registry collects providers and mounts them on an api.Engine.

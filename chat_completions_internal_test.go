@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	inference "dappco.re/go/core/inference"
+	inference "dappco.re/go/inference"
 
 	"github.com/gin-gonic/gin"
 )

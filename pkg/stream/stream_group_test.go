@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	api "dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/stream"
+	api "dappco.re/go/api"
+	"dappco.re/go/api/pkg/stream"
 
 	"github.com/gin-gonic/gin"
 )

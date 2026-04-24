@@ -14,7 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // cacheCounterGroup registers routes that increment a counter on each call,

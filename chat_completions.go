@@ -17,7 +17,7 @@ import (
 	"unicode"
 
 	"dappco.re/go/core"
-	inference "dappco.re/go/core/inference"
+	inference "dappco.re/go/inference"
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"

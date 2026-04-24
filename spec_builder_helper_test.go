@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"slices"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {

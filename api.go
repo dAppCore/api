@@ -13,7 +13,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	apistream "dappco.re/go/core/api/pkg/stream"
+	apistream "dappco.re/go/api/pkg/stream"
 
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-contrib/pprof"
