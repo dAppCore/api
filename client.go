@@ -9,6 +9,7 @@ import (
 	"iter"
 	"net/http"
 	"net/url"
+	// Note: AX-6 — reflect is structural for HTTP client param marshaling.
 	"reflect"
 	"slices"
 	"strings"

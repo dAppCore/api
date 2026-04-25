@@ -3,6 +3,7 @@
 package api
 
 import (
+	// Note: AX-6 — reflect is structural for OpenAPI spec generation by introspecting Go types.
 	"reflect"
 	"slices"
 
