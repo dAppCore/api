@@ -10,8 +10,10 @@ use Core\Api\Controllers\Api\Concerns\SerialisesWorkspaceResource;
 use Core\Api\Models\SupportTicket;
 use Core\Api\Models\SupportTicketReply;
 use Core\Front\Controller;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class TicketController extends Controller
 {
@@ -129,6 +131,16 @@ class TicketController extends Controller
 
         $workspace = $this->resolveWorkspace($request);
         $user = $request->user();
+
+        if ($workspace === null && $user === null) {
+            Log::warning('TicketController.findTicket fail-open attempt', [
+                'ticket_id' => $id,
+                'actor_ip' => $request->ip(),
+                'route' => $request->path(),
+            ]);
+
+            throw new AuthorizationException('Authentication context required');
+        }
 
         if ($workspace !== null) {
             $query->forWorkspace($workspace->id);
