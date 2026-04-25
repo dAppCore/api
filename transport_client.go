@@ -3,11 +3,10 @@
 package api
 
 import (
-	"bufio"
+	"bufio" // Note: AX-6 — SSE stream line scanning
 	"context"
-	"io"
-	"net/http"
-	"net/url"
+	"io"       // Note: AX-6 — io.Reader contract
+	"net/http" // Note: AX-6 — HTTP transport boundary
 	"time"
 
 	core "dappco.re/go/core"
@@ -331,23 +330,50 @@ func normaliseWebSocketClientURL(rawURL string) (string, error) {
 		return "", coreerr.E("", "WebSocketClient URL is required", nil)
 	}
 
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return "", err
+	parsed := core.URLParse(rawURL)
+	if !parsed.OK {
+		if err, ok := parsed.Value.(error); ok {
+			return "", err
+		}
+		return "", coreerr.E("", "invalid WebSocketClient URL", nil)
 	}
 
-	switch parsed.Scheme {
+	normalized := core.URLNormalize(rawURL)
+	scheme := webSocketClientURLScheme(rawURL)
+
+	switch scheme {
 	case "ws", "wss":
-		return parsed.String(), nil
+		return normalized, nil
 	case "http":
-		parsed.Scheme = "ws"
-		return parsed.String(), nil
+		parts := core.SplitN(normalized, ":", 2)
+		return "ws:" + parts[1], nil
 	case "https":
-		parsed.Scheme = "wss"
-		return parsed.String(), nil
+		parts := core.SplitN(normalized, ":", 2)
+		return "wss:" + parts[1], nil
 	default:
-		return "", coreerr.E("", core.Sprintf("unsupported websocket URL scheme %q", parsed.Scheme), nil)
+		return "", coreerr.E("", core.Sprintf("unsupported websocket URL scheme %q", scheme), nil)
 	}
+}
+
+func webSocketClientURLScheme(rawURL string) string {
+	for i := 0; i < len(rawURL); i++ {
+		c := rawURL[i]
+		switch {
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
+		case '0' <= c && c <= '9' || c == '+' || c == '-' || c == '.':
+			if i == 0 {
+				return ""
+			}
+		case c == ':':
+			if i == 0 {
+				return ""
+			}
+			return core.Lower(rawURL[:i])
+		default:
+			return ""
+		}
+	}
+	return ""
 }
 
 func cloneHTTPHeader(header http.Header) http.Header {
