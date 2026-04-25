@@ -363,11 +363,22 @@ func cloneHTTPHeader(header http.Header) http.Header {
 	return out
 }
 
+// doHTTPClientRequest is the singular choke point for outbound HTTP from
+// SSEClient.Connect and OpenAPIClient.Call. It validates the request URL
+// against the deny-by-default outbound policy (see ssrf_guard.go) before
+// invoking client.Do. Cerberus mechanism review attached to Mantis #318.
 func doHTTPClientRequest(client *http.Client, req *http.Request) (*http.Response, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 
+	if req != nil && req.URL != nil {
+		if err := validateOutboundURL(req.URL.String()); err != nil {
+			return nil, err
+		}
+	}
+
+	//#nosec G107 -- URL validated above by validateOutboundURL deny-by-default policy.
 	resp, err := client.Do(req)
 	if err != nil {
 		if resp != nil && resp.Body != nil {
