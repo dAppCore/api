@@ -1,0 +1,10 @@
+# gitleaks ignore — documented false positives
+#
+# Filed: Mantis #325. Reviewer: argus + athena. 2026-04-25.
+# Format: <commit_sha>:<file>:<rule>:<line>
+#
+# src/php/src/Api/Documentation/Examples/CommonExamples.php:169 — Authorization
+# header example string 'hk_1234567890abcdefghijklmnop' shown in OpenAPI/SDK
+# documentation; placeholder fixture, not a real secret.
+
+753812ad57c3c5aa0cd66880e26433d71bb79f86:src/php/src/Api/Documentation/Examples/CommonExamples.php:generic-api-key:169
