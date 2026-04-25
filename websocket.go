@@ -4,7 +4,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 
 	core "dappco.re/go/core"
 
@@ -30,7 +29,13 @@ func normaliseWSPath(path string) string {
 		return defaultWSPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	for core.HasPrefix(path, "/") {
+		path = core.TrimPrefix(path, "/")
+	}
+	for core.HasSuffix(path, "/") {
+		path = core.TrimSuffix(path, "/")
+	}
+	path = "/" + path
 	if path == "/" {
 		return defaultWSPath
 	}
