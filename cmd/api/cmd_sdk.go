@@ -4,6 +4,7 @@ package api
 
 import (
 	"iter"
+	"os" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
 
 	"dappco.re/go/cli/pkg/cli"
 	core "dappco.re/go/core"
@@ -65,11 +66,19 @@ func sdkAction(opts core.Options) core.Result {
 		}
 		groups := sdkSpecGroupsIter()
 
-		tmpPath := core.Path("/tmp", "openapi-"+core.ID()+".json")
+		tmpFile, err := os.CreateTemp("", "openapi-*.json")
+		if err != nil {
+			return core.Result{Value: cli.Wrap(err, "create temp spec file"), OK: false}
+		}
+		tmpPath := tmpFile.Name()
 		defer coreio.Local.Delete(tmpPath)
 
-		if err := goapi.ExportSpecToFileIter(tmpPath, "json", builder, groups); err != nil {
+		if err := goapi.ExportSpecIter(tmpFile, "json", builder, groups); err != nil {
+			_ = tmpFile.Close()
 			return core.Result{Value: cli.Wrap(err, "generate spec"), OK: false}
+		}
+		if err := tmpFile.Close(); err != nil {
+			return core.Result{Value: cli.Wrap(err, "close temp spec file"), OK: false}
 		}
 		resolvedSpecFile = tmpPath
 	}
