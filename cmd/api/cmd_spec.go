@@ -3,11 +3,10 @@
 package api
 
 import (
-	"encoding/json"
-	"os"
+	"os" // Note: AX-6 — os.Stdout has no core equivalent for command output.
 
-	core "dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
+	core "dappco.re/go/core"
 
 	goapi "dappco.re/go/api"
 )
@@ -64,7 +63,9 @@ func parseSecuritySchemes(raw string) (map[string]any, error) {
 	}
 
 	var schemes map[string]any
-	if err := json.Unmarshal([]byte(raw), &schemes); err != nil {
+	decoded := core.JSONUnmarshal([]byte(raw), &schemes)
+	if !decoded.OK {
+		err, _ := decoded.Value.(error)
 		return nil, cli.Wrap(err, "invalid security schemes JSON")
 	}
 	return schemes, nil
