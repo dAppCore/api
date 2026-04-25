@@ -3,10 +3,9 @@
 package api
 
 import (
-	"io"
+	"io" // Note: AX-6 - brotli writer pooling needs io.Discard as the reset sink; no core primitive.
 	"net/http"
-	"strconv"
-	"sync"
+	"sync" // Note: AX-6 - core has no Pool wrapper; brotli writers are pooled with sync.Pool.
 
 	core "dappco.re/go/core"
 
@@ -72,7 +71,7 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 		}
 		_ = w.Close()
 		if c.Writer.Size() > -1 {
-			c.Header("Content-Length", strconv.Itoa(c.Writer.Size()))
+			c.Header("Content-Length", core.Sprintf("%d", c.Writer.Size()))
 		}
 		h.pool.Put(w)
 	}()
