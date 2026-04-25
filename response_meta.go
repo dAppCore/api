@@ -4,9 +4,7 @@ package api
 
 import (
 	"bufio"
-	// Note: AX-6 - streaming decoder UseNumber/extra-token checks have no core primitive.
-	"encoding/json"
-	// Note: AX-6 - Gin fallback and decoder EOF checks need stdlib sentinels.
+	// Note: AX-6 - Gin fallback needs stdlib stream sentinels.
 	"io"
 	"mime"
 	"net"
@@ -224,15 +222,8 @@ func refreshResponseMetaBody(body []byte, meta *Meta) []byte {
 		return body
 	}
 
-	var payload any
-	dec := json.NewDecoder(core.NewBuffer(body))
-	dec.UseNumber()
-	if err := dec.Decode(&payload); err != nil {
-		return body
-	}
-
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
+	payload, err := decodeJSONValuePreserveNumbers(body)
+	if err != nil {
 		return body
 	}
 

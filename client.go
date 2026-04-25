@@ -5,9 +5,7 @@ package api
 import (
 	// Note: AX-6 — byte-slice JSON whitespace checks have no core byte-trim primitive.
 	"bytes"
-	// Note: AX-6 — streaming JSON decoder UseNumber/extra-token checks have no core primitive.
-	"encoding/json"
-	// Note: AX-6 — io.Reader API, HTTP body reads, and EOF sentinel are structural stream boundaries.
+	// Note: AX-6 — io.Reader API and HTTP body reads are structural stream boundaries.
 	"io"
 	// Note: AX-6 — iter.Seq is the public lazy iteration shape for operation/server snapshots.
 	"iter"
@@ -370,10 +368,8 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 		return nil, nil
 	}
 
-	var decoded any
-	dec := json.NewDecoder(core.NewBuffer(payload))
-	dec.UseNumber()
-	if err := dec.Decode(&decoded); err != nil {
+	decoded, err := decodeJSONValuePreserveNumbers(payload)
+	if err != nil {
 		return string(payload), nil
 	}
 
@@ -817,7 +813,7 @@ func validateParameterValue(param openAPIParameter, value any) error {
 		return nil
 	}
 
-	data, err := json.Marshal(value)
+	data, err := marshalCoreJSON(value)
 	if err != nil {
 		return core.E("OpenAPIClient.validateParameterValue", core.Sprintf("marshal %s parameter %q", param.in, param.name), err)
 	}
@@ -857,11 +853,7 @@ func parameterProvided(params map[string]any, name, location string) bool {
 }
 
 func encodeJSONBody(v any) ([]byte, error) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	return marshalCoreJSON(v)
 }
 
 func normaliseParams(params any) (map[string]any, error) {
@@ -873,14 +865,18 @@ func normaliseParams(params any) (map[string]any, error) {
 		return m, nil
 	}
 
-	data, err := json.Marshal(params)
+	data, err := marshalCoreJSON(params)
 	if err != nil {
 		return nil, core.E("OpenAPIClient.normaliseParams", "marshal params", err)
 	}
 
-	var out map[string]any
-	if err := json.Unmarshal(data, &out); err != nil {
+	decoded, err := decodeJSONValuePreserveNumbers(data)
+	if err != nil {
 		return nil, core.E("OpenAPIClient.normaliseParams", "decode params", err)
+	}
+	out, ok := decoded.(map[string]any)
+	if !ok {
+		return nil, core.E("OpenAPIClient.normaliseParams", "params must encode to an object", nil)
 	}
 
 	return out, nil
@@ -897,11 +893,16 @@ func nestedMap(params map[string]any, key string) (map[string]any, bool) {
 		return m, true
 	}
 
-	data, err := json.Marshal(raw)
+	data, err := marshalCoreJSON(raw)
 	if err != nil {
 		return nil, false
 	}
-	if err := json.Unmarshal(data, &m); err != nil {
+	decoded, err := decodeJSONValuePreserveNumbers(data)
+	if err != nil {
+		return nil, false
+	}
+	m, ok = decoded.(map[string]any)
+	if !ok {
 		return nil, false
 	}
 	return m, true
@@ -1035,15 +1036,9 @@ func validateOpenAPISchema(body []byte, schema map[string]any, label string) err
 		return nil
 	}
 
-	var payload any
-	dec := json.NewDecoder(core.NewBuffer(body))
-	dec.UseNumber()
-	if err := dec.Decode(&payload); err != nil {
+	payload, err := decodeJSONValuePreserveNumbers(body)
+	if err != nil {
 		return core.E("OpenAPIClient.validateOpenAPISchema", core.Sprintf("validate %s: invalid JSON", label), err)
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		return core.E("OpenAPIClient.validateOpenAPISchema", core.Sprintf("validate %s: expected a single JSON value", label), nil)
 	}
 
 	if err := validateSchemaNode(payload, schema, ""); err != nil {
@@ -1054,15 +1049,9 @@ func validateOpenAPISchema(body []byte, schema map[string]any, label string) err
 }
 
 func validateOpenAPIResponse(payload []byte, schema map[string]any, operationID string) error {
-	var decoded any
-	dec := json.NewDecoder(core.NewBuffer(payload))
-	dec.UseNumber()
-	if err := dec.Decode(&decoded); err != nil {
+	decoded, err := decodeJSONValuePreserveNumbers(payload)
+	if err != nil {
 		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s returned invalid JSON", operationID), err)
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s returned multiple JSON values", operationID), nil)
 	}
 
 	if err := validateSchemaNode(decoded, schema, ""); err != nil {

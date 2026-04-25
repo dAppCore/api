@@ -10,7 +10,6 @@ import (
 	"net/url" // Note: AX-6 — net/url url.URL fields are structural for reverse-proxy URL rewriting.
 	"os"
 	"strconv"
-	"strings"
 
 	core "dappco.re/go/core"
 
@@ -261,7 +260,7 @@ func validateProviderUpstreamURL(raw string, target *url.URL) error {
 		return blockProviderUpstream(raw, "upstream URL must include a host", nil)
 	}
 
-	hostKey := strings.TrimSuffix(core.Lower(host), ".")
+	hostKey := core.TrimSuffix(core.Lower(host), ".")
 	if _, ok := providerMetadataHosts[hostKey]; ok {
 		return blockProviderUpstream(raw, "metadata host is not permitted: "+host, nil)
 	}
@@ -315,7 +314,7 @@ func providerUpstreamAllowCIDRs() ([]*net.IPNet, error) {
 		return nil, nil
 	}
 
-	parts := strings.Split(raw, ",")
+	parts := core.Split(raw, ",")
 	cidrs := make([]*net.IPNet, 0, len(parts))
 	for _, part := range parts {
 		value := core.Trim(part)

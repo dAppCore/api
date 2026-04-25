@@ -6,8 +6,7 @@ import (
 	"io" // Note: AX-6 - brotli writer pooling needs io.Discard as the reset sink; no core primitive.
 	"net/http"
 	"strconv"
-	"strings"
-	"sync" // Note: AX-6 - core has no Pool wrapper; brotli writers are pooled with sync.Pool.
+	"sync" // AX-6-exception: core has no Pool wrapper; brotli writers are pooled per compression level.
 
 	core "dappco.re/go/core"
 
@@ -72,14 +71,14 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 
 func acceptsBrotli(acceptEncoding string) bool {
 	found := false
-	for _, part := range strings.Split(acceptEncoding, ",") {
-		token := strings.TrimSpace(part)
+	for _, part := range core.Split(acceptEncoding, ",") {
+		token := core.Trim(part)
 		params := ""
-		if i := strings.Index(token, ";"); i >= 0 {
+		if i := indexByte(token, ';'); i >= 0 {
 			params = token[i+1:]
-			token = strings.TrimSpace(token[:i])
+			token = core.Trim(token[:i])
 		}
-		if !strings.EqualFold(token, "br") {
+		if core.Lower(token) != "br" {
 			continue
 		}
 		if hasZeroQValue(params) {
@@ -91,13 +90,13 @@ func acceptsBrotli(acceptEncoding string) bool {
 }
 
 func hasZeroQValue(params string) bool {
-	for _, part := range strings.Split(params, ";") {
-		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
-		if !ok || !strings.EqualFold(strings.TrimSpace(name), "q") {
+	for _, part := range core.Split(params, ";") {
+		name, value, ok := cutString(core.Trim(part), "=")
+		if !ok || core.Lower(core.Trim(name)) != "q" {
 			continue
 		}
 
-		q, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		q, err := strconv.ParseFloat(core.Trim(value), 64)
 		return err == nil && q == 0
 	}
 	return false
@@ -106,7 +105,7 @@ func hasZeroQValue(params string) bool {
 // brotliWriter wraps gin.ResponseWriter to intercept writes through brotli.
 type brotliWriter struct {
 	gin.ResponseWriter
-	mu            sync.Mutex
+	mu            core.Mutex
 	writer        *brotli.Writer
 	released      bool
 	statusWritten bool

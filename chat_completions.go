@@ -6,7 +6,6 @@ import (
 	"math/rand" // Note: AX-6 — non-security display/correlation ID suffix; core.RandIntN unavailable
 	"net"       // Note: AX-6 — structural IP parsing for loopback-only HTTP boundary
 	"net/http"  // Note: AX-6 — structural HTTP server boundary for request/status handling
-	"strings"   // Note: AX-6 — TrimLeftFunc no core equivalent
 	"time"
 	"unicode"
 
@@ -526,7 +525,7 @@ func (te *ThinkingExtractor) writeDeltas(text string) (string, string) {
 		te.writeToCurrentChannel(remaining[:next])
 		remaining = remaining[next+len(channelMarker):]
 
-		remaining = strings.TrimLeftFunc(remaining, unicode.IsSpace)
+		remaining = trimLeftFunc(remaining, unicode.IsSpace)
 		if remaining == "" {
 			break
 		}

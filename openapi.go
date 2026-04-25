@@ -3,7 +3,6 @@
 package api
 
 import (
-	"encoding/json" // Note: AX-6 — MarshalIndent has no core equivalent and is the public spec formatting contract.
 	"iter"
 	"net/http"
 	"slices"
@@ -273,7 +272,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		"responses":       responseComponents(),
 	}
 
-	return json.MarshalIndent(spec, "", "  ")
+	return marshalCoreJSONIndent(spec, "", "  ")
 }
 
 // BuildIter generates the complete OpenAPI 3.1 JSON spec from a route-group

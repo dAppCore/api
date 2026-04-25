@@ -4,14 +4,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"reflect"
-	"strings"
 	"syscall"
 	"time"
 
@@ -68,7 +66,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 	c := core.New()
 	defer c.ServiceShutdown(context.Background())
 
-	bind := strings.TrimSpace(os.Getenv(envGatewayBind))
+	bind := core.Trim(os.Getenv(envGatewayBind))
 	if bind == "" {
 		bind = defaultGatewayBind
 	}
@@ -158,7 +156,7 @@ func gatewayProviderSpecs() []providerSpec {
 				}
 				service, ok := value.(*process.Service)
 				if !ok {
-					panic(fmt.Sprintf("process service factory returned %T", value))
+					panic(core.Sprintf("process service factory returned %T", value))
 				}
 				deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
 					_ = service.OnShutdown(ctx)
@@ -254,28 +252,28 @@ func wantsHelp(args []string) bool {
 }
 
 func printHelp(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "core-gateway mounts Core service providers on one API engine.")
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Usage:")
-	_, _ = fmt.Fprintln(w, "  core-gateway [--help]")
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Environment:")
-	_, _ = fmt.Fprintf(w, "  %s       listen address (default %s)\n", envGatewayBind, defaultGatewayBind)
-	_, _ = fmt.Fprintln(w, "  CORE_GATEWAY_ENABLE     comma-separated provider names to mount (default all)")
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Providers:")
+	core.Print(w, "core-gateway mounts Core service providers on one API engine.")
+	core.Print(w, "")
+	core.Print(w, "Usage:")
+	core.Print(w, "  core-gateway [--help]")
+	core.Print(w, "")
+	core.Print(w, "Environment:")
+	core.Print(w, "  %s       listen address (default %s)", envGatewayBind, defaultGatewayBind)
+	core.Print(w, "  CORE_GATEWAY_ENABLE     comma-separated provider names to mount (default all)")
+	core.Print(w, "")
+	core.Print(w, "Providers:")
 	for _, spec := range gatewayProviderSpecs() {
-		_, _ = fmt.Fprintf(w, "  %-10s %-16s %s\n", spec.Name, displayBasePath(spec.BasePath), spec.Description)
+		core.Print(w, "  %-10s %-16s %s", spec.Name, displayBasePath(spec.BasePath), spec.Description)
 	}
 }
 
 func selectedProviders(raw string) map[string]bool {
-	raw = strings.TrimSpace(raw)
+	raw = core.Trim(raw)
 	if raw == "" {
 		return nil
 	}
 	selected := make(map[string]bool)
-	for _, part := range strings.Split(raw, ",") {
+	for _, part := range core.Split(raw, ",") {
 		name := canonicalProviderName(part)
 		if name != "" {
 			selected[name] = true
@@ -300,8 +298,8 @@ func providerEnabled(spec providerSpec, selected map[string]bool) bool {
 }
 
 func canonicalProviderName(name string) string {
-	name = strings.ToLower(strings.TrimSpace(name))
-	name = strings.ReplaceAll(name, "_", "-")
+	name = core.Lower(core.Trim(name))
+	name = core.Replace(name, "_", "-")
 	return name
 }
 
@@ -335,7 +333,7 @@ func registeredProviderNames(groups []coreapi.RouteGroup) []string {
 }
 
 func displayBasePath(path string) string {
-	if strings.TrimSpace(path) == "" {
+	if core.Trim(path) == "" {
 		return "(root)"
 	}
 	return path
@@ -517,7 +515,7 @@ func (g minerRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	}
 	for _, route := range g.provider.RouteRegistrations() {
 		route := route
-		rg.Handle(strings.ToUpper(route.Method), route.Path, func(c *gin.Context) {
+		rg.Handle(core.Upper(route.Method), route.Path, func(c *gin.Context) {
 			params := make(map[string]string, len(c.Params))
 			for _, param := range c.Params {
 				params[param.Key] = param.Value

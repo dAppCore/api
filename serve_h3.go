@@ -6,9 +6,10 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 	quichttp3 "github.com/quic-go/quic-go/http3"
@@ -94,7 +95,7 @@ func http3AltSvcHeader(addr string) string {
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf(`%s=":%d"; ma=2592000`, quichttp3.NextProtoH3, port)
+	return core.Sprintf(`%s=":%d"; ma=2592000`, quichttp3.NextProtoH3, port)
 }
 
 func http3AltSvcPort(addr string) (int, bool) {

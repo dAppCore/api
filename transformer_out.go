@@ -3,8 +3,7 @@
 package api
 
 import (
-	"encoding/json" // Note: AX-6 - json.RawMessage preserves envelope data while remapping DTOs.
-	"net/http"      // Note: AX-6 - transformer response wrappers emit HTTP status codes.
+	"net/http" // Note: AX-6 - transformer response wrappers emit HTTP status codes.
 
 	core "dappco.re/go/core"
 
@@ -60,7 +59,7 @@ func transformResponseEnvelope(c *gin.Context, body []byte, pipeline []compiledT
 		return body, nil
 	}
 
-	var envelope map[string]json.RawMessage
+	var envelope map[string]jsonRawMessage
 	if err := unmarshalEnvelope(body, &envelope); err != nil {
 		return nil, err
 	}
@@ -87,7 +86,7 @@ func transformResponseEnvelope(c *gin.Context, body []byte, pipeline []compiledT
 	if err != nil {
 		return nil, err
 	}
-	envelope["data"] = json.RawMessage(transformed)
+	envelope["data"] = jsonRawMessage(transformed)
 
 	encoded := core.JSONMarshal(envelope)
 	if !encoded.OK {

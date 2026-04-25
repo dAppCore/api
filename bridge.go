@@ -3,10 +3,9 @@
 package api
 
 import (
-	"bufio"         // Note: AX-6 - Gin ResponseWriter Hijack contract requires bufio.ReadWriter; no core primitive.
-	"encoding/json" // Note: AX-6 - streaming decoder UseNumber/json.Number checks have no core primitive.
-	"io"            // Note: AX-6 - HTTP body reads, EOF sentinel, and body reset are structural stream boundaries.
-	"iter"          // Note: AX-6 - iter.Seq is the public lazy iteration shape for bridge snapshots.
+	"bufio" // Note: AX-6 - Gin ResponseWriter Hijack contract requires bufio.ReadWriter; no core primitive.
+	"io"    // Note: AX-6 - HTTP body reads, EOF sentinel, and body reset are structural stream boundaries.
+	"iter"  // Note: AX-6 - iter.Seq is the public lazy iteration shape for bridge snapshots.
 	"math"
 	"math/big"
 	"net"
@@ -413,16 +412,9 @@ func (v *toolInputValidator) Validate(body []byte) error {
 		return core.E("ToolBridge.Validate", "request body is required", nil)
 	}
 
-	dec := json.NewDecoder(core.NewBuffer(body))
-	dec.UseNumber()
-
-	var payload any
-	if err := dec.Decode(&payload); err != nil {
+	payload, err := decodeJSONValuePreserveNumbers(body)
+	if err != nil {
 		return core.E("ToolBridge.Validate", "invalid JSON", err)
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		return core.E("ToolBridge.Validate", "request body must contain a single JSON value", nil)
 	}
 
 	return validateSchemaNode(payload, v.schema, "")
@@ -433,15 +425,13 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 		return nil
 	}
 
-	// Use a decoder with UseNumber so that large integers in the envelope
-	// (including within the data field) are preserved as json.Number rather
-	// than being silently coerced to float64. This matches the behaviour of
-	// the Validate path and avoids precision loss for 64-bit integer values.
-	var envelope map[string]any
-	envDec := json.NewDecoder(core.NewBuffer(body))
-	envDec.UseNumber()
-	if err := envDec.Decode(&envelope); err != nil {
+	decoded, err := decodeJSONValuePreserveNumbers(body)
+	if err != nil {
 		return core.E("ToolBridge.ValidateResponse", "invalid JSON response", err)
+	}
+	envelope, ok := decoded.(map[string]any)
+	if !ok {
+		return core.E("ToolBridge.ValidateResponse", "response envelope must be an object", nil)
 	}
 
 	success, _ := envelope["success"].(bool)
@@ -457,15 +447,13 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 		return nil
 	}
 
-	encoded, err := json.Marshal(data)
+	encoded, err := marshalCoreJSON(data)
 	if err != nil {
 		return core.E("ToolBridge.ValidateResponse", "encode response data", err)
 	}
 
-	var payload any
-	dec := json.NewDecoder(core.NewBuffer(encoded))
-	dec.UseNumber()
-	if err := dec.Decode(&payload); err != nil {
+	payload, err := decodeJSONValuePreserveNumbers(encoded)
+	if err != nil {
 		return core.E("ToolBridge.ValidateResponse", "decode response data", err)
 	}
 
@@ -712,7 +700,7 @@ func schemaInt(value any) (int, bool) {
 		if v == float64(int(v)) {
 			return int(v), true
 		}
-	case json.Number:
+	case jsonNumber:
 		if n, err := v.Int64(); err == nil {
 			return int(n), true
 		}
@@ -746,7 +734,7 @@ func schemaFloat(value any) (float64, bool) {
 		return float64(v), true
 	case uint64:
 		return float64(v), true
-	case json.Number:
+	case jsonNumber:
 		if n, err := v.Float64(); err == nil {
 			return n, true
 		}
@@ -870,7 +858,7 @@ func (w *toolResponseRecorder) reset() {
 }
 
 func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]) {
-	data, err := json.Marshal(resp)
+	data, err := marshalCoreJSON(resp)
 	if err != nil {
 		w.status = http.StatusInternalServerError
 		w.wroteHeader = true
@@ -956,7 +944,7 @@ func stringList(value any) []string {
 
 func isIntegerValue(value any) bool {
 	switch v := value.(type) {
-	case json.Number:
+	case jsonNumber:
 		_, err := v.Int64()
 		return err == nil
 	case float64:
@@ -968,7 +956,7 @@ func isIntegerValue(value any) bool {
 
 func isNumberValue(value any) bool {
 	switch value.(type) {
-	case json.Number, float64:
+	case jsonNumber, float64:
 		return true
 	default:
 		return false
@@ -1020,7 +1008,7 @@ func valuesEqual(left, right any) bool {
 
 func isNumericValue(value any) bool {
 	switch value.(type) {
-	case json.Number, float64, float32, int, int8, int16, int32, int64,
+	case jsonNumber, float64, float32, int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64:
 		return true
 	default:
@@ -1030,7 +1018,7 @@ func isNumericValue(value any) bool {
 
 func numericValue(value any) (float64, bool) {
 	switch v := value.(type) {
-	case json.Number:
+	case jsonNumber:
 		n, err := v.Float64()
 		return n, err == nil
 	case float64:
@@ -1105,7 +1093,7 @@ func integralNumericValue(value any) (*big.Int, bool) {
 		return integralBigIntFromFloat64(float64(v))
 	case float64:
 		return integralBigIntFromFloat64(v)
-	case json.Number:
+	case jsonNumber:
 		text := core.Trim(v.String())
 		if text == "" || containsAnyByte(text, ".eE") {
 			return nil, false
@@ -1159,7 +1147,7 @@ func describeJSONValue(value any) string {
 		return "string"
 	case bool:
 		return "boolean"
-	case json.Number, float64:
+	case jsonNumber, float64:
 		return "number"
 	case map[string]any:
 		return "object"
