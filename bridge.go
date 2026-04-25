@@ -669,6 +669,9 @@ func schemaInt(value any) (int, bool) {
 	case int64:
 		return int(v), true
 	case uint:
+		if v > math.MaxInt {
+			return 0, false
+		}
 		return int(v), true
 	case uint8:
 		return int(v), true
@@ -677,6 +680,9 @@ func schemaInt(value any) (int, bool) {
 	case uint32:
 		return int(v), true
 	case uint64:
+		if v > math.MaxInt {
+			return 0, false
+		}
 		return int(v), true
 	case float64:
 		if v == float64(int(v)) {
@@ -1103,6 +1109,9 @@ func compareIntegralNumericToFloat64(value *big.Int, limit float64) (int, bool) 
 		return 0, false
 	}
 
+	// #nosec G115 -- BitLen() returns int >= 0; +1 stays positive and within
+	// int range (BitLen on a *big.Int can't reach math.MaxInt minus one in
+	// practice). Cast to uint cannot overflow.
 	precision := uint(value.BitLen() + 1)
 	if precision < 64 {
 		precision = 64
