@@ -68,6 +68,9 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate', 'api.cache:ephem
         Route::get('/', [EntitlementApiController::class, 'show'])
             ->name('show')
             ->defaults('api_cache_control', 'cacheable');
+        Route::get('/check/{feature}', [EntitlementApiController::class, 'check'])
+            ->name('check')
+            ->defaults('api_cache_control', 'cacheable');
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
