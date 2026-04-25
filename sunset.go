@@ -4,7 +4,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -105,13 +104,30 @@ func successorLinkTarget(replacement string) string {
 		return ""
 	}
 
-	fields := strings.Fields(replacement)
-	if len(fields) >= 2 {
-		switch strings.ToUpper(fields[0]) {
+	normalized := core.Replace(replacement, "\t", " ")
+	normalized = core.Replace(normalized, "\n", " ")
+	normalized = core.Replace(normalized, "\r", " ")
+	normalized = core.Replace(normalized, "\f", " ")
+	normalized = core.Replace(normalized, "\v", " ")
+
+	var method, target string
+	for _, field := range core.Split(normalized, " ") {
+		field = core.Trim(field)
+		if field == "" {
+			continue
+		}
+		if method == "" {
+			method = field
+			continue
+		}
+		target = field
+		break
+	}
+
+	if target != "" {
+		switch core.Upper(method) {
 		case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT":
-			if target := strings.TrimSpace(fields[1]); target != "" {
-				return target
-			}
+			return target
 		}
 	}
 

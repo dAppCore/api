@@ -4,15 +4,14 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"iter"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -48,7 +47,7 @@ func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups ite
 }
 
 func writeSpec(w io.Writer, format string, data []byte, op string) error {
-	switch strings.ToLower(strings.TrimSpace(format)) {
+	switch core.Lower(core.Trim(format)) {
 	case "json":
 		_, err := w.Write(data)
 		return err
@@ -65,7 +64,7 @@ func writeSpec(w io.Writer, format string, data []byte, op string) error {
 		}
 		return enc.Close()
 	default:
-		return coreerr.E(op, fmt.Sprintf("unsupported format %s: use %q or %q", format, "json", "yaml"), nil)
+		return coreerr.E(op, core.Sprintf("unsupported format %s: use %q or %q", format, "json", "yaml"), nil)
 	}
 }
 
