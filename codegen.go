@@ -4,16 +4,18 @@ package api
 
 import (
 	"context"
+	"io/fs"
 	"iter"
 	"maps"
+	// Note: AX-6 - retained for inheriting stdout/stderr when invoking the SDK generator; filesystem checks below use core.Fs.
 	"os"
+	// Note: AX-6 - retained for the subprocess boundary because SDKGenerator has no Core instance with registered process.run.
 	"os/exec"
-	"path/filepath"
+	// Note: AX-6 - no core.Regex primitive exists in dappco.re/go/core v0.8; compiled regexp anchors PackageName validation for command-argument safety.
 	"regexp"
 	"slices"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
 
@@ -80,8 +82,10 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 	if specPath == "" {
 		return coreerr.E("SDKGenerator.Generate", "spec path is required", nil)
 	}
-	if _, err := os.Stat(specPath); err != nil {
-		if os.IsNotExist(err) {
+	localFS := (&core.Fs{}).NewUnrestricted()
+	if result := localFS.Stat(specPath); !result.OK {
+		err, _ := result.Value.(error)
+		if core.Is(err, fs.ErrNotExist) {
 			return coreerr.E("SDKGenerator.Generate", "spec file not found: "+specPath, nil)
 		}
 		return coreerr.E("SDKGenerator.Generate", "stat spec file", err)
@@ -101,12 +105,18 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli not installed", nil)
 	}
 
-	outputDir := filepath.Join(outputBase, language)
-	if err := coreio.Local.EnsureDir(outputDir); err != nil {
+	outputDir := core.Path(outputBase, language)
+	if !core.PathIsAbs(outputBase) {
+		outputDir = core.Path(core.Env("DIR_CWD"), outputBase, language)
+	}
+	if result := localFS.EnsureDir(outputDir); !result.OK {
+		err, _ := result.Value.(error)
 		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
 	}
 
 	args := g.buildArgs(specPath, generator, outputDir)
+	// SDKGenerator is a standalone helper with no Core runtime handle. Without
+	// a registered process.run action, core.Process cannot execute this command.
 	// Command name is a string literal (zero attacker-influence). Args are
 	// constructed from a closed allowlist of generator names (supportedLanguages)
 	// and operator-supplied spec/output paths. Current callsite is operator-only
@@ -147,8 +157,7 @@ func (g *SDKGenerator) buildArgs(specPath, generator, outputDir string) []string
 //		t.Fatal("openapi-generator-cli is required")
 //	}
 func (g *SDKGenerator) Available() bool {
-	_, err := exec.LookPath("openapi-generator-cli")
-	return err == nil
+	return core.App{}.Find("openapi-generator-cli", "openapi-generator-cli").OK
 }
 
 // SupportedLanguages returns the list of supported SDK target languages
