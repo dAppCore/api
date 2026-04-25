@@ -45,6 +45,23 @@ func WithAddr(addr string) Option {
 	}
 }
 
+// WithHTTP3 enables HTTP/3 advertisement and configures the QUIC listen
+// address used by ServeH3. Pass an empty address to reuse the main HTTP
+// address at serve time.
+//
+// HTTP/3 requires TLS. ServeH3 returns ErrHTTP3TLSRequired when called without
+// a TLS configuration.
+//
+// Example:
+//
+//	api.New(api.WithHTTP3(":8443"))
+func WithHTTP3(addr string) Option {
+	return func(e *Engine) {
+		e.http3Enabled = true
+		e.http3Addr = core.Trim(addr)
+	}
+}
+
 // WithBearerAuth adds bearer token authentication middleware.
 // Requests to /health and the Swagger UI path are exempt.
 //

@@ -44,6 +44,8 @@ const (
 //	_ = engine.Handler()
 type Engine struct {
 	addr                           string
+	http3Enabled                   bool
+	http3Addr                      string
 	groups                         []RouteGroup
 	streamGroups                   []apistream.StreamGroup
 	middlewares                    []gin.HandlerFunc
@@ -265,6 +267,11 @@ func (e *Engine) Serve(ctx context.Context) error {
 func (e *Engine) build() *gin.Engine {
 	r := gin.New()
 	r.Use(recoveryMiddleware())
+	if e.http3Enabled {
+		if altSvc := http3AltSvcHeader(e.resolvedHTTP3Addr()); altSvc != "" {
+			r.Use(http3AltSvcMiddleware(altSvc))
+		}
+	}
 
 	// Apply user-supplied middleware after recovery but before routes.
 	for _, mw := range e.middlewares {
