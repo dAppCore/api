@@ -4,16 +4,16 @@ package api
 
 import (
 	"iter"
-	"sync"
-
 	"slices"
+
+	core "dappco.re/go/core"
 )
 
 // specRegistry stores RouteGroups that should be included in CLI-generated
 // OpenAPI documents. Packages can register their groups during init and the
 // API CLI will pick them up when building specs or SDKs.
 var specRegistry struct {
-	mu     sync.RWMutex
+	mu     core.RWMutex
 	groups []RouteGroup
 }
 
