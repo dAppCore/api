@@ -4,7 +4,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 
 	core "dappco.re/go/core"
 
@@ -24,7 +23,7 @@ func cacheControlPolicies(groups []RouteGroup) map[string]string {
 	for _, group := range prepared {
 		for _, rd := range group.descs {
 			policy := core.Trim(rd.CacheControl)
-			method := strings.ToUpper(core.Trim(rd.Method))
+			method := core.Upper(core.Trim(rd.Method))
 			if policy == "" || method == "" {
 				continue
 			}
@@ -81,12 +80,12 @@ func openAPIPathToGinPath(path string) string {
 		}
 		if len(segment) > 2 && segment[0] == '{' && segment[len(segment)-1] == '}' {
 			name := core.Trim(segment[1 : len(segment)-1])
-			if name != "" && !strings.ContainsAny(name, "/{}") {
+			if name != "" && !core.Contains(name, "/") && !core.Contains(name, "{") && !core.Contains(name, "}") {
 				segment = ":" + name
 			}
 		}
 		out = append(out, segment)
 	}
 
-	return "/" + strings.Join(out, "/")
+	return "/" + core.Join("/", out...)
 }
