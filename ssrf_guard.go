@@ -71,6 +71,9 @@ func validateOutboundURL(rawURL string) error {
 	if err != nil {
 		return wrapBlocked("parse failed: " + err.Error())
 	}
+	if u.User != nil {
+		return wrapBlocked("URL contains embedded credentials")
+	}
 	if _, ok := allowedSchemes[core.Lower(u.Scheme)]; !ok {
 		return wrapBlocked("disallowed scheme: " + u.Scheme)
 	}

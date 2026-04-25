@@ -102,6 +102,39 @@ func TestSSRF_OutboundURL_BlocksDisallowedScheme_Bad(t *testing.T) {
 	}
 }
 
+// TestSSRF_OutboundURL_BlocksEmbeddedCredentials_Bad — URL userinfo can leak
+// into logs/proxies and is rejected at the outbound boundary.
+func TestSSRF_OutboundURL_BlocksEmbeddedCredentials_Bad(t *testing.T) {
+	badCases := []string{
+		"https://user:pass@example.com/path",
+		"https://user@example.com/path",
+	}
+	for _, raw := range badCases {
+		t.Run(raw, func(t *testing.T) {
+			err := validateOutboundURL(raw)
+			if err == nil {
+				t.Errorf("validateOutboundURL(%q) returned nil; expected credential block", raw)
+				return
+			}
+			if !errors.Is(err, errOutboundURLBlocked) {
+				t.Errorf("expected errOutboundURLBlocked; got %v", err)
+			}
+			if !strings.Contains(err.Error(), "URL contains embedded credentials") {
+				t.Errorf("expected embedded credentials error; got %v", err)
+			}
+		})
+	}
+
+	prev := resolveHost
+	defer func() { resolveHost = prev }()
+	resolveHost = func(host string) ([]net.IP, error) {
+		return []net.IP{net.IPv4(93, 184, 216, 34)}, nil
+	}
+	if err := validateOutboundURL("https://example.com/path"); err != nil {
+		t.Errorf("validateOutboundURL(%q) blocked unexpectedly: %v", "https://example.com/path", err)
+	}
+}
+
 // TestSSRF_OutboundURL_AllowsHTTPS_Good — sanity that public HTTPS still works.
 // We override resolveHost to return a public IP so we don't depend on real DNS.
 func TestSSRF_OutboundURL_AllowsHTTPS_Good(t *testing.T) {
