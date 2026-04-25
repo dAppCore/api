@@ -700,17 +700,26 @@ func applyCookieValues(req *http.Request, values map[string]any) {
 	}
 }
 
+// applyCookieValue attaches an outbound request cookie for the given key.
+// All four AddCookie sites construct cookies for an OUTBOUND http.Request —
+// they are written to the Cookie request header (RFC 6265 §5.4). Secure /
+// HttpOnly / SameSite are response-only Set-Cookie attributes (§5.2) and
+// have no effect on outbound request cookies. G124 false-positive — verified
+// no path echoes these into a server-side http.SetCookie.
+// Cerberus mechanism review attached to Mantis #321.
 func applyCookieValue(req *http.Request, key string, value any) {
 	switch v := value.(type) {
 	case nil:
 		return
 	case []string:
 		for _, item := range v {
+			//#nosec G124 -- outbound request cookie, not Set-Cookie response.
 			req.AddCookie(&http.Cookie{Name: key, Value: item})
 		}
 		return
 	case []any:
 		for _, item := range v {
+			//#nosec G124 -- outbound request cookie, not Set-Cookie response.
 			req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(item)})
 		}
 		return
@@ -719,11 +728,13 @@ func applyCookieValue(req *http.Request, key string, value any) {
 	rv := reflect.ValueOf(value)
 	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && !(rv.Type().Elem().Kind() == reflect.Uint8) {
 		for i := 0; i < rv.Len(); i++ {
+			//#nosec G124 -- outbound request cookie, not Set-Cookie response.
 			req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(rv.Index(i).Interface())})
 		}
 		return
 	}
 
+	//#nosec G124 -- outbound request cookie, not Set-Cookie response.
 	req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(value)})
 }
 
