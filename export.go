@@ -3,8 +3,7 @@
 package api
 
 import (
-	"encoding/json"
-	"io"
+	"io" // Note: AX-6 — io.Writer is part of the public export API surface.
 	"iter"
 	"os"
 	"path/filepath"
@@ -54,8 +53,12 @@ func writeSpec(w io.Writer, format string, data []byte, op string) error {
 	case "yaml":
 		// Unmarshal JSON then re-marshal as YAML.
 		var obj any
-		if err := json.Unmarshal(data, &obj); err != nil {
-			return coreerr.E(op, "unmarshal spec", err)
+		decoded := core.JSONUnmarshal(data, &obj)
+		if !decoded.OK {
+			if err, ok := decoded.Value.(error); ok {
+				return coreerr.E(op, "unmarshal spec", err)
+			}
+			return coreerr.E(op, "unmarshal spec", nil)
 		}
 		enc := yaml.NewEncoder(w)
 		enc.SetIndent(2)
