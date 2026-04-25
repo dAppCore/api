@@ -3,8 +3,6 @@
 package api
 
 import (
-	"strings"
-
 	core "dappco.re/go/core"
 )
 
@@ -48,10 +46,24 @@ func normaliseServer(server string) string {
 		return server
 	}
 
-	server = strings.TrimRight(server, "/")
+	server = trimTrailingSlashes(server)
 	if server == "" {
 		return "/"
 	}
 
 	return server
+}
+
+func trimSlashes(value string) string {
+	for core.HasPrefix(value, "/") {
+		value = core.TrimPrefix(value, "/")
+	}
+	return trimTrailingSlashes(value)
+}
+
+func trimTrailingSlashes(value string) string {
+	for core.HasSuffix(value, "/") {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
 }

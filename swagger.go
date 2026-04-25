@@ -3,8 +3,7 @@
 package api
 
 import (
-	"net/http"
-	"strings"
+	"net/http" // Note: AX-6 - structural HTTP status boundary for Gin handlers; no core primitive.
 	"sync"
 	"sync/atomic"
 
@@ -75,7 +74,7 @@ func normaliseSwaggerPath(path string) string {
 		return defaultSwaggerPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimSlashes(path)
 	if path == "/" {
 		return defaultSwaggerPath
 	}
@@ -124,7 +123,7 @@ func normaliseOpenAPISpecPath(path string) string {
 		return defaultOpenAPISpecPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimSlashes(path)
 	if path == "/" {
 		return defaultOpenAPISpecPath
 	}

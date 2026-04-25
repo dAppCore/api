@@ -3,8 +3,7 @@
 package api
 
 import (
-	"net/http"
-	"strings"
+	"net/http" // Note: AX-6 - structural HTTP boundary for wrapped handlers; no core primitive.
 
 	core "dappco.re/go/core"
 
@@ -121,7 +120,7 @@ func normaliseGraphQLPath(path string) string {
 		return defaultGraphQLPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimSlashes(path)
 	if path == "/" {
 		return defaultGraphQLPath
 	}
