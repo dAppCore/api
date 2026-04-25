@@ -3,10 +3,11 @@
 package api
 
 import (
-	"errors"
 	"net"
 	"net/url"
-	"strings"
+
+	core "dappco.re/go/core"
+	coreerr "dappco.re/go/log"
 )
 
 // SSRF mitigation per Cerberus mechanism review on Mantis #318.
@@ -30,7 +31,7 @@ import (
 
 // errOutboundURLBlocked is returned when validateOutboundURL rejects a URL.
 // Callers see a wrapped error from client.Do; tests assert on errors.Is.
-var errOutboundURLBlocked = errors.New("outbound URL blocked by SSRF guard")
+var errOutboundURLBlocked = coreerr.E("", "outbound URL blocked by SSRF guard", nil)
 
 // allowedSchemes is the deny-by-default scheme allowlist for outbound HTTP.
 // Excludes file://, gopher://, ftp://, dict://, ldap://, etc.
@@ -67,14 +68,14 @@ func validateOutboundURL(rawURL string) error {
 	if err != nil {
 		return wrapBlocked("parse failed: " + err.Error())
 	}
-	if _, ok := allowedSchemes[strings.ToLower(u.Scheme)]; !ok {
+	if _, ok := allowedSchemes[core.Lower(u.Scheme)]; !ok {
 		return wrapBlocked("disallowed scheme: " + u.Scheme)
 	}
 	host := u.Hostname()
 	if host == "" {
 		return wrapBlocked("empty host")
 	}
-	if _, ok := metadataHosts[strings.ToLower(host)]; ok {
+	if _, ok := metadataHosts[core.Lower(host)]; ok {
 		return wrapBlocked("metadata host: " + host)
 	}
 

@@ -5,13 +5,13 @@ package api
 import (
 	"bufio"
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
+	coreerr "dappco.re/go/log"
 
 	"github.com/gorilla/websocket"
 )
@@ -75,7 +75,7 @@ func WithWebSocketDialer(dialer *websocket.Dialer) WebSocketClientOption {
 //	client := api.NewWebSocketClient("ws://localhost:8080/ws")
 func NewWebSocketClient(rawURL string, opts ...WebSocketClientOption) *WebSocketClient {
 	c := &WebSocketClient{
-		URL:    strings.TrimSpace(rawURL),
+		URL:    core.Trim(rawURL),
 		Header: make(http.Header),
 	}
 	for _, opt := range opts {
@@ -97,7 +97,7 @@ func NewWebSocketClient(rawURL string, opts ...WebSocketClientOption) *WebSocket
 //	conn, resp, err := client.DialContext(ctx)
 func (c *WebSocketClient) DialContext(ctx context.Context) (*websocket.Conn, *http.Response, error) {
 	if c == nil {
-		return nil, nil, errors.New("WebSocketClient is nil")
+		return nil, nil, coreerr.E("", "WebSocketClient is nil", nil)
 	}
 
 	rawURL, err := normaliseWebSocketClientURL(c.URL)
@@ -123,7 +123,7 @@ func (c *WebSocketClient) DialContext(ctx context.Context) (*websocket.Conn, *ht
 // Example:
 //
 //	for evt := range events {
-//	    fmt.Println(evt.Event, evt.Data)
+//	    _ = evt
 //	}
 type SSEEvent struct {
 	ID    string
@@ -180,7 +180,7 @@ func WithSSEHTTPClient(client *http.Client) SSEClientOption {
 //	client := api.NewSSEClient("http://localhost:8080/events")
 func NewSSEClient(rawURL string, opts ...SSEClientOption) *SSEClient {
 	c := &SSEClient{
-		URL:    strings.TrimSpace(rawURL),
+		URL:    core.Trim(rawURL),
 		Header: make(http.Header),
 		Client: http.DefaultClient,
 	}
@@ -202,12 +202,12 @@ func NewSSEClient(rawURL string, opts ...SSEClientOption) *SSEClient {
 //	resp, err := client.Connect(ctx)
 func (c *SSEClient) Connect(ctx context.Context) (*http.Response, error) {
 	if c == nil {
-		return nil, errors.New("SSEClient is nil")
+		return nil, coreerr.E("", "SSEClient is nil", nil)
 	}
 
-	rawURL := strings.TrimSpace(c.URL)
+	rawURL := core.Trim(c.URL)
 	if rawURL == "" {
-		return nil, errors.New("SSEClient URL is required")
+		return nil, coreerr.E("", "SSEClient URL is required", nil)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -232,7 +232,7 @@ func (c *SSEClient) Connect(ctx context.Context) (*http.Response, error) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
-		return nil, fmt.Errorf("unexpected SSE status %d", resp.StatusCode)
+		return nil, coreerr.E("", core.Sprintf("unexpected SSE status %d", resp.StatusCode), nil)
 	}
 	return resp, nil
 }
@@ -272,7 +272,7 @@ func parseSSEStream(ctx context.Context, body io.Reader, out chan<- SSEEvent) {
 			current = SSEEvent{}
 			return true
 		}
-		current.Data = strings.Join(dataLines, "\n")
+		current.Data = core.Join("\n", dataLines...)
 		select {
 		case out <- current:
 		case <-ctx.Done():
@@ -297,15 +297,16 @@ func parseSSEStream(ctx context.Context, body io.Reader, out chan<- SSEEvent) {
 			}
 			continue
 		}
-		if strings.HasPrefix(line, ":") {
+		if core.HasPrefix(line, ":") {
 			continue
 		}
 
-		field, value, ok := strings.Cut(line, ":")
-		if !ok {
+		parts := core.SplitN(line, ":", 2)
+		if len(parts) != 2 {
 			continue
 		}
-		value = strings.TrimPrefix(value, " ")
+		field, value := parts[0], parts[1]
+		value = core.TrimPrefix(value, " ")
 
 		switch field {
 		case "event":
@@ -325,9 +326,9 @@ func parseSSEStream(ctx context.Context, body io.Reader, out chan<- SSEEvent) {
 }
 
 func normaliseWebSocketClientURL(rawURL string) (string, error) {
-	rawURL = strings.TrimSpace(rawURL)
+	rawURL = core.Trim(rawURL)
 	if rawURL == "" {
-		return "", errors.New("WebSocketClient URL is required")
+		return "", coreerr.E("", "WebSocketClient URL is required", nil)
 	}
 
 	parsed, err := url.Parse(rawURL)
@@ -345,7 +346,7 @@ func normaliseWebSocketClientURL(rawURL string) (string, error) {
 		parsed.Scheme = "wss"
 		return parsed.String(), nil
 	default:
-		return "", fmt.Errorf("unsupported websocket URL scheme %q", parsed.Scheme)
+		return "", coreerr.E("", core.Sprintf("unsupported websocket URL scheme %q", parsed.Scheme), nil)
 	}
 }
 
@@ -403,7 +404,7 @@ func clientWithOutboundRedirectGuard(client *http.Client) *http.Client {
 				return err
 			}
 		} else if len(via) >= 10 {
-			return errors.New("stopped after 10 redirects")
+			return coreerr.E("", "stopped after 10 redirects", nil)
 		}
 
 		if req != nil && req.URL != nil {
