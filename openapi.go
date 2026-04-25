@@ -516,13 +516,6 @@ func joinOpenAPIPath(basePath, routePath string) string {
 	return trimTrailingSlashes(basePath) + "/" + core.TrimPrefix(routePath, "/")
 }
 
-func trimTrailingSlashes(value string) string {
-	for core.HasSuffix(value, "/") {
-		value = core.TrimSuffix(value, "/")
-	}
-	return value
-}
-
 // normaliseOpenAPIPath trims whitespace and collapses trailing separators
 // while preserving the root path and converting Gin-style path parameters.
 func normaliseOpenAPIPath(path string) string {
