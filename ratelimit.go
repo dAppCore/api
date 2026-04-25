@@ -5,10 +5,8 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"math"
+	"math" // Note: AX-6 — token-bucket Floor/Ceil rounding has no core primitive.
 	"net/http"
-	"strconv"
-	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -30,14 +28,14 @@ const (
 )
 
 type rateLimitStore struct {
-	mu        sync.Mutex
+	mu        core.Mutex
 	buckets   map[string]*rateLimitBucket
 	limit     int
 	lastSweep time.Time
 }
 
 type rateLimitBucket struct {
-	mu       sync.Mutex
+	mu       core.Mutex
 	tokens   float64
 	last     time.Time
 	lastSeen time.Time
@@ -176,7 +174,7 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 				secs = 1
 			}
 			setRateLimitHeaders(c, decision.limit, decision.remaining, decision.resetAt)
-			c.Header("Retry-After", strconv.Itoa(secs))
+			c.Header("Retry-After", core.Itoa(secs))
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, Fail(
 				"rate_limit_exceeded",
 				"Too many requests",
@@ -191,18 +189,18 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 
 func setRateLimitHeaders(c *gin.Context, limit, remaining int, resetAt time.Time) {
 	if limit > 0 {
-		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
+		c.Header("X-RateLimit-Limit", core.Itoa(limit))
 	}
 	if remaining < 0 {
 		remaining = 0
 	}
-	c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
+	c.Header("X-RateLimit-Remaining", core.Itoa(remaining))
 	if !resetAt.IsZero() {
 		reset := resetAt.Unix()
 		if reset <= time.Now().Unix() {
 			reset = time.Now().Add(time.Second).Unix()
 		}
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(reset, 10))
+		c.Header("X-RateLimit-Reset", core.FormatInt(reset, 10))
 	}
 }
 
