@@ -3,6 +3,7 @@
 package api
 
 import (
+	// Note: AX-6 — net/http is structural for HTTP response header writes (Sunset, Deprecation, Link).
 	"net/http"
 	"time"
 
