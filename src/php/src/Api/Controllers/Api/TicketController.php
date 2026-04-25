@@ -125,20 +125,18 @@ class TicketController extends Controller
 
     protected function findTicket(Request $request, string $id): ?SupportTicket
     {
-        $query = SupportTicket::query()->with('replies');
-
         $workspace = $this->resolveWorkspace($request);
         $user = $request->user();
 
-        if ($workspace !== null) {
-            $query->forWorkspace($workspace->id);
+        if (! $workspace || ! $user?->id) {
+            return null;
         }
 
-        if ($user?->id !== null) {
-            $query->where('user_id', $user->id);
-        }
-
-        return $query->find($id);
+        return SupportTicket::query()
+            ->with('replies')
+            ->forWorkspace($workspace->id)
+            ->where('user_id', $user->id)
+            ->find($id);
     }
 
     protected function ticketPayload(SupportTicket $ticket): array
