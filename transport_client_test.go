@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"net"
@@ -168,13 +169,22 @@ func TestTransportClient_NewWebSocketClient_Ugly_IgnoresNilOptions(t *testing.T)
 	}
 }
 
-func TestTransportClient_DialContext_Good_DialsHTTPURLAndSendsHeaders(t *testing.T) {
+func TestTransportClient_DialContext_Good_DialsWSSURLAndSendsHeaders(t *testing.T) {
+	prevResolveHost := resolveHost
+	t.Cleanup(func() { resolveHost = prevResolveHost })
+	resolveHost = func(host string) ([]net.IP, error) {
+		if host != "public.example.com" {
+			return []net.IP{net.IPv4(127, 0, 0, 1)}, nil
+		}
+		return []net.IP{net.IPv4(93, 184, 216, 34)}, nil
+	}
+
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
-	var sawHeader string
+	sawHeaderCh := make(chan string, 1)
 	errCh := make(chan error, 1)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawHeader = r.Header.Get("Authorization")
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawHeaderCh <- r.Header.Get("Authorization")
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			errCh <- err
@@ -185,9 +195,20 @@ func TestTransportClient_DialContext_Good_DialsHTTPURLAndSendsHeaders(t *testing
 	}))
 	defer srv.Close()
 
+	targetAddr := srv.Listener.Addr().String()
+	var dialedAddr string
+	dialer := &websocket.Dialer{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Test server uses a self-signed certificate.
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialedAddr = addr
+			return (&net.Dialer{}).DialContext(ctx, network, targetAddr)
+		},
+	}
+
 	client := NewWebSocketClient(
-		srv.URL,
+		"wss://public.example.com/ws",
 		WithWebSocketHeaders(http.Header{"Authorization": {"Bearer secret"}}),
+		WithWebSocketDialer(dialer),
 	)
 
 	conn, resp, err := client.DialContext(context.Background())
@@ -198,6 +219,15 @@ func TestTransportClient_DialContext_Good_DialsHTTPURLAndSendsHeaders(t *testing
 
 	if resp == nil || resp.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("expected websocket upgrade response, got %+v", resp)
+	}
+	if dialedAddr != "public.example.com:443" {
+		t.Fatalf("expected mock dialer to receive public.example.com:443, got %q", dialedAddr)
+	}
+	var sawHeader string
+	select {
+	case sawHeader = <-sawHeaderCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for websocket request")
 	}
 	if sawHeader != "Bearer secret" {
 		t.Fatalf("expected Authorization header to reach server, got %q", sawHeader)
@@ -217,15 +247,74 @@ func TestTransportClient_DialContext_Good_DialsHTTPURLAndSendsHeaders(t *testing
 	}
 }
 
+func TestTransportClient_DialContext_Bad_BlocksSSRFWebSocketTargets(t *testing.T) {
+	prevResolveHost := resolveHost
+	t.Cleanup(func() { resolveHost = prevResolveHost })
+	resolveHost = func(host string) ([]net.IP, error) {
+		switch host {
+		case "localhost", "hostname-resolving-to-loopback.example":
+			return []net.IP{net.IPv4(127, 0, 0, 1)}, nil
+		default:
+			return []net.IP{net.IPv4(93, 184, 216, 34)}, nil
+		}
+	}
+
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{name: "metadata", raw: "ws://169.254.169.254/latest/meta-data/"},
+		{name: "localhost", raw: "wss://localhost/ws"},
+		{name: "rfc1918", raw: "wss://10.0.0.1/ws"},
+		{name: "dns-loopback", raw: "ws://hostname-resolving-to-loopback.example/ws"},
+		{name: "scheme", raw: "file:///etc/passwd"},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			dialCalls := 0
+			dialer := &websocket.Dialer{
+				NetDialContext: func(context.Context, string, string) (net.Conn, error) {
+					dialCalls++
+					return nil, errors.New("dial should not be called")
+				},
+				NetDialTLSContext: func(context.Context, string, string) (net.Conn, error) {
+					dialCalls++
+					return nil, errors.New("dial should not be called")
+				},
+			}
+
+			conn, resp, err := NewWebSocketClient(tt.raw, WithWebSocketDialer(dialer)).DialContext(context.Background())
+			if err == nil {
+				if conn != nil {
+					_ = conn.Close()
+				}
+				if resp != nil && resp.Body != nil {
+					_ = resp.Body.Close()
+				}
+				t.Fatal("expected websocket target to be blocked")
+			}
+			if !errors.Is(err, errOutboundURLBlocked) {
+				t.Fatalf("expected errOutboundURLBlocked, got %v", err)
+			}
+			if dialCalls != 0 {
+				t.Fatalf("expected guard to block before dialing, got %d dial attempts", dialCalls)
+			}
+		})
+	}
+}
+
 func TestTransportClient_DialContext_Bad_RejectsNilReceiverAndUnsupportedScheme(t *testing.T) {
 	var client *WebSocketClient
 	if _, _, err := client.DialContext(context.Background()); err == nil {
 		t.Fatal("expected nil receiver to fail")
 	}
 
-	client = NewWebSocketClient("ftp://example.invalid/ws")
-	if _, _, err := client.DialContext(context.Background()); err == nil {
-		t.Fatal("expected unsupported scheme to fail")
+	for _, raw := range []string{"ftp://example.invalid/ws", "http://example.invalid/ws", "https://example.invalid/ws"} {
+		client = NewWebSocketClient(raw)
+		if _, _, err := client.DialContext(context.Background()); err == nil {
+			t.Fatalf("expected unsupported scheme to fail for %s", raw)
+		}
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"       // Note: AX-6 — io.Reader contract
 	"net/http" // Note: AX-6 — HTTP transport boundary
+	"net/url"
 	"time"
 
 	core "dappco.re/go/core"
@@ -20,7 +21,7 @@ import (
 //
 // Example:
 //
-//	client := api.NewWebSocketClient("ws://localhost:8080/ws")
+//	client := api.NewWebSocketClient("wss://api.example.com/ws")
 //	conn, resp, err := client.DialContext(ctx)
 type WebSocketClient struct {
 	URL    string
@@ -71,7 +72,7 @@ func WithWebSocketDialer(dialer *websocket.Dialer) WebSocketClientOption {
 //
 // Example:
 //
-//	client := api.NewWebSocketClient("ws://localhost:8080/ws")
+//	client := api.NewWebSocketClient("wss://api.example.com/ws")
 func NewWebSocketClient(rawURL string, opts ...WebSocketClientOption) *WebSocketClient {
 	c := &WebSocketClient{
 		URL:    core.Trim(rawURL),
@@ -88,8 +89,8 @@ func NewWebSocketClient(rawURL string, opts ...WebSocketClientOption) *WebSocket
 // DialContext opens the WebSocket connection and returns the negotiated
 // connection plus the HTTP upgrade response.
 //
-// The client accepts ws://, wss://, http://, and https:// URLs. HTTP schemes
-// are converted to their WebSocket equivalents automatically.
+// The client accepts ws:// and wss:// URLs. The target is validated against
+// the outbound SSRF guard before the handshake is attempted.
 //
 // Example:
 //
@@ -101,6 +102,9 @@ func (c *WebSocketClient) DialContext(ctx context.Context) (*websocket.Conn, *ht
 
 	rawURL, err := normaliseWebSocketClientURL(c.URL)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateOutboundWebSocketClientURL(rawURL); err != nil {
 		return nil, nil, err
 	}
 
@@ -344,15 +348,42 @@ func normaliseWebSocketClientURL(rawURL string) (string, error) {
 	switch scheme {
 	case "ws", "wss":
 		return normalized, nil
-	case "http":
-		parts := core.SplitN(normalized, ":", 2)
-		return "ws:" + parts[1], nil
-	case "https":
-		parts := core.SplitN(normalized, ":", 2)
-		return "wss:" + parts[1], nil
 	default:
-		return "", coreerr.E("", core.Sprintf("unsupported websocket URL scheme %q", scheme), nil)
+		return "", wrapBlocked(core.Sprintf("disallowed websocket scheme: %s", scheme))
 	}
+}
+
+func validateOutboundWebSocketClientURL(rawURL string) error {
+	guardURL, err := outboundWebSocketGuardURL(rawURL)
+	if err != nil {
+		return err
+	}
+	return validateOutboundURL(guardURL)
+}
+
+func outboundWebSocketGuardURL(rawURL string) (string, error) {
+	parsedResult := core.URLParse(rawURL)
+	if !parsedResult.OK {
+		if err, ok := parsedResult.Value.(error); ok {
+			return "", err
+		}
+		return "", coreerr.E("", "invalid WebSocketClient URL", nil)
+	}
+	parsed, ok := parsedResult.Value.(*url.URL)
+	if !ok || parsed == nil {
+		return "", coreerr.E("", "invalid WebSocketClient URL", nil)
+	}
+
+	guardURL := *parsed
+	switch core.Lower(guardURL.Scheme) {
+	case "ws":
+		guardURL.Scheme = "http"
+	case "wss":
+		guardURL.Scheme = "https"
+	default:
+		return "", wrapBlocked(core.Sprintf("disallowed websocket scheme: %s", guardURL.Scheme))
+	}
+	return guardURL.String(), nil
 }
 
 func webSocketClientURLScheme(rawURL string) string {
