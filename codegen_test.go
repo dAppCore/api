@@ -193,3 +193,74 @@ func TestSDKGenerator_Good_Available(t *testing.T) {
 	// Just verify it returns a bool and does not panic.
 	_ = gen.Available()
 }
+
+// TestSDKGenerator_Generate_PackageNameRejected_Bad verifies the regex-validation
+// hardening from Mantis #322 — PackageName containing flag-injection characters
+// is rejected before exec.CommandContext is reached.
+func TestSDKGenerator_Generate_PackageNameRejected_Bad(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "spec.yaml")
+	if err := os.WriteFile(specPath, []byte("openapi: 3.0.0\n"), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	rejects := []string{
+		"foo --extra=evil",  // space + flag injection
+		"foo;rm -rf /",      // command separator
+		"foo bar",           // bare space
+		"--shell-injection", // leading dash
+		"foo$(whoami)",      // command substitution
+	}
+	for _, name := range rejects {
+		t.Run(name, func(t *testing.T) {
+			gen := &api.SDKGenerator{
+				SpecPath:    specPath,
+				OutputDir:   tmp,
+				PackageName: name,
+			}
+			err := gen.Generate(context.Background(), "go")
+			if err == nil {
+				t.Errorf("expected rejection for PackageName=%q, got nil error", name)
+				return
+			}
+			if !strings.Contains(err.Error(), "package name") {
+				t.Errorf("expected rejection error containing 'package name', got %q", err.Error())
+			}
+		})
+	}
+}
+
+// TestSDKGenerator_Generate_PackageNameAccepted_Good verifies legitimate names
+// pass the regex; any subsequent error must NOT be the regex-rejection.
+func TestSDKGenerator_Generate_PackageNameAccepted_Good(t *testing.T) {
+	accepts := []string{
+		"foo",
+		"FooBar",
+		"foo_bar",
+		"foo-bar",
+		"Foo123",
+		"a",
+	}
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "spec.yaml")
+	if err := os.WriteFile(specPath, []byte("openapi: 3.0.0\n"), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+	for _, name := range accepts {
+		t.Run(name, func(t *testing.T) {
+			gen := &api.SDKGenerator{
+				SpecPath:    specPath,
+				OutputDir:   tmp,
+				PackageName: name,
+			}
+			err := gen.Generate(context.Background(), "go")
+			// Likely fails because openapi-generator-cli isn't installed in
+			// CI; the error MUST NOT be the regex-rejection ("package name
+			// X rejected").
+			if err != nil && strings.Contains(err.Error(), "package name") &&
+				strings.Contains(err.Error(), "rejected") {
+				t.Errorf("name %q was unexpectedly rejected by regex: %v", name, err)
+			}
+		})
+	}
+}
