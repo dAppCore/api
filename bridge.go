@@ -319,20 +319,6 @@ func containsAnyByte(s, chars string) bool {
 	return false
 }
 
-func trimSlashes(s string) string {
-	start := 0
-	for start < len(s) && s[start] == '/' {
-		start++
-	}
-
-	end := len(s)
-	for end > start && s[end-1] == '/' {
-		end--
-	}
-
-	return s[start:end]
-}
-
 // maxToolRequestBodyBytes is the maximum request body size accepted by the
 // tool bridge handler. Requests larger than this are rejected with 413.
 const maxToolRequestBodyBytes = 10 << 20 // 10 MiB
