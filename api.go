@@ -295,6 +295,9 @@ func (e *Engine) build() *gin.Engine {
 			continue
 		}
 		rg := r.Group(g.BasePath())
+		if mw := transformerMiddlewareForGroup(g); mw != nil {
+			rg.Use(mw)
+		}
 		g.RegisterRoutes(rg)
 	}
 

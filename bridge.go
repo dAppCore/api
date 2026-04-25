@@ -31,6 +31,12 @@ type ToolDescriptor struct {
 	Group        string         // OpenAPI tag group, e.g. "files"
 	InputSchema  map[string]any // JSON Schema for request body
 	OutputSchema map[string]any // JSON Schema for response data (optional)
+	// TransformerIn remaps the external request DTO into the handler-facing
+	// DTO before the tool handler reads the request body.
+	TransformerIn any
+	// TransformerOut remaps the handler-facing response DTO into the external
+	// response DTO inside the standard OK() envelope.
+	TransformerOut any
 }
 
 // ToolBridge converts tool descriptors into REST endpoints and OpenAPI paths.
@@ -78,8 +84,18 @@ func (b *ToolBridge) Add(desc ToolDescriptor, handler gin.HandlerFunc) {
 	if !isValidToolName(desc.Name) {
 		panic(core.E("ToolBridge.Add", "invalid tool name", nil))
 	}
+	if pipeline, err := compileTransformerPipeline(transformerDirectionOut, desc.TransformerOut); err != nil {
+		panic(err)
+	} else if len(pipeline) > 0 {
+		handler = wrapTransformerOutHandler(handler, pipeline)
+	}
 	if validator := newToolInputValidator(desc.OutputSchema); validator != nil {
 		handler = wrapToolResponseHandler(handler, validator)
+	}
+	if pipeline, err := compileTransformerPipeline(transformerDirectionIn, desc.TransformerIn); err != nil {
+		panic(err)
+	} else if len(pipeline) > 0 {
+		handler = wrapTransformerInHandler(handler, pipeline)
 	}
 	if validator := newToolInputValidator(desc.InputSchema); validator != nil {
 		handler = wrapToolHandler(handler, validator)
@@ -221,13 +237,15 @@ func describeTool(desc ToolDescriptor, defaultTag string) RouteDescription {
 		tags = []string{defaultTag}
 	}
 	return RouteDescription{
-		Method:      "POST",
-		Path:        "/" + desc.Name,
-		Summary:     desc.Description,
-		Description: desc.Description,
-		Tags:        tags,
-		RequestBody: desc.InputSchema,
-		Response:    desc.OutputSchema,
+		Method:         "POST",
+		Path:           "/" + desc.Name,
+		Summary:        desc.Description,
+		Description:    desc.Description,
+		Tags:           tags,
+		RequestBody:    desc.InputSchema,
+		Response:       desc.OutputSchema,
+		TransformerIn:  desc.TransformerIn,
+		TransformerOut: desc.TransformerOut,
 	}
 }
 

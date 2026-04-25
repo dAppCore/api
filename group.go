@@ -167,6 +167,16 @@ type RouteDescription struct {
 	Response        map[string]any // JSON Schema for success response data
 	ResponseExample any            // Optional example payload for the success response.
 	ResponseHeaders map[string]string
+	// TransformerIn optionally remaps the external request DTO into the
+	// handler-facing DTO before RegisterRoutes' handler reads the request body.
+	// Supply a TransformerIn[I, O] or a slice of transformers to compose a
+	// pipeline.
+	TransformerIn any
+	// TransformerOut optionally remaps the handler-facing response DTO into the
+	// external response DTO inside the standard OK() envelope.
+	// Supply a TransformerOut[I, O] or a slice of transformers to compose a
+	// pipeline.
+	TransformerOut any
 }
 
 // ParameterDescription describes an OpenAPI parameter for a route.
