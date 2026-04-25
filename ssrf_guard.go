@@ -3,7 +3,9 @@
 package api
 
 import (
+	// Note: AX-6 — net.ParseIP/LookupIP and net.IP predicates are structural for SSRF IP-range comparison.
 	"net"
+	// Note: AX-6 — URL parsing is structural for SSRF scheme and host extraction before outbound requests.
 	"net/url"
 
 	core "dappco.re/go/core"
