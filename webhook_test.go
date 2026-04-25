@@ -3,6 +3,7 @@
 package api
 
 import (
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -406,6 +407,112 @@ func TestWebhook_ValidateWebhookURL_Good_AllowsResolvablePublicHostname(t *testi
 	}
 }
 
+func TestWebhook_DialPath_Bad_RevalidatesHostnameAtRequestTime(t *testing.T) {
+	originalLookupIP := lookupIP
+	originalResolveHost := resolveHost
+	t.Cleanup(func() {
+		lookupIP = originalLookupIP
+		resolveHost = originalResolveHost
+	})
+
+	raw := "https://hooks.example.test/inbox"
+	lookupIP = func(host string) ([]net.IP, error) {
+		if host != "hooks.example.test" {
+			return nil, net.UnknownNetworkError("unexpected host")
+		}
+		return []net.IP{net.ParseIP("93.184.216.34")}, nil
+	}
+	if err := ValidateWebhookURL(raw); err != nil {
+		t.Fatalf("expected construction-time validation to accept public hostname, got %v", err)
+	}
+
+	resolveHost = func(host string) ([]net.IP, error) {
+		if host != "hooks.example.test" {
+			return nil, net.UnknownNetworkError("unexpected host")
+		}
+		return []net.IP{net.ParseIP("127.0.0.1")}, nil
+	}
+
+	var attempts int
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			return nil, errors.New("request should have been blocked before transport")
+		}),
+	}
+	req, err := http.NewRequest(http.MethodPost, raw, strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+
+	resp, err := doHTTPClientRequest(client, req)
+	if err == nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatal("expected dial-time SSRF guard to block rebound loopback resolution")
+	}
+	if !errors.Is(err, errOutboundURLBlocked) {
+		t.Fatalf("expected errOutboundURLBlocked, got %v", err)
+	}
+	if attempts != 0 {
+		t.Fatalf("expected request to be blocked before transport, got %d attempts", attempts)
+	}
+}
+
+func TestWebhook_DialPath_Good_DialsPublicHostname(t *testing.T) {
+	originalLookupIP := lookupIP
+	originalResolveHost := resolveHost
+	t.Cleanup(func() {
+		lookupIP = originalLookupIP
+		resolveHost = originalResolveHost
+	})
+
+	lookupIP = func(host string) ([]net.IP, error) {
+		if host != "hooks.example.test" {
+			return nil, net.UnknownNetworkError("unexpected host")
+		}
+		return []net.IP{net.ParseIP("93.184.216.34")}, nil
+	}
+	resolveHost = func(host string) ([]net.IP, error) {
+		if host != "hooks.example.test" {
+			return nil, net.UnknownNetworkError("unexpected host")
+		}
+		return []net.IP{net.ParseIP("93.184.216.34")}, nil
+	}
+
+	raw := "http://hooks.example.test/inbox"
+	if err := ValidateWebhookURL(raw); err != nil {
+		t.Fatalf("expected construction-time validation to accept public hostname, got %v", err)
+	}
+
+	var sawPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawPath = r.URL.Path
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = io.WriteString(w, "accepted")
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Transport: localServerTransport(t, srv)}
+	req, err := http.NewRequest(http.MethodPost, raw, strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+
+	resp, err := doHTTPClientRequest(client, req)
+	if err != nil {
+		t.Fatalf("expected public webhook hostname to be requested, got %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202 response, got %d", resp.StatusCode)
+	}
+	if sawPath != "/inbox" {
+		t.Fatalf("expected webhook path to reach server, got %q", sawPath)
+	}
+}
+
 func TestWebhook_ValidateWebhookURL_Bad_RejectsHostnameResolvingToPrivateIP(t *testing.T) {
 	original := lookupIP
 	lookupIP = func(string) ([]net.IP, error) {
@@ -415,6 +522,12 @@ func TestWebhook_ValidateWebhookURL_Bad_RejectsHostnameResolvingToPrivateIP(t *t
 
 	if err := ValidateWebhookURL("https://hooks.example.test/inbox"); err == nil {
 		t.Fatal("expected hostname resolving to a private IP to be rejected")
+	}
+}
+
+func TestWebhook_ValidateWebhookURL_Bad_RejectsDirectPrivateHTTPSIP(t *testing.T) {
+	if err := ValidateWebhookURL("https://10.0.0.1/inbox"); err == nil {
+		t.Fatal("expected direct private IP webhook URL to be rejected")
 	}
 }
 
