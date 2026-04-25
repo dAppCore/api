@@ -3,10 +3,7 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
-	"strings"
-	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -35,8 +32,8 @@ const defaultSSEHeartbeatInterval = 15 * time.Second
 //	broker := api.NewSSEBroker()
 //	engine.GET("/events", broker.Handler())
 type SSEBroker struct {
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
+	mu      core.RWMutex
+	wg      core.WaitGroup
 	clients map[*sseClient]struct{}
 }
 
@@ -45,8 +42,8 @@ type sseClient struct {
 	channel    string
 	events     chan sseEvent
 	done       chan struct{}
-	doneOnce   sync.Once
-	eventsOnce sync.Once
+	doneOnce   core.Once
+	eventsOnce core.Once
 }
 
 // sseEvent is an internal representation of a single SSE message.
@@ -74,7 +71,7 @@ func normaliseSSEPath(path string) string {
 		return defaultSSEPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimPathSlashes(path)
 	if path == "/" {
 		return defaultSSEPath
 	}
@@ -108,14 +105,18 @@ func resolveLegacySSEPath(path string) string {
 //
 //	broker.Publish("system", "ready", map[string]any{"status": "ok"})
 func (b *SSEBroker) Publish(channel, event string, data any) {
-	encoded, err := json.Marshal(data)
-	if err != nil {
+	encoded := core.JSONMarshal(data)
+	if !encoded.OK {
+		return
+	}
+	payload, ok := encoded.Value.([]byte)
+	if !ok {
 		return
 	}
 
 	msg := sseEvent{
 		Event: event,
-		Data:  string(encoded),
+		Data:  string(payload),
 	}
 
 	b.mu.RLock()

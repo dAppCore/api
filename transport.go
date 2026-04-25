@@ -2,11 +2,7 @@
 
 package api
 
-import (
-	"strings"
-
-	core "dappco.re/go/core"
-)
+import core "dappco.re/go/core"
 
 // TransportConfig captures the configured transport endpoints and flags for an Engine.
 //
@@ -90,6 +86,16 @@ func resolveChatCompletionsPath(path string) string {
 	return normaliseChatCompletionsPath(path)
 }
 
+func trimPathSlashes(path string) string {
+	for core.HasPrefix(path, "/") {
+		path = core.TrimPrefix(path, "/")
+	}
+	for core.HasSuffix(path, "/") {
+		path = core.TrimSuffix(path, "/")
+	}
+	return path
+}
+
 // normaliseChatCompletionsPath coerces custom chat completions paths into a
 // stable form. The path always begins with a single slash and never ends with
 // one.
@@ -99,7 +105,7 @@ func normaliseChatCompletionsPath(path string) string {
 		return defaultChatCompletionsPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimPathSlashes(path)
 	if path == "/" {
 		return defaultChatCompletionsPath
 	}
