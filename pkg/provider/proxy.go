@@ -5,7 +5,7 @@ package provider
 import (
 	"net/http"
 	"net/http/httputil"
-	"net/url"
+	"net/url" // Note: AX-6 — net/url url.URL fields are structural for reverse-proxy URL rewriting.
 
 	core "dappco.re/go/core"
 
@@ -49,11 +49,23 @@ type ProxyProvider struct {
 // configuration error and responds with a standard 500 envelope when
 // mounted. This keeps provider construction safe for callers.
 func NewProxy(cfg ProxyConfig) *ProxyProvider {
-	target, err := url.Parse(cfg.Upstream)
-	if err != nil {
+	parsed := core.URLParse(cfg.Upstream)
+	if !parsed.OK {
+		err, ok := parsed.Value.(error)
+		if !ok {
+			err = core.E("ProxyProvider.New", "invalid upstream URL", nil)
+		}
 		return &ProxyProvider{
 			config: cfg,
 			err:    err,
+		}
+	}
+
+	target, ok := parsed.Value.(*url.URL)
+	if !ok || target == nil {
+		return &ProxyProvider{
+			config: cfg,
+			err:    core.E("ProxyProvider.New", "invalid upstream URL result", nil),
 		}
 	}
 
