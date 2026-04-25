@@ -1112,6 +1112,11 @@ func codeOrDefault(code, fallback string) string {
 }
 
 func newChatCompletionID() string {
+	// #nosec G404 -- chat completion IDs are correlation tokens (format
+	// "chatcmpl-<unix>-<6digit>"), not security-sensitive secrets. The Unix
+	// timestamp already orders them; rand.Intn only disambiguates same-second
+	// collisions. crypto/rand would add entropy-budget pressure for zero
+	// security gain. Argus Mantis #320.
 	return fmt.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
 }
 
