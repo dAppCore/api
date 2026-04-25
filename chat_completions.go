@@ -3,13 +3,10 @@
 package api
 
 import (
-	"io"
-	"math/rand"
-	"net"
-	"net/http"
-	"strconv"
-	"strings" // Note: AX-6 — TrimLeftFunc no core equivalent
-	"sync"
+	"math/rand" // Note: AX-6 — non-security display/correlation ID suffix; core.RandIntN unavailable
+	"net"       // Note: AX-6 — structural IP parsing for loopback-only HTTP boundary
+	"net/http"  // Note: AX-6 — structural HTTP server boundary for request/status handling
+	"strings"   // Note: AX-6 — TrimLeftFunc no core equivalent
 	"time"
 	"unicode"
 
@@ -179,7 +176,7 @@ func (e *modelResolutionError) Error() string {
 //  2. ~/.core/models.yaml path mapping
 //  3. discovery by architecture via inference.Discover()
 type ModelResolver struct {
-	mu           sync.RWMutex
+	mu           core.RWMutex
 	loadedByName map[string]inference.TextModel
 	loadedByPath map[string]inference.TextModel
 	discovery    map[string]string
@@ -187,7 +184,7 @@ type ModelResolver struct {
 
 // NewModelResolver constructs a ModelResolver with empty caches. The returned
 // resolver is safe for concurrent use — ResolveModel serialises cache updates
-// through an internal sync.RWMutex.
+// through an internal core.RWMutex.
 //
 //	resolver := api.NewModelResolver()
 //	engine, _ := api.New(api.WithChatCompletions(resolver))
@@ -1002,11 +999,15 @@ func parsedStopTokens(stops []string) ([]int32, error) {
 		if raw == "" {
 			return nil, core.E("", "stop entries cannot be empty", nil)
 		}
-		parsed, err := strconv.ParseInt(raw, 10, 32)
-		if err != nil {
+		parsed := core.ParseInt(raw, 10, 32)
+		if !parsed.OK {
 			return nil, core.E("", core.Sprintf("invalid stop token %q", raw), nil)
 		}
-		out = append(out, int32(parsed))
+		value, ok := parsed.Value.(int64)
+		if !ok {
+			return nil, core.E("", core.Sprintf("invalid stop token %q", raw), nil)
+		}
+		out = append(out, int32(value))
 	}
 	return out, nil
 }
@@ -1110,7 +1111,7 @@ func newChatCompletionID() string {
 	return core.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
 }
 
-func decodeJSONBody(reader io.Reader, dest any) error {
+func decodeJSONBody(reader any, dest any) error {
 	read := core.ReadAll(reader)
 	if !read.OK {
 		return core.E("decodeJSONBody", "read request body", coreResultError(read))
