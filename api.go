@@ -7,13 +7,13 @@ package api
 import (
 	"context"
 	"iter"
-	"net/http"
-	"reflect"
+	"net/http" // Note: AX-6 — structural HTTP boundary for Handler/WebSocket contracts; no core primitive
+	"reflect"  // Note: AX-6 — reflect is structural for runtime nil-pointer detection in handler binding; no core primitive
 	"slices"
 	"time"
 
-	core "dappco.re/go/core"
 	apistream "dappco.re/go/api/pkg/stream"
+	core "dappco.re/go/core"
 
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-contrib/pprof"
