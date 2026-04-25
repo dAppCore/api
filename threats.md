@@ -61,3 +61,13 @@ Fix coverage added in `transport_client_test.go`: a public initial URL returning
 Before fix: High for attacker-controlled upstream URLs because metadata/local SSRF was reachable through redirects even though direct metadata/local URLs were blocked.
 
 After fix: Low for local/metadata SSRF in this choke point. Direct and redirect targets are validated against the centralized block policy. Residual note: arbitrary public-host egress is still allowed by design because there is no configured business-host allowlist; callers that bind attacker input into upstream URL fields must provide trusted host policy at the application/config layer if public egress itself is out of scope.
+
+---
+
+## G204 codegen.go:97 audit (Cerberus #322)
+
+- Sink: `SDKGenerator.Generate` builds `args := g.buildArgs(...)` and runs `exec.CommandContext(ctx, "openapi-generator-cli", args...)`. The command name is a string literal; the variable at the sink is the argument vector.
+- Trust chain: the only production caller found is `cmd/api/cmd_sdk.go:sdkAction`. CLI options populate `--lang`, `--output`, `--spec`, and `--package`; when `--spec` is omitted, the spec path is a local temporary file generated from registered route metadata.
+- Validation: `language` is trimmed and mapped through the closed `supportedLanguages` allowlist; `PackageName` is constrained by `packageNameRe`; `Available()` resolves the literal `openapi-generator-cli` with `exec.LookPath`.
+- API reachability: repo grep found no `TransformerIn`, request body, query parameter, or HTTP route path reaching `SDKGenerator.Generate`; only CLI code, tests, and docs reference it.
+- Severity verdict: OPERATOR-ONLY / low. Existing `#nosec G204` in `codegen.go` is justified for the current trust chain. Reassess if a future API endpoint binds request fields to `SDKGenerator`.
