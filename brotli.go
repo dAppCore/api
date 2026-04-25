@@ -5,6 +5,8 @@ package api
 import (
 	"io" // Note: AX-6 - brotli writer pooling needs io.Discard as the reset sink; no core primitive.
 	"net/http"
+	"strconv"
+	"strings"
 	"sync" // Note: AX-6 - core has no Pool wrapper; brotli writers are pooled with sync.Pool.
 
 	core "dappco.re/go/core"
@@ -47,7 +49,7 @@ func newBrotliHandler(level int) *brotliHandler {
 
 // Handle is the Gin middleware function that compresses responses with Brotli.
 func (h *brotliHandler) Handle(c *gin.Context) {
-	if !core.Contains(c.Request.Header.Get("Accept-Encoding"), "br") {
+	if !acceptsBrotli(c.Request.Header.Get("Accept-Encoding")) {
 		c.Next()
 		return
 	}
@@ -66,6 +68,39 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 	}()
 
 	c.Next()
+}
+
+func acceptsBrotli(acceptEncoding string) bool {
+	found := false
+	for _, part := range strings.Split(acceptEncoding, ",") {
+		token := strings.TrimSpace(part)
+		params := ""
+		if i := strings.Index(token, ";"); i >= 0 {
+			params = token[i+1:]
+			token = strings.TrimSpace(token[:i])
+		}
+		if !strings.EqualFold(token, "br") {
+			continue
+		}
+		if hasZeroQValue(params) {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
+func hasZeroQValue(params string) bool {
+	for _, part := range strings.Split(params, ";") {
+		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok || !strings.EqualFold(strings.TrimSpace(name), "q") {
+			continue
+		}
+
+		q, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		return err == nil && q == 0
+	}
+	return false
 }
 
 // brotliWriter wraps gin.ResponseWriter to intercept writes through brotli.

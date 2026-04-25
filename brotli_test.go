@@ -62,6 +62,50 @@ func TestWithBrotli_Good_NoCompressionWithoutAcceptHeader(t *testing.T) {
 	}
 }
 
+func TestWithBrotli_Good_AcceptEncodingTokenParsing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		acceptEncoding string
+		wantBrotli     bool
+	}{
+		{name: "plain br", acceptEncoding: "br", wantBrotli: true},
+		{name: "gzip then br", acceptEncoding: "gzip, br", wantBrotli: true},
+		{name: "br with qvalue", acceptEncoding: "br;q=0.8", wantBrotli: true},
+		{name: "uppercase br", acceptEncoding: "BR", wantBrotli: true},
+		{name: "brotli future", acceptEncoding: "brotli-future", wantBrotli: false},
+		{name: "br able", acceptEncoding: "br-able, gzip", wantBrotli: false},
+		{name: "embraced", acceptEncoding: "embraced", wantBrotli: false},
+		{name: "br forbidden", acceptEncoding: "br;q=0", wantBrotli: false},
+		{name: "br forbidden wins", acceptEncoding: "br;q=0, gzip, br", wantBrotli: false},
+		{name: "empty", acceptEncoding: "", wantBrotli: false},
+		{name: "wildcard", acceptEncoding: "*", wantBrotli: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, _ := api.New(api.WithBrotli())
+			e.Register(&stubGroup{})
+
+			h := e.Handler()
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+			req.Header.Set("Accept-Encoding", tt.acceptEncoding)
+			h.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d", w.Code)
+			}
+
+			gotBrotli := w.Header().Get("Content-Encoding") == "br"
+			if gotBrotli != tt.wantBrotli {
+				t.Fatalf("expected brotli=%v for Accept-Encoding %q, got %v", tt.wantBrotli, tt.acceptEncoding, gotBrotli)
+			}
+		})
+	}
+}
+
 func TestWithBrotli_Good_DefaultLevel(t *testing.T) {
 	// Calling WithBrotli() with no arguments should use default compression
 	// and not panic.
