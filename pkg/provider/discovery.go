@@ -3,6 +3,8 @@
 package provider
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 
 	core "dappco.re/go/core"
@@ -17,16 +19,20 @@ const DefaultProvidersDir = ".core/providers"
 func Discover(dir string) ([]Provider, error) {
 	const op = "provider.Discover"
 
-	files := providerManifestFiles(dir)
+	canonicalDir, files, err := providerManifestFiles(dir)
+	if err != nil {
+		return nil, core.E(op, "discover manifest files", err)
+	}
 	if len(files) == 0 {
 		return nil, nil
 	}
 
+	fs := (&core.Fs{}).New(canonicalDir)
 	providers := make([]Provider, 0, len(files))
 	for _, file := range files {
-		provider, err := loadProviderManifest(file)
+		provider, err := loadProviderManifest(fs, file)
 		if err != nil {
-			return nil, core.E(op, core.Sprintf("load %s", file), err)
+			return nil, core.E(op, core.Sprintf("load %s", file.path), err)
 		}
 		providers = append(providers, provider)
 	}
@@ -73,21 +79,114 @@ type providerElementManifest struct {
 	Source string `yaml:"source"`
 }
 
-func providerManifestFiles(dir string) []string {
+type providerManifestFile struct {
+	path     string
+	readPath string
+}
+
+func providerManifestFiles(dir string) (string, []providerManifestFile, error) {
 	dir = core.Trim(dir)
 	if dir == "" {
 		dir = DefaultProvidersDir
 	}
 
-	files := append(core.PathGlob(core.JoinPath(dir, "*.yaml")), core.PathGlob(core.JoinPath(dir, "*.yml"))...)
-	slices.Sort(files)
-	return files
+	canonicalDir, ok, err := canonicalProviderDir(dir)
+	if err != nil || !ok {
+		return canonicalDir, nil, err
+	}
+
+	matches := append(core.PathGlob(filepath.Join(canonicalDir, "*.yaml")), core.PathGlob(filepath.Join(canonicalDir, "*.yml"))...)
+	slices.Sort(matches)
+
+	files := make([]providerManifestFile, 0, len(matches))
+	for _, match := range matches {
+		file, err := canonicalProviderManifestFile(canonicalDir, match)
+		if err != nil {
+			return "", nil, err
+		}
+		files = append(files, file)
+	}
+	return canonicalDir, files, nil
 }
 
-func loadProviderManifest(path string) (Provider, error) {
+func canonicalProviderDir(dir string) (string, bool, error) {
+	const op = "provider.providerManifestFiles"
+
+	absolute, err := filepath.Abs(filepath.Clean(dir))
+	if err != nil {
+		return "", false, core.E(op, "resolve provider directory path", err)
+	}
+
+	info, err := os.Lstat(absolute)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		return "", false, core.E(op, "stat provider directory", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", false, core.E(op, "symlinked provider directory rejected: "+absolute, nil)
+	}
+	if !info.IsDir() {
+		return "", false, core.E(op, "provider path is not a directory: "+absolute, nil)
+	}
+
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", false, core.E(op, "resolve provider directory symlinks: "+absolute, err)
+	}
+	return filepath.Clean(resolved), true, nil
+}
+
+func canonicalProviderManifestFile(canonicalDir, path string) (providerManifestFile, error) {
+	const op = "provider.providerManifestFiles"
+
+	absolute, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return providerManifestFile{}, core.E(op, "resolve provider manifest path", err)
+	}
+
+	info, err := os.Lstat(absolute)
+	if err != nil {
+		return providerManifestFile{}, core.E(op, "stat provider manifest", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return providerManifestFile{}, core.E(op, "symlinked provider manifest rejected: "+absolute, nil)
+	}
+	if !info.Mode().IsRegular() {
+		return providerManifestFile{}, core.E(op, "provider manifest is not a regular file: "+absolute, nil)
+	}
+
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return providerManifestFile{}, core.E(op, "resolve provider manifest symlinks: "+absolute, err)
+	}
+	resolved = filepath.Clean(resolved)
+
+	relative, err := filepath.Rel(canonicalDir, resolved)
+	if err != nil {
+		return providerManifestFile{}, core.E(op, "compare provider manifest with provider directory", err)
+	}
+	parentPrefix := ".." + string(filepath.Separator)
+	if relative == ".." || core.HasPrefix(relative, parentPrefix) || filepath.IsAbs(relative) {
+		return providerManifestFile{}, core.E(op, "provider manifest escapes provider directory: "+absolute, nil)
+	}
+
+	readPath := relative
+	if canonicalDir == string(filepath.Separator) {
+		readPath = resolved
+	}
+
+	return providerManifestFile{
+		path:     resolved,
+		readPath: readPath,
+	}, nil
+}
+
+func loadProviderManifest(fs *core.Fs, file providerManifestFile) (Provider, error) {
 	const op = "provider.loadProviderManifest"
 
-	result := (&core.Fs{}).New("/").Read(path)
+	result := fs.Read(file.readPath)
 	if !result.OK {
 		if err, ok := result.Value.(error); ok {
 			return nil, core.E(op, "read manifest", err)
@@ -105,7 +204,7 @@ func loadProviderManifest(path string) (Provider, error) {
 		return nil, core.E(op, "parse manifest yaml", err)
 	}
 
-	cfg, err := manifest.proxyConfig(path)
+	cfg, err := manifest.proxyConfig(file.path)
 	if err != nil {
 		return nil, err
 	}
