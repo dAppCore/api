@@ -134,7 +134,7 @@ func TestSSRF_OutboundURL_BlocksDNSResolveToPrivate_Ugly(t *testing.T) {
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {
 		// Attacker's domain that resolves to a private IP.
-		return []net.IP{net.IPv4(10, 0, 0, 5)}, nil
+		return []net.IP{net.IPv4(10, 0, 0, 1)}, nil
 	}
 
 	err := validateOutboundURL("https://attacker.example.com/")
@@ -144,7 +144,7 @@ func TestSSRF_OutboundURL_BlocksDNSResolveToPrivate_Ugly(t *testing.T) {
 	if !errors.Is(err, errOutboundURLBlocked) {
 		t.Errorf("expected errOutboundURLBlocked; got %v", err)
 	}
-	if !strings.Contains(err.Error(), "10.0.0.5") {
+	if !strings.Contains(err.Error(), "10.0.0.1") {
 		t.Errorf("expected error to mention resolved IP; got %v", err)
 	}
 }
@@ -160,16 +160,44 @@ func TestSSRF_OutboundURL_EmptyURL_Bad(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_AllowsResolverFailure_Good — if DNS resolution fails,
-// let net/http surface the real error rather than masking as a security block.
-func TestSSRF_OutboundURL_AllowsResolverFailure_Good(t *testing.T) {
+// TestSSRF_OutboundURL_BlocksResolverFailure_Bad — DNS resolution failure must
+// fail closed so split-resolver mismatches cannot bypass the IP blocklist.
+func TestSSRF_OutboundURL_BlocksResolverFailure_Bad(t *testing.T) {
 	prev := resolveHost
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {
-		return nil, errors.New("simulated NXDOMAIN")
+		return nil, errors.New("DNS failure")
 	}
 
-	if err := validateOutboundURL("https://nonexistent.example.invalid/"); err != nil {
-		t.Errorf("expected nil (let net/http surface the error); got %v", err)
+	err := validateOutboundURL("https://nonexistent.example.invalid/")
+	if err == nil {
+		t.Fatal("expected resolver failure to block; got nil")
+	}
+	if !errors.Is(err, errOutboundURLBlocked) {
+		t.Errorf("expected errOutboundURLBlocked; got %v", err)
+	}
+	if !strings.Contains(err.Error(), "DNS failure") {
+		t.Errorf("expected error to mention DNS failure; got %v", err)
+	}
+}
+
+// TestSSRF_OutboundURL_BlocksEmptyResolverResult_Bad — an empty DNS answer is
+// equivalent to no usable IP for SSRF validation and must fail closed.
+func TestSSRF_OutboundURL_BlocksEmptyResolverResult_Bad(t *testing.T) {
+	prev := resolveHost
+	defer func() { resolveHost = prev }()
+	resolveHost = func(host string) ([]net.IP, error) {
+		return []net.IP{}, nil
+	}
+
+	err := validateOutboundURL("https://empty.example.invalid/")
+	if err == nil {
+		t.Fatal("expected empty resolver result to block; got nil")
+	}
+	if !errors.Is(err, errOutboundURLBlocked) {
+		t.Errorf("expected errOutboundURLBlocked; got %v", err)
+	}
+	if !strings.Contains(err.Error(), "no IPs") {
+		t.Errorf("expected error to mention empty DNS result; got %v", err)
 	}
 }

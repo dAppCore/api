@@ -3,6 +3,7 @@
 package api
 
 import (
+	"log/slog"
 	// Note: AX-6 — net.ParseIP/LookupIP and net.IP predicates are structural for SSRF IP-range comparison.
 	"net"
 	// Note: AX-6 — URL parsing is structural for SSRF scheme and host extraction before outbound requests.
@@ -93,10 +94,12 @@ func validateOutboundURL(rawURL string) error {
 
 	ips, err := resolveHost(host)
 	if err != nil {
-		// Resolution failed — let net/http surface the real error rather
-		// than masking as a block. Genuine NXDOMAIN should not look like
-		// a security-policy rejection.
-		return nil
+		slog.Warn("blocked outbound URL after DNS resolution failure", "host", host, "error", err)
+		return wrapBlocked("DNS resolution failed for " + host + ": " + err.Error())
+	}
+	if len(ips) == 0 {
+		slog.Warn("blocked outbound URL after empty DNS resolution result", "host", host)
+		return wrapBlocked("DNS resolution returned no IPs for " + host)
 	}
 	for _, ip := range ips {
 		if reason := blockedIPReason(ip); reason != "" {
