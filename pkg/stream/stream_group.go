@@ -5,10 +5,6 @@
 package stream
 
 import (
-	"net/http"
-	"slices"
-	"strings"
-
 	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +19,8 @@ const (
 	// ProtocolWebSocket identifies a WebSocket endpoint.
 	ProtocolWebSocket Protocol = "websocket"
 )
+
+const httpMethodGet = "GET"
 
 // Handler describes a single stream-capable route.
 //
@@ -88,7 +86,7 @@ func (g *Group) Handlers() []Handler {
 	if g == nil || len(g.handlers) == 0 {
 		return nil
 	}
-	return slices.Clone(g.handlers)
+	return append([]Handler(nil), g.handlers...)
 }
 
 // Register mounts all valid handlers onto the supplied registrar.
@@ -106,7 +104,7 @@ func (g *Group) Register(reg Registrar) {
 func SSE(path string, handle gin.HandlerFunc) Handler {
 	return Handler{
 		Protocol: ProtocolSSE,
-		Method:   http.MethodGet,
+		Method:   httpMethodGet,
 		Path:     path,
 		Handle:   handle,
 	}
@@ -116,7 +114,7 @@ func SSE(path string, handle gin.HandlerFunc) Handler {
 func WebSocket(path string, handle gin.HandlerFunc) Handler {
 	return Handler{
 		Protocol: ProtocolWebSocket,
-		Method:   http.MethodGet,
+		Method:   httpMethodGet,
 		Path:     path,
 		Handle:   handle,
 	}
@@ -146,9 +144,9 @@ func normaliseHandlers(handlers []Handler) []Handler {
 func normaliseHandler(handler Handler) Handler {
 	handler.Protocol = normaliseProtocol(handler.Protocol)
 
-	method := strings.ToUpper(core.Trim(handler.Method))
+	method := core.Upper(core.Trim(handler.Method))
 	if method == "" {
-		method = http.MethodGet
+		method = httpMethodGet
 	}
 	handler.Method = method
 	handler.Path = normalisePath(handler.Path)
@@ -161,7 +159,7 @@ func (h Handler) valid() bool {
 }
 
 func normaliseProtocol(protocol Protocol) Protocol {
-	switch strings.ToLower(core.Trim(string(protocol))) {
+	switch core.Lower(core.Trim(string(protocol))) {
 	case "event-stream", "eventstream", "sse":
 		return ProtocolSSE
 	case "websocket", "ws":
@@ -177,10 +175,20 @@ func normalisePath(path string) string {
 		return ""
 	}
 
-	trimmed := strings.Trim(path, "/")
+	trimmed := trimPathSlashes(path)
 	if trimmed == "" {
 		return "/"
 	}
 
 	return "/" + trimmed
+}
+
+func trimPathSlashes(path string) string {
+	for core.HasPrefix(path, "/") {
+		path = core.TrimPrefix(path, "/")
+	}
+	for core.HasSuffix(path, "/") {
+		path = core.TrimSuffix(path, "/")
+	}
+	return path
 }
