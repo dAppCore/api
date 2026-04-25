@@ -3,13 +3,11 @@
 package api
 
 import (
-	"bytes"
-	"container/list"
-	"maps"
-	"net/http"
-	"strconv"
-	"sync"
+	"container/list" // Note: AX-6 - LRU ordering needs linked-list semantics; no core primitive.
+	"net/http"       // Note: AX-6 - Gin cache middleware must handle HTTP headers/methods directly.
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +23,7 @@ type cacheEntry struct {
 
 // cacheStore is a simple thread-safe in-memory cache keyed by request URL.
 type cacheStore struct {
-	mu           sync.RWMutex
+	mu           core.RWMutex
 	entries      map[string]*cacheEntry
 	order        *list.List
 	index        map[string]*list.Element
@@ -170,10 +168,16 @@ func (s *cacheStore) evictOldestLocked() bool {
 	return true
 }
 
+type cacheBodyBuffer interface {
+	Write([]byte) (int, error)
+	WriteString(string) (int, error)
+	Bytes() []byte
+}
+
 // cacheWriter intercepts writes to capture the response body and status.
 type cacheWriter struct {
 	gin.ResponseWriter
-	body *bytes.Buffer
+	body cacheBodyBuffer
 }
 
 func (w *cacheWriter) Write(data []byte) (int, error) {
@@ -242,7 +246,7 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 				c.Writer.Header().Set("X-Request-ID", requestID)
 			}
 			c.Writer.Header().Set("X-Cache", "HIT")
-			c.Writer.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			c.Writer.Header().Set("Content-Length", core.Itoa(len(body)))
 			c.Writer.WriteHeader(entry.status)
 			_, _ = c.Writer.Write(body)
 			c.Abort()
@@ -252,7 +256,7 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 		// Wrap the writer to capture the response.
 		cw := &cacheWriter{
 			ResponseWriter: c.Writer,
-			body:           &bytes.Buffer{},
+			body:           core.NewBuffer(),
 		}
 		c.Writer = cw
 
@@ -262,7 +266,9 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 		status := cw.ResponseWriter.Status()
 		if status >= 200 && status < 300 {
 			headers := make(http.Header)
-			maps.Copy(headers, cw.ResponseWriter.Header())
+			for key, vals := range cw.ResponseWriter.Header() {
+				headers[key] = append([]string(nil), vals...)
+			}
 			store.set(key, &cacheEntry{
 				status:  status,
 				headers: headers,
