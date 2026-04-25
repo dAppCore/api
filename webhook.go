@@ -7,13 +7,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"net"
-	"net/http"
+	"net/http" // Note: AX-6 — structural HTTP boundary for webhook request verification; no core primitive
 	"net/url"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -275,7 +273,7 @@ func (s *WebhookSigner) VerifyRequest(r *http.Request, payload []byte) bool {
 //	    return err
 //	}
 func ValidateWebhookURL(raw string) error {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	parsed, err := url.Parse(core.Trim(raw))
 	if err != nil {
 		return core.E("ValidateWebhookURL", "parse webhook url", err)
 	}
@@ -283,7 +281,7 @@ func ValidateWebhookURL(raw string) error {
 		return core.E("ValidateWebhookURL", "webhook URL must be an absolute HTTP or HTTPS URL", nil)
 	}
 
-	scheme := strings.ToLower(parsed.Scheme)
+	scheme := core.Lower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return core.E("ValidateWebhookURL", "only HTTP and HTTPS webhook URLs are permitted", nil)
 	}
@@ -379,7 +377,7 @@ func mustParseWebhookCIDRs(values ...string) []*net.IPNet {
 	for _, value := range values {
 		_, network, err := net.ParseCIDR(value)
 		if err != nil {
-			panic(fmt.Sprintf("api: invalid webhook CIDR %q: %v", value, err))
+			panic(core.Sprintf("api: invalid webhook CIDR %q: %v", value, err))
 		}
 		nets = append(nets, network)
 	}
