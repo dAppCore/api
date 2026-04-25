@@ -748,6 +748,15 @@ func WithChatCompletionsPath(path string) Option {
 	}
 }
 
+// WithSDKGen mounts POST /v1/sdk/generate. The endpoint exposes the RFC SDK
+// generation contract and currently returns 501 until an artifact backend is
+// configured around SDKGenerator.
+func WithSDKGen() Option {
+	return func(e *Engine) {
+		e.sdkGenEnabled = true
+	}
+}
+
 // WithOpenAPISpec mounts a standalone JSON document endpoint at
 // "/v1/openapi.json" (RFC.endpoints.md — "GET /v1/openapi.json"). The generated
 // spec mirrors the document surfaced by the Swagger UI but is served

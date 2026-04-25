@@ -4,8 +4,6 @@ package api
 
 import (
 	"net/http" // Note: AX-6 - structural HTTP status boundary for Gin handlers; no core primitive.
-	"sync"
-	"sync/atomic"
 
 	core "dappco.re/go/core"
 
@@ -18,7 +16,7 @@ import (
 
 // swaggerSeq provides unique instance names so multiple Engine instances
 // (common in tests) do not collide in the global swag registry.
-var swaggerSeq atomic.Uint64
+var swaggerSeq core.AtomicUint64
 
 // defaultSwaggerPath is the URL path where the Swagger UI is mounted.
 const defaultSwaggerPath = "/swagger"
@@ -28,7 +26,7 @@ const defaultSwaggerPath = "/swagger"
 type swaggerSpec struct {
 	builder *SpecBuilder
 	groups  []RouteGroup
-	once    sync.Once
+	once    core.Once
 	doc     string
 }
 

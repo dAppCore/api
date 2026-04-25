@@ -3,15 +3,14 @@
 package api
 
 import (
+	// Note: AX-6 — HMAC is the required RFC §6 webhook authentication primitive.
 	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"net"
-	"net/http" // Note: AX-6 — structural HTTP boundary for webhook request verification; no core primitive
-	"net/url"
+	"crypto/rand"   // Note: AX-6 — cryptographic webhook secret generation has no core random primitive.
+	"crypto/sha256" // Note: AX-6 — HMAC-SHA256 is the required webhook signature algorithm.
+	"net"           // Note: AX-6 — net.IP/CIDR predicates are structural for SSRF controls.
+	"net/http"      // Note: AX-6 — structural HTTP boundary for webhook request verification; no core primitive
+	"net/url"       // Note: AX-6 — core.URLParse returns *url.URL; fields are needed for SSRF checks.
 	"slices"
-	"strconv"
 	"time"
 
 	core "dappco.re/go/core"
@@ -141,7 +140,7 @@ func GenerateWebhookSecret() (string, error) {
 	if _, err := randomRead(buf); err != nil {
 		return "", core.E("WebhookSigner.GenerateSecret", "read random bytes", err)
 	}
-	return hex.EncodeToString(buf), nil
+	return core.HexEncode(buf), nil
 }
 
 // Tolerance returns the configured maximum age tolerance for verification.
@@ -164,10 +163,10 @@ func (s *WebhookSigner) Sign(payload []byte, timestamp int64) string {
 		return ""
 	}
 	mac := hmac.New(sha256.New, s.secret)
-	mac.Write([]byte(strconv.FormatInt(timestamp, 10)))
+	mac.Write([]byte(core.FormatInt(timestamp, 10)))
 	mac.Write([]byte("."))
 	mac.Write(payload)
-	return hex.EncodeToString(mac.Sum(nil))
+	return core.HexEncode(mac.Sum(nil))
 }
 
 // SignNow signs the payload using the current Unix timestamp and returns
@@ -190,7 +189,7 @@ func (s *WebhookSigner) Headers(payload []byte) map[string]string {
 	sig, ts := s.SignNow(payload)
 	return map[string]string{
 		WebhookSignatureHeader: sig,
-		WebhookTimestampHeader: strconv.FormatInt(ts, 10),
+		WebhookTimestampHeader: core.FormatInt(ts, 10),
 	}
 }
 
@@ -258,10 +257,11 @@ func (s *WebhookSigner) VerifyRequest(r *http.Request, payload []byte) bool {
 	if sig == "" || rawTS == "" {
 		return false
 	}
-	ts, err := strconv.ParseInt(rawTS, 10, 64)
-	if err != nil {
+	parsedTS := core.ParseInt(rawTS, 10, 64)
+	if !parsedTS.OK {
 		return false
 	}
+	ts := parsedTS.Value.(int64)
 	return s.Verify(payload, sig, ts)
 }
 
@@ -273,9 +273,14 @@ func (s *WebhookSigner) VerifyRequest(r *http.Request, payload []byte) bool {
 //	    return err
 //	}
 func ValidateWebhookURL(raw string) error {
-	parsed, err := url.Parse(core.Trim(raw))
-	if err != nil {
+	parsedResult := core.URLParse(core.Trim(raw))
+	if !parsedResult.OK {
+		err, _ := parsedResult.Value.(error)
 		return core.E("ValidateWebhookURL", "parse webhook url", err)
+	}
+	parsed, ok := parsedResult.Value.(*url.URL)
+	if !ok || parsed == nil {
+		return core.E("ValidateWebhookURL", "parse webhook url", nil)
 	}
 	if parsed.Scheme == "" || parsed.Host == "" {
 		return core.E("ValidateWebhookURL", "webhook URL must be an absolute HTTP or HTTPS URL", nil)

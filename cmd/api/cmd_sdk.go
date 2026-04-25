@@ -4,10 +4,9 @@ package api
 
 import (
 	"iter"
-	"os"
 
-	core "dappco.re/go/core"
 	"dappco.re/go/cli/pkg/cli"
+	core "dappco.re/go/core"
 
 	goapi "dappco.re/go/api"
 	coreio "dappco.re/go/io"
@@ -66,15 +65,7 @@ func sdkAction(opts core.Options) core.Result {
 		}
 		groups := sdkSpecGroupsIter()
 
-		tmpFile, err := os.CreateTemp("", "openapi-*.json")
-		if err != nil {
-			return core.Result{Value: cli.Wrap(err, "create temp spec file"), OK: false}
-		}
-		tmpPath := tmpFile.Name()
-		if err := tmpFile.Close(); err != nil {
-			_ = coreio.Local.Delete(tmpPath)
-			return core.Result{Value: cli.Wrap(err, "close temp spec file"), OK: false}
-		}
+		tmpPath := core.Path("/tmp", "openapi-"+core.ID()+".json")
 		defer coreio.Local.Delete(tmpPath)
 
 		if err := goapi.ExportSpecToFileIter(tmpPath, "json", builder, groups); err != nil {

@@ -17,7 +17,7 @@ import (
 
 // ── ToolBridge ─────────────────────────────────────────────────────────
 
-func TestToolBridge_Good_RegisterAndServe(t *testing.T) {
+func TestBridge_Good_RegisterAndServe(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -73,7 +73,7 @@ func TestToolBridge_Good_RegisterAndServe(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_BasePath(t *testing.T) {
+func TestBridge_Good_BasePath(t *testing.T) {
 	bridge := api.NewToolBridge("/api/v1/tools")
 
 	if bridge.BasePath() != "/api/v1/tools" {
@@ -84,7 +84,7 @@ func TestToolBridge_Good_BasePath(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_NormalisesConfiguredBasePath(t *testing.T) {
+func TestBridge_Good_NormalisesConfiguredBasePath(t *testing.T) {
 	bridge := api.NewToolBridge(" /api/v1/tools/ ")
 
 	if bridge.BasePath() != "/api/v1/tools" {
@@ -92,7 +92,7 @@ func TestToolBridge_Good_NormalisesConfiguredBasePath(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_BlankBasePathFallsBackToRoot(t *testing.T) {
+func TestBridge_Bad_BlankBasePathFallsBackToRoot(t *testing.T) {
 	bridge := api.NewToolBridge("   ")
 
 	if bridge.BasePath() != "/" {
@@ -100,7 +100,7 @@ func TestToolBridge_Bad_BlankBasePathFallsBackToRoot(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_CollapsesRepeatedSlashesInBasePath(t *testing.T) {
+func TestBridge_Ugly_CollapsesRepeatedSlashesInBasePath(t *testing.T) {
 	bridge := api.NewToolBridge("///mcp///")
 
 	if bridge.BasePath() != "/mcp" {
@@ -108,7 +108,7 @@ func TestToolBridge_Ugly_CollapsesRepeatedSlashesInBasePath(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_RootBasePathFallsBackToRoot(t *testing.T) {
+func TestBridge_Ugly_RootBasePathFallsBackToRoot(t *testing.T) {
 	bridge := api.NewToolBridge(" / ")
 
 	if bridge.BasePath() != "/" {
@@ -116,7 +116,7 @@ func TestToolBridge_Ugly_RootBasePathFallsBackToRoot(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
+func TestBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	bridge := api.NewToolBridge("/tools")
 
@@ -132,7 +132,7 @@ func TestToolBridge_Bad_RejectsUnsafeToolNames(t *testing.T) {
 	}, func(c *gin.Context) {})
 }
 
-func TestToolBridge_Good_AcceptsSafeToolNames(t *testing.T) {
+func TestBridge_Good_AcceptsSafeToolNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []string{
@@ -168,7 +168,7 @@ func TestToolBridge_Good_AcceptsSafeToolNames(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_RejectsUnsafeToolNameForms(t *testing.T) {
+func TestBridge_Ugly_RejectsUnsafeToolNameForms(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []string{
@@ -200,7 +200,7 @@ func TestToolBridge_Ugly_RejectsUnsafeToolNameForms(t *testing.T) {
 	}
 }
 
-func TestMCPServerID_Good_AcceptsSafeIDs(t *testing.T) {
+func TestBridge_MCPServerID_Good_AcceptsSafeIDs(t *testing.T) {
 	cases := []string{
 		"core",
 		"core-mcp",
@@ -218,7 +218,7 @@ func TestMCPServerID_Good_AcceptsSafeIDs(t *testing.T) {
 	}
 }
 
-func TestMCPServerID_Bad_RejectsMalformedIDs(t *testing.T) {
+func TestBridge_MCPServerID_Bad_RejectsMalformedIDs(t *testing.T) {
 	cases := []string{
 		"",
 		" ",
@@ -245,7 +245,7 @@ func TestMCPServerID_Bad_RejectsMalformedIDs(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_Describe(t *testing.T) {
+func TestBridge_Good_Describe(t *testing.T) {
 	bridge := api.NewToolBridge("/tools")
 	bridge.Add(api.ToolDescriptor{
 		Name:        "file_read",
@@ -325,7 +325,7 @@ func TestToolBridge_Good_Describe(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_DescribeTrimsBlankGroup(t *testing.T) {
+func TestBridge_Good_DescribeTrimsBlankGroup(t *testing.T) {
 	bridge := api.NewToolBridge("/tools")
 	bridge.Add(api.ToolDescriptor{
 		Name:        "file_read",
@@ -343,7 +343,7 @@ func TestToolBridge_Good_DescribeTrimsBlankGroup(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ValidatesRequestBody(t *testing.T) {
+func TestBridge_Good_ValidatesRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -387,7 +387,7 @@ func TestToolBridge_Good_ValidatesRequestBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ValidatesResponseBody(t *testing.T) {
+func TestBridge_Good_ValidatesResponseBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -430,7 +430,7 @@ func TestToolBridge_Good_ValidatesResponseBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_InvalidResponseBody(t *testing.T) {
+func TestBridge_Bad_InvalidResponseBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -473,7 +473,7 @@ func TestToolBridge_Bad_InvalidResponseBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_InvalidRequestBody(t *testing.T) {
+func TestBridge_Bad_InvalidRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -516,7 +516,7 @@ func TestToolBridge_Bad_InvalidRequestBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
+func TestBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -556,7 +556,7 @@ func TestToolBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
+func TestBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -596,7 +596,7 @@ func TestToolBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
+func TestBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -636,7 +636,7 @@ func TestToolBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ValidatesEnumValues(t *testing.T) {
+func TestBridge_Good_ValidatesEnumValues(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -671,7 +671,7 @@ func TestToolBridge_Good_ValidatesEnumValues(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
+func TestBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -717,7 +717,7 @@ func TestToolBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ValidatesSchemaCombinators(t *testing.T) {
+func TestBridge_Good_ValidatesSchemaCombinators(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -763,7 +763,7 @@ func TestToolBridge_Good_ValidatesSchemaCombinators(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
+func TestBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -820,7 +820,7 @@ func TestToolBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
+func TestBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -864,7 +864,7 @@ func TestToolBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_EnforcesStringConstraints(t *testing.T) {
+func TestBridge_Good_EnforcesStringConstraints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -901,7 +901,7 @@ func TestToolBridge_Good_EnforcesStringConstraints(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
+func TestBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -962,7 +962,7 @@ func TestToolBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ToolsAccessor(t *testing.T) {
+func TestBridge_Good_ToolsAccessor(t *testing.T) {
 	bridge := api.NewToolBridge("/tools")
 	bridge.Add(api.ToolDescriptor{Name: "alpha", Description: "Tool A", Group: "a"}, func(c *gin.Context) {})
 	bridge.Add(api.ToolDescriptor{Name: "beta", Description: "Tool B", Group: "b"}, func(c *gin.Context) {})
@@ -981,7 +981,7 @@ func TestToolBridge_Good_ToolsAccessor(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_EmptyBridge(t *testing.T) {
+func TestBridge_Bad_EmptyBridge(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	bridge := api.NewToolBridge("/tools")
 
@@ -1006,10 +1006,10 @@ func TestToolBridge_Bad_EmptyBridge(t *testing.T) {
 	}
 }
 
-// TestToolBridge_Good_ListsRegisteredTools verifies that GET on the bridge's
+// TestBridge_Good_ListsRegisteredTools verifies that GET on the bridge's
 // base path returns the catalogue of registered tools per RFC.endpoints.md —
 // "GET /v1/tools  List available tools".
-func TestToolBridge_Good_ListsRegisteredTools(t *testing.T) {
+func TestBridge_Good_ListsRegisteredTools(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	bridge := api.NewToolBridge("/v1/tools")
@@ -1060,9 +1060,9 @@ func TestToolBridge_Good_ListsRegisteredTools(t *testing.T) {
 	}
 }
 
-// TestToolBridge_Bad_ListingRoutesWhenEmpty verifies the listing endpoint
+// TestBridge_Bad_ListingRoutesWhenEmpty verifies the listing endpoint
 // still serves an empty array when no tools are registered on the bridge.
-func TestToolBridge_Bad_ListingRoutesWhenEmpty(t *testing.T) {
+func TestBridge_Bad_ListingRoutesWhenEmpty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	bridge := api.NewToolBridge("/tools")
@@ -1090,10 +1090,10 @@ func TestToolBridge_Bad_ListingRoutesWhenEmpty(t *testing.T) {
 	}
 }
 
-// TestToolBridge_Ugly_ListingCoexistsWithToolEndpoint verifies that the GET
+// TestBridge_Ugly_ListingCoexistsWithToolEndpoint verifies that the GET
 // listing and POST /{tool_name} endpoints register on the same base path
 // without colliding.
-func TestToolBridge_Ugly_ListingCoexistsWithToolEndpoint(t *testing.T) {
+func TestBridge_Ugly_ListingCoexistsWithToolEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	bridge := api.NewToolBridge("/v1/tools")
@@ -1125,7 +1125,7 @@ func TestToolBridge_Ugly_ListingCoexistsWithToolEndpoint(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
+func TestBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1170,7 +1170,7 @@ func TestToolBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsTooSmallArrayInputSchema(t *testing.T) {
+func TestBridge_Bad_RejectsTooSmallArrayInputSchema(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1210,7 +1210,7 @@ func TestToolBridge_Bad_RejectsTooSmallArrayInputSchema(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_RejectsWrongArrayElementType(t *testing.T) {
+func TestBridge_Ugly_RejectsWrongArrayElementType(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1249,7 +1249,7 @@ func TestToolBridge_Ugly_RejectsWrongArrayElementType(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_ValidatesNumericBounds(t *testing.T) {
+func TestBridge_Good_ValidatesNumericBounds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1293,7 +1293,7 @@ func TestToolBridge_Good_ValidatesNumericBounds(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsLargeIntegerAboveMaximum(t *testing.T) {
+func TestBridge_Bad_RejectsLargeIntegerAboveMaximum(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1332,7 +1332,7 @@ func TestToolBridge_Bad_RejectsLargeIntegerAboveMaximum(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
+func TestBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1371,7 +1371,7 @@ func TestToolBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Ugly_RejectsNonNumericInput(t *testing.T) {
+func TestBridge_Ugly_RejectsNonNumericInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -1409,7 +1409,7 @@ func TestToolBridge_Ugly_RejectsNonNumericInput(t *testing.T) {
 	}
 }
 
-func TestToolBridge_Good_IntegrationWithEngine(t *testing.T) {
+func TestBridge_Good_IntegrationWithEngine(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e, err := api.New()
 	if err != nil {

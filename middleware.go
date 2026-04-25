@@ -3,8 +3,6 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -103,8 +101,8 @@ func requestIDMiddleware() gin.HandlerFunc {
 		id := c.GetHeader("X-Request-ID")
 		if id == "" {
 			b := make([]byte, 16)
-			_, _ = rand.Read(b)
-			id = hex.EncodeToString(b)
+			_, _ = randomRead(b)
+			id = core.HexEncode(b)
 		}
 
 		c.Set(requestIDContextKey, id)

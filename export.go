@@ -5,13 +5,10 @@ package api
 import (
 	"io" // Note: AX-6 — io.Writer is part of the public export API surface.
 	"iter"
-	"os"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
 
@@ -96,37 +93,15 @@ func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter
 }
 
 func exportSpecToFile(path, op string, write func(io.Writer) error) (err error) {
-	dir := filepath.Dir(path)
-	if err := coreio.Local.EnsureDir(dir); err != nil {
-		return coreerr.E(op, "create directory", err)
-	}
-
-	// Write to a temp file in the same directory so the rename is atomic on
-	// most filesystems. The destination is never truncated unless the full
-	// export succeeds.
-	f, err := os.CreateTemp(dir, ".export-*.tmp")
-	if err != nil {
-		return coreerr.E(op, "create temp file", err)
-	}
-	tmpPath := f.Name()
-
-	defer func() {
-		if err != nil {
-			_ = os.Remove(tmpPath)
-		}
-	}()
-
-	if writeErr := write(f); writeErr != nil {
-		_ = f.Close()
+	buf := core.NewBuffer()
+	if writeErr := write(buf); writeErr != nil {
 		return writeErr
 	}
 
-	if closeErr := f.Close(); closeErr != nil {
-		return coreerr.E(op, "close temp file", closeErr)
-	}
-
-	if renameErr := os.Rename(tmpPath, path); renameErr != nil {
-		return coreerr.E(op, "rename temp file", renameErr)
+	localFS := (&core.Fs{}).NewUnrestricted()
+	if result := localFS.WriteAtomic(path, buf.String()); !result.OK {
+		err, _ := result.Value.(error)
+		return coreerr.E(op, "write spec file", err)
 	}
 	return nil
 }

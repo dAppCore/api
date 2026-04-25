@@ -3,13 +3,12 @@
 package api
 
 import (
-	"encoding/json"
+	"encoding/json" // Note: AX-6 — MarshalIndent has no core equivalent and is the public spec formatting contract.
 	"iter"
 	"net/http"
 	"slices"
-	"strconv"
 	"time"
-	"unicode"
+	"unicode" // Note: AX-6 — Unicode-aware operationId normalization has no core primitive.
 
 	core "dappco.re/go/core"
 )
@@ -587,7 +586,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 	}
 
 	responses := map[string]any{
-		strconv.Itoa(code): successResponse,
+		core.Itoa(code): successResponse,
 		"400": map[string]any{
 			"description": "Bad request",
 			"content": map[string]any{
@@ -2107,7 +2106,7 @@ func registerOperationID(id string, operationIDs map[string]int) string {
 		return id
 	}
 
-	return id + "_" + strconv.Itoa(count+1)
+	return id + "_" + core.Itoa(count+1)
 }
 
 func resolvedRenderHints(rd RouteDescription) map[string]any {
@@ -2818,7 +2817,7 @@ func operationID(method, path string, operationIDs map[string]int) string {
 	if count == 0 {
 		return out
 	}
-	return out + "_" + strconv.Itoa(count+1)
+	return out + "_" + core.Itoa(count+1)
 }
 
 func trimOperationIDUnderscores(value string) string {

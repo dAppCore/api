@@ -3,10 +3,8 @@
 package api
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"math" // Note: AX-6 — token-bucket Floor/Ceil rounding has no core primitive.
-	"net/http"
+	"math"     // Note: AX-6 — token-bucket Floor/Ceil rounding has no core primitive.
+	"net/http" // Note: AX-6 — structural HTTP status boundary for Gin handlers; no core primitive.
 	"time"
 
 	core "dappco.re/go/core"
@@ -241,12 +239,10 @@ func clientRateLimitKey(c *gin.Context) string {
 	// keys coming from the same NAT address are bucketed independently. The
 	// raw secret is never stored — it is hashed with SHA-256 first.
 	if apiKey := core.Trim(c.GetHeader("X-API-Key")); apiKey != "" {
-		h := sha256.Sum256([]byte(apiKey))
-		return "cred:sha256:" + hex.EncodeToString(h[:])
+		return "cred:sha256:" + core.SHA256HexString(apiKey)
 	}
 	if bearer := bearerTokenFromHeader(c.GetHeader("Authorization")); bearer != "" {
-		h := sha256.Sum256([]byte(bearer))
-		return "cred:sha256:" + hex.EncodeToString(h[:])
+		return "cred:sha256:" + core.SHA256HexString(bearer)
 	}
 
 	// Last resort: fall back to IP address.

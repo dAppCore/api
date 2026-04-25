@@ -26,6 +26,13 @@ const defaultAddr = ":8080"
 // to complete during graceful shutdown.
 const shutdownTimeout = 10 * time.Second
 
+const (
+	serverReadHeaderTimeout = 10 * time.Second
+	serverReadTimeout       = 30 * time.Second
+	serverWriteTimeout      = 60 * time.Second
+	serverIdleTimeout       = 120 * time.Second
+)
+
 // Engine is the central API server managing route groups and middleware.
 //
 // Example:
@@ -42,6 +49,7 @@ type Engine struct {
 	middlewares                    []gin.HandlerFunc
 	chatCompletionsResolver        *ModelResolver
 	chatCompletionsPath            string
+	sdkGenEnabled                  bool
 	cacheTTL                       time.Duration
 	cacheMaxEntries                int
 	cacheMaxBytes                  int
@@ -211,8 +219,12 @@ func (e *Engine) Handler() http.Handler {
 //	_ = engine.Serve(ctx)
 func (e *Engine) Serve(ctx context.Context) error {
 	srv := &http.Server{
-		Addr:    e.addr,
-		Handler: e.build(),
+		Addr:              e.addr,
+		Handler:           e.build(),
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
 	}
 
 	errCh := make(chan error, 1)
@@ -271,6 +283,10 @@ func (e *Engine) build() *gin.Engine {
 	if e.chatCompletionsResolver != nil {
 		h := newChatCompletionsHandler(e.chatCompletionsResolver)
 		r.POST(e.chatCompletionsPath, h.ServeHTTP)
+	}
+
+	if e.sdkGenEnabled {
+		mountSDKGen(r)
 	}
 
 	// Mount each registered group at its base path.
