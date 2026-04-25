@@ -3,11 +3,9 @@
 package api
 
 import (
-	"context"
-	"net/http"
+	"context"  // Note: AX-6 - OIDC verifier APIs require context.Context; no core primitive.
+	"net/http" // Note: AX-6 - structural HTTP status boundary for Gin auth responses; no core primitive.
 	"slices"
-	"strings"
-	"sync"
 
 	core "dappco.re/go/core"
 
@@ -100,7 +98,7 @@ func GetUser(c *gin.Context) *AuthentikUser {
 }
 
 // oidcProviderMu guards the provider cache.
-var oidcProviderMu sync.Mutex
+var oidcProviderMu core.Mutex
 
 // oidcProviders caches OIDC providers by issuer URL to avoid repeated
 // discovery requests.
@@ -261,9 +259,8 @@ func normalisePublicPaths(paths []string) []string {
 		if !core.HasPrefix(path, "/") {
 			path = "/" + path
 		}
-		path = strings.TrimRight(path, "/")
-		if path == "" {
-			path = "/"
+		for core.HasSuffix(path, "/") && path != "/" {
+			path = core.TrimSuffix(path, "/")
 		}
 		if _, ok := seen[path]; ok {
 			continue
