@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 	"unicode"
 
@@ -514,7 +513,14 @@ func joinOpenAPIPath(basePath, routePath string) string {
 		return routePath
 	}
 
-	return strings.TrimRight(basePath, "/") + "/" + core.TrimPrefix(routePath, "/")
+	return trimTrailingSlashes(basePath) + "/" + core.TrimPrefix(routePath, "/")
+}
+
+func trimTrailingSlashes(value string) string {
+	for core.HasSuffix(value, "/") {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
 }
 
 // normaliseOpenAPIPath trims whitespace and collapses trailing separators
@@ -2186,12 +2192,12 @@ func pathParameters(path string) []map[string]any {
 		if path[i] != open {
 			continue
 		}
-		end := strings.IndexByte(path[i+1:], close)
+		end := indexByteFrom(path, close, i+1)
 		if end < 0 {
 			continue
 		}
-		name := path[i+1 : i+1+end]
-		if name == "" || strings.ContainsAny(name, "/{}") || seen[name] {
+		name := path[i+1 : end]
+		if name == "" || containsPathParameterDelimiter(name) || seen[name] {
 			continue
 		}
 		seen[name] = true
@@ -2203,10 +2209,25 @@ func pathParameters(path string) []map[string]any {
 				"type": "string",
 			},
 		})
-		i += end + 1
+		i = end
 	}
 
 	return params
+}
+
+func indexByteFrom(value string, target byte, start int) int {
+	for i := start; i < len(value); i++ {
+		if value[i] == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func containsPathParameterDelimiter(name string) bool {
+	return core.Contains(name, "/") ||
+		core.Contains(name, "{") ||
+		core.Contains(name, "}")
 }
 
 // operationParameters converts explicit route parameter descriptions into
@@ -2790,7 +2811,7 @@ func operationID(method, path string, operationIDs map[string]int) string {
 		}
 	}
 
-	out := strings.Trim(b.String(), "_")
+	out := trimOperationIDUnderscores(b.String())
 	if out == "" {
 		return "operation"
 	}
@@ -2805,4 +2826,14 @@ func operationID(method, path string, operationIDs map[string]int) string {
 		return out
 	}
 	return out + "_" + strconv.Itoa(count+1)
+}
+
+func trimOperationIDUnderscores(value string) string {
+	for core.HasPrefix(value, "_") {
+		value = core.TrimPrefix(value, "_")
+	}
+	for core.HasSuffix(value, "_") {
+		value = core.TrimSuffix(value, "_")
+	}
+	return value
 }

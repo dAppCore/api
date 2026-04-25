@@ -4,7 +4,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"maps"
 	"os"
@@ -12,8 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -71,13 +70,13 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "context is nil", nil)
 	}
 
-	language = strings.TrimSpace(language)
+	language = core.Trim(language)
 	generator, ok := supportedLanguages[language]
 	if !ok {
-		return coreerr.E("SDKGenerator.Generate", fmt.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
+		return coreerr.E("SDKGenerator.Generate", core.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
 	}
 
-	specPath := strings.TrimSpace(g.SpecPath)
+	specPath := core.Trim(g.SpecPath)
 	if specPath == "" {
 		return coreerr.E("SDKGenerator.Generate", "spec path is required", nil)
 	}
@@ -88,14 +87,14 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "stat spec file", err)
 	}
 
-	outputBase := strings.TrimSpace(g.OutputDir)
+	outputBase := core.Trim(g.OutputDir)
 	if outputBase == "" {
 		return coreerr.E("SDKGenerator.Generate", "output directory is required", nil)
 	}
 
 	if g.PackageName != "" && !packageNameRe.MatchString(g.PackageName) {
 		return coreerr.E("SDKGenerator.Generate",
-			fmt.Sprintf("package name %q rejected: must match %s", g.PackageName, packageNameRe.String()), nil)
+			core.Sprintf("package name %q rejected: must match %s", g.PackageName, packageNameRe.String()), nil)
 	}
 
 	if !g.Available() {
@@ -167,7 +166,7 @@ func SupportedLanguages() []string {
 // Example:
 //
 //	for lang := range api.SupportedLanguagesIter() {
-//		fmt.Println(lang)
+//		_ = lang
 //	}
 func SupportedLanguagesIter() iter.Seq[string] {
 	return slices.Values(SupportedLanguages())
