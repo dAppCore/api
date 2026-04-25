@@ -3,15 +3,12 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
+	"strings" // Note: AX-6 — TrimLeftFunc no core equivalent
 	"sync"
 	"time"
 	"unicode"
@@ -147,7 +144,7 @@ func (d ChatMessageDelta) MarshalJSON() ([]byte, error) {
 		payload.Content = &content
 	}
 
-	return json.Marshal(payload)
+	return []byte(core.JSONMarshalString(payload)), nil
 }
 
 type chatCompletionError struct {
@@ -213,7 +210,7 @@ func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 		}
 	}
 
-	requested := strings.TrimSpace(name)
+	requested := core.Trim(name)
 	if requested == "" {
 		return nil, &modelResolutionError{
 			code:  "invalid_request_error",
@@ -247,7 +244,7 @@ func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 	return nil, &modelResolutionError{
 		code:  "model_not_found",
 		param: "model",
-		msg:   fmt.Sprintf("model %q not found", requested),
+		msg:   core.Sprintf("model %q not found", requested),
 	}
 }
 
@@ -267,7 +264,7 @@ func (r *ModelResolver) loadByPath(name, path string) (inference.TextModel, erro
 
 	loaded, err := inference.LoadModel(cleanPath)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "loading") {
+		if core.Contains(core.Lower(err.Error()), "loading") {
 			return nil, &modelResolutionError{
 				code:  "model_loading",
 				param: "model",
@@ -298,7 +295,7 @@ func (r *ModelResolver) lookupModelPath(name string) (string, bool) {
 		return "", false
 	}
 
-	if path, ok := mappings[name]; ok && strings.TrimSpace(path) != "" {
+	if path, ok := mappings[name]; ok && core.Trim(path) != "" {
 		return path, true
 	}
 	return "", false
@@ -306,13 +303,17 @@ func (r *ModelResolver) lookupModelPath(name string) (string, bool) {
 
 func (r *ModelResolver) modelsYAMLMapping() (map[string]string, bool) {
 	configPath := modelsYAMLConfigPath()
-	data, err := os.ReadFile(configPath)
-	if err != nil {
+	read := core.New().Fs().Read(configPath)
+	if !read.OK {
+		return nil, false
+	}
+	data, ok := read.Value.(string)
+	if !ok {
 		return nil, false
 	}
 
 	var content any
-	if err := yaml.Unmarshal(data, &content); err != nil {
+	if err := yaml.Unmarshal([]byte(data), &content); err != nil {
 		return nil, false
 	}
 
@@ -326,14 +327,14 @@ func (r *ModelResolver) modelsYAMLMapping() (map[string]string, bool) {
 	if models, ok := root["models"].(map[string]any); ok && models != nil {
 		for key, raw := range models {
 			if value, ok := raw.(string); ok {
-				normalized[core.Lower(strings.TrimSpace(key))] = strings.TrimSpace(value)
+				normalized[core.Lower(core.Trim(key))] = core.Trim(value)
 			}
 		}
 	}
 
 	for key, raw := range root {
 		if value, ok := modelMappingValue(raw); ok {
-			normalized[core.Lower(strings.TrimSpace(key))] = value
+			normalized[core.Lower(core.Trim(key))] = value
 		}
 	}
 
@@ -344,11 +345,7 @@ func (r *ModelResolver) modelsYAMLMapping() (map[string]string, bool) {
 }
 
 func modelsYAMLConfigPath() string {
-	if home := strings.TrimSpace(core.Env("DIR_HOME")); home != "" {
-		return core.Path(home, ".core", "models.yaml")
-	}
-
-	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+	if home := core.Trim(core.Env("DIR_HOME")); home != "" {
 		return core.Path(home, ".core", "models.yaml")
 	}
 
@@ -358,14 +355,14 @@ func modelsYAMLConfigPath() string {
 func modelMappingValue(raw any) (string, bool) {
 	switch value := raw.(type) {
 	case string:
-		trimmed := strings.TrimSpace(value)
+		trimmed := core.Trim(value)
 		return trimmed, trimmed != ""
 	case map[string]any:
 		path, ok := value["path"].(string)
 		if !ok {
 			return "", false
 		}
-		trimmed := strings.TrimSpace(path)
+		trimmed := core.Trim(path)
 		return trimmed, trimmed != ""
 	default:
 		return "", false
@@ -374,7 +371,7 @@ func modelMappingValue(raw any) (string, bool) {
 
 func (r *ModelResolver) resolveDiscoveredPath(name string) (string, bool) {
 	candidates := []string{name}
-	if n := strings.IndexRune(name, ':'); n > 0 {
+	if n := indexByte(name, ':'); n > 0 {
 		candidates = append(candidates, name[:n])
 	}
 
@@ -390,7 +387,7 @@ func (r *ModelResolver) resolveDiscoveredPath(name string) (string, bool) {
 	base := core.Path(core.Env("DIR_HOME"), ".core", "models")
 	var discovered string
 	for _, m := range discoveryModels(base) {
-		modelType := strings.ToLower(strings.TrimSpace(m.ModelType))
+		modelType := core.Lower(core.Trim(m.ModelType))
 		for _, candidate := range candidates {
 			if candidate != "" && candidate == modelType {
 				discovered = m.Path
@@ -450,8 +447,8 @@ func discoveryModels(base string) []discoveredModel {
 //	thinking := extractor.Thinking()  // Internal reasoning (may be nil)
 type ThinkingExtractor struct {
 	currentChannel string
-	content        strings.Builder
-	thought        strings.Builder
+	content        string
+	thought        string
 }
 
 // NewThinkingExtractor constructs a ThinkingExtractor that starts on the
@@ -486,7 +483,7 @@ func (te *ThinkingExtractor) Content() string {
 	if te == nil {
 		return ""
 	}
-	return te.content.String()
+	return te.content
 }
 
 // Thinking returns all text accumulated on the internal "thought" channel so
@@ -500,10 +497,10 @@ func (te *ThinkingExtractor) Thinking() *string {
 	if te == nil {
 		return nil
 	}
-	if te.thought.Len() == 0 {
+	if te.thought == "" {
 		return nil
 	}
-	out := te.thought.String()
+	out := te.thought
 	return &out
 }
 
@@ -518,12 +515,12 @@ func (te *ThinkingExtractor) writeDeltas(text string) (string, string) {
 		return "", ""
 	}
 
-	beforeContentLen := te.content.Len()
-	beforeThoughtLen := te.thought.Len()
+	beforeContentLen := len(te.content)
+	beforeThoughtLen := len(te.thought)
 
 	remaining := text
 	for {
-		next := strings.Index(remaining, channelMarker)
+		next := indexString(remaining, channelMarker)
 		if next < 0 {
 			te.writeToCurrentChannel(remaining)
 			break
@@ -554,7 +551,7 @@ func (te *ThinkingExtractor) writeDeltas(text string) (string, string) {
 		remaining = remaining[consumed:]
 	}
 
-	return te.content.String()[beforeContentLen:], te.thought.String()[beforeThoughtLen:]
+	return te.content[beforeContentLen:], te.thought[beforeThoughtLen:]
 }
 
 func (te *ThinkingExtractor) writeToCurrentChannel(text string) {
@@ -563,10 +560,10 @@ func (te *ThinkingExtractor) writeToCurrentChannel(text string) {
 	}
 
 	if te.currentChannel == "thought" {
-		te.thought.WriteString(text)
+		te.thought += text
 		return
 	}
-	te.content.WriteString(text)
+	te.content += text
 }
 
 func parseChannelName(s string) (string, int) {
@@ -585,7 +582,7 @@ func parseChannelName(s string) (string, int) {
 	if count == 0 {
 		return "", 0
 	}
-	return strings.ToLower(s[:count]), count
+	return core.Lower(s[:count]), count
 }
 
 type chatCompletionsHandler struct {
@@ -670,7 +667,7 @@ func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inferen
 		extractor.Process(tok)
 	}
 	if err := model.Err(); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "loading") {
+		if core.Contains(core.Lower(err.Error()), "loading") {
 			writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
 			return
 		}
@@ -747,10 +744,9 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 				},
 			},
 		}
-		if encoded, encodeErr := json.Marshal(primingChunk); encodeErr == nil {
-			c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
-			c.Writer.Flush()
-		}
+		encoded := core.JSONMarshalString(primingChunk)
+		c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+		c.Writer.Flush()
 
 		streamStarted = true
 	}
@@ -795,10 +791,9 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 			chunk.Thought = &t
 		}
 
-		if encoded, encodeErr := json.Marshal(chunk); encodeErr == nil {
-			c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
-			c.Writer.Flush()
-		}
+		encoded := core.JSONMarshalString(chunk)
+		c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+		c.Writer.Flush()
 		if stopHit {
 			emittedContent = candidateContent[:stopCut]
 		} else {
@@ -811,7 +806,7 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 
 	if err := model.Err(); err != nil {
 		if !streamStarted {
-			if strings.Contains(strings.ToLower(err.Error()), "loading") {
+			if core.Contains(core.Lower(err.Error()), "loading") {
 				writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
 				return
 			}
@@ -845,9 +840,8 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 			},
 		},
 	}
-	if encoded, encodeErr := json.Marshal(finalChunk); encodeErr == nil {
-		c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
-	}
+	encoded := core.JSONMarshalString(finalChunk)
+	c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
 	c.Writer.WriteString("data: [DONE]\n\n")
 	c.Writer.Flush()
 }
@@ -868,7 +862,7 @@ func (e *chatCompletionRequestError) Error() string {
 }
 
 func validateChatRequest(req *ChatCompletionRequest) error {
-	if strings.TrimSpace(req.Model) == "" {
+	if core.Trim(req.Model) == "" {
 		return &chatCompletionRequestError{
 			Status:  400,
 			Type:    "invalid_request_error",
@@ -889,13 +883,13 @@ func validateChatRequest(req *ChatCompletionRequest) error {
 	}
 
 	for i, msg := range req.Messages {
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		role := core.Lower(core.Trim(msg.Role))
 		if role == "" {
 			return &chatCompletionRequestError{
 				Status:  400,
 				Type:    "invalid_request_error",
 				Code:    "invalid_request_error",
-				Param:   fmt.Sprintf("messages[%d].role", i),
+				Param:   core.Sprintf("messages[%d].role", i),
 				Message: "message role is required",
 			}
 		}
@@ -906,7 +900,7 @@ func validateChatRequest(req *ChatCompletionRequest) error {
 				Status:  400,
 				Type:    "invalid_request_error",
 				Code:    "invalid_request_error",
-				Param:   fmt.Sprintf("messages[%d].role", i),
+				Param:   core.Sprintf("messages[%d].role", i),
 				Message: "message role must be system, user, or assistant",
 			}
 		}
@@ -962,7 +956,7 @@ func isLoopbackRequest(r *http.Request) bool {
 		return false
 	}
 
-	remoteAddr := strings.TrimSpace(r.RemoteAddr)
+	remoteAddr := core.Trim(r.RemoteAddr)
 	if remoteAddr == "" {
 		return true
 	}
@@ -972,7 +966,7 @@ func isLoopbackRequest(r *http.Request) bool {
 		host = remoteAddr
 	}
 
-	host = strings.Trim(host, "[]")
+	host = trimSquareBrackets(host)
 	ip := net.ParseIP(host)
 	if ip == nil {
 		return false
@@ -988,9 +982,9 @@ func normalizedStopSequences(stops []string) ([]string, error) {
 
 	out := make([]string, 0, len(stops))
 	for _, raw := range stops {
-		raw = strings.TrimSpace(raw)
+		raw = core.Trim(raw)
 		if raw == "" {
-			return nil, fmt.Errorf("stop entries cannot be empty")
+			return nil, core.E("", "stop entries cannot be empty", nil)
 		}
 		out = append(out, raw)
 	}
@@ -1004,13 +998,13 @@ func parsedStopTokens(stops []string) ([]int32, error) {
 
 	out := make([]int32, 0, len(stops))
 	for _, raw := range stops {
-		raw = strings.TrimSpace(raw)
+		raw = core.Trim(raw)
 		if raw == "" {
-			return nil, fmt.Errorf("stop entries cannot be empty")
+			return nil, core.E("", "stop entries cannot be empty", nil)
 		}
 		parsed, err := strconv.ParseInt(raw, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("invalid stop token %q", raw)
+			return nil, core.E("", core.Sprintf("invalid stop token %q", raw), nil)
 		}
 		out = append(out, int32(parsed))
 	}
@@ -1027,7 +1021,7 @@ func firstStopSequenceCut(content string, stops []string) (int, bool) {
 		if stop == "" {
 			continue
 		}
-		idx := strings.Index(content, stop)
+		idx := indexString(content, stop)
 		if idx < 0 {
 			continue
 		}
@@ -1113,11 +1107,128 @@ func codeOrDefault(code, fallback string) string {
 
 func newChatCompletionID() string {
 	//#nosec G404 -- non-security ID for display/correlation only
-	return fmt.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
+	return core.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
 }
 
 func decodeJSONBody(reader io.Reader, dest any) error {
-	decoder := json.NewDecoder(reader)
-	decoder.DisallowUnknownFields()
-	return decoder.Decode(dest)
+	read := core.ReadAll(reader)
+	if !read.OK {
+		return core.E("decodeJSONBody", "read request body", coreResultError(read))
+	}
+	raw, ok := read.Value.(string)
+	if !ok {
+		return core.E("decodeJSONBody", "read request body", nil)
+	}
+
+	if _, ok := dest.(*ChatCompletionRequest); ok {
+		if err := rejectUnknownChatCompletionFields(raw); err != nil {
+			return err
+		}
+	}
+
+	result := core.JSONUnmarshalString(raw, dest)
+	if !result.OK {
+		return coreResultError(result)
+	}
+	return nil
+}
+
+func rejectUnknownChatCompletionFields(raw string) error {
+	var body map[string]any
+	result := core.JSONUnmarshalString(raw, &body)
+	if !result.OK {
+		return coreResultError(result)
+	}
+	for key := range body {
+		if !allowedChatCompletionRequestField(key) {
+			return unknownJSONFieldError(key)
+		}
+	}
+
+	messages, ok := body["messages"].([]any)
+	if !ok {
+		return nil
+	}
+	for _, rawMessage := range messages {
+		message, ok := rawMessage.(map[string]any)
+		if !ok {
+			continue
+		}
+		for key := range message {
+			if !allowedChatMessageField(key) {
+				return unknownJSONFieldError(key)
+			}
+		}
+	}
+	return nil
+}
+
+func allowedChatCompletionRequestField(name string) bool {
+	switch name {
+	case "model", "messages", "temperature", "top_p", "top_k", "max_tokens", "stream", "stop", "user":
+		return true
+	default:
+		return false
+	}
+}
+
+func allowedChatMessageField(name string) bool {
+	switch name {
+	case "role", "content":
+		return true
+	default:
+		return false
+	}
+}
+
+func unknownJSONFieldError(name string) error {
+	return core.E("", core.Sprintf("json: unknown field %q", name), nil)
+}
+
+func coreResultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.E("", "operation failed", nil)
+}
+
+func indexString(s, substr string) int {
+	if substr == "" {
+		return 0
+	}
+	if len(substr) > len(s) {
+		return -1
+	}
+
+	max := len(s) - len(substr)
+	first := substr[0]
+	for i := 0; i <= max; i++ {
+		if s[i] == first && s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func indexByte(s string, target byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func trimSquareBrackets(s string) string {
+	for len(s) > 0 && (s[0] == '[' || s[0] == ']') {
+		s = s[1:]
+	}
+	for len(s) > 0 {
+		last := s[len(s)-1]
+		if last != '[' && last != ']' {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
 }

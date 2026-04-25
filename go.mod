@@ -130,6 +130,7 @@ require (
 
 replace (
 	dappco.re/go/core => ../go
+	dappco.re/go/forge => ../go-forge
 	dappco.re/go/core/i18n => ../go-i18n
 	dappco.re/go/core/inference => ../go-inference
 	dappco.re/go/core/io => ../go-io
