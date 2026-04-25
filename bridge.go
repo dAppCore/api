@@ -3,22 +3,17 @@
 package api
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
-	"io"
-	"iter"
+	"bufio"         // Note: AX-6 - Gin ResponseWriter Hijack contract requires bufio.ReadWriter; no core primitive.
+	"encoding/json" // Note: AX-6 - streaming decoder UseNumber/json.Number checks have no core primitive.
+	"io"            // Note: AX-6 - HTTP body reads, EOF sentinel, and body reset are structural stream boundaries.
+	"iter"          // Note: AX-6 - iter.Seq is the public lazy iteration shape for bridge snapshots.
 	"math"
 	"math/big"
 	"net"
-	"net/http"
-	"reflect"
+	"net/http" // Note: AX-6 - Gin bridge handlers must emit HTTP status codes and wrap request bodies directly.
+	"reflect"  // Note: AX-6 - reflect is structural for JSON schema enum equality; no core primitive.
 	"regexp"
-	"slices"
-	"strconv"
-	"strings"
-	"sync"
-	"unicode/utf8"
+	"slices" // Note: AX-6 - deterministic snapshot cloning needs slices.Clone; no core primitive.
 
 	core "dappco.re/go/core"
 
@@ -60,7 +55,7 @@ var _ DescribableGroup = (*ToolBridge)(nil)
 
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 var mcpServerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,63}$`)
-var regexPatternCache sync.Map
+var regexPatternCache core.SyncMap
 
 // NewToolBridge creates a bridge that mounts tool endpoints at basePath.
 //
@@ -278,7 +273,7 @@ func isValidToolName(name string) bool {
 
 	// Keep the path segment safe even when callers try to smuggle in traversal
 	// syntax or path separators through a name that otherwise matches the regex.
-	if strings.ContainsAny(name, `/\*?`) || strings.Contains(name, "..") {
+	if containsAnyByte(name, `/\*?`) || core.Contains(name, "..") {
 		return false
 	}
 
@@ -290,7 +285,7 @@ func isValidMCPServerID(id string) bool {
 		return false
 	}
 
-	if strings.ContainsRune(id, '\x00') || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+	if core.Contains(id, "\x00") || containsAnyByte(id, `/\`) || core.Contains(id, "..") {
 		return false
 	}
 
@@ -305,12 +300,37 @@ func normaliseToolBridgePath(path string) string {
 		return "/"
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimSlashes(path)
 	if path == "/" {
 		return "/"
 	}
 
 	return path
+}
+
+func containsAnyByte(s, chars string) bool {
+	for i := 0; i < len(s); i++ {
+		for j := 0; j < len(chars); j++ {
+			if s[i] == chars[j] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func trimSlashes(s string) string {
+	start := 0
+	for start < len(s) && s[start] == '/' {
+		start++
+	}
+
+	end := len(s)
+	for end > start && s[end-1] == '/' {
+		end--
+	}
+
+	return s[start:end]
 }
 
 // maxToolRequestBodyBytes is the maximum request body size accepted by the
@@ -345,7 +365,7 @@ func wrapToolHandler(handler gin.HandlerFunc, validator *toolInputValidator) gin
 			return
 		}
 
-		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+		c.Request.Body = io.NopCloser(core.NewBuffer(body))
 		handler(c)
 	}
 }
@@ -358,7 +378,7 @@ func wrapToolResponseHandler(handler gin.HandlerFunc, validator *toolInputValida
 		handler(c)
 
 		if recorder.Status() >= 200 && recorder.Status() < 300 {
-			if err := validator.ValidateResponse(recorder.body.Bytes()); err != nil {
+			if err := validator.ValidateResponse(recorder.body); err != nil {
 				recorder.reset()
 				recorder.writeErrorResponse(http.StatusInternalServerError, FailWithDetails(
 					"invalid_tool_response",
@@ -385,11 +405,11 @@ func newToolInputValidator(schema map[string]any) *toolInputValidator {
 }
 
 func (v *toolInputValidator) Validate(body []byte) error {
-	if len(bytes.TrimSpace(body)) == 0 {
+	if core.Trim(string(body)) == "" {
 		return core.E("ToolBridge.Validate", "request body is required", nil)
 	}
 
-	dec := json.NewDecoder(bytes.NewReader(body))
+	dec := json.NewDecoder(core.NewBuffer(body))
 	dec.UseNumber()
 
 	var payload any
@@ -414,7 +434,7 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 	// than being silently coerced to float64. This matches the behaviour of
 	// the Validate path and avoids precision loss for 64-bit integer values.
 	var envelope map[string]any
-	envDec := json.NewDecoder(bytes.NewReader(body))
+	envDec := json.NewDecoder(core.NewBuffer(body))
 	envDec.UseNumber()
 	if err := envDec.Decode(&envelope); err != nil {
 		return core.E("ToolBridge.ValidateResponse", "invalid JSON response", err)
@@ -439,7 +459,7 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 	}
 
 	var payload any
-	dec := json.NewDecoder(bytes.NewReader(encoded))
+	dec := json.NewDecoder(core.NewBuffer(encoded))
 	dec.UseNumber()
 	if err := dec.Decode(&payload); err != nil {
 		return core.E("ToolBridge.ValidateResponse", "decode response data", err)
@@ -503,7 +523,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 			}
 			if items := schemaMap(schema["items"]); len(items) > 0 {
 				for i, item := range arr {
-					if err := validateSchemaNode(item, items, joinPath(path, strconv.Itoa(i))); err != nil {
+					if err := validateSchemaNode(item, items, joinPath(path, core.Itoa(i))); err != nil {
 						return err
 					}
 				}
@@ -607,7 +627,7 @@ anyOfMatched:
 }
 
 func validateStringConstraints(value string, schema map[string]any, path string) error {
-	length := utf8.RuneCountInString(value)
+	length := core.RuneCount(value)
 	if minLength, ok := schemaInt(schema["minLength"]); ok && length < minLength {
 		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be at least %d characters long", displayPath(path), minLength), nil)
 	}
@@ -757,7 +777,7 @@ func numericGreaterThan(value any, limit float64) bool {
 type toolResponseRecorder struct {
 	gin.ResponseWriter
 	headers     http.Header
-	body        bytes.Buffer
+	body        []byte
 	status      int
 	wroteHeader bool
 }
@@ -791,14 +811,16 @@ func (w *toolResponseRecorder) Write(data []byte) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
-	return w.body.Write(data)
+	w.body = append(w.body, data...)
+	return len(data), nil
 }
 
 func (w *toolResponseRecorder) WriteString(s string) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
-	return w.body.WriteString(s)
+	w.body = append(w.body, s...)
+	return len(s), nil
 }
 
 func (w *toolResponseRecorder) Flush() {
@@ -812,7 +834,7 @@ func (w *toolResponseRecorder) Status() int {
 }
 
 func (w *toolResponseRecorder) Size() int {
-	return w.body.Len()
+	return len(w.body)
 }
 
 func (w *toolResponseRecorder) Written() bool {
@@ -833,12 +855,12 @@ func (w *toolResponseRecorder) commit() {
 		}
 	}
 	w.ResponseWriter.WriteHeader(w.Status())
-	_, _ = w.ResponseWriter.Write(w.body.Bytes())
+	_, _ = w.ResponseWriter.Write(w.body)
 }
 
 func (w *toolResponseRecorder) reset() {
 	w.headers = make(http.Header)
-	w.body.Reset()
+	w.body = nil
 	w.status = http.StatusInternalServerError
 	w.wroteHeader = false
 }
@@ -862,8 +884,7 @@ func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]
 		w.headers = make(http.Header)
 	}
 	w.headers.Set("Content-Type", "application/json")
-	w.body.Reset()
-	_, _ = w.body.Write(data)
+	w.body = append(w.body[:0], data...)
 	w.commit()
 }
 
@@ -1081,8 +1102,8 @@ func integralNumericValue(value any) (*big.Int, bool) {
 	case float64:
 		return integralBigIntFromFloat64(v)
 	case json.Number:
-		text := strings.TrimSpace(v.String())
-		if text == "" || strings.ContainsAny(text, ".eE") {
+		text := core.Trim(v.String())
+		if text == "" || containsAnyByte(text, ".eE") {
 			return nil, false
 		}
 		n := new(big.Int)
