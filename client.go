@@ -713,13 +713,17 @@ func applyCookieValue(req *http.Request, key string, value any) {
 		return
 	case []string:
 		for _, item := range v {
+
 			//#nosec G124 -- outbound request cookie, not Set-Cookie response.
+
 			req.AddCookie(&http.Cookie{Name: key, Value: item})
 		}
 		return
 	case []any:
 		for _, item := range v {
+
 			//#nosec G124 -- outbound request cookie, not Set-Cookie response.
+
 			req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(item)})
 		}
 		return
@@ -728,13 +732,16 @@ func applyCookieValue(req *http.Request, key string, value any) {
 	rv := reflect.ValueOf(value)
 	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && !(rv.Type().Elem().Kind() == reflect.Uint8) {
 		for i := 0; i < rv.Len(); i++ {
+
 			//#nosec G124 -- outbound request cookie, not Set-Cookie response.
+
 			req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(rv.Index(i).Interface())})
 		}
 		return
 	}
 
 	//#nosec G124 -- outbound request cookie, not Set-Cookie response.
+
 	req.AddCookie(&http.Cookie{Name: key, Value: core.Sprint(value)})
 }
 
