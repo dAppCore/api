@@ -6,8 +6,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +44,45 @@ func (t trackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	return resp, err
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func publicServerURL(t *testing.T, srv *httptest.Server) string {
+	t.Helper()
+
+	parsed, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parse test server URL: %v", err)
+	}
+	parsed.Host = "93.184.216.34"
+	return parsed.String()
+}
+
+func localServerTransport(t *testing.T, srv *httptest.Server) http.RoundTripper {
+	t.Helper()
+
+	targetAddr := srv.Listener.Addr().String()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, targetAddr)
+	}
+	return transport
+}
+
+func publicSSEClient(t *testing.T, srv *httptest.Server, opts ...SSEClientOption) *SSEClient {
+	t.Helper()
+
+	options := []SSEClientOption{
+		WithSSEHTTPClient(&http.Client{Transport: localServerTransport(t, srv)}),
+	}
+	options = append(options, opts...)
+	return NewSSEClient(publicServerURL(t, srv), options...)
 }
 
 func TestTransportClient_WithWebSocketHeaders_Good_CopiesValues(t *testing.T) {
@@ -234,8 +275,9 @@ func TestTransportClient_Connect_Good_SetsAcceptHeaderAndReturnsResponse(t *test
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(
-		srv.URL,
+	client := publicSSEClient(
+		t,
+		srv,
 		WithSSEHeaders(http.Header{"Authorization": {"Bearer secret"}}),
 	)
 
@@ -263,7 +305,7 @@ func TestTransportClient_Connect_Bad_RejectsNonOKStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(srv.URL)
+	client := publicSSEClient(t, srv)
 	if _, err := client.Connect(context.Background()); err == nil {
 		t.Fatal("expected non-200 SSE response to fail")
 	}
@@ -279,9 +321,9 @@ func TestTransportClient_Connect_Bad_ClosesResponseBodyOnRedirectError(t *testin
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(srv.URL, WithSSEHTTPClient(&http.Client{
+	client := NewSSEClient(publicServerURL(t, srv), WithSSEHTTPClient(&http.Client{
 		Transport: trackingRoundTripper{
-			base:   http.DefaultTransport,
+			base:   localServerTransport(t, srv),
 			closed: &closed,
 		},
 		CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -319,7 +361,7 @@ func TestTransportClient_Events_Good_ParsesStream(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(srv.URL)
+	client := publicSSEClient(t, srv)
 	events, err := client.Events(context.Background())
 	if err != nil {
 		t.Fatalf("Events failed: %v", err)
@@ -355,7 +397,7 @@ func TestTransportClient_Events_Bad_ContextCancelledClosesChannel(t *testing.T) 
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(srv.URL)
+	client := publicSSEClient(t, srv)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -428,7 +470,7 @@ func TestTransportClient_Events_Bad_PropagatesConnectError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(srv.URL)
+	client := publicSSEClient(t, srv)
 	if _, err := client.Events(context.Background()); err == nil {
 		t.Fatal("expected Events to fail when Connect fails")
 	}
@@ -462,7 +504,7 @@ func TestTransportClient_Connect_Good_EmptyHeadersDoNotPanic(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewSSEClient(srv.URL, WithSSEHeaders(http.Header{}))
+	client := publicSSEClient(t, srv, WithSSEHeaders(http.Header{}))
 	resp, err := client.Connect(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -474,5 +516,45 @@ func TestTransportClient_NewSSEClient_Good_IgnoresNilOptions(t *testing.T) {
 	client := NewSSEClient("http://example.invalid/events", nil)
 	if client.Client == nil {
 		t.Fatal("expected default HTTP client")
+	}
+}
+
+func TestTransportClient_doHTTPClientRequest_Bad_BlocksRedirectToMetadata(t *testing.T) {
+	var attempts int
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			if attempts > 1 {
+				t.Fatalf("unexpected follow-up request to %s", req.URL.String())
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Status:     "302 Found",
+				Header: http.Header{
+					"Location": {"http://169.254.169.254/latest/meta-data/iam/security-credentials/"},
+				},
+				Body:    io.NopCloser(strings.NewReader("redirecting")),
+				Request: req,
+			}, nil
+		}),
+	}
+	req, err := http.NewRequest(http.MethodGet, "http://93.184.216.34/start", nil)
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+
+	resp, err := doHTTPClientRequest(client, req)
+	if err == nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatal("expected metadata redirect to be blocked")
+	}
+	if !errors.Is(err, errOutboundURLBlocked) {
+		t.Fatalf("expected errOutboundURLBlocked, got %v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected only the initial request, got %d attempts", attempts)
 	}
 }

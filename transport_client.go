@@ -364,9 +364,10 @@ func cloneHTTPHeader(header http.Header) http.Header {
 }
 
 // doHTTPClientRequest is the singular choke point for outbound HTTP from
-// SSEClient.Connect and OpenAPIClient.Call. It validates the request URL
-// against the deny-by-default outbound policy (see ssrf_guard.go) before
-// invoking client.Do. Cerberus mechanism review attached to Mantis #318.
+// SSEClient.Connect and OpenAPIClient.Call. It validates the request URL and
+// any followed redirects against the deny-by-default outbound policy (see
+// ssrf_guard.go) before invoking client.Do. Cerberus mechanism review attached
+// to Mantis #318.
 func doHTTPClientRequest(client *http.Client, req *http.Request) (*http.Response, error) {
 	if client == nil {
 		client = http.DefaultClient
@@ -378,8 +379,10 @@ func doHTTPClientRequest(client *http.Client, req *http.Request) (*http.Response
 		}
 	}
 
-	//#nosec G107 -- URL validated above by validateOutboundURL deny-by-default policy.
-	resp, err := client.Do(req)
+	requestClient := clientWithOutboundRedirectGuard(client)
+
+	//#nosec G107 G704 -- initial URL and followed redirects validated by validateOutboundURL deny-by-default policy.
+	resp, err := requestClient.Do(req)
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			_ = resp.Body.Close()
@@ -389,4 +392,27 @@ func doHTTPClientRequest(client *http.Client, req *http.Request) (*http.Response
 	}
 
 	return resp, nil
+}
+
+func clientWithOutboundRedirectGuard(client *http.Client) *http.Client {
+	guarded := *client
+	checkRedirect := client.CheckRedirect
+	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if checkRedirect != nil {
+			if err := checkRedirect(req, via); err != nil {
+				return err
+			}
+		} else if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+
+		if req != nil && req.URL != nil {
+			if err := validateOutboundURL(req.URL.String()); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+	return &guarded
 }
