@@ -154,9 +154,13 @@ func applyEntitlementHeaders(dst, src http.Header, token, workspaceID string) {
 			dst.Set("Authorization", auth)
 		}
 	}
+	hasAuthorization := dst.Get("Authorization") != ""
 
 	for _, name := range []string{"Cookie", "X-Request-ID", "X-Workspace-Id"} {
 		if src == nil {
+			continue
+		}
+		if name == "Cookie" && hasAuthorization {
 			continue
 		}
 		if value := src.Get(name); value != "" {

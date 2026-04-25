@@ -19,6 +19,9 @@ func TestEntitlementBridge_Good_CallbackChecksWorkspaceEndpoint(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer user-token" {
 			t.Fatalf("expected forwarded Authorization header, got %q", got)
 		}
+		if got := r.Header.Get("Cookie"); got != "" {
+			t.Fatalf("expected cookie to be omitted when Authorization is set, got %q", got)
+		}
 		if got := r.Header.Get("X-Workspace-Id"); got != "42" {
 			t.Fatalf("expected workspace header 42, got %q", got)
 		}
@@ -30,6 +33,7 @@ func TestEntitlementBridge_Good_CallbackChecksWorkspaceEndpoint(t *testing.T) {
 	bridge := api.NewEntitlementBridge(api.EntitlementBridgeConfig{BaseURL: srv.URL})
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer user-token")
+	headers.Set("Cookie", "session=abc")
 
 	callback := bridge.Callback(context.Background(), "42", headers)
 	if !callback("premium.feature") {
