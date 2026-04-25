@@ -1,13 +1,18 @@
 module dappco.re/go/api
 
-go 1.26.0
+go 1.26.2
 
 require (
-	dappco.re/go/core v0.8.0-alpha.1
 	dappco.re/go/cli v0.8.0-alpha.1
+	dappco.re/go/core v0.8.0-alpha.1
+	dappco.re/go/core/miner v0.8.0-alpha.1
 	dappco.re/go/inference v0.8.0-alpha.1
 	dappco.re/go/io v0.8.0-alpha.1
 	dappco.re/go/log v0.8.0-alpha.1
+	dappco.re/go/process v0.8.0-alpha.1
+	dappco.re/go/proxy v0.0.0
+	dappco.re/go/scm v0.8.0-alpha.1
+	dappco.re/go/ws v0.8.0-alpha.1
 	github.com/99designs/gqlgen v0.17.88
 	github.com/andybalholm/brotli v1.2.0
 	github.com/casbin/casbin/v2 v2.135.0
@@ -26,6 +31,7 @@ require (
 	github.com/gin-contrib/timeout v1.1.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/quic-go/quic-go v0.59.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
@@ -40,6 +46,7 @@ require (
 )
 
 require (
+	dappco.re/go/core/log v0.1.2 // indirect
 	dappco.re/go/i18n v0.8.0-alpha.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
@@ -60,6 +67,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -103,7 +111,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/redis/go-redis/v9 v9.18.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/sosodev/duration v1.4.0 // indirect
@@ -115,6 +123,7 @@ require (
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.25.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
@@ -129,10 +138,18 @@ require (
 )
 
 replace (
+	codeberg.org/forgejo/go-sdk => ../go-scm/third_party/forgejo
+	dappco.re/go/cli => ../cli
+	dappco.re/go/config => ../go-config
 	dappco.re/go/core => ../go
+	dappco.re/go/core/miner => ../go-miner
 	dappco.re/go/forge => ../go-forge
-	dappco.re/go/core/i18n => ../go-i18n
-	dappco.re/go/core/inference => ../go-inference
-	dappco.re/go/core/io => ../go-io
-	dappco.re/go/core/log => ../go-log
+	dappco.re/go/i18n => ../go-i18n
+	dappco.re/go/inference => ../go-inference
+	dappco.re/go/io => ../go-io
+	dappco.re/go/log => ../go-log
+	dappco.re/go/process => ../go-process
+	dappco.re/go/proxy => ../go-proxy
+	dappco.re/go/scm => ../go-scm
+	dappco.re/go/ws => ../go-ws
 )
