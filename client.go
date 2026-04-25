@@ -3,17 +3,22 @@
 package api
 
 import (
+	// Note: AX-6 — byte-slice JSON whitespace checks have no core byte-trim primitive.
 	"bytes"
+	// Note: AX-6 — streaming JSON decoder UseNumber/extra-token checks have no core primitive.
 	"encoding/json"
+	// Note: AX-6 — io.Reader API, HTTP body reads, and EOF sentinel are structural stream boundaries.
 	"io"
+	// Note: AX-6 — iter.Seq is the public lazy iteration shape for operation/server snapshots.
 	"iter"
+	// Note: AX-6 — OpenAPIClient owns an outbound HTTP client boundary; no core HTTP client primitive.
 	"net/http"
+	// Note: AX-6 — URL joining, query values, and parsed URL fields are structural client boundary details.
 	"net/url"
 	// Note: AX-6 — reflect is structural for HTTP client param marshaling.
 	"reflect"
+	// Note: AX-6 — deterministic ordering and snapshot cloning need slices sort/clone helpers.
 	"slices"
-	"strings"
-	"sync"
 
 	core "dappco.re/go/core"
 
@@ -35,7 +40,7 @@ type OpenAPIClient struct {
 	bearerToken string
 	httpClient  *http.Client
 
-	once       sync.Once
+	once       core.Once
 	operations map[string]openAPIOperation
 	servers    []string
 	loadErr    error
@@ -112,7 +117,7 @@ func WithSpec(path string) OpenAPIClientOption {
 //
 // Example:
 //
-//	client := api.NewOpenAPIClient(api.WithSpecReader(strings.NewReader(spec)))
+//	client := api.NewOpenAPIClient(api.WithSpecReader(core.NewReader(spec)))
 func WithSpecReader(reader io.Reader) OpenAPIClientOption {
 	return func(c *OpenAPIClient) {
 		c.specReader = reader
@@ -325,7 +330,7 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 
 	var bodyReader io.Reader
 	if len(body) > 0 {
-		bodyReader = bytes.NewReader(body)
+		bodyReader = core.NewBuffer(body)
 	}
 
 	req, err := http.NewRequest(op.method, requestURL, bodyReader)
@@ -366,7 +371,7 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 	}
 
 	var decoded any
-	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec := json.NewDecoder(core.NewBuffer(payload))
 	dec.UseNumber()
 	if err := dec.Decode(&decoded); err != nil {
 		return string(payload), nil
@@ -501,7 +506,10 @@ func snapshotOpenAPIOperation(operationID string, op openAPIOperation) OpenAPIOp
 }
 
 func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (string, error) {
-	base := strings.TrimRight(c.baseURL, "/")
+	base := c.baseURL
+	for core.HasSuffix(base, "/") {
+		base = core.TrimSuffix(base, "/")
+	}
 	if base == "" {
 		return "", core.E("OpenAPIClient.buildURL", "base URL is required", nil)
 	}
@@ -525,7 +533,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	for _, key := range pathKeys {
 		if value, ok := pathValues[key]; ok {
 			placeholder := "{" + key + "}"
-			path = core.Replace(path, placeholder, url.PathEscape(core.Sprint(value)))
+			path = core.Replace(path, placeholder, core.URLPathEscape(core.Sprint(value)))
 		}
 	}
 
@@ -905,15 +913,15 @@ func pathParameterNames(pathTemplate string) []string {
 		if pathTemplate[i] != '{' {
 			continue
 		}
-		end := strings.IndexByte(pathTemplate[i+1:], '}')
-		if end < 0 {
+		parts := core.SplitN(pathTemplate[i+1:], "}", 2)
+		if len(parts) < 2 {
 			break
 		}
-		name := pathTemplate[i+1 : i+1+end]
+		name := parts[0]
 		if name != "" {
 			names = append(names, name)
 		}
-		i += end + 1
+		i += len(name) + 1
 	}
 	return names
 }
@@ -1028,7 +1036,7 @@ func validateOpenAPISchema(body []byte, schema map[string]any, label string) err
 	}
 
 	var payload any
-	dec := json.NewDecoder(bytes.NewReader(body))
+	dec := json.NewDecoder(core.NewBuffer(body))
 	dec.UseNumber()
 	if err := dec.Decode(&payload); err != nil {
 		return core.E("OpenAPIClient.validateOpenAPISchema", core.Sprintf("validate %s: invalid JSON", label), err)
@@ -1047,7 +1055,7 @@ func validateOpenAPISchema(body []byte, schema map[string]any, label string) err
 
 func validateOpenAPIResponse(payload []byte, schema map[string]any, operationID string) error {
 	var decoded any
-	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec := json.NewDecoder(core.NewBuffer(payload))
 	dec.UseNumber()
 	if err := dec.Decode(&decoded); err != nil {
 		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s returned invalid JSON", operationID), err)
