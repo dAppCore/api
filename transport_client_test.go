@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"dappco.re/go/core"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -315,6 +317,38 @@ func TestTransportClient_DialContext_Bad_RejectsNilReceiverAndUnsupportedScheme(
 		if _, _, err := client.DialContext(context.Background()); err == nil {
 			t.Fatalf("expected unsupported scheme to fail for %s", raw)
 		}
+	}
+}
+
+func TestTransportClient_normaliseWebSocketClientURL_Bad_ReturnsErrorsForMalformedInput(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{name: "control-char", raw: "ws://example.invalid/a\nb"},
+		{name: "malformed-escape", raw: "ws://example.invalid/%2"},
+		{name: "empty", raw: ""},
+		{name: "no-scheme", raw: "example.invalid/ws"},
+		{name: "port-out-of-range", raw: "ws://example.invalid:65536/ws"},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("expected malformed URL error, got panic: %v", recovered)
+				}
+			}()
+
+			normalized, err := normaliseWebSocketClientURL(tt.raw)
+			if err == nil {
+				t.Fatalf("expected malformed URL to fail, got normalized URL %q", normalized)
+			}
+			var typed *core.Err
+			if !errors.As(err, &typed) {
+				t.Fatalf("expected typed core error, got %T: %v", err, err)
+			}
+		})
 	}
 }
 

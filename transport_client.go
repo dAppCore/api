@@ -8,6 +8,7 @@ import (
 	"io"       // Note: AX-6 — io.Reader contract
 	"net/http" // Note: AX-6 — HTTP transport boundary
 	"net/url"
+	"strconv"
 	"time"
 
 	core "dappco.re/go/core"
@@ -331,26 +332,64 @@ func parseSSEStream(ctx context.Context, body io.Reader, out chan<- SSEEvent) {
 func normaliseWebSocketClientURL(rawURL string) (string, error) {
 	rawURL = core.Trim(rawURL)
 	if rawURL == "" {
-		return "", coreerr.E("", "WebSocketClient URL is required", nil)
+		return "", core.E("", "WebSocketClient URL is required", nil)
 	}
 
-	parsed := core.URLParse(rawURL)
-	if !parsed.OK {
-		if err, ok := parsed.Value.(error); ok {
-			return "", err
+	parsedResult := core.URLParse(rawURL)
+	if !parsedResult.OK {
+		if err, ok := parsedResult.Value.(error); ok {
+			return "", invalidWebSocketClientURLError(err)
 		}
-		return "", coreerr.E("", "invalid WebSocketClient URL", nil)
+		return "", invalidWebSocketClientURLError(nil)
+	}
+	parsed, ok := parsedResult.Value.(*url.URL)
+	if !ok || parsed == nil {
+		return "", invalidWebSocketClientURLError(nil)
 	}
 
-	normalized := core.URLNormalize(rawURL)
-	scheme := webSocketClientURLScheme(rawURL)
+	scheme := core.Lower(parsed.Scheme)
+	if scheme == "" {
+		return "", invalidWebSocketClientURLError(nil)
+	}
 
 	switch scheme {
 	case "ws", "wss":
+		if parsed.Host == "" {
+			return "", invalidWebSocketClientURLError(nil)
+		}
+		if err := validateWebSocketClientPort(parsed); err != nil {
+			return "", err
+		}
+		normalized := parsed.String()
+		if normalized == "" {
+			return "", invalidWebSocketClientURLError(nil)
+		}
 		return normalized, nil
 	default:
 		return "", wrapBlocked(core.Sprintf("disallowed websocket scheme: %s", scheme))
 	}
+}
+
+func invalidWebSocketClientURLError(err error) error {
+	return core.E("", "invalid WebSocketClient URL", err)
+}
+
+func validateWebSocketClientPort(parsed *url.URL) error {
+	if parsed == nil {
+		return invalidWebSocketClientURLError(nil)
+	}
+	port := parsed.Port()
+	if port == "" {
+		if core.HasSuffix(parsed.Host, ":") {
+			return invalidWebSocketClientURLError(nil)
+		}
+		return nil
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || n > 65535 {
+		return invalidWebSocketClientURLError(err)
+	}
+	return nil
 }
 
 func validateOutboundWebSocketClientURL(rawURL string) error {
@@ -384,27 +423,6 @@ func outboundWebSocketGuardURL(rawURL string) (string, error) {
 		return "", wrapBlocked(core.Sprintf("disallowed websocket scheme: %s", guardURL.Scheme))
 	}
 	return guardURL.String(), nil
-}
-
-func webSocketClientURLScheme(rawURL string) string {
-	for i := 0; i < len(rawURL); i++ {
-		c := rawURL[i]
-		switch {
-		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
-		case '0' <= c && c <= '9' || c == '+' || c == '-' || c == '.':
-			if i == 0 {
-				return ""
-			}
-		case c == ':':
-			if i == 0 {
-				return ""
-			}
-			return core.Lower(rawURL[:i])
-		default:
-			return ""
-		}
-	}
-	return ""
 }
 
 func cloneHTTPHeader(header http.Header) http.Header {
