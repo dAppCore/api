@@ -1319,16 +1319,34 @@ class McpApiController extends Controller
 
         $path = resource_path('mcp/registry.yaml');
         if (! $this->isSafeYamlPath($path, resource_path('mcp'))) {
+            Log::warning('MCP registry path rejected', [
+                'path' => $path,
+                'base_directory' => resource_path('mcp'),
+            ]);
+
             return ['servers' => []];
         }
 
         try {
             $registry = Yaml::parseFile($path);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            Log::warning('MCP registry failed to parse', [
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
             return ['servers' => []];
         }
 
         if (! is_array($registry)) {
+            Log::warning('MCP registry returned a non-array document', [
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'document_type' => get_debug_type($registry),
+            ]);
+
             return ['servers' => []];
         }
 
@@ -1359,16 +1377,37 @@ class McpApiController extends Controller
 
         $path = resource_path("mcp/servers/{$id}.yaml");
         if (! $this->isSafeYamlPath($path, resource_path('mcp/servers'))) {
+            Log::warning('MCP server definition path rejected', [
+                'server_id' => $id,
+                'path' => $path,
+                'base_directory' => resource_path('mcp/servers'),
+            ]);
+
             return null;
         }
 
         try {
             $server = Yaml::parseFile($path);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            Log::warning('MCP server definition failed to parse', [
+                'server_id' => $id,
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
             return null;
         }
 
         if (! is_array($server)) {
+            Log::warning('MCP server definition returned a non-array document', [
+                'server_id' => $id,
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'document_type' => get_debug_type($server),
+            ]);
+
             return null;
         }
 

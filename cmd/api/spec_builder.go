@@ -7,7 +7,7 @@ import (
 
 	core "dappco.re/go/core"
 
-	goapi "dappco.re/go/core/api"
+	goapi "dappco.re/go/api"
 )
 
 type specBuilderConfig struct {

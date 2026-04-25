@@ -4,7 +4,7 @@
     "keywords": ["api", "rest", "laravel", "openapi"],
     "license": "EUPL-1.2",
     "require": {
-        "dedoc/scramble": "^0.12",
+        "dedoc/scramble": "^0.13",
         "php": "^8.2",
         "laravel/passport": "^12.0",
         "lthn/php": "*",
@@ -23,6 +23,7 @@
     "autoload": {
         "psr-4": {
             "Core\\Api\\": "src/php/src/Api/",
+            "Core\\Tenant\\": "../php-tenant/",
             "Core\\Front\\Api\\": "src/php/src/Front/Api/",
             "Core\\Website\\Api\\": "src/php/src/Website/Api/"
         }

@@ -17,7 +17,7 @@ import (
 	"unicode"
 
 	"dappco.re/go/core"
-	inference "dappco.re/go/core/inference"
+	inference "dappco.re/go/inference"
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
@@ -718,38 +718,46 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 	created := time.Now().Unix()
 	completionID := newChatCompletionID()
 
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Status(200)
-	c.Writer.Flush()
-
-	// Emit the OpenAI-style role priming chunk before any generated content.
-	primingChunk := ChatCompletionChunk{
-		ID:      completionID,
-		Object:  "chat.completion.chunk",
-		Created: created,
-		Model:   req.Model,
-		Choices: []ChatChunkChoice{
-			{
-				Index: 0,
-				Delta: ChatMessageDelta{
-					Role: "assistant",
-				},
-				FinishReason: nil,
-			},
-		},
-	}
-	if encoded, encodeErr := json.Marshal(primingChunk); encodeErr == nil {
-		c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
-		c.Writer.Flush()
-	}
-
 	extractor := NewThinkingExtractor()
-	sentAny := true
+	streamStarted := false
 	emittedContent := ""
+	writePrimingChunk := func() {
+		if streamStarted {
+			return
+		}
+
+		c.Header("Content-Type", "text/event-stream")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Status(200)
+		c.Writer.Flush()
+
+		primingChunk := ChatCompletionChunk{
+			ID:      completionID,
+			Object:  "chat.completion.chunk",
+			Created: created,
+			Model:   req.Model,
+			Choices: []ChatChunkChoice{
+				{
+					Index: 0,
+					Delta: ChatMessageDelta{
+						Role: "assistant",
+					},
+					FinishReason: nil,
+				},
+			},
+		}
+		if encoded, encodeErr := json.Marshal(primingChunk); encodeErr == nil {
+			c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
+			c.Writer.Flush()
+		}
+
+		streamStarted = true
+	}
 
 	for tok := range model.Chat(ctx, messages, opts...) {
+		writePrimingChunk()
+
 		contentDelta, thoughtDelta := extractor.writeDeltas(tok.Text)
 		candidateContent := emittedContent + contentDelta
 		stopCut, stopHit := firstStopSequenceCut(candidateContent, stopSequences)
@@ -790,7 +798,6 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 		if encoded, encodeErr := json.Marshal(chunk); encodeErr == nil {
 			c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", encoded))
 			c.Writer.Flush()
-			sentAny = true
 		}
 		if stopHit {
 			emittedContent = candidateContent[:stopCut]
@@ -802,13 +809,15 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 		}
 	}
 
-	if err := model.Err(); err != nil && !sentAny {
-		if strings.Contains(strings.ToLower(err.Error()), "loading") {
-			writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
+	if err := model.Err(); err != nil {
+		if !streamStarted {
+			if strings.Contains(strings.ToLower(err.Error()), "loading") {
+				writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
+				return
+			}
+			writeChatCompletionError(c, http.StatusInternalServerError, "inference_error", "model", err.Error(), "")
 			return
 		}
-		writeChatCompletionError(c, http.StatusInternalServerError, "inference_error", "model", err.Error(), "")
-		return
 	}
 
 	finishReason := "stop"
@@ -819,6 +828,8 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 	if finishReason != "error" && isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
 		finishReason = "length"
 	}
+
+	writePrimingChunk()
 
 	finished := finishReason
 	finalChunk := ChatCompletionChunk{
@@ -1101,6 +1112,11 @@ func codeOrDefault(code, fallback string) string {
 }
 
 func newChatCompletionID() string {
+	// #nosec G404 -- chat completion IDs are correlation tokens (format
+	// "chatcmpl-<unix>-<6digit>"), not security-sensitive secrets. The Unix
+	// timestamp already orders them; rand.Intn only disambiguates same-second
+	// collisions. crypto/rand would add entropy-budget pressure for zero
+	// security gain. Argus Mantis #320.
 	return fmt.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
 }
 

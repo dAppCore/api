@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	goapi "dappco.re/go/core/api"
+	goapi "dappco.re/go/api"
 )
 
 // specGroupsIter snapshots the registered spec groups and appends one optional

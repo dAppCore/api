@@ -7,9 +7,9 @@ import (
 	"os"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
 
-	goapi "dappco.re/go/core/api"
+	goapi "dappco.re/go/api"
 )
 
 const defaultSpecToolBridgePath = "/v1/tools"

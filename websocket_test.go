@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // ── Stub groups ─────────────────────────────────────────────────────────

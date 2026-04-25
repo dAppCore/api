@@ -242,7 +242,7 @@ class RateLimitTest extends TestCase
         $this->assertTrue($cache->has('rate_limit:locked-key'));
     }
 
-    public function test_RateLimitTest_hit_Bad_falls_back_to_advisory_lock_when_atomic_lock_cannot_be_acquired(): void
+    public function test_RateLimitTest_hit_Bad_fails_closed_when_atomic_lock_cannot_be_acquired(): void
     {
         $cache = new class(new ArrayStore()) extends CacheStoreRepository
         {
@@ -265,9 +265,11 @@ class RateLimitTest extends TestCase
 
         $result = $service->hit('locked-key', 10, 60);
 
-        $this->assertTrue($result->allowed);
-        $this->assertSame(9, $result->remaining);
-        $this->assertTrue($cache->has('rate_limit:locked-key'));
+        $this->assertFalse($result->allowed);
+        $this->assertSame(10, $result->limit);
+        $this->assertSame(0, $result->remaining);
+        $this->assertSame(1, $result->retryAfter);
+        $this->assertFalse($cache->has('rate_limit:locked-key'));
     }
 
     public function test_RateLimitTest_hit_Ugly_falls_back_to_advisory_lock_when_atomic_lock_backend_throws(): void

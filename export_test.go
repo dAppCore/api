@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // ── ExportSpec tests ─────────────────────────────────────────────────────

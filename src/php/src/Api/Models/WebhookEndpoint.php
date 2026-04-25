@@ -304,6 +304,18 @@ class WebhookEndpoint extends Model
             return true;
         }
 
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            foreach (self::blockedIpv4Ranges() as [$start, $end]) {
+                if (self::ipv4InRange($ip, $start, $end)) {
+                    return true;
+                }
+            }
+        }
+
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false && ord($packed[0]) === 0xFF) {
+            return true;
+        }
+
         if (strlen($packed) === 16 && str_repeat("\x00", 10)."\xff\xff" === substr($packed, 0, 12)) {
             $embeddedIpv4 = inet_ntop(substr($packed, 12, 4));
             if ($embeddedIpv4 === false) {
@@ -322,6 +334,51 @@ class WebhookEndpoint extends Model
             FILTER_VALIDATE_IP,
             FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
         ) === false;
+    }
+
+    /**
+     * Return IPv4 ranges that must never be treated as public webhook targets.
+     *
+     * @return array<int, array{0: string, 1: string}>
+     */
+    protected static function blockedIpv4Ranges(): array
+    {
+        return [
+            ['0.0.0.0', '0.255.255.255'],
+            ['10.0.0.0', '10.255.255.255'],
+            ['100.64.0.0', '100.127.255.255'],
+            ['127.0.0.0', '127.255.255.255'],
+            ['169.254.0.0', '169.254.255.255'],
+            ['172.16.0.0', '172.31.255.255'],
+            ['192.0.0.0', '192.0.0.255'],
+            ['192.0.2.0', '192.0.2.255'],
+            ['192.88.99.0', '192.88.99.255'],
+            ['192.168.0.0', '192.168.255.255'],
+            ['198.18.0.0', '198.19.255.255'],
+            ['198.51.100.0', '198.51.100.255'],
+            ['203.0.113.0', '203.0.113.255'],
+            ['224.0.0.0', '239.255.255.255'],
+            ['240.0.0.0', '255.255.255.255'],
+        ];
+    }
+
+    /**
+     * Determine whether an IPv4 address falls within a blocked range.
+     */
+    protected static function ipv4InRange(string $ip, string $start, string $end): bool
+    {
+        $ipValue = self::ipv4ToUnsignedInt($ip);
+
+        return $ipValue >= self::ipv4ToUnsignedInt($start)
+            && $ipValue <= self::ipv4ToUnsignedInt($end);
+    }
+
+    /**
+     * Convert an IPv4 string into an unsigned integer for range comparison.
+     */
+    protected static function ipv4ToUnsignedInt(string $ip): int
+    {
+        return (int) sprintf('%u', ip2long($ip));
     }
 
     /**

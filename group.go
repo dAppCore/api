@@ -25,6 +25,60 @@ type RouteGroup interface {
 	RegisterRoutes(rg *gin.RouterGroup)
 }
 
+// Describable allows a route handler or controller to expose OpenAPI metadata
+// without coupling callers to RouteDescription construction details.
+//
+// Example:
+//
+//	var d api.Describable = &myHandler{}
+type Describable interface {
+	// Describe returns the handler's request/response description.
+	Describe() RouteDescription
+	// OperationID returns the OpenAPI operation identifier.
+	OperationID() string
+	// Tags returns the OpenAPI tags associated with the operation.
+	Tags() []string
+	// Summary returns a short operation summary.
+	Summary() string
+	// Description returns a longer operation description.
+	Description() string
+}
+
+// Renderable allows a route handler or controller to expose UI rendering
+// hints that spec consumers can surface via vendor extensions.
+//
+// Example:
+//
+//	var r api.Renderable = &myHandler{}
+type Renderable interface {
+	// Render returns UI hints for the operation.
+	Render() RenderHints
+}
+
+// RenderHints describes how a UI may present an operation.
+type RenderHints struct {
+	Kind    string       `json:"kind,omitempty"`    // "form" | "table" | "modal" | "grid"
+	Fields  []FieldHint  `json:"fields,omitempty"`  // Form fields with validation hints.
+	Actions []ActionHint `json:"actions,omitempty"` // Inline action buttons.
+}
+
+// FieldHint describes an input field for UI rendering.
+type FieldHint struct {
+	Name       string         `json:"name,omitempty"`
+	Label      string         `json:"label,omitempty"`
+	Type       string         `json:"type,omitempty"`
+	Required   bool           `json:"required,omitempty"`
+	Validation map[string]any `json:"validation,omitempty"`
+}
+
+// ActionHint describes an inline action a UI can render for an operation.
+type ActionHint struct {
+	Name    string `json:"name,omitempty"`
+	Label   string `json:"label,omitempty"`
+	Method  string `json:"method,omitempty"`
+	Variant string `json:"variant,omitempty"`
+}
+
 // StreamGroup optionally declares WebSocket channels a subsystem publishes to.
 //
 // Example:
@@ -80,6 +134,10 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// Handler optionally points at the route handler/controller that implements
+	// Describable and/or Renderable. RegisterRoutes still owns actual Gin
+	// wiring; this field is metadata-only for spec generation.
+	Handler any
 	// CacheControl hints the framework that successful responses for this
 	// operation should advertise the given Cache-Control policy in docs.
 	CacheControl string

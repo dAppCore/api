@@ -10,12 +10,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
+
+// packageNameRe constrains SDKGenerator.PackageName to identifier-shaped
+// values so it cannot smuggle additional CLI flags through
+// --additional-properties packageName=<value>. Defence-in-depth per
+// Cerberus mechanism review on Mantis #322 — current callsite is operator-
+// only via cmd/api/cmd_sdk.go, but future consumers binding request input
+// to this field would re-open the flag-injection surface without it.
+var packageNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 
 // Supported SDK target languages.
 var supportedLanguages = map[string]string{
@@ -84,6 +93,11 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "output directory is required", nil)
 	}
 
+	if g.PackageName != "" && !packageNameRe.MatchString(g.PackageName) {
+		return coreerr.E("SDKGenerator.Generate",
+			fmt.Sprintf("package name %q rejected: must match %s", g.PackageName, packageNameRe.String()), nil)
+	}
+
 	if !g.Available() {
 		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli not installed", nil)
 	}
@@ -94,6 +108,13 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 	}
 
 	args := g.buildArgs(specPath, generator, outputDir)
+	// Command name is a string literal (zero attacker-influence). Args are
+	// constructed from a closed allowlist of generator names (supportedLanguages)
+	// and operator-supplied spec/output paths. Current callsite is operator-only
+	// via cmd/api/cmd_sdk.go. PackageName is regex-validated above to prevent
+	// flag-injection through --additional-properties. Cerberus mechanism review
+	// attached to Mantis #322.
+	//#nosec G204 -- command literal; args from closed allowlist + operator config + validated PackageName.
 	cmd := exec.CommandContext(ctx, "openapi-generator-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

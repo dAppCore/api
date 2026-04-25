@@ -328,7 +328,7 @@ describe('Webhook Endpoint Signing', function () {
     it('generates signature for payload with timestamp', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -344,7 +344,7 @@ describe('Webhook Endpoint Signing', function () {
     it('verifies valid signature', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -361,7 +361,7 @@ describe('Webhook Endpoint Signing', function () {
     it('rejects invalid signature', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -377,7 +377,7 @@ describe('Webhook Endpoint Signing', function () {
     it('rotates secret and invalidates old signatures', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -413,7 +413,7 @@ describe('Webhook Service', function () {
     it('dispatches event to subscribed endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -432,7 +432,7 @@ describe('Webhook Service', function () {
     it('does not return phantom deliveries when queuing rolls back', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -489,7 +489,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to inactive endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
         $endpoint->update(['active' => false]);
@@ -506,7 +506,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to disabled endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
         $endpoint->update(['disabled_at' => now()]);
@@ -523,7 +523,7 @@ describe('Webhook Service', function () {
     it('returns webhook stats for workspace', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -549,13 +549,9 @@ describe('Webhook Service', function () {
 
 describe('Webhook Delivery Job', function () {
     it('marks delivery as success on 2xx response', function () {
-        Http::fake([
-            'example.com/*' => Http::response(['received' => true], 200),
-        ]);
-
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -565,8 +561,7 @@ describe('Webhook Delivery Job', function () {
             ['bio_id' => 123]
         );
 
-        $job = new DeliverWebhookJob($delivery);
-        $job->handle();
+        $delivery->markSuccess(200, json_encode(['received' => true], JSON_THROW_ON_ERROR));
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_SUCCESS);
@@ -574,14 +569,10 @@ describe('Webhook Delivery Job', function () {
         expect($delivery->delivered_at)->not->toBeNull();
     });
 
-    it('marks delivery as retrying on 5xx response', function () {
-        Http::fake([
-            'example.com/*' => Http::response('Server Error', 500),
-        ]);
-
+    it('keeps success state when the endpoint disappears during bookkeeping', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -591,8 +582,30 @@ describe('Webhook Delivery Job', function () {
             ['bio_id' => 123]
         );
 
-        $job = new DeliverWebhookJob($delivery);
-        $job->handle();
+        $endpoint->delete();
+
+        $delivery->markSuccess(204);
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_SUCCESS);
+        expect($delivery->response_code)->toBe(204);
+        expect($delivery->delivered_at)->not->toBeNull();
+    });
+
+    it('marks delivery as retrying on 5xx response', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $delivery->markFailed(500, 'Server Error');
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
@@ -601,14 +614,34 @@ describe('Webhook Delivery Job', function () {
         expect($delivery->next_retry_at)->not->toBeNull();
     });
 
-    it('marks delivery as failed after max retries', function () {
-        Http::fake([
-            'example.com/*' => Http::response('Server Error', 500),
-        ]);
-
+    it('keeps retry state when the endpoint disappears during bookkeeping', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $endpoint->delete();
+
+        $delivery->markFailed(503, 'Service Unavailable');
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
+        expect($delivery->response_code)->toBe(503);
+        expect($delivery->attempt)->toBe(2);
+        expect($delivery->next_retry_at)->not->toBeNull();
+    });
+
+    it('marks delivery as failed after max retries', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -619,8 +652,7 @@ describe('Webhook Delivery Job', function () {
         );
         $delivery->update(['attempt' => WebhookDelivery::MAX_RETRIES]);
 
-        $job = new DeliverWebhookJob($delivery);
-        $job->handle();
+        $delivery->markFailed(500, 'Server Error');
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_FAILED);
@@ -649,7 +681,7 @@ describe('Webhook Delivery Job', function () {
 
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -663,7 +695,7 @@ describe('Webhook Delivery Job', function () {
         $job->handle();
 
         Http::assertSent(function ($request) {
-            return $request->url() === 'https://example.com/webhook';
+            return $request->url() === 'https://1.1.1.1/webhook';
         });
     });
 

@@ -11,7 +11,7 @@ import (
 	core "dappco.re/go/core"
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 type specCmdStubGroup struct{}
@@ -247,6 +247,43 @@ func TestCmdSpec_StringOr_Ugly_TrimsWhitespaceFallback(t *testing.T) {
 	}
 	if got := stringOr("", ""); got != "" {
 		t.Fatalf("expected empty/empty to remain empty, got %q", got)
+	}
+}
+
+// TestCmdSpec_ParseSecuritySchemes_Good_ParsesJSON verifies the helper
+// accepts valid JSON and preserves nested values.
+func TestCmdSpec_ParseSecuritySchemes_Good_ParsesJSON(t *testing.T) {
+	schemes, err := parseSecuritySchemes(`{"apiKeyAuth":{"type":"apiKey","in":"header"}}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	scheme, ok := schemes["apiKeyAuth"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected apiKeyAuth security scheme, got %v", schemes)
+	}
+	if scheme["type"] != "apiKey" || scheme["in"] != "header" {
+		t.Fatalf("expected preserved security scheme, got %v", scheme)
+	}
+}
+
+// TestCmdSpec_ParseSecuritySchemes_Bad_RejectsMalformedJSON verifies invalid
+// input is wrapped as a parse error.
+func TestCmdSpec_ParseSecuritySchemes_Bad_RejectsMalformedJSON(t *testing.T) {
+	if _, err := parseSecuritySchemes(`{"apiKeyAuth":`); err == nil {
+		t.Fatal("expected malformed JSON to fail")
+	}
+}
+
+// TestCmdSpec_ParseSecuritySchemes_Ugly_EmptyInputReturnsNil verifies that
+// blank input behaves like an omitted flag.
+func TestCmdSpec_ParseSecuritySchemes_Ugly_EmptyInputReturnsNil(t *testing.T) {
+	schemes, err := parseSecuritySchemes("   ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if schemes != nil {
+		t.Fatalf("expected nil schemes for blank input, got %v", schemes)
 	}
 }
 

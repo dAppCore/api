@@ -87,6 +87,10 @@ class Boot extends ServiceProvider
         \Dedoc\Scramble\Scramble::ignoreDefaultRoutes();
         $this->app->register(\Dedoc\Scramble\ScrambleServiceProvider::class);
 
+        if (class_exists(\Core\Tenant\Boot::class)) {
+            $this->app->register(\Core\Tenant\Boot::class);
+        }
+
         if (class_exists(PassportServiceProvider::class)) {
             $this->app->register(PassportServiceProvider::class);
         }
