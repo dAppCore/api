@@ -62,18 +62,7 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 	c.Writer = bw
 
 	defer func() {
-		if bw.status >= http.StatusBadRequest {
-			bw.Header().Del("Content-Encoding")
-			bw.Header().Del("Vary")
-			w.Reset(io.Discard)
-		} else if c.Writer.Size() < 0 {
-			w.Reset(io.Discard)
-		}
-		_ = w.Close()
-		if c.Writer.Size() > -1 {
-			c.Header("Content-Length", core.Sprintf("%d", c.Writer.Size()))
-		}
-		h.pool.Put(w)
+		bw.release(&h.pool)
 	}()
 
 	c.Next()
@@ -82,12 +71,21 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 // brotliWriter wraps gin.ResponseWriter to intercept writes through brotli.
 type brotliWriter struct {
 	gin.ResponseWriter
+	mu            sync.Mutex
 	writer        *brotli.Writer
+	released      bool
 	statusWritten bool
 	status        int
 }
 
 func (b *brotliWriter) Write(data []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return len(data), nil
+	}
+
 	b.Header().Del("Content-Length")
 
 	if !b.statusWritten {
@@ -108,13 +106,63 @@ func (b *brotliWriter) WriteString(s string) (int, error) {
 }
 
 func (b *brotliWriter) WriteHeader(code int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+
 	b.status = code
 	b.statusWritten = true
 	b.Header().Del("Content-Length")
 	b.ResponseWriter.WriteHeader(code)
 }
 
+func (b *brotliWriter) WriteHeaderNow() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+
+	b.ResponseWriter.WriteHeaderNow()
+}
+
 func (b *brotliWriter) Flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+
 	_ = b.writer.Flush()
 	b.ResponseWriter.Flush()
+}
+
+func (b *brotliWriter) release(pool *sync.Pool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+	b.released = true
+
+	if b.status >= http.StatusBadRequest {
+		b.Header().Del("Content-Encoding")
+		b.Header().Del("Vary")
+		b.writer.Reset(io.Discard)
+	} else if b.ResponseWriter.Size() < 0 {
+		b.writer.Reset(io.Discard)
+	}
+	_ = b.writer.Close()
+	if b.ResponseWriter.Size() > -1 {
+		b.Header().Set("Content-Length", core.Sprintf("%d", b.ResponseWriter.Size()))
+	}
+	b.writer.Reset(io.Discard)
+	pool.Put(b.writer)
+	b.writer = nil
 }
