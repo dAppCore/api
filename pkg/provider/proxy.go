@@ -3,15 +3,55 @@
 package provider
 
 import (
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url" // Note: AX-6 — net/url url.URL fields are structural for reverse-proxy URL rewriting.
+	"os"
+	"strconv"
+	"strings"
 
 	core "dappco.re/go/core"
 
 	coreapi "dappco.re/go/api"
 	"github.com/gin-gonic/gin"
 )
+
+const providerUpstreamAllowEnv = "CORE_PROVIDER_UPSTREAM_ALLOW"
+
+// ErrProviderUpstreamBlocked marks provider upstream URL rejections by the
+// construction-time SSRF guard.
+var ErrProviderUpstreamBlocked = errors.New("provider upstream blocked by SSRF guard")
+
+// ProviderUpstreamBlockedError carries the concrete rejection reason for a
+// provider upstream URL blocked by the SSRF guard.
+type ProviderUpstreamBlockedError struct {
+	Upstream string
+	Reason   string
+	Cause    error
+}
+
+func (e *ProviderUpstreamBlockedError) Error() string {
+	if e == nil {
+		return ErrProviderUpstreamBlocked.Error()
+	}
+	if e.Reason == "" {
+		return ErrProviderUpstreamBlocked.Error()
+	}
+	return ErrProviderUpstreamBlocked.Error() + ": " + e.Reason
+}
+
+func (e *ProviderUpstreamBlockedError) Is(target error) bool {
+	return target == ErrProviderUpstreamBlocked
+}
+
+func (e *ProviderUpstreamBlockedError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
 
 // ProxyConfig configures a ProxyProvider that reverse-proxies to an upstream
 // process (typically a runtime provider binary listening on 127.0.0.1).
@@ -76,6 +116,13 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 		return &ProxyProvider{
 			config: cfg,
 			err:    core.E("ProxyProvider.New", core.Sprintf("upstream %q must include a scheme and host (e.g. http://127.0.0.1:9901)", cfg.Upstream), nil),
+		}
+	}
+
+	if err := validateProviderUpstreamURL(cfg.Upstream, target); err != nil {
+		return &ProxyProvider{
+			config: cfg,
+			err:    err,
 		}
 	}
 
@@ -189,3 +236,182 @@ func (p *ProxyProvider) SpecFile() string {
 func (p *ProxyProvider) Upstream() string {
 	return p.config.Upstream
 }
+
+func validateProviderUpstreamURL(raw string, target *url.URL) error {
+	if target == nil {
+		return blockProviderUpstream(raw, "invalid upstream URL result", nil)
+	}
+
+	scheme := core.Lower(target.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return blockProviderUpstream(raw, "only HTTP and HTTPS upstream URLs are permitted", nil)
+	}
+	if target.User != nil {
+		return blockProviderUpstream(raw, "upstream URLs must not include embedded credentials", nil)
+	}
+	if port := target.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return blockProviderUpstream(raw, "upstream URL port is invalid", err)
+		}
+	}
+
+	host := target.Hostname()
+	if host == "" {
+		return blockProviderUpstream(raw, "upstream URL must include a host", nil)
+	}
+
+	hostKey := strings.TrimSuffix(core.Lower(host), ".")
+	if _, ok := providerMetadataHosts[hostKey]; ok {
+		return blockProviderUpstream(raw, "metadata host is not permitted: "+host, nil)
+	}
+
+	allowCIDRs, err := providerUpstreamAllowCIDRs()
+	if err != nil {
+		return blockProviderUpstream(raw, "invalid "+providerUpstreamAllowEnv+" entry", err)
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		return validateProviderUpstreamIP(raw, host, ip, allowCIDRs)
+	}
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return blockProviderUpstream(raw, "DNS resolution failed for "+host, err)
+	}
+	if len(ips) == 0 {
+		return blockProviderUpstream(raw, "DNS resolution returned no IPs for "+host, nil)
+	}
+	for _, ip := range ips {
+		if err := validateProviderUpstreamIP(raw, host, ip, allowCIDRs); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateProviderUpstreamIP(raw, host string, ip net.IP, allowCIDRs []*net.IPNet) error {
+	if reason := blockedProviderUpstreamIPReason(ip); reason != "" {
+		if providerUpstreamIPAllowed(ip, allowCIDRs) {
+			return nil
+		}
+		return blockProviderUpstream(raw, reason+" for "+host+": "+ip.String(), nil)
+	}
+	return nil
+}
+
+func blockProviderUpstream(raw, reason string, cause error) error {
+	return &ProviderUpstreamBlockedError{
+		Upstream: raw,
+		Reason:   reason,
+		Cause:    cause,
+	}
+}
+
+func providerUpstreamAllowCIDRs() ([]*net.IPNet, error) {
+	raw := core.Trim(os.Getenv(providerUpstreamAllowEnv))
+	if raw == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(raw, ",")
+	cidrs := make([]*net.IPNet, 0, len(parts))
+	for _, part := range parts {
+		value := core.Trim(part)
+		if value == "" {
+			continue
+		}
+		_, network, err := net.ParseCIDR(value)
+		if err != nil {
+			return nil, err
+		}
+		cidrs = append(cidrs, network)
+	}
+	return cidrs, nil
+}
+
+func providerUpstreamIPAllowed(ip net.IP, allowCIDRs []*net.IPNet) bool {
+	for _, network := range allowCIDRs {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func blockedProviderUpstreamIPReason(ip net.IP) string {
+	if ip == nil {
+		return "invalid IP"
+	}
+	if ip.IsLoopback() {
+		return "loopback IP"
+	}
+	if ip.IsPrivate() {
+		return "private IP"
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return "link-local IP"
+	}
+	if ip.IsUnspecified() {
+		return "unspecified IP"
+	}
+	if ip.IsMulticast() || ip.IsInterfaceLocalMulticast() {
+		return "multicast IP"
+	}
+	if !ip.IsGlobalUnicast() {
+		return "non-global-unicast IP"
+	}
+	for _, network := range providerBlockedCIDRs {
+		if network.Contains(ip) {
+			return "reserved IP"
+		}
+	}
+	return ""
+}
+
+func mustParseProviderCIDRs(values ...string) []*net.IPNet {
+	cidrs := make([]*net.IPNet, 0, len(values))
+	for _, value := range values {
+		_, network, err := net.ParseCIDR(value)
+		if err != nil {
+			panic(core.Sprintf("provider: invalid upstream SSRF CIDR %q: %v", value, err))
+		}
+		cidrs = append(cidrs, network)
+	}
+	return cidrs
+}
+
+var providerMetadataHosts = map[string]struct{}{
+	"metadata.google.internal": {},
+	"metadata.googleapis.com":  {},
+	"metadata.azure.com":       {},
+	"169.254.169.254":          {},
+	"fd00:ec2::254":            {},
+	"100.100.100.200":          {},
+}
+
+var providerBlockedCIDRs = mustParseProviderCIDRs(
+	"0.0.0.0/8",
+	"100.64.0.0/10",
+	"127.0.0.0/8",
+	"169.254.0.0/16",
+	"192.0.0.0/24",
+	"192.0.2.0/24",
+	"198.18.0.0/15",
+	"198.51.100.0/24",
+	"203.0.113.0/24",
+	"224.0.0.0/4",
+	"240.0.0.0/4",
+	"::/128",
+	"::1/128",
+	"64:ff9b:1::/48",
+	"100::/64",
+	"2001::/32",
+	"2001:2::/48",
+	"2001:db8::/32",
+	"2002::/16",
+	"fc00::/7",
+	"fe80::/10",
+	"ff00::/8",
+)

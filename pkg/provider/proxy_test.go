@@ -4,8 +4,10 @@ package provider_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"dappco.re/go/api"
@@ -13,6 +15,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	const env = "CORE_PROVIDER_UPSTREAM_ALLOW"
+
+	previous, hadPrevious := os.LookupEnv(env)
+	_ = os.Setenv(env, "127.0.0.0/8,::1/128")
+	code := m.Run()
+	if hadPrevious {
+		_ = os.Setenv(env, previous)
+	} else {
+		_ = os.Unsetenv(env)
+	}
+	os.Exit(code)
+}
 
 // -- ProxyProvider tests ------------------------------------------------------
 
@@ -211,4 +227,80 @@ func TestProxyProvider_Ugly_InvalidUpstream(t *testing.T) {
 	errObj, ok := body["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "invalid_provider_configuration", errObj["code"])
+}
+
+func TestProxyProvider_NewProxy_Good_PublicUpstream(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+
+	p := provider.NewProxy(provider.ProxyConfig{
+		Name:     "public",
+		BasePath: "/api/v1/public",
+		Upstream: "http://1.1.1.1/x",
+	})
+
+	require.NotNil(t, p)
+	assert.NoError(t, p.Err())
+}
+
+func TestProxyProvider_NewProxy_Bad_BlocksMetadataIP(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+
+	assertProviderUpstreamBlocked(t, "http://169.254.169.254/x")
+}
+
+func TestProxyProvider_NewProxy_Bad_BlocksLoopback(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+
+	assertProviderUpstreamBlocked(t, "http://127.0.0.1:5432/")
+}
+
+func TestProxyProvider_NewProxy_Bad_BlocksRFC1918(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+
+	assertProviderUpstreamBlocked(t, "http://10.0.0.1/x")
+}
+
+func TestProxyProvider_NewProxy_Good_AllowListPermitsLoopback(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "127.0.0.0/8")
+
+	p := provider.NewProxy(provider.ProxyConfig{
+		Name:     "allowed-loopback",
+		BasePath: "/api/v1/allowed-loopback",
+		Upstream: "http://127.0.0.1:5432/",
+	})
+
+	require.NotNil(t, p)
+	assert.NoError(t, p.Err())
+}
+
+func TestProxyProvider_NewProxy_Bad_AllowListDoesNotPermitOtherPrivateCIDRs(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "127.0.0.0/8")
+
+	assertProviderUpstreamBlocked(t, "http://10.0.0.1/")
+}
+
+func TestProxyProvider_NewProxy_Bad_BlocksHostnameResolvingToLoopback(t *testing.T) {
+	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+
+	assertProviderUpstreamBlocked(t, "http://localhost:5432/")
+}
+
+func assertProviderUpstreamBlocked(t *testing.T, upstream string) {
+	t.Helper()
+
+	p := provider.NewProxy(provider.ProxyConfig{
+		Name:     "blocked",
+		BasePath: "/api/v1/blocked",
+		Upstream: upstream,
+	})
+
+	require.NotNil(t, p)
+	err := p.Err()
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, provider.ErrProviderUpstreamBlocked), "expected ErrProviderUpstreamBlocked, got %v", err)
+
+	var blocked *provider.ProviderUpstreamBlockedError
+	require.True(t, errors.As(err, &blocked), "expected ProviderUpstreamBlockedError, got %T", err)
+	assert.Equal(t, upstream, blocked.Upstream)
+	assert.NotEmpty(t, blocked.Reason)
 }
