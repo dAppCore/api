@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"net/http"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -75,7 +74,10 @@ func isPublicPath(requestPath, publicPath string) bool {
 		return false
 	}
 
-	normalized := strings.TrimRight(publicPath, "/")
+	normalized := publicPath
+	for core.HasSuffix(normalized, "/") && normalized != "/" {
+		normalized = core.TrimSuffix(normalized, "/")
+	}
 	if normalized == "" {
 		normalized = "/"
 	}

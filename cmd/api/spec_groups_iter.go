@@ -4,7 +4,7 @@ package api
 
 import (
 	"iter"
-	"reflect"
+	"reflect" // Note: AX-6 — structural for OpenAPI spec generation type introspection.
 
 	"github.com/gin-gonic/gin"
 
