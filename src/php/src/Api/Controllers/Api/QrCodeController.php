@@ -51,7 +51,11 @@ class QrCodeController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'target_url' => ['required', 'url', 'max:2048'],
-            'format' => ['sometimes', 'string', 'in:png,svg'],
+            // png is intentionally not accepted: download() cannot produce
+            // PNG output until a real QR encoder is wired in. SVG remains
+            // accepted at the record level so callers can still register
+            // QR codes; download() returns 501 Not Implemented.
+            'format' => ['sometimes', 'string', 'in:svg'],
             'size' => ['sometimes', 'integer', 'min:64', 'max:2048'],
             'foreground_color' => ['sometimes', 'string', 'max:32'],
             'background_color' => ['sometimes', 'string', 'max:32'],
@@ -90,12 +94,15 @@ class QrCodeController extends Controller
             return $this->notFoundResponse('QR code');
         }
 
-        $svg = $this->renderSvg($code);
-
-        return response($svg, 200, [
-            'Content-Type' => 'image/svg+xml',
-            'Content-Disposition' => 'attachment; filename="qr-code-'.$code->id.'.svg"',
-        ]);
+        // No real QR encoder is wired in yet — renderSvg only emits a hash-
+        // derived placeholder pattern that scanners cannot decode. Fail loud
+        // rather than serve a broken SVG that mislabels itself as a QR code.
+        // TODO: integrate a real QR encoder (e.g. endroid/qr-code or
+        // bacon/bacon-qr-code) and return the encoded SVG/PNG here.
+        return response()->json([
+            'message' => 'QR code rendering is not yet implemented.',
+            'code' => $code->id,
+        ], 501);
     }
 
     protected function findCode(Request $request, string $id): ?QrCode
@@ -108,44 +115,5 @@ class QrCodeController extends Controller
         return QrCode::query()
             ->forWorkspace($workspace->id)
             ->find($id);
-    }
-
-    /**
-     * Render a deterministic SVG fallback when no QR library is present.
-     */
-    protected function renderSvg(QrCode $code): string
-    {
-        $size = max(64, (int) ($code->size ?? 256));
-        $cells = 21;
-        $cellSize = max(1, (int) floor($size / $cells));
-        $foreground = $code->foreground_color ?: '#000000';
-        $background = $code->background_color ?: '#ffffff';
-        $hash = hash('sha256', $code->target_url);
-
-        $rects = [];
-        $index = 0;
-        for ($y = 0; $y < $cells; $y++) {
-            for ($x = 0; $x < $cells; $x++) {
-                $nibble = hexdec($hash[$index % strlen($hash)]);
-                if (($nibble % 2) === 0) {
-                    $rects[] = sprintf(
-                        '<rect x="%d" y="%d" width="%d" height="%d" fill="%s" />',
-                        $x * $cellSize,
-                        $y * $cellSize,
-                        $cellSize,
-                        $cellSize,
-                        htmlspecialchars($foreground, ENT_QUOTES, 'UTF-8')
-                    );
-                }
-                $index++;
-            }
-        }
-
-        return sprintf(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="%1$d" height="%1$d" viewBox="0 0 %1$d %1$d"><rect width="100%%" height="100%%" fill="%2$s" />%3$s</svg>',
-            $size,
-            htmlspecialchars($background, ENT_QUOTES, 'UTF-8'),
-            implode('', $rects)
-        );
     }
 }
