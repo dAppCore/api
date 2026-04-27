@@ -22,6 +22,9 @@ var (
 
 	// ErrHTTP3TLSRequired is returned when ServeH3 is called without TLS.
 	ErrHTTP3TLSRequired = errors.New("api: HTTP/3 requires TLS configuration")
+
+	// ErrNilContext is returned when ServeH3 is called with a nil context.
+	ErrNilContext = errors.New("api: context is nil")
 )
 
 // ServeH3 starts the HTTP/3 QUIC server and blocks until the context is
@@ -33,6 +36,9 @@ var (
 func (e *Engine) ServeH3(ctx context.Context, tlsConfig *tls.Config) error {
 	if e == nil || !e.http3Enabled {
 		return ErrHTTP3NotConfigured
+	}
+	if ctx == nil {
+		return ErrNilContext
 	}
 	if tlsConfig == nil {
 		return ErrHTTP3TLSRequired

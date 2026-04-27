@@ -25,7 +25,7 @@ import (
 // Cerberus mechanism review on Mantis #322 — current callsite is operator-
 // only via cmd/api/cmd_sdk.go, but future consumers binding request input
 // to this field would re-open the flag-injection surface without it.
-var packageNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
+var packageNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]*$`)
 
 // Supported SDK target languages.
 var supportedLanguages = map[string]string{

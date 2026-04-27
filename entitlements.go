@@ -16,6 +16,10 @@ import (
 
 const defaultEntitlementBridgeTimeout = 2 * time.Second
 
+// maxEntitlementResponseBytes caps response body reads to defend against
+// malformed or hostile upstream services consuming unbounded memory.
+const maxEntitlementResponseBytes = 1 << 20 // 1 MiB
+
 // EntitlementBridgeConfig configures the bridge from Go renderers to the
 // PHP EntitlementService-backed API.
 type EntitlementBridgeConfig struct {
@@ -96,7 +100,7 @@ func (b *EntitlementBridge) Check(ctx context.Context, workspaceID, feature stri
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxEntitlementResponseBytes))
 	if err != nil {
 		return false, core.E(op, "read entitlement response", err)
 	}

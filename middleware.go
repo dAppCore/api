@@ -101,8 +101,11 @@ func requestIDMiddleware() gin.HandlerFunc {
 		id := c.GetHeader("X-Request-ID")
 		if id == "" {
 			b := make([]byte, 16)
-			_, _ = randomRead(b)
-			id = core.HexEncode(b)
+			if _, err := randomRead(b); err != nil {
+				id = core.Sprintf("ts-%d", time.Now().UnixNano())
+			} else {
+				id = core.HexEncode(b)
+			}
 		}
 
 		c.Set(requestIDContextKey, id)

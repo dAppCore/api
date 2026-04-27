@@ -176,6 +176,13 @@ func (e *Engine) Channels() []string {
 			channels = append(channels, sg.Channels()...)
 		}
 	}
+	for _, g := range e.streamGroups {
+		for _, h := range g.Handlers() {
+			if h.Protocol == apistream.ProtocolWebSocket {
+				channels = append(channels, h.Path)
+			}
+		}
+	}
 	return channels
 }
 
@@ -188,6 +195,7 @@ func (e *Engine) Channels() []string {
 //	}
 func (e *Engine) ChannelsIter() iter.Seq[string] {
 	groups := slices.Clone(e.groups)
+	streamGroups := slices.Clone(e.streamGroups)
 	return func(yield func(string) bool) {
 		for _, g := range groups {
 			if sg, ok := g.(StreamGroup); ok {
@@ -195,6 +203,16 @@ func (e *Engine) ChannelsIter() iter.Seq[string] {
 					if !yield(c) {
 						return
 					}
+				}
+			}
+		}
+		for _, g := range streamGroups {
+			for _, h := range g.Handlers() {
+				if h.Protocol != apistream.ProtocolWebSocket {
+					continue
+				}
+				if !yield(h.Path) {
+					return
 				}
 			}
 		}
