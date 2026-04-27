@@ -1,0 +1,9 @@
+generatorName: java
+outputDir: ./sdks/java
+additionalProperties:
+  groupId: re.dappco
+  artifactId: core-sdk
+  artifactVersion: "1.0.0"
+  invokerPackage: re.dappco.core
+  apiPackage: re.dappco.core.api
+  modelPackage: re.dappco.core.model

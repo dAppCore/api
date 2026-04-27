@@ -3,11 +3,11 @@
 package api
 
 import (
-	"context"
-	"net/http"
+	"context"  // Note: AX-6 - OIDC verifier APIs require context.Context; no core primitive.
+	"net/http" // Note: AX-6 - structural HTTP status boundary for Gin auth responses; no core primitive.
 	"slices"
-	"strings"
-	"sync"
+
+	core "dappco.re/go/core"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
@@ -98,7 +98,7 @@ func GetUser(c *gin.Context) *AuthentikUser {
 }
 
 // oidcProviderMu guards the provider cache.
-var oidcProviderMu sync.Mutex
+var oidcProviderMu core.Mutex
 
 // oidcProviders caches OIDC providers by issuer URL to avoid repeated
 // discovery requests.
@@ -207,10 +207,10 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 				}
 
 				if groups := c.GetHeader("X-authentik-groups"); groups != "" {
-					user.Groups = strings.Split(groups, "|")
+					user.Groups = core.Split(groups, "|")
 				}
 				if ent := c.GetHeader("X-authentik-entitlements"); ent != "" {
-					user.Entitlements = strings.Split(ent, "|")
+					user.Entitlements = core.Split(ent, "|")
 				}
 
 				c.Set(authentikUserKey, user)
@@ -220,8 +220,8 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 		// Block 2: Attempt JWT validation for direct API clients.
 		// Only when OIDC is configured and no user was extracted from headers.
 		if cfg.Issuer != "" && cfg.ClientID != "" && GetUser(c) == nil {
-			if auth := c.GetHeader("Authorization"); strings.HasPrefix(auth, "Bearer ") {
-				rawToken := strings.TrimPrefix(auth, "Bearer ")
+			if auth := c.GetHeader("Authorization"); core.HasPrefix(auth, "Bearer ") {
+				rawToken := core.TrimPrefix(auth, "Bearer ")
 				if user, err := validateJWT(c.Request.Context(), cfg, rawToken); err == nil {
 					c.Set(authentikUserKey, user)
 				}
@@ -235,8 +235,8 @@ func authentikMiddleware(cfg AuthentikConfig, publicPaths func() []string) gin.H
 
 func cloneAuthentikConfig(cfg AuthentikConfig) AuthentikConfig {
 	out := cfg
-	out.Issuer = strings.TrimSpace(out.Issuer)
-	out.ClientID = strings.TrimSpace(out.ClientID)
+	out.Issuer = core.Trim(out.Issuer)
+	out.ClientID = core.Trim(out.ClientID)
 	out.PublicPaths = normalisePublicPaths(cfg.PublicPaths)
 	return out
 }
@@ -252,16 +252,15 @@ func normalisePublicPaths(paths []string) []string {
 	seen := make(map[string]struct{}, len(paths))
 
 	for _, path := range paths {
-		path = strings.TrimSpace(path)
+		path = core.Trim(path)
 		if path == "" {
 			continue
 		}
-		if !strings.HasPrefix(path, "/") {
+		if !core.HasPrefix(path, "/") {
 			path = "/" + path
 		}
-		path = strings.TrimRight(path, "/")
-		if path == "" {
-			path = "/"
+		for core.HasSuffix(path, "/") && path != "/" {
+			path = core.TrimSuffix(path, "/")
 		}
 		if _, ok := seen[path]; ok {
 			continue

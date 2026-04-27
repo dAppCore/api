@@ -3,9 +3,11 @@
 package api
 
 import (
+	// Note: AX-6 — reflect is structural for OpenAPI spec generation by introspecting Go types.
 	"reflect"
 	"slices"
-	"strings"
+
+	core "dappco.re/go/core"
 )
 
 // SwaggerConfig captures the configured Swagger/OpenAPI metadata for an Engine.
@@ -76,6 +78,10 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	builder.SSEEnabled = runtime.Transport.SSEEnabled
 	builder.PprofEnabled = runtime.Transport.PprofEnabled
 	builder.ExpvarEnabled = runtime.Transport.ExpvarEnabled
+	builder.ChatCompletionsEnabled = runtime.Transport.ChatCompletionsEnabled
+	builder.ChatCompletionsPath = runtime.Transport.ChatCompletionsPath
+	builder.OpenAPISpecEnabled = runtime.Transport.OpenAPISpecEnabled
+	builder.OpenAPISpecPath = runtime.Transport.OpenAPISpecPath
 
 	builder.CacheEnabled = runtime.Cache.Enabled
 	if runtime.Cache.TTL > 0 {
@@ -125,7 +131,7 @@ func (e *Engine) SwaggerConfig() SwaggerConfig {
 		ExternalDocsURL:         e.swaggerExternalDocsURL,
 	}
 
-	if strings.TrimSpace(e.swaggerPath) != "" {
+	if core.Trim(e.swaggerPath) != "" {
 		cfg.Path = normaliseSwaggerPath(e.swaggerPath)
 	}
 

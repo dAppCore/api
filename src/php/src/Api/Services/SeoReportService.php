@@ -6,6 +6,8 @@ namespace Core\Api\Services;
 
 use DOMDocument;
 use DOMXPath;
+use Illuminate\Http\Client\Response as HttpResponse;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -19,30 +21,35 @@ use Throwable;
 class SeoReportService
 {
     /**
+     * Maximum number of bytes to read from the fetched page.
+     */
+    protected const MAX_BODY_BYTES = 1_048_576;
+
+    /**
      * Analyse a URL and return a technical SEO report.
      *
-     * @throws RuntimeException when the URL is blocked for SSRF reasons or the fetch fails.
+     * @throws \InvalidArgumentException when the URL is blocked for SSRF reasons.
+     * @throws RuntimeException when the fetch fails or the response is too large.
      */
     public function analyse(string $url): array
     {
-        $this->validateUrlForSsrf($url);
+        $curlOptions = $this->prepareUrlForSsrf($url);
 
         try {
-            $response = Http::withHeaders([
-                'User-Agent' => config('app.name', 'Core API').' SEO Reporter/1.0',
-                'Accept' => 'text/html,application/xhtml+xml',
-            ])
-                ->timeout((int) config('api.seo.timeout', 10))
-                ->withoutRedirecting()
-                ->get($url)
-                ->throw();
+            /** @var HttpResponse $response */
+            $response = $this->buildRequest($curlOptions['curl_options'] ?? [])->get($url);
+
+            if (! $response->successful()) {
+                throw new RuntimeException('The requested URL returned an unsuccessful status code.');
+            }
+
+            $html = $this->readBodyWithLimit($response);
         } catch (RuntimeException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
             throw new RuntimeException('Unable to fetch the requested URL.', 0, $exception);
         }
 
-        $html = (string) $response->body();
         $xpath = $this->loadXPath($html);
 
         $title = $this->extractSingleText($xpath, '//title');
@@ -92,19 +99,84 @@ class SeoReportService
     }
 
     /**
+     * Build the SEO fetch request with SSRF-safe client options.
+     *
+     * @param  array<string, array<int, string>>  $curlOptions
+     */
+    protected function buildRequest(array $curlOptions): PendingRequest
+    {
+        $request = Http::withHeaders([
+            'User-Agent' => config('app.name', 'Core API').' SEO Reporter/1.0',
+            'Accept' => 'text/html,application/xhtml+xml',
+        ])
+            ->timeout((int) config('api.seo.timeout', 10))
+            ->withoutRedirecting()
+            ->withOptions([
+                'stream' => true,
+            ]);
+
+        if ($curlOptions !== []) {
+            $request = $request->withOptions([
+                'curl' => $curlOptions,
+            ]);
+        }
+
+        return $request;
+    }
+
+    /**
+     * Read the fetched page without allowing unbounded memory growth.
+     */
+    protected function readBodyWithLimit(HttpResponse $response): string
+    {
+        $maxBytes = (int) config('api.seo.max_body_bytes', self::MAX_BODY_BYTES);
+        if ($maxBytes < 1) {
+            throw new RuntimeException('SEO response size limit is invalid.');
+        }
+
+        $stream = $response->toPsrResponse()->getBody();
+        try {
+            $contentLength = $response->header('Content-Length');
+            if (is_numeric($contentLength) && (int) $contentLength > $maxBytes) {
+                throw new RuntimeException('The requested URL returned a response that is too large.');
+            }
+
+            $body = '';
+            while (! $stream->eof()) {
+                $chunk = $stream->read(8192);
+                if ($chunk === '' && ! $stream->eof()) {
+                    throw new RuntimeException('Unable to read the requested URL response body.');
+                }
+
+                $body .= $chunk;
+
+                if (strlen($body) > $maxBytes) {
+                    throw new RuntimeException('The requested URL returned a response that is too large.');
+                }
+            }
+
+            return $body;
+        } finally {
+            $stream->close();
+        }
+    }
+
+    /**
      * Load an HTML document into an XPath query object.
      */
     protected function loadXPath(string $html): DOMXPath
     {
         $previous = libxml_use_internal_errors(true);
+        try {
+            $document = new DOMDocument();
+            $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
 
-        $document = new DOMDocument();
-        $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+            libxml_clear_errors();
 
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        return new DOMXPath($document);
+            return new DOMXPath($document);
+        } finally {
+            libxml_use_internal_errors($previous);
+        }
     }
 
     /**
@@ -379,21 +451,31 @@ class SeoReportService
      *  - Link-local ranges (169.254.0.0/16, fe80::/10)
      *  - IPv6 ULA (fc00::/7)
      *
-     * @throws RuntimeException when the URL fails SSRF validation.
+     * @throws \InvalidArgumentException when the URL fails SSRF validation.
      */
-    protected function validateUrlForSsrf(string $url): void
+    protected function prepareUrlForSsrf(string $url): array
     {
         $parsed = parse_url($url);
 
         if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
-            throw new RuntimeException('The supplied URL is not valid.');
+            throw new \InvalidArgumentException('The supplied URL is not valid.');
         }
 
-        if (! in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
-            throw new RuntimeException('Only HTTP and HTTPS URLs are permitted.');
+        $scheme = strtolower((string) $parsed['scheme']);
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            throw new \InvalidArgumentException('Only HTTP and HTTPS URLs are permitted.');
         }
 
         $host = $parsed['host'];
+        $port = isset($parsed['port'])
+            ? (int) $parsed['port']
+            : ($scheme === 'https' ? 443 : 80);
+        $resolveEntries = [];
+
+        if (isset($parsed['user']) || isset($parsed['pass'])) {
+            throw new \InvalidArgumentException('The supplied URL is not valid.');
+        }
 
         // If the host is an IP literal (IPv4 or bracketed IPv6), validate it
         // directly. dns_get_record returns nothing for IP literals and
@@ -402,32 +484,104 @@ class SeoReportService
         $normalised = ltrim(rtrim($host, ']'), '['); // strip IPv6 brackets
         if (filter_var($normalised, FILTER_VALIDATE_IP) !== false) {
             if ($this->isPrivateIp($normalised)) {
-                throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+                throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
             }
 
             // Valid public IP literal — no DNS lookup required.
-            return;
+            return [
+                'curl_options' => [],
+            ];
         }
 
-        $records = dns_get_record($host, DNS_A | DNS_AAAA) ?: [];
+        if (! $this->supportsPinnedResolution()) {
+            throw new \InvalidArgumentException('The supplied URL cannot be safely pinned on this platform.');
+        }
 
-        // Fall back to gethostbyname for hosts not returned by dns_get_record.
-        if (empty($records)) {
+        $ips = $this->resolvePublicIps($host);
+        foreach ($ips as $ip) {
+            $resolveEntries[] = sprintf(
+                '%s:%d:%s',
+                $host,
+                $port,
+                str_contains($ip, ':') ? '['.$ip.']' : $ip
+            );
+        }
+
+        if ($resolveEntries === []) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        return [
+            'curl_options' => defined('CURLOPT_RESOLVE')
+                ? [
+                    CURLOPT_RESOLVE => array_values(array_unique($resolveEntries)),
+                ]
+                : [],
+        ];
+    }
+
+    /**
+     * Determine whether the current HTTP client stack can pin resolved hosts.
+     */
+    protected function supportsPinnedResolution(): bool
+    {
+        return defined('CURLOPT_RESOLVE');
+    }
+
+    /**
+     * Resolve a hostname to public IPs, following CNAME chains.
+     *
+     * @return array<int, string>
+     */
+    protected function resolvePublicIps(string $host, array &$visitedHosts = [], int $depth = 0): array
+    {
+        $normalisedHost = strtolower(rtrim($host, '.'));
+
+        if ($normalisedHost === '' || isset($visitedHosts[$normalisedHost])) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        if ($depth > 8) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        $visitedHosts[$normalisedHost] = true;
+
+        $records = dns_get_record($host, DNS_A | DNS_AAAA | DNS_CNAME) ?: [];
+        if ($records === []) {
             $resolved = gethostbyname($host);
             if ($resolved !== $host) {
                 $records[] = ['ip' => $resolved];
             }
         }
 
+        if ($records === []) {
+            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+        }
+
+        $ips = [];
+
         foreach ($records as $record) {
             $ip = $record['ip'] ?? $record['ipv6'] ?? null;
-            if ($ip === null) {
+            if ($ip !== null) {
+                if ($this->isPrivateIp($ip)) {
+                    throw new \InvalidArgumentException('The supplied URL resolves to a private or reserved address.');
+                }
+
+                $ips[] = $ip;
+
                 continue;
             }
-            if ($this->isPrivateIp($ip)) {
-                throw new RuntimeException('The supplied URL resolves to a private or reserved address.');
+
+            if (($record['type'] ?? null) === 'CNAME' && ! empty($record['target'])) {
+                $ips = array_merge(
+                    $ips,
+                    $this->resolvePublicIps((string) $record['target'], $visitedHosts, $depth + 1)
+                );
             }
         }
+
+        return array_values(array_unique($ips));
     }
 
     /**
@@ -436,79 +590,35 @@ class SeoReportService
      */
     protected function isPrivateIp(string $ip): bool
     {
-        // inet_pton returns false for invalid addresses.
-        $packed = inet_pton($ip);
-        if ($packed === false) {
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return true; // Treat unresolvable as unsafe.
         }
 
-        if (strlen($packed) === 4) {
-            return $this->isPrivateIpv4($ip);
-        }
-
-        // IPv6 checks.
-
-        // ::ffff:0:0/96 — IPv4-mapped addresses (e.g. ::ffff:127.0.0.1).
-        // The first 10 bytes are 0x00, bytes 10-11 are 0xff 0xff, then 4
-        // bytes of IPv4. Evaluate the embedded IPv4 address against the
-        // standard private ranges.
-        if (str_repeat("\x00", 10) . "\xff\xff" === substr($packed, 0, 12)) {
-            $ipv4 = inet_ntop(substr($packed, 12, 4));
-            if ($ipv4 !== false && $this->isPrivateIpv4($ipv4)) {
-                return true;
-            }
-        }
-
-        // Loopback (::1).
-        if ($ip === '::1') {
-            return true;
-        }
-        $prefix2 = strtolower(substr(bin2hex($packed), 0, 2));
-        // fe80::/10 — first byte 0xfe, second byte 0x80–0xbf
-        if ($prefix2 === 'fe') {
-            $secondNibble = hexdec(substr(bin2hex($packed), 2, 1));
-            if ($secondNibble >= 8 && $secondNibble <= 11) {
-                return true;
-            }
-        }
-        // fc00::/7 — first byte 0xfc or 0xfd
-        if (in_array($prefix2, ['fc', 'fd'], true)) {
+        $packed = inet_pton($ip);
+        if ($packed === false) {
             return true;
         }
 
-        return false;
-    }
-
-    /**
-     * Return true when an IPv4 address string falls within a private,
-     * loopback, link-local, or reserved range.
-     *
-     * Handles 0.0.0.0/8 (RFC 1122 "this network"), 127/8 (loopback),
-     * 10/8, 172.16/12, 192.168/16 (RFC 1918), and 169.254/16 (link-local).
-     */
-    protected function isPrivateIpv4(string $ip): bool
-    {
-        $long = ip2long($ip);
-        if ($long === false) {
-            return true; // Treat unparsable as unsafe.
-        }
-
-        $privateRanges = [
-            ['start' => ip2long('0.0.0.0'),     'end' => ip2long('0.255.255.255')],   // 0.0.0.0/8 (RFC 1122)
-            ['start' => ip2long('127.0.0.0'),   'end' => ip2long('127.255.255.255')], // loopback
-            ['start' => ip2long('10.0.0.0'),    'end' => ip2long('10.255.255.255')],  // RFC-1918
-            ['start' => ip2long('172.16.0.0'),  'end' => ip2long('172.31.255.255')],  // RFC-1918
-            ['start' => ip2long('192.168.0.0'), 'end' => ip2long('192.168.255.255')], // RFC-1918
-            ['start' => ip2long('169.254.0.0'), 'end' => ip2long('169.254.255.255')], // link-local
-        ];
-
-        foreach ($privateRanges as $range) {
-            if ($long >= $range['start'] && $long <= $range['end']) {
+        // Preserve support for public IPv4-mapped IPv6 literals while still
+        // applying the reserved-range guard to the embedded IPv4 address.
+        if (strlen($packed) === 16 && str_repeat("\x00", 10)."\xff\xff" === substr($packed, 0, 12)) {
+            $embeddedIpv4 = inet_ntop(substr($packed, 12, 4));
+            if ($embeddedIpv4 === false) {
                 return true;
             }
+
+            return filter_var(
+                $embeddedIpv4,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+            ) === false;
         }
 
-        return false;
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) === false;
     }
 
     /**

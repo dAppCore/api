@@ -164,9 +164,9 @@ $headerName: your_api_key_here
 
 ## Key Format
 
-API keys follow the format: `hk_xxxxxxxxxxxxxxxx`
+API keys follow the format: `prefix_xxxxxxxxxxxxxxxx`
 
-- Prefix `hk_` identifies it as a Host UK API key
+- The visible prefix is a short random identifier used for lookup
 - Keys are 32+ characters long
 - Keys should be kept secret and never committed to version control
 
@@ -211,7 +211,7 @@ MARKDOWN;
             $sections[] = '```http';
             $sections[] = 'GET /api/endpoint HTTP/1.1';
             $sections[] = 'Host: api.example.com';
-            $sections[] = "$headerName: hk_your_api_key_here";
+            $sections[] = "$headerName: prefix_your_api_key_here";
             $sections[] = '```';
             $sections[] = '';
         }

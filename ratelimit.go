@@ -3,14 +3,11 @@
 package api
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"math"
-	"net/http"
-	"strconv"
-	"strings"
-	"sync"
+	"math"     // Note: AX-6 — token-bucket Floor/Ceil rounding has no core primitive.
+	"net/http" // Note: AX-6 — structural HTTP status boundary for Gin handlers; no core primitive.
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,14 +26,14 @@ const (
 )
 
 type rateLimitStore struct {
-	mu        sync.Mutex
+	mu        core.Mutex
 	buckets   map[string]*rateLimitBucket
 	limit     int
 	lastSweep time.Time
 }
 
 type rateLimitBucket struct {
-	mu       sync.Mutex
+	mu       core.Mutex
 	tokens   float64
 	last     time.Time
 	lastSeen time.Time
@@ -175,7 +172,7 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 				secs = 1
 			}
 			setRateLimitHeaders(c, decision.limit, decision.remaining, decision.resetAt)
-			c.Header("Retry-After", strconv.Itoa(secs))
+			c.Header("Retry-After", core.Itoa(secs))
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, Fail(
 				"rate_limit_exceeded",
 				"Too many requests",
@@ -190,18 +187,18 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 
 func setRateLimitHeaders(c *gin.Context, limit, remaining int, resetAt time.Time) {
 	if limit > 0 {
-		c.Header("X-RateLimit-Limit", strconv.Itoa(limit))
+		c.Header("X-RateLimit-Limit", core.Itoa(limit))
 	}
 	if remaining < 0 {
 		remaining = 0
 	}
-	c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
+	c.Header("X-RateLimit-Remaining", core.Itoa(remaining))
 	if !resetAt.IsZero() {
 		reset := resetAt.Unix()
 		if reset <= time.Now().Unix() {
 			reset = time.Now().Add(time.Second).Unix()
 		}
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(reset, 10))
+		c.Header("X-RateLimit-Reset", core.FormatInt(reset, 10))
 	}
 }
 
@@ -241,13 +238,11 @@ func clientRateLimitKey(c *gin.Context) string {
 	// Fall back to credential headers before the IP so that different API
 	// keys coming from the same NAT address are bucketed independently. The
 	// raw secret is never stored — it is hashed with SHA-256 first.
-	if apiKey := strings.TrimSpace(c.GetHeader("X-API-Key")); apiKey != "" {
-		h := sha256.Sum256([]byte(apiKey))
-		return "cred:sha256:" + hex.EncodeToString(h[:])
+	if apiKey := core.Trim(c.GetHeader("X-API-Key")); apiKey != "" {
+		return "cred:sha256:" + core.SHA256HexString(apiKey)
 	}
 	if bearer := bearerTokenFromHeader(c.GetHeader("Authorization")); bearer != "" {
-		h := sha256.Sum256([]byte(bearer))
-		return "cred:sha256:" + hex.EncodeToString(h[:])
+		return "cred:sha256:" + core.SHA256HexString(bearer)
 	}
 
 	// Last resort: fall back to IP address.
@@ -262,15 +257,15 @@ func clientRateLimitKey(c *gin.Context) string {
 }
 
 func bearerTokenFromHeader(header string) string {
-	header = strings.TrimSpace(header)
+	header = core.Trim(header)
 	if header == "" {
 		return ""
 	}
 
-	parts := strings.SplitN(header, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+	parts := core.SplitN(header, " ", 2)
+	if len(parts) != 2 || core.Lower(parts[0]) != "bearer" {
 		return ""
 	}
 
-	return strings.TrimSpace(parts[1])
+	return core.Trim(parts[1])
 }

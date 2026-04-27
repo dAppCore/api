@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Core API is the REST framework for the Lethean ecosystem, providing both a **Go HTTP engine** (Gin-based, with OpenAPI generation, WebSocket/SSE, ToolBridge) and a **PHP Laravel package** (rate limiting, webhooks, API key management, OpenAPI documentation). Both halves serve the same purpose in their respective stacks.
 
-Module: `forge.lthn.ai/core/api` | Package: `lthn/api` | Licence: EUPL-1.2
+Module: `dappco.re/go/core/api` | Package: `dappco.re/php/service` | Licence: EUPL-1.2
 
 ## Build and Test Commands
 
@@ -93,7 +93,7 @@ Key services: `WebhookService`, `RateLimitService`, `IpRestrictionService`, `Ope
 
 | Go module | Role |
 |-----------|------|
-| `forge.lthn.ai/core/cli` | CLI command registration |
+| `dappco.re/go/core/cli` | CLI command registration |
 | `github.com/gin-gonic/gin` | HTTP router |
 | `github.com/casbin/casbin/v2` | Authorisation policies |
 | `github.com/coreos/go-oidc/v3` | OIDC / Authentik |

@@ -22,12 +22,18 @@ trait HasApiResponses
         array $meta = [],
         int $status = 400,
     ): JsonResponse {
-        return response()->json(array_merge([
+        $response = [
             'success' => false,
             'error' => $errorCode,
             'message' => $message,
             'error_code' => $errorCode,
-        ], $meta), $status);
+        ];
+
+        if ($meta !== []) {
+            $response['details'] = $meta;
+        }
+
+        return response()->json(array_merge($response, $meta), $status);
     }
 
     /**
@@ -59,15 +65,22 @@ trait HasApiResponses
 
     /**
      * Return a feature limit reached response.
+     *
+     * The wire `error_code` is `entitlement_exceeded` per the RFC alignment.
+     * `legacy_error_code` carries the previous `feature_limit_reached` value
+     * during the deprecation window so existing SDKs/clients branching on the
+     * old code continue to work. Remove `legacy_error_code` after consumers
+     * migrate (planned for v1.0).
      */
     protected function limitReachedResponse(string $feature, ?string $message = null): JsonResponse
     {
         return $this->errorResponse(
-            errorCode: 'feature_limit_reached',
+            errorCode: 'entitlement_exceeded',
             message: $message ?? 'You have reached your limit for this feature.',
             meta: [
                 'feature' => $feature,
                 'upgrade_url' => route('hub.usage'),
+                'legacy_error_code' => 'feature_limit_reached',
             ],
             status: 403,
         );
@@ -119,14 +132,21 @@ trait HasApiResponses
 
     /**
      * Return a validation error response.
+     *
+     * The wire `error_code` is `validation_error` per the RFC alignment.
+     * `legacy_error_code` carries the previous `validation_failed` value
+     * during the deprecation window so existing SDKs/clients branching on the
+     * old code continue to work. Remove `legacy_error_code` after consumers
+     * migrate (planned for v1.0).
      */
     protected function validationErrorResponse(array $errors, int $status = 422): JsonResponse
     {
         return $this->errorResponse(
-            errorCode: 'validation_failed',
+            errorCode: 'validation_error',
             message: 'The given data was invalid.',
             meta: [
                 'errors' => $errors,
+                'legacy_error_code' => 'validation_failed',
             ],
             status: $status,
         );

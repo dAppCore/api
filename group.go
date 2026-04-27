@@ -25,6 +25,60 @@ type RouteGroup interface {
 	RegisterRoutes(rg *gin.RouterGroup)
 }
 
+// Describable allows a route handler or controller to expose OpenAPI metadata
+// without coupling callers to RouteDescription construction details.
+//
+// Example:
+//
+//	var d api.Describable = &myHandler{}
+type Describable interface {
+	// Describe returns the handler's request/response description.
+	Describe() RouteDescription
+	// OperationID returns the OpenAPI operation identifier.
+	OperationID() string
+	// Tags returns the OpenAPI tags associated with the operation.
+	Tags() []string
+	// Summary returns a short operation summary.
+	Summary() string
+	// Description returns a longer operation description.
+	Description() string
+}
+
+// Renderable allows a route handler or controller to expose UI rendering
+// hints that spec consumers can surface via vendor extensions.
+//
+// Example:
+//
+//	var r api.Renderable = &myHandler{}
+type Renderable interface {
+	// Render returns UI hints for the operation.
+	Render() RenderHints
+}
+
+// RenderHints describes how a UI may present an operation.
+type RenderHints struct {
+	Kind    string       `json:"kind,omitempty"`    // "form" | "table" | "modal" | "grid"
+	Fields  []FieldHint  `json:"fields,omitempty"`  // Form fields with validation hints.
+	Actions []ActionHint `json:"actions,omitempty"` // Inline action buttons.
+}
+
+// FieldHint describes an input field for UI rendering.
+type FieldHint struct {
+	Name       string         `json:"name,omitempty"`
+	Label      string         `json:"label,omitempty"`
+	Type       string         `json:"type,omitempty"`
+	Required   bool           `json:"required,omitempty"`
+	Validation map[string]any `json:"validation,omitempty"`
+}
+
+// ActionHint describes an inline action a UI can render for an operation.
+type ActionHint struct {
+	Name    string `json:"name,omitempty"`
+	Label   string `json:"label,omitempty"`
+	Method  string `json:"method,omitempty"`
+	Variant string `json:"variant,omitempty"`
+}
+
 // StreamGroup optionally declares WebSocket channels a subsystem publishes to.
 //
 // Example:
@@ -80,6 +134,13 @@ type RouteDescription struct {
 	Summary     string   // Short summary
 	Description string   // Long description
 	Tags        []string // OpenAPI tags for grouping
+	// Handler optionally points at the route handler/controller that implements
+	// Describable and/or Renderable. RegisterRoutes still owns actual Gin
+	// wiring; this field is metadata-only for spec generation.
+	Handler any
+	// CacheControl hints the framework that successful responses for this
+	// operation should advertise the given Cache-Control policy in docs.
+	CacheControl string
 	// Hidden omits the route from generated documentation.
 	Hidden bool
 	// Deprecated marks the operation as deprecated in OpenAPI.
@@ -87,8 +148,13 @@ type RouteDescription struct {
 	// SunsetDate marks when a deprecated operation will be removed.
 	// Use YYYY-MM-DD or an RFC 7231 HTTP date string.
 	SunsetDate string
-	// Replacement points to the successor endpoint URL, when known.
-	Replacement string
+	// ReplacementURL points to the successor endpoint URL, when known.
+	// Replacement is kept as a legacy alias for existing call sites.
+	ReplacementURL string
+	Replacement    string
+	// NoticeURL points to a detailed deprecation notice or migration guide,
+	// surfaced as the API-Deprecation-Notice-URL response header per spec §8.
+	NoticeURL string
 	// StatusCode is the documented 2xx success status code.
 	// Zero defaults to 200.
 	StatusCode int
@@ -101,6 +167,16 @@ type RouteDescription struct {
 	Response        map[string]any // JSON Schema for success response data
 	ResponseExample any            // Optional example payload for the success response.
 	ResponseHeaders map[string]string
+	// TransformerIn optionally remaps the external request DTO into the
+	// handler-facing DTO before RegisterRoutes' handler reads the request body.
+	// Supply a TransformerIn[I, O] or a slice of transformers to compose a
+	// pipeline.
+	TransformerIn any
+	// TransformerOut optionally remaps the handler-facing response DTO into the
+	// external response DTO inside the standard OK() envelope.
+	// Supply a TransformerOut[I, O] or a slice of transformers to compose a
+	// pipeline.
+	TransformerOut any
 }
 
 // ParameterDescription describes an OpenAPI parameter for a route.

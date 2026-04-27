@@ -16,6 +16,7 @@ use Core\Mod\Mcp\Services\ToolVersionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -28,6 +29,27 @@ class McpApiController extends Controller
     use HasApiResponses;
 
     /**
+     * Safe MCP server identifier pattern.
+     *
+     * Server IDs are used in cache keys and filesystem lookups, so they must
+     * stay within a narrow path-segment alphabet.
+     */
+    protected const SERVER_ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/';
+
+    /**
+     * Safe MCP tool identifier pattern.
+     *
+     * Tool names may be used in route segments and cache keys, so they must
+     * stay within a conservative path-segment alphabet.
+     */
+    protected const TOOL_NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/';
+
+    /**
+     * Hard wall-clock timeout for artisan-backed MCP subprocess calls.
+     */
+    protected const MCP_COMMAND_TIMEOUT_SECONDS = 30;
+
+    /**
      * List all available MCP servers.
      *
      * GET /api/v1/mcp/servers
@@ -35,8 +57,14 @@ class McpApiController extends Controller
     public function servers(Request $request): JsonResponse
     {
         $registry = $this->loadRegistry();
+        $apiKey = $request->attributes->get('api_key');
 
         $servers = collect($registry['servers'] ?? [])
+            ->filter(function ($ref) use ($apiKey) {
+                return is_array($ref)
+                    && isset($ref['id'])
+                    && $this->canAccessServer($apiKey, (string) $ref['id']);
+            })
             ->map(fn ($ref) => $this->loadServerSummary($ref['id']))
             ->filter()
             ->values();
@@ -76,6 +104,16 @@ class McpApiController extends Controller
     )]
     public function server(Request $request, string $id): JsonResponse
     {
+        if (! $this->isValidServerId($id)) {
+            return $this->validationErrorResponse([
+                'id' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $id)) {
+            return $denied;
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -115,6 +153,16 @@ class McpApiController extends Controller
     )]
     public function tools(Request $request, string $id): JsonResponse
     {
+        if (! $this->isValidServerId($id)) {
+            return $this->validationErrorResponse([
+                'id' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $id)) {
+            return $denied;
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -172,6 +220,16 @@ class McpApiController extends Controller
     )]
     public function resources(Request $request, string $id): JsonResponse
     {
+        if (! $this->isValidServerId($id)) {
+            return $this->validationErrorResponse([
+                'id' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $id)) {
+            return $denied;
+        }
+
         $server = $this->loadServerFull($id);
 
         if (! $server) {
@@ -277,45 +335,133 @@ class McpApiController extends Controller
     public function callTool(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'server' => 'required|string|max:64',
-            'tool' => 'required|string|max:128',
+            'server' => ['required', 'string', 'max:64', 'regex:'.self::SERVER_ID_PATTERN],
+            'tool' => ['required', 'string', 'max:128', 'regex:'.self::TOOL_NAME_PATTERN],
             'arguments' => 'nullable|array',
             'version' => 'nullable|string|max:32',
         ]);
 
-        $server = $this->loadServerFull($validated['server']);
-        if (! $server) {
+        if (! $this->isValidToolName($validated['tool'])) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $validated['server'])) {
+            return $denied;
+        }
+
+        return $this->executeToolCall(
+            request: $request,
+            server: $validated['server'],
+            tool: $validated['tool'],
+            arguments: $validated['arguments'] ?? [],
+            version: $validated['version'] ?? null,
+            requestPath: '/tools/call',
+        );
+    }
+
+    /**
+     * Execute a tool using the route parameters as the source of truth.
+     *
+     * POST /api/v1/mcp/servers/{server}/tools/{tool}
+     *
+     * Request body:
+     * - arguments: array (optional)
+     * - version: string (optional) - semver version to use, defaults to latest
+     */
+    public function callToolByRoute(Request $request, string $server, string $tool): JsonResponse
+    {
+        if (! $this->isValidServerId($server)) {
+            return $this->validationErrorResponse([
+                'server' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
+
+        $validated = $request->validate([
+            'arguments' => 'nullable|array',
+            'version' => 'nullable|string|max:32',
+        ]);
+
+        return $this->executeToolCall(
+            request: $request,
+            server: $server,
+            tool: $tool,
+            arguments: $validated['arguments'] ?? [],
+            version: $validated['version'] ?? null,
+            requestPath: '/'.$request->path(),
+        );
+    }
+
+    /**
+     * Shared execution pipeline for both the generic and route-shaped tool endpoints.
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    protected function executeToolCall(
+        Request $request,
+        string $server,
+        string $tool,
+        array $arguments,
+        ?string $version,
+        string $requestPath
+    ): JsonResponse {
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        $validated = [
+            'server' => $server,
+            'tool' => $tool,
+            'arguments' => $arguments,
+            'version' => $version,
+        ];
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
+
+        $serverConfig = $this->loadServerFull($server);
+        if (! $serverConfig) {
             return $this->notFoundResponse('Server');
         }
 
-        // Verify tool exists in server definition
-        $toolDef = collect($server['tools'] ?? [])->firstWhere('name', $validated['tool']);
+        // Verify tool exists in server definition.
+        $toolDef = collect($serverConfig['tools'] ?? [])->firstWhere('name', $tool);
         if (! $toolDef) {
             return $this->notFoundResponse('Tool');
         }
 
-        // Version resolution
+        // Version resolution.
         $versionService = app(ToolVersionService::class);
-        $versionResult = $versionService->resolveVersion(
-            $validated['server'],
-            $validated['tool'],
-            $validated['version'] ?? null
-        );
+        $versionResult = $versionService->resolveVersion($server, $tool, $version);
 
-        // If version was requested but is sunset, block the call
+        // If version was requested but is sunset, block the call.
         if ($versionResult['error']) {
             $error = $versionResult['error'];
 
-            // Sunset versions return 410 Gone
+            // Sunset versions return 410 Gone.
             $status = ($error['code'] ?? '') === 'TOOL_VERSION_SUNSET' ? 410 : 400;
 
             return $this->errorResponse(
                 errorCode: $error['code'] ?? 'VERSION_ERROR',
                 message: $error['message'] ?? 'Version error',
                 meta: [
-                    'server' => $validated['server'],
-                    'tool' => $validated['tool'],
-                    'requested_version' => $validated['version'] ?? null,
+                    'server' => $server,
+                    'tool' => $tool,
+                    'requested_version' => $version,
                     'latest_version' => $error['latest_version'] ?? null,
                     'migration_notes' => $error['migration_notes'] ?? null,
                 ],
@@ -332,7 +478,7 @@ class McpApiController extends Controller
         if ($schemaForValidation) {
             $validationErrors = $this->validateToolArguments(
                 ['inputSchema' => $schemaForValidation],
-                $validated['arguments'] ?? []
+                $arguments
             );
 
             if (! empty($validationErrors)) {
@@ -341,8 +487,8 @@ class McpApiController extends Controller
                     message: 'Validation failed',
                     meta: [
                         'validation_errors' => $validationErrors,
-                        'server' => $validated['server'],
-                        'tool' => $validated['tool'],
+                        'server' => $server,
+                        'tool' => $tool,
                         'version' => $toolVersion?->version ?? 'unversioned',
                     ],
                     status: 422,
@@ -352,31 +498,35 @@ class McpApiController extends Controller
 
         // Get API key for logging
         $apiKey = $request->attributes->get('api_key');
-        $workspace = $apiKey?->workspace;
 
         $startTime = microtime(true);
 
         try {
             // Execute the tool via artisan command
             $result = $this->executeToolViaArtisan(
-                $validated['server'],
-                $validated['tool'],
-                $validated['arguments'] ?? [],
+                $server,
+                $tool,
+                $arguments,
                 $toolVersion?->version
             );
 
             $durationMs = (int) ((microtime(true) - $startTime) * 1000);
 
-            // Log the call
-            $this->logToolCall($apiKey, $validated, $result, $durationMs, true);
+            // Log the call best-effort so observability failures do not break
+            // a successful tool execution response.
+            try {
+                $this->logToolCall($apiKey, $validated, $result, $durationMs, true);
+            } catch (\Throwable $logException) {
+                report($logException);
+            }
 
             // Dispatch webhooks
             $this->dispatchWebhook($apiKey, $validated, true, $durationMs);
 
             $response = [
                 'success' => true,
-                'server' => $validated['server'],
-                'tool' => $validated['tool'],
+                'server' => $server,
+                'tool' => $tool,
                 'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
                 'result' => $result,
                 'duration_ms' => $durationMs,
@@ -388,7 +538,7 @@ class McpApiController extends Controller
             }
 
             // Log full request for debugging/replay
-            $this->logApiRequest($request, $validated, 200, $response, $durationMs, $apiKey);
+            $this->logApiRequest($request, $requestPath, $validated, 200, $response, $durationMs, $apiKey);
 
             // Build response with deprecation headers if needed
             $jsonResponse = response()->json($response);
@@ -407,28 +557,32 @@ class McpApiController extends Controller
         } catch (\Throwable $e) {
             $durationMs = (int) ((microtime(true) - $startTime) * 1000);
 
-            $this->logToolCall($apiKey, $validated, null, $durationMs, false, $e->getMessage());
+            try {
+                $this->logToolCall($apiKey, $validated, null, $durationMs, false, $e->getMessage());
+            } catch (\Throwable $logException) {
+                report($logException);
+            }
 
             // Dispatch webhooks (even on failure)
             $this->dispatchWebhook($apiKey, $validated, false, $durationMs, $e->getMessage());
 
             $response = [
                 'success' => false,
-                'error' => $e->getMessage(),
-                'server' => $validated['server'],
-                'tool' => $validated['tool'],
+                'error' => 'Tool execution failed.',
+                'server' => $server,
+                'tool' => $tool,
                 'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
             ];
 
             // Log full request for debugging/replay
-            $this->logApiRequest($request, $validated, 500, $response, $durationMs, $apiKey, $e->getMessage());
+            $this->logApiRequest($request, $requestPath, $validated, 500, $response, $durationMs, $apiKey, $e->getMessage());
 
             return $this->errorResponse(
                 errorCode: 'tool_execution_error',
-                message: $e->getMessage(),
+                message: 'Tool execution failed.',
                 meta: array_filter([
-                    'server' => $validated['server'],
-                    'tool' => $validated['tool'],
+                    'server' => $server,
+                    'tool' => $tool,
                     'version' => $toolVersion?->version ?? ToolVersionService::DEFAULT_VERSION,
                 ]),
                 status: 500,
@@ -494,8 +648,8 @@ class McpApiController extends Controller
     {
         return match ($type) {
             'string' => is_string($value),
-            'integer' => is_int($value) || (is_numeric($value) && floor((float) $value) == $value),
-            'number' => is_numeric($value),
+            'integer' => is_int($value),
+            'number' => is_int($value) || is_float($value),
             'boolean' => is_bool($value),
             'array' => is_array($value) && array_is_list($value),
             'object' => is_array($value) && ! array_is_list($value),
@@ -511,6 +665,22 @@ class McpApiController extends Controller
      */
     public function toolVersions(Request $request, string $server, string $tool): JsonResponse
     {
+        if (! $this->isValidServerId($server)) {
+            return $this->validationErrorResponse([
+                'server' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
+
         $serverConfig = $this->loadServerFull($server);
         if (! $serverConfig) {
             return $this->notFoundResponse('Server');
@@ -540,6 +710,22 @@ class McpApiController extends Controller
      */
     public function toolVersion(Request $request, string $server, string $tool, string $version): JsonResponse
     {
+        if (! $this->isValidServerId($server)) {
+            return $this->validationErrorResponse([
+                'server' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidToolName($tool)) {
+            return $this->validationErrorResponse([
+                'tool' => ['The selected tool name is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $server)) {
+            return $denied;
+        }
+
         $versionService = app(ToolVersionService::class);
         $toolVersion = $versionService->getToolAtVersion($server, $tool, $version);
 
@@ -570,7 +756,7 @@ class McpApiController extends Controller
         $uri = rawurldecode($uri);
 
         // Parse URI format: server://resource/path
-        if (! preg_match('/^([a-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
+        if (! preg_match('/^([A-Za-z0-9-]+):\/\/(.+)$/', $uri, $matches)) {
             return $this->validationErrorResponse([
                 'uri' => ['Invalid resource URI format. Expected pattern server://resource/path'],
             ], 400);
@@ -578,6 +764,22 @@ class McpApiController extends Controller
 
         $serverId = $matches[1];
         $resourcePath = $matches[2];
+
+        if (! $this->isValidServerId($serverId)) {
+            return $this->validationErrorResponse([
+                'uri' => ['The selected server id is invalid.'],
+            ]);
+        }
+
+        if (! $this->isValidResourcePath($resourcePath)) {
+            return $this->validationErrorResponse([
+                'uri' => ['The selected resource path is invalid.'],
+            ]);
+        }
+
+        if ($denied = $this->ensureServerAccess($request, $serverId)) {
+            return $denied;
+        }
 
         $server = $this->loadServerFull($serverId);
         if (! $server) {
@@ -615,11 +817,27 @@ class McpApiController extends Controller
                 'content' => $content,
             ]);
         } catch (\Throwable $e) {
+            try {
+                report($e);
+
+                Log::error('MCP resource read failed', [
+                    'server_id' => $serverId,
+                    'resource_path' => $resourcePath,
+                    'uri' => $uri,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
+            } catch (\Throwable $logException) {
+                report($logException);
+            }
+
             return $this->errorResponse(
                 errorCode: 'resource_read_error',
-                message: $e->getMessage(),
+                message: 'Resource read failed.',
                 meta: [
                     'uri' => $uri,
+                    'server' => $serverId,
+                    'resource' => $resourcePath,
                 ],
                 status: 500,
             );
@@ -637,33 +855,13 @@ class McpApiController extends Controller
         }
 
         $mcpRequest = $this->buildToolCallRequest($tool, $arguments, $version);
-
-        // Execute via process
-        $process = proc_open(
-            ['php', 'artisan', $command],
-            [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes,
-            base_path()
-        );
-
-        if (! is_resource($process)) {
-            throw new \RuntimeException('Failed to start MCP server process');
-        }
-
-        fwrite($pipes[0], json_encode($mcpRequest)."\n");
-        fclose($pipes[0]);
-
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        proc_close($process);
+        $payload = $this->encodeMcpRequest($mcpRequest, 'MCP tool call');
+        $output = $this->runMcpServerCommand($command, $payload, 'MCP tool call');
 
         $response = json_decode($output, true);
+        if (! is_array($response)) {
+            throw new \RuntimeException('Invalid MCP tool response');
+        }
 
         if (isset($response['error'])) {
             throw new \RuntimeException($response['error']['message'] ?? 'Tool execution failed');
@@ -688,10 +886,22 @@ class McpApiController extends Controller
 
         return [
             'jsonrpc' => '2.0',
-            'id' => uniqid(),
+            'id' => bin2hex(random_bytes(16)),
             'method' => 'tools/call',
             'params' => $params,
         ];
+    }
+
+    /**
+     * Encode an MCP request before writing it to a subprocess.
+     */
+    protected function encodeMcpRequest(array $mcpRequest, string $context): string
+    {
+        try {
+            return json_encode($mcpRequest, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new \RuntimeException("Unable to encode {$context} request as JSON.", previous: $e);
+        }
     }
 
     /**
@@ -706,16 +916,37 @@ class McpApiController extends Controller
 
         $mcpRequest = [
             'jsonrpc' => '2.0',
-            'id' => uniqid(),
+            'id' => bin2hex(random_bytes(16)),
             'method' => 'resources/read',
             'params' => [
                 'uri' => "{$server}://{$path}",
                 'path' => $path,
             ],
         ];
+        $payload = $this->encodeMcpRequest($mcpRequest, 'MCP resource read');
+        $output = $this->runMcpServerCommand($command, $payload, 'MCP resource read');
 
+        $response = json_decode($output, true);
+        if (! is_array($response)) {
+            throw new \RuntimeException('Invalid MCP resource response');
+        }
+
+        if (isset($response['error'])) {
+            throw new \RuntimeException($response['error']['message'] ?? 'Resource read failed');
+        }
+
+        return $response['result'] ?? null;
+    }
+
+    /**
+     * Execute an MCP artisan command and return the captured stdout.
+     */
+    protected function runMcpServerCommand(string $command, string $payload, string $context): string
+    {
+        $deadline = microtime(true) + self::MCP_COMMAND_TIMEOUT_SECONDS;
+        $pipes = [];
         $process = proc_open(
-            ['php', 'artisan', $command],
+            [PHP_BINARY, 'artisan', $command],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -729,25 +960,151 @@ class McpApiController extends Controller
             throw new \RuntimeException('Failed to start MCP server process');
         }
 
-        fwrite($pipes[0], json_encode($mcpRequest)."\n");
-        fclose($pipes[0]);
+        $output = '';
+        $errorOutput = '';
+        $exitCode = null;
+        $timedOut = false;
 
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        try {
+            if (! is_resource($pipes[0]) || ! is_resource($pipes[1]) || ! is_resource($pipes[2])) {
+                throw new \RuntimeException("{$context} command failed to start");
+            }
 
-        proc_close($process);
+            $buffer = $payload."\n";
+            $offset = 0;
+            $length = strlen($buffer);
 
-        $response = json_decode($output, true);
-        if (! is_array($response)) {
-            throw new \RuntimeException('Invalid MCP resource response');
+            while ($offset < $length) {
+                $written = fwrite($pipes[0], substr($buffer, $offset));
+                if ($written === false || $written === 0) {
+                    throw new \RuntimeException("Unable to write {$context} payload to subprocess");
+                }
+
+                $offset += $written;
+            }
+
+            fclose($pipes[0]);
+            unset($pipes[0]);
+
+            stream_set_blocking($pipes[1], false);
+            stream_set_blocking($pipes[2], false);
+
+            while (true) {
+                $read = [];
+
+                foreach ([1, 2] as $index) {
+                    if (isset($pipes[$index]) && is_resource($pipes[$index]) && ! feof($pipes[$index])) {
+                        $read[] = $pipes[$index];
+                    }
+                }
+
+                if ($read === []) {
+                    break;
+                }
+
+                $remaining = $deadline - microtime(true);
+                if ($remaining <= 0) {
+                    $timedOut = true;
+                    break;
+                }
+
+                $write = [];
+                $except = [];
+                $seconds = (int) floor($remaining);
+                $microseconds = (int) floor(($remaining - $seconds) * 1000000);
+                $selected = stream_select($read, $write, $except, $seconds, $microseconds);
+
+                if ($selected === false) {
+                    throw new \RuntimeException("Unable to read {$context} output");
+                }
+
+                if ($selected === 0) {
+                    $status = proc_get_status($process);
+                    if (! ($status['running'] ?? false)) {
+                        foreach ([1, 2] as $index) {
+                            if (isset($pipes[$index]) && is_resource($pipes[$index])) {
+                                $chunk = stream_get_contents($pipes[$index]);
+                                if ($chunk === false) {
+                                    throw new \RuntimeException("Unable to read {$context} output");
+                                }
+
+                                if ($index === 1) {
+                                    $output .= $chunk;
+                                } else {
+                                    $errorOutput .= $chunk;
+                                }
+                            }
+                        }
+
+                        break;
+                    }
+
+                    $timedOut = true;
+                    break;
+                }
+
+                $status = proc_get_status($process);
+                if (! ($status['running'] ?? false)) {
+                    foreach ([1, 2] as $index) {
+                        if (isset($pipes[$index]) && is_resource($pipes[$index])) {
+                            $chunk = stream_get_contents($pipes[$index]);
+                            if ($chunk === false) {
+                                throw new \RuntimeException("Unable to read {$context} output");
+                            }
+
+                            if ($index === 1) {
+                                $output .= $chunk;
+                            } else {
+                                $errorOutput .= $chunk;
+                            }
+                        }
+                    }
+
+                    break;
+                }
+
+                foreach ($read as $pipe) {
+                    $chunk = fread($pipe, 8192);
+                    if ($chunk === false) {
+                        throw new \RuntimeException("Unable to read {$context} output");
+                    }
+
+                    if ($pipe === $pipes[1]) {
+                        $output .= $chunk;
+                    } else {
+                        $errorOutput .= $chunk;
+                    }
+                }
+            }
+        } finally {
+            if ($timedOut && is_resource($process)) {
+                @proc_terminate($process, 9);
+            }
+
+            foreach ($pipes as $pipe) {
+                if (is_resource($pipe)) {
+                    fclose($pipe);
+                }
+            }
+
+            if (is_resource($process)) {
+                $exitCode = proc_close($process);
+            }
         }
 
-        if (isset($response['error'])) {
-            throw new \RuntimeException($response['error']['message'] ?? 'Resource read failed');
+        if ($timedOut) {
+            throw new \RuntimeException("{$context} command timed out after ".self::MCP_COMMAND_TIMEOUT_SECONDS.' seconds');
         }
 
-        return $response['result'] ?? null;
+        if ($exitCode !== 0) {
+            $suffix = trim((string) $errorOutput);
+
+            throw new \RuntimeException($suffix !== ''
+                ? "{$context} command failed: {$suffix}"
+                : "{$context} command failed");
+        }
+
+        return is_string($output) ? $output : '';
     }
 
     /**
@@ -779,9 +1136,8 @@ class McpApiController extends Controller
 
             $resourceUri = $resource['uri'] ?? null;
             $resourcePath = $resource['path'] ?? null;
-            $resourceName = $resource['name'] ?? null;
 
-            if ($resourceUri === $uri || $resourcePath === $path || $resourceName === basename($path)) {
+            if ($resourceUri === $uri || $resourcePath === $path) {
                 return $resource;
             }
         }
@@ -830,6 +1186,7 @@ class McpApiController extends Controller
      */
     protected function logApiRequest(
         Request $request,
+        string $path,
         array $validated,
         int $status,
         array $response,
@@ -840,7 +1197,7 @@ class McpApiController extends Controller
         try {
             McpApiRequest::log(
                 method: $request->method(),
-                path: '/tools/call',
+                path: $path,
                 requestBody: $validated,
                 responseStatus: $status,
                 responseBody: $response,
@@ -851,7 +1208,7 @@ class McpApiController extends Controller
                 toolName: $validated['tool'],
                 errorMessage: $error,
                 ipAddress: $request->ip(),
-                headers: $request->headers->all()
+                headers: $this->sanitizeHeaders($request->headers->all())
             );
         } catch (\Throwable $e) {
             // Don't let logging failures affect API response
@@ -912,24 +1269,186 @@ class McpApiController extends Controller
         );
     }
 
+    /**
+     * Redact credential-bearing request headers before persisting them.
+     *
+     * @param  array<string, array<int, string>>  $headers
+     * @return array<string, array<int, string>>
+     */
+    protected function sanitizeHeaders(array $headers): array
+    {
+        $sensitiveHeaders = [
+            'authorization',
+            'proxy-authorization',
+            'x-api-key',
+            'cookie',
+            'set-cookie',
+        ];
+
+        $sanitized = [];
+
+        foreach ($headers as $name => $values) {
+            $lower = strtolower($name);
+            if (in_array($lower, $sensitiveHeaders, true)) {
+                $sanitized[$name] = ['[redacted]'];
+                continue;
+            }
+
+            $sanitized[$name] = array_values(array_map(
+                static fn ($value) => is_scalar($value) ? (string) $value : json_encode($value),
+                is_array($values) ? $values : [$values]
+            ));
+        }
+
+        return $sanitized;
+    }
+
     // Registry loading methods (shared with McpRegistryController)
 
     protected function loadRegistry(): array
     {
-        return Cache::remember('mcp:registry', 600, function () {
-            $path = resource_path('mcp/registry.yaml');
+        $cacheKey = 'mcp:registry';
+        try {
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        } catch (\Throwable) {
+            // Fall back to the on-disk registry if cache is unavailable.
+        }
 
-            return file_exists($path) ? Yaml::parseFile($path) : ['servers' => []];
-        });
+        $path = resource_path('mcp/registry.yaml');
+        if (! $this->isSafeYamlPath($path, resource_path('mcp'))) {
+            Log::warning('MCP registry path rejected', [
+                'path' => $path,
+                'base_directory' => resource_path('mcp'),
+            ]);
+
+            return ['servers' => []];
+        }
+
+        try {
+            $registry = Yaml::parseFile($path);
+        } catch (\Throwable $exception) {
+            Log::warning('MCP registry failed to parse', [
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return ['servers' => []];
+        }
+
+        if (! is_array($registry)) {
+            Log::warning('MCP registry returned a non-array document', [
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'document_type' => get_debug_type($registry),
+            ]);
+
+            return ['servers' => []];
+        }
+
+        try {
+            Cache::put($cacheKey, $registry, 600);
+        } catch (\Throwable) {
+            // Cache is best-effort for MCP metadata.
+        }
+
+        return $registry;
     }
 
     protected function loadServerFull(string $id): ?array
     {
-        return Cache::remember("mcp:server:{$id}", 600, function () use ($id) {
-            $path = resource_path("mcp/servers/{$id}.yaml");
+        if (! $this->isValidServerId($id)) {
+            return null;
+        }
 
-            return file_exists($path) ? Yaml::parseFile($path) : null;
-        });
+        $cacheKey = "mcp:server:{$id}";
+        try {
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached)) {
+                return $this->normalizeServerDefinition($cached);
+            }
+        } catch (\Throwable) {
+            // Fall back to the on-disk server definition if cache is unavailable.
+        }
+
+        $path = resource_path("mcp/servers/{$id}.yaml");
+        if (! $this->isSafeYamlPath($path, resource_path('mcp/servers'))) {
+            Log::warning('MCP server definition path rejected', [
+                'server_id' => $id,
+                'path' => $path,
+                'base_directory' => resource_path('mcp/servers'),
+            ]);
+
+            return null;
+        }
+
+        try {
+            $server = Yaml::parseFile($path);
+        } catch (\Throwable $exception) {
+            Log::warning('MCP server definition failed to parse', [
+                'server_id' => $id,
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        if (! is_array($server)) {
+            Log::warning('MCP server definition returned a non-array document', [
+                'server_id' => $id,
+                'path' => $path,
+                'cache_key' => $cacheKey,
+                'document_type' => get_debug_type($server),
+            ]);
+
+            return null;
+        }
+
+        $server = $this->normalizeServerDefinition($server);
+
+        try {
+            Cache::put($cacheKey, $server, 600);
+        } catch (\Throwable) {
+            // Cache is best-effort for MCP metadata.
+        }
+
+        return $server;
+    }
+
+    /**
+     * Check whether a YAML file path stays inside the expected directory and
+     * is not a symlink to somewhere else on disk.
+     */
+    protected function isSafeYamlPath(string $path, string $baseDirectory): bool
+    {
+        if (is_link($baseDirectory)) {
+            return false;
+        }
+
+        $baseDirectory = realpath($baseDirectory);
+        if ($baseDirectory === false) {
+            return false;
+        }
+
+        if (! file_exists($path) || is_link($path)) {
+            return false;
+        }
+
+        $realPath = realpath($path);
+        if ($realPath === false) {
+            return false;
+        }
+
+        $prefix = $baseDirectory.DIRECTORY_SEPARATOR;
+
+        return $realPath === $baseDirectory || str_starts_with($realPath, $prefix);
     }
 
     protected function loadServerSummary(string $id): ?array
@@ -940,12 +1459,106 @@ class McpApiController extends Controller
         }
 
         return [
-            'id' => $server['id'],
-            'name' => $server['name'],
+            'id' => $server['id'] ?? $id,
+            'name' => $server['name'] ?? $id,
             'tagline' => $server['tagline'] ?? '',
             'status' => $server['status'] ?? 'available',
             'tool_count' => count($server['tools'] ?? []),
             'resource_count' => count($server['resources'] ?? []),
         ];
+    }
+
+    /**
+     * Normalise a server definition so list and detail responses stay nil-safe.
+     */
+    protected function normalizeServerDefinition(array $server): array
+    {
+        if (! isset($server['tools']) || ! is_array($server['tools'])) {
+            $server['tools'] = [];
+        }
+
+        if (! isset($server['resources']) || ! is_array($server['resources'])) {
+            $server['resources'] = [];
+        }
+
+        return $server;
+    }
+
+    /**
+     * Check whether a server identifier is safe for filesystem-backed lookup.
+     */
+    protected function isValidServerId(string $id): bool
+    {
+        return (bool) preg_match(self::SERVER_ID_PATTERN, $id);
+    }
+
+    /**
+     * Check whether a tool identifier is safe for route and cache usage.
+     */
+    protected function isValidToolName(string $tool): bool
+    {
+        $tool = trim($tool);
+
+        if ($tool === '') {
+            return false;
+        }
+
+        if (str_contains($tool, '/') || str_contains($tool, '\\') || str_contains($tool, '*') || str_contains($tool, '?')) {
+            return false;
+        }
+
+        if (str_contains($tool, '..')) {
+            return false;
+        }
+
+        return (bool) preg_match(self::TOOL_NAME_PATTERN, $tool);
+    }
+
+    /**
+     * Check whether a resource path is safe to forward to an MCP server.
+     */
+    protected function isValidResourcePath(string $path): bool
+    {
+        $path = trim($path);
+
+        if ($path === '' || str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+            return false;
+        }
+
+        if (str_contains($path, '%')) {
+            return false;
+        }
+
+        if (preg_match('/(^|\/)\.\.?(?:\/|$)/', $path)) {
+            return false;
+        }
+
+        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/', $path);
+    }
+
+    /**
+     * Return a 403 response when the authenticated API key cannot access the server.
+     */
+    protected function ensureServerAccess(Request $request, string $serverId): ?JsonResponse
+    {
+        $apiKey = $request->attributes->get('api_key');
+
+        if (! $this->canAccessServer($apiKey, $serverId)) {
+            return $this->forbiddenResponse('API key is not allowed to access this MCP server.');
+        }
+
+        return null;
+    }
+
+    /**
+     * Check whether an API key can access the given server.
+     */
+    protected function canAccessServer(mixed $apiKey, string $serverId): bool
+    {
+        if (! $apiKey instanceof ApiKey) {
+            return false;
+        }
+
+        return $apiKey->hasServerAccess($serverId);
     }
 }

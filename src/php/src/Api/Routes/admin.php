@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
-use Mod\Api\View\Modal\Admin\WebhookTemplateManager;
+use Core\Api\View\Modal\Admin\WebhookTemplateManager;
 
 /*
 |--------------------------------------------------------------------------

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Core\Api\Jobs;
 
 use Core\Api\Models\WebhookDelivery;
+use Core\Api\Models\WebhookEndpoint;
 use Illuminate\Bus\Queueable;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -73,21 +75,31 @@ class DeliverWebhookJob implements ShouldQueue
             return;
         }
 
+        try {
+            $curlOptions = WebhookEndpoint::curlResolveOptionsFor($endpoint->url);
+        } catch (\InvalidArgumentException $e) {
+            $this->handleFailure(0, 'Unsafe webhook destination blocked.');
+            Log::warning('Webhook delivery blocked by URL safety check', [
+                'delivery_id' => $this->delivery->id,
+                'endpoint_url' => $this->redactUrlForLog($endpoint->url),
+            ]);
+
+            return;
+        }
+
         // Get delivery payload with signature headers
         $deliveryPayload = $this->delivery->getDeliveryPayload();
         $timeout = config('api.webhooks.timeout', 30);
 
         Log::info('Attempting webhook delivery', [
             'delivery_id' => $this->delivery->id,
-            'endpoint_url' => $endpoint->url,
+            'endpoint_url' => $this->redactUrlForLog($endpoint->url),
             'event_type' => $this->delivery->event_type,
             'attempt' => $this->delivery->attempt,
         ]);
 
         try {
-            $response = Http::timeout($timeout)
-                ->withHeaders($deliveryPayload['headers'])
-                ->withBody($deliveryPayload['body'], 'application/json')
+            $response = $this->buildRequest($deliveryPayload, $timeout, $curlOptions)
                 ->post($endpoint->url);
 
             $statusCode = $response->status();
@@ -118,10 +130,32 @@ class DeliverWebhookJob implements ShouldQueue
 
             Log::error('Webhook delivery unexpected error', [
                 'delivery_id' => $this->delivery->id,
+                'error_type' => $e::class,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
         }
+    }
+
+    /**
+     * Build the outbound webhook request with the full safety contract applied.
+     *
+     * @param  array{headers: array<string, string|int>, body: string}  $deliveryPayload
+     * @param  array<string, array<int, string>>  $curlOptions
+     */
+    protected function buildRequest(array $deliveryPayload, int $timeout, array $curlOptions): PendingRequest
+    {
+        $request = Http::timeout($timeout)
+            ->withoutRedirecting()
+            ->withHeaders($deliveryPayload['headers'])
+            ->withBody($deliveryPayload['body'], 'application/json');
+
+        if ($curlOptions !== []) {
+            $request = $request->withOptions([
+                'curl' => $curlOptions,
+            ]);
+        }
+
+        return $request;
     }
 
     /**
@@ -140,7 +174,14 @@ class DeliverWebhookJob implements ShouldQueue
         $this->delivery->markFailed($statusCode, $responseBody);
 
         // If we can retry, dispatch a new job with the appropriate delay
-        if ($this->delivery->canRetry() && $this->delivery->next_retry_at) {
+        $queueConnection = $this->connection ?? config('queue.default');
+
+        if (
+            ! app()->environment('testing')
+            && $queueConnection !== 'sync'
+            && $this->delivery->canRetry()
+            && $this->delivery->next_retry_at
+        ) {
             $delay = $this->delivery->next_retry_at->diffInSeconds(now());
 
             Log::info('Scheduling webhook retry', [
@@ -150,8 +191,15 @@ class DeliverWebhookJob implements ShouldQueue
                 'next_retry_at' => $this->delivery->next_retry_at->toIso8601String(),
             ]);
 
-            // Dispatch retry with calculated delay
-            self::dispatch($this->delivery->fresh())->delay($delay);
+            $freshDelivery = $this->delivery->fresh();
+
+            // Only reschedule when the delivery still exists. If it was deleted
+            // while the job was processing, there is nothing left to retry.
+            if (! $freshDelivery instanceof WebhookDelivery) {
+                return;
+            }
+
+            self::dispatch($freshDelivery)->delay($delay);
         }
     }
 
@@ -178,5 +226,27 @@ class DeliverWebhookJob implements ShouldQueue
             'webhook:'.$this->delivery->webhook_endpoint_id,
             'event:'.$this->delivery->event_type,
         ];
+    }
+
+    /**
+     * Redact sensitive URL parts before logging.
+     */
+    protected function redactUrlForLog(string $url): string
+    {
+        $parsed = parse_url($url);
+        if ($parsed === false) {
+            return '[invalid-url]';
+        }
+
+        $scheme = $parsed['scheme'] ?? 'https';
+        $host = $parsed['host'] ?? '';
+        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
+        $path = $parsed['path'] ?? '';
+
+        if ($path === '') {
+            $path = '/';
+        }
+
+        return "{$scheme}://{$host}{$port}{$path}";
     }
 }

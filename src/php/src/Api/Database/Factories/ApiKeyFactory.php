@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Mod\Api\Database\Factories;
+namespace Core\Api\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Mod\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Api\Models\ApiKey;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 
 /**
  * Factory for generating ApiKey test instances.
  *
- * By default, creates keys with secure bcrypt hashing.
- * Use legacyHash() to create keys with SHA-256 for migration testing.
+ * By default, creates keys with the RFC key format and bcrypt hashing.
+ * Use legacyHash() to create keys with the older hk_ prefix for migration testing.
  *
  * @extends Factory<ApiKey>
  */
@@ -36,21 +36,21 @@ class ApiKeyFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * Creates keys with secure bcrypt hashing by default.
+     * Creates keys with the RFC key format and bcrypt hashing by default.
      *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
         $plainKey = Str::random(48);
-        $prefix = 'hk_'.Str::random(8);
+        $prefix = ApiKey::generatePrefix();
         $this->plainKey = "{$prefix}_{$plainKey}";
 
         return [
             'workspace_id' => Workspace::factory(),
             'user_id' => User::factory(),
             'name' => fake()->words(2, true).' API Key',
-            'key' => Hash::make($plainKey),
+            'key' => Hash::driver('bcrypt')->make($plainKey),
             'hash_algorithm' => ApiKey::HASH_BCRYPT,
             'prefix' => $prefix,
             'scopes' => [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE],
@@ -112,7 +112,7 @@ class ApiKeyFactory extends Factory
         $user ??= User::factory()->create();
 
         $plainKey = Str::random(48);
-        $prefix = 'hk_'.Str::random(8);
+        $prefix = ApiKey::generatePrefix();
 
         $apiKey = ApiKey::create([
             'workspace_id' => $workspace->id,

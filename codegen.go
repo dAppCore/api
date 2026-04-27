@@ -4,18 +4,28 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"io/fs"
 	"iter"
 	"maps"
+	// Note: AX-6 - retained for inheriting stdout/stderr when invoking the SDK generator; filesystem checks below use core.Fs.
 	"os"
+	// Note: AX-6 - retained for the subprocess boundary because SDKGenerator has no Core instance with registered process.run.
 	"os/exec"
-	"path/filepath"
+	// Note: AX-6 - no core.Regex primitive exists in dappco.re/go/core v0.8; compiled regexp anchors PackageName validation for command-argument safety.
+	"regexp"
 	"slices"
-	"strings"
 
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	core "dappco.re/go/core"
+	coreerr "dappco.re/go/log"
 )
+
+// packageNameRe constrains SDKGenerator.PackageName to identifier-shaped
+// values so it cannot smuggle additional CLI flags through
+// --additional-properties packageName=<value>. Defence-in-depth per
+// Cerberus mechanism review on Mantis #322 — current callsite is operator-
+// only via cmd/api/cmd_sdk.go, but future consumers binding request input
+// to this field would re-open the flag-injection surface without it.
+var packageNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]*$`)
 
 // Supported SDK target languages.
 var supportedLanguages = map[string]string{
@@ -62,38 +72,58 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
 		return coreerr.E("SDKGenerator.Generate", "context is nil", nil)
 	}
 
-	language = strings.TrimSpace(language)
+	language = core.Trim(language)
 	generator, ok := supportedLanguages[language]
 	if !ok {
-		return coreerr.E("SDKGenerator.Generate", fmt.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
+		return coreerr.E("SDKGenerator.Generate", core.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
 	}
 
-	specPath := strings.TrimSpace(g.SpecPath)
+	specPath := core.Trim(g.SpecPath)
 	if specPath == "" {
 		return coreerr.E("SDKGenerator.Generate", "spec path is required", nil)
 	}
-	if _, err := os.Stat(specPath); err != nil {
-		if os.IsNotExist(err) {
+	localFS := (&core.Fs{}).NewUnrestricted()
+	if result := localFS.Stat(specPath); !result.OK {
+		err, _ := result.Value.(error)
+		if core.Is(err, fs.ErrNotExist) {
 			return coreerr.E("SDKGenerator.Generate", "spec file not found: "+specPath, nil)
 		}
 		return coreerr.E("SDKGenerator.Generate", "stat spec file", err)
 	}
 
-	outputBase := strings.TrimSpace(g.OutputDir)
+	outputBase := core.Trim(g.OutputDir)
 	if outputBase == "" {
 		return coreerr.E("SDKGenerator.Generate", "output directory is required", nil)
+	}
+
+	if g.PackageName != "" && !packageNameRe.MatchString(g.PackageName) {
+		return coreerr.E("SDKGenerator.Generate",
+			core.Sprintf("package name %q rejected: must match %s", g.PackageName, packageNameRe.String()), nil)
 	}
 
 	if !g.Available() {
 		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli not installed", nil)
 	}
 
-	outputDir := filepath.Join(outputBase, language)
-	if err := coreio.Local.EnsureDir(outputDir); err != nil {
+	outputDir := core.Path(outputBase, language)
+	if !core.PathIsAbs(outputBase) {
+		outputDir = core.Path(core.Env("DIR_CWD"), outputBase, language)
+	}
+	if result := localFS.EnsureDir(outputDir); !result.OK {
+		err, _ := result.Value.(error)
 		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
 	}
 
 	args := g.buildArgs(specPath, generator, outputDir)
+	// SDKGenerator is a standalone helper with no Core runtime handle. Without
+	// a registered process.run action, core.Process cannot execute this command.
+	// Command name is a string literal (zero attacker-influence). Args are
+	// constructed from a closed allowlist of generator names (supportedLanguages)
+	// and operator-supplied spec/output paths. Current callsite is operator-only
+	// via cmd/api/cmd_sdk.go. PackageName is regex-validated above to prevent
+	// flag-injection through --additional-properties. Cerberus mechanism review
+	// attached to Mantis #322.
+	//#nosec G204 -- command literal; args from closed allowlist + operator config + validated PackageName.
 	cmd := exec.CommandContext(ctx, "openapi-generator-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -127,8 +157,7 @@ func (g *SDKGenerator) buildArgs(specPath, generator, outputDir string) []string
 //		t.Fatal("openapi-generator-cli is required")
 //	}
 func (g *SDKGenerator) Available() bool {
-	_, err := exec.LookPath("openapi-generator-cli")
-	return err == nil
+	return core.App{}.Find("openapi-generator-cli", "openapi-generator-cli").OK
 }
 
 // SupportedLanguages returns the list of supported SDK target languages
@@ -146,7 +175,7 @@ func SupportedLanguages() []string {
 // Example:
 //
 //	for lang := range api.SupportedLanguagesIter() {
-//		fmt.Println(lang)
+//		_ = lang
 //	}
 func SupportedLanguagesIter() iter.Seq[string] {
 	return slices.Values(SupportedLanguages())

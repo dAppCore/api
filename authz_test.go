@@ -11,7 +11,7 @@ import (
 	"github.com/casbin/casbin/v2/model"
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // casbinModel is a minimal RESTful ACL model for testing authorisation.

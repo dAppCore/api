@@ -472,7 +472,11 @@ class WebhookTemplateService
         preg_match_all('/\{\{\s*([^}|]+)/', $template, $matches);
         foreach ($matches[1] as $varName) {
             $varName = trim($varName);
-            // Allow #if, #unless, #each, /if, /unless, /each for mustache compatibility
+            // Allow supported mustache block syntax so validateMustache() can reuse this check.
+            if ($this->isSupportedMustacheBlockTag($varName)) {
+                continue;
+            }
+
             if (! preg_match('/^[#\/]?[a-zA-Z0-9_\.@]+$/', $varName)) {
                 $errors[] = "Invalid variable name: {$varName}";
             }
@@ -487,6 +491,14 @@ class WebhookTemplateService
         }
 
         return $errors;
+    }
+
+    /**
+     * Determine whether a tag is a supported mustache block delimiter.
+     */
+    protected function isSupportedMustacheBlockTag(string $tag): bool
+    {
+        return (bool) preg_match('/^(?:#(?:if|unless|each)\s+@?[a-zA-Z0-9_\.]+|\/(?:if|unless|each))$/', $tag);
     }
 
     /**

@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/casbin/casbin/v2"
@@ -44,6 +45,23 @@ func WithAddr(addr string) Option {
 	}
 }
 
+// WithHTTP3 enables HTTP/3 advertisement and configures the QUIC listen
+// address used by ServeH3. Pass an empty address to reuse the main HTTP
+// address at serve time.
+//
+// HTTP/3 requires TLS. ServeH3 returns ErrHTTP3TLSRequired when called without
+// a TLS configuration.
+//
+// Example:
+//
+//	api.New(api.WithHTTP3(":8443"))
+func WithHTTP3(addr string) Option {
+	return func(e *Engine) {
+		e.http3Enabled = true
+		e.http3Addr = core.Trim(addr)
+	}
+}
+
 // WithBearerAuth adds bearer token authentication middleware.
 // Requests to /health and the Swagger UI path are exempt.
 //
@@ -56,6 +74,9 @@ func WithBearerAuth(token string) Option {
 			skip := []string{"/health"}
 			if swaggerPath := resolveSwaggerPath(e.swaggerPath); swaggerPath != "" {
 				skip = append(skip, swaggerPath)
+			}
+			if openAPISpecPath := resolveOpenAPISpecPath(e.openAPISpecPath); openAPISpecPath != "" {
+				skip = append(skip, openAPISpecPath)
 			}
 			return skip
 		}))
@@ -152,6 +173,27 @@ func WithWSHandler(h http.Handler) Option {
 	}
 }
 
+// WithWebSocket registers a Gin-native WebSocket handler at GET /ws.
+//
+// This is the gin-handler form of WithWSHandler. The handler receives the
+// request via *gin.Context and is responsible for performing the upgrade
+// (typically with gorilla/websocket) and managing the message loop.
+// Use WithWSPath to customise the route before mounting the handler.
+//
+// Example:
+//
+//	api.New(api.WithWebSocket(func(c *gin.Context) {
+//	    // upgrade and handle messages
+//	}))
+func WithWebSocket(h gin.HandlerFunc) Option {
+	return func(e *Engine) {
+		if h == nil {
+			return
+		}
+		e.wsGinHandler = h
+	}
+}
+
 // WithWSPath sets a custom URL path for the WebSocket endpoint.
 // The default path is "/ws".
 //
@@ -176,7 +218,10 @@ func WithAuthentik(cfg AuthentikConfig) Option {
 		snapshot := cloneAuthentikConfig(cfg)
 		e.authentikConfig = snapshot
 		e.middlewares = append(e.middlewares, authentikMiddleware(snapshot, func() []string {
-			return []string{resolveSwaggerPath(e.swaggerPath)}
+			return []string{
+				resolveSwaggerPath(e.swaggerPath),
+				resolveOpenAPISpecPath(e.openAPISpecPath),
+			}
 		}))
 	}
 }
@@ -204,9 +249,9 @@ func WithSunset(sunsetDate, replacement string) Option {
 //	api.New(api.WithSwagger("Service", "Public API", "1.0.0"))
 func WithSwagger(title, description, version string) Option {
 	return func(e *Engine) {
-		e.swaggerTitle = strings.TrimSpace(title)
-		e.swaggerDesc = strings.TrimSpace(description)
-		e.swaggerVersion = strings.TrimSpace(version)
+		e.swaggerTitle = core.Trim(title)
+		e.swaggerDesc = core.Trim(description)
+		e.swaggerVersion = core.Trim(version)
 		e.swaggerEnabled = true
 	}
 }
@@ -218,7 +263,7 @@ func WithSwagger(title, description, version string) Option {
 //	api.WithSwaggerSummary("Service overview")
 func WithSwaggerSummary(summary string) Option {
 	return func(e *Engine) {
-		if summary = strings.TrimSpace(summary); summary != "" {
+		if summary = core.Trim(summary); summary != "" {
 			e.swaggerSummary = summary
 		}
 	}
@@ -244,7 +289,7 @@ func WithSwaggerPath(path string) Option {
 //	api.WithSwaggerTermsOfService("https://example.com/terms")
 func WithSwaggerTermsOfService(url string) Option {
 	return func(e *Engine) {
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerTermsOfService = url
 		}
 	}
@@ -258,13 +303,13 @@ func WithSwaggerTermsOfService(url string) Option {
 //	api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com")
 func WithSwaggerContact(name, url, email string) Option {
 	return func(e *Engine) {
-		if name = strings.TrimSpace(name); name != "" {
+		if name = core.Trim(name); name != "" {
 			e.swaggerContactName = name
 		}
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerContactURL = url
 		}
-		if email = strings.TrimSpace(email); email != "" {
+		if email = core.Trim(email); email != "" {
 			e.swaggerContactEmail = email
 		}
 	}
@@ -291,10 +336,10 @@ func WithSwaggerServers(servers ...string) Option {
 //	api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/")
 func WithSwaggerLicense(name, url string) Option {
 	return func(e *Engine) {
-		if name = strings.TrimSpace(name); name != "" {
+		if name = core.Trim(name); name != "" {
 			e.swaggerLicenseName = name
 		}
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerLicenseURL = url
 		}
 	}
@@ -322,7 +367,7 @@ func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
 			e.swaggerSecuritySchemes = make(map[string]any, len(schemes))
 		}
 		for name, scheme := range schemes {
-			name = strings.TrimSpace(name)
+			name = core.Trim(name)
 			if name == "" || scheme == nil {
 				continue
 			}
@@ -340,10 +385,10 @@ func WithSwaggerSecuritySchemes(schemes map[string]any) Option {
 //	api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs")
 func WithSwaggerExternalDocs(description, url string) Option {
 	return func(e *Engine) {
-		if description = strings.TrimSpace(description); description != "" {
+		if description = core.Trim(description); description != "" {
 			e.swaggerExternalDocsDescription = description
 		}
-		if url = strings.TrimSpace(url); url != "" {
+		if url = core.Trim(url); url != "" {
 			e.swaggerExternalDocsURL = url
 		}
 	}
@@ -489,6 +534,11 @@ func timeoutResponse(c *gin.Context) {
 	c.JSON(http.StatusGatewayTimeout, Fail("timeout", "Request timed out"))
 }
 
+// cacheDefaultMaxEntries is the entry cap applied by WithCache when the caller
+// does not supply explicit limits. Prevents unbounded growth when WithCache is
+// called with only a TTL argument.
+const cacheDefaultMaxEntries = 1_000
+
 // WithCache adds in-memory response caching middleware for GET requests.
 // Successful (2xx) GET responses are cached for the given TTL and served
 // with an X-Cache: HIT header on subsequent requests. Non-GET methods
@@ -498,15 +548,15 @@ func timeoutResponse(c *gin.Context) {
 //   - maxEntries limits the number of cached responses
 //   - maxBytes limits the approximate total cached payload size
 //
-// Pass a non-positive value to either limit to leave that dimension
-// unbounded for backward compatibility. A non-positive TTL disables the
-// middleware entirely.
+// At least one limit must be positive; when called with only a TTL the entry
+// cap defaults to cacheDefaultMaxEntries (1 000) to prevent unbounded growth.
+// A non-positive TTL disables the middleware entirely.
 //
 // Example:
 //
 //	engine, _ := api.New(api.WithCache(5*time.Minute, 100, 10<<20))
 func WithCache(ttl time.Duration, maxEntries ...int) Option {
-	entryLimit := 0
+	entryLimit := cacheDefaultMaxEntries
 	byteLimit := 0
 	if len(maxEntries) > 0 {
 		entryLimit = maxEntries[0]
@@ -531,10 +581,15 @@ func WithCacheLimits(ttl time.Duration, maxEntries, maxBytes int) Option {
 		if ttl <= 0 {
 			return
 		}
+		// newCacheStore returns nil when both limits are non-positive (unbounded),
+		// which is a footgun; skip middleware registration in that case.
+		store := newCacheStore(maxEntries, maxBytes)
+		if store == nil {
+			return
+		}
 		e.cacheTTL = ttl
 		e.cacheMaxEntries = maxEntries
 		e.cacheMaxBytes = maxBytes
-		store := newCacheStore(maxEntries, maxBytes)
 		e.middlewares = append(e.middlewares, cacheMiddleware(store, ttl))
 	}
 }
@@ -676,5 +731,84 @@ func WithGraphQL(schema graphql.ExecutableSchema, opts ...GraphQLOption) Option 
 			opt(cfg)
 		}
 		e.graphql = cfg
+	}
+}
+
+// WithChatCompletions mounts an OpenAI-compatible POST /v1/chat/completions
+// endpoint backed by the given ModelResolver. The resolver maps model names to
+// loaded inference.TextModel instances (see chat_completions.go).
+//
+// Use WithChatCompletionsPath to override the default "/v1/chat/completions"
+// mount point. The endpoint streams Server-Sent Events when the request body
+// sets "stream": true, and otherwise returns a single JSON response that
+// mirrors OpenAI's chat completion payload.
+//
+// Example:
+//
+//	resolver := api.NewModelResolver()
+//	engine, _ := api.New(api.WithChatCompletions(resolver))
+func WithChatCompletions(resolver *ModelResolver) Option {
+	return func(e *Engine) {
+		e.chatCompletionsResolver = resolver
+	}
+}
+
+// WithChatCompletionsPath sets a custom URL path for the chat completions
+// endpoint. The default path is "/v1/chat/completions".
+//
+// Example:
+//
+//	api.New(api.WithChatCompletionsPath("/api/v1/chat/completions"))
+func WithChatCompletionsPath(path string) Option {
+	return func(e *Engine) {
+		e.chatCompletionsPath = normaliseChatCompletionsPath(path)
+	}
+}
+
+// WithSDKGen mounts POST /v1/sdk/generate. The endpoint exposes the RFC SDK
+// generation contract and currently returns 501 until an artifact backend is
+// configured around SDKGenerator.
+func WithSDKGen() Option {
+	return func(e *Engine) {
+		e.sdkGenEnabled = true
+	}
+}
+
+// WithOpenAPISpec mounts a standalone JSON document endpoint at
+// "/v1/openapi.json" (RFC.endpoints.md — "GET /v1/openapi.json"). The generated
+// spec mirrors the document surfaced by the Swagger UI but is served
+// application/json directly so SDK generators and ToolBridge consumers can
+// fetch it without loading the UI bundle.
+//
+// Example:
+//
+//	engine, _ := api.New(api.WithOpenAPISpec())
+func WithOpenAPISpec() Option {
+	return func(e *Engine) {
+		e.openAPISpecEnabled = true
+	}
+}
+
+// WithOpenAPISpecPath sets a custom URL path for the standalone OpenAPI JSON
+// endpoint. An empty string falls back to the RFC default "/v1/openapi.json".
+// The override also enables the endpoint so callers can configure the URL
+// without an additional WithOpenAPISpec() call.
+//
+// Example:
+//
+//	api.New(api.WithOpenAPISpecPath("/api/v1/openapi.json"))
+func WithOpenAPISpecPath(path string) Option {
+	return func(e *Engine) {
+		path = core.Trim(path)
+		if path == "" {
+			e.openAPISpecPath = defaultOpenAPISpecPath
+			e.openAPISpecEnabled = true
+			return
+		}
+		if !core.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		e.openAPISpecPath = path
+		e.openAPISpecEnabled = true
 	}
 }

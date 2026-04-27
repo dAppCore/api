@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Mod\Api\Console\Commands;
+namespace Core\Api\Console\Commands;
 
 use Illuminate\Console\Command;
-use Mod\Api\Services\ApiKeyService;
+use Core\Api\Services\ApiKeyService;
 
 /**
  * Clean up API keys with expired grace periods.
@@ -39,7 +39,7 @@ class CleanupExpiredGracePeriods extends Command
             $this->newLine();
 
             // Count keys that would be cleaned up
-            $count = \Mod\Api\Models\ApiKey::gracePeriodExpired()
+            $count = \Core\Api\Models\ApiKey::gracePeriodExpired()
                 ->whereNull('deleted_at')
                 ->count();
 

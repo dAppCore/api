@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // ── Test helpers ──────────────────────────────────────────────────────────
@@ -216,8 +216,8 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 	health200 := health["responses"].(map[string]any)["200"].(map[string]any)
 	health200Headers := health200["headers"].(map[string]any)
-	if _, ok := health200Headers["X-Cache"]; !ok {
-		t.Fatal("expected X-Cache header on /health 200 response")
+	if _, ok := health200Headers["X-Cache"]; ok {
+		t.Fatal("expected /health 200 response to omit X-Cache when cache is disabled")
 	}
 
 	// Verify system tag exists.
@@ -255,6 +255,53 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 	if _, ok := spec["x-graphql-enabled"]; ok {
 		t.Fatal("expected no graphql enabled flag in the document when graphql is disabled")
+	}
+}
+
+func TestSpecBuilder_Good_IncludesCacheControlResponseHeader(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:       "Test",
+		Description: "Cache control test",
+		Version:     "0.0.1",
+	}
+
+	group := &specStubGroup{
+		name:     "cache",
+		basePath: "/cache",
+		descs: []api.RouteDescription{
+			{
+				Method:       "GET",
+				Path:         "/items/{id}",
+				Summary:      "Fetch cached item",
+				CacheControl: "public, max-age=60",
+				Response: map[string]any{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	getOp := paths["/cache/items/{id}"].(map[string]any)["get"].(map[string]any)
+	success := getOp["responses"].(map[string]any)["200"].(map[string]any)
+	headers := success["headers"].(map[string]any)
+	header, ok := headers["Cache-Control"].(map[string]any)
+	if !ok {
+		t.Fatal("expected Cache-Control response header in OpenAPI spec")
+	}
+	schema := header["schema"].(map[string]any)
+	if schema["example"] != "public, max-age=60" {
+		t.Fatalf("expected cache control example to match route description, got %v", schema["example"])
 	}
 }
 
@@ -534,10 +581,11 @@ func TestSpecBuilder_Good_OmitsNonPositiveCacheTTLExtension(t *testing.T) {
 
 func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
-		Title:       "Test",
-		Description: "GraphQL test",
-		Version:     "1.0.0",
-		GraphQLPath: "/graphql",
+		Title:        "Test",
+		Description:  "GraphQL test",
+		Version:      "1.0.0",
+		GraphQLPath:  "/graphql",
+		CacheEnabled: true,
 	}
 
 	data, err := sb.Build(nil)
@@ -707,6 +755,269 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLTag(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected graphql tag when playground enables the default GraphQL path")
+	}
+}
+
+// TestSpecBuilder_Good_ChatCompletionsEndpointExtension verifies the chat
+// completions path surfaces as x-chat-completions-path/enabled extensions per
+// RFC §11.1 so SDK consumers can auto-discover the local endpoint.
+func TestSpecBuilder_Good_ChatCompletionsEndpointExtension(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                  "Test",
+		Version:                "1.0.0",
+		ChatCompletionsEnabled: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-chat-completions-enabled"]; got != true {
+		t.Fatalf("expected x-chat-completions-enabled=true, got %v", got)
+	}
+	if got := spec["x-chat-completions-path"]; got != "/v1/chat/completions" {
+		t.Fatalf("expected default chat completions path, got %v", got)
+	}
+}
+
+// TestSpecBuilder_Good_ChatCompletionsHonoursCustomPath verifies an explicit
+// path override surfaces through the spec extension.
+func TestSpecBuilder_Good_ChatCompletionsHonoursCustomPath(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                  "Test",
+		Version:                "1.0.0",
+		ChatCompletionsEnabled: true,
+		ChatCompletionsPath:    "/chat",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-chat-completions-path"]; got != "/chat" {
+		t.Fatalf("expected custom chat completions path /chat, got %v", got)
+	}
+}
+
+// TestSpecBuilder_Good_ChatCompletionsOmittedWhenDisabled ensures the
+// extension keys are absent when chat completions is not configured.
+func TestSpecBuilder_Good_ChatCompletionsOmittedWhenDisabled(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if _, ok := spec["x-chat-completions-enabled"]; ok {
+		t.Fatal("expected x-chat-completions-enabled to be absent when disabled")
+	}
+	if _, ok := spec["x-chat-completions-path"]; ok {
+		t.Fatal("expected x-chat-completions-path to be absent when disabled")
+	}
+}
+
+// TestSpecBuilder_Good_ChatCompletionsPathAppearsInPaths verifies the chat
+// completions endpoint appears as a full OpenAPI path item so SDK generators
+// can bind to it without relying on vendor extensions. See RFC §11.1.
+func TestSpecBuilder_Good_ChatCompletionsPathAppearsInPaths(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                  "Test",
+		Version:                "1.0.0",
+		ChatCompletionsEnabled: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object, got %T", spec["paths"])
+	}
+	item, ok := paths["/v1/chat/completions"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected /v1/chat/completions path item, got %T", paths["/v1/chat/completions"])
+	}
+	if _, ok := item["post"]; !ok {
+		t.Fatal("expected POST operation on /v1/chat/completions")
+	}
+}
+
+// TestSpecBuilder_Bad_ChatCompletionsPathAbsentWhenDisabled verifies the
+// path item does not appear when the endpoint is not configured.
+func TestSpecBuilder_Bad_ChatCompletionsPathAbsentWhenDisabled(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/v1/chat/completions"]; ok {
+		t.Fatal("expected /v1/chat/completions path item to be absent when disabled")
+	}
+}
+
+// TestSpecBuilder_Ugly_ChatCompletionsPathCustomOverrideHonoured verifies
+// that a custom mount path is reflected in the OpenAPI paths object.
+func TestSpecBuilder_Ugly_ChatCompletionsPathCustomOverrideHonoured(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:                  "Test",
+		Version:                "1.0.0",
+		ChatCompletionsEnabled: true,
+		ChatCompletionsPath:    "/api/v1/chat",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/api/v1/chat"].(map[string]any); !ok {
+		t.Fatalf("expected custom chat completions path in paths object, got %v", paths)
+	}
+	if _, ok := paths["/v1/chat/completions"]; ok {
+		t.Fatal("expected default chat completions path to be absent when overridden")
+	}
+}
+
+// TestSpecBuilder_Good_OpenAPISpecEndpointAppearsInPaths verifies the
+// standalone OpenAPI JSON endpoint (RFC.endpoints.md — "GET /v1/openapi.json")
+// is described as a public OpenAPI path so it is discoverable via SDK tooling.
+func TestSpecBuilder_Good_OpenAPISpecEndpointAppearsInPaths(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:              "Test",
+		Version:            "1.0.0",
+		OpenAPISpecEnabled: true,
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if got := spec["x-openapi-spec-enabled"]; got != true {
+		t.Fatalf("expected x-openapi-spec-enabled=true, got %v", got)
+	}
+	if got := spec["x-openapi-spec-path"]; got != "/v1/openapi.json" {
+		t.Fatalf("expected default openapi spec path, got %v", got)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	item, ok := paths["/v1/openapi.json"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected /v1/openapi.json path item, got %T", paths["/v1/openapi.json"])
+	}
+	get, ok := item["get"].(map[string]any)
+	if !ok {
+		t.Fatal("expected GET operation on /v1/openapi.json")
+	}
+	// Public endpoint — no security requirement.
+	if sec, ok := get["security"].([]any); !ok || len(sec) != 0 {
+		t.Fatalf("expected public security on spec endpoint, got %v", get["security"])
+	}
+}
+
+// TestSpecBuilder_Bad_OpenAPISpecEndpointAbsentWhenDisabled verifies the path
+// item is absent when the caller has not enabled the standalone endpoint.
+func TestSpecBuilder_Bad_OpenAPISpecEndpointAbsentWhenDisabled(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:   "Test",
+		Version: "1.0.0",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/v1/openapi.json"]; ok {
+		t.Fatal("expected /v1/openapi.json path item to be absent when disabled")
+	}
+	if _, ok := spec["x-openapi-spec-enabled"]; ok {
+		t.Fatal("expected x-openapi-spec-enabled extension to be absent when disabled")
+	}
+}
+
+// TestSpecBuilder_Ugly_OpenAPISpecPathCustomOverrideHonoured verifies a
+// custom mount path is reflected in the OpenAPI paths object.
+func TestSpecBuilder_Ugly_OpenAPISpecPathCustomOverrideHonoured(t *testing.T) {
+	sb := &api.SpecBuilder{
+		Title:              "Test",
+		Version:            "1.0.0",
+		OpenAPISpecEnabled: true,
+		OpenAPISpecPath:    "/api/v1/openapi.json",
+	}
+
+	data, err := sb.Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	if _, ok := paths["/api/v1/openapi.json"].(map[string]any); !ok {
+		t.Fatalf("expected custom openapi spec path in paths object, got %v", paths)
+	}
+	if _, ok := paths["/v1/openapi.json"]; ok {
+		t.Fatal("expected default openapi spec path to be absent when overridden")
 	}
 }
 
@@ -1763,8 +2074,9 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeBuiltInEndpointsPublic(t *test
 
 func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	sb := &api.SpecBuilder{
-		Title:   "Test",
-		Version: "1.0.0",
+		Title:        "Test",
+		Version:      "1.0.0",
+		CacheEnabled: true,
 	}
 
 	group := &specStubGroup{

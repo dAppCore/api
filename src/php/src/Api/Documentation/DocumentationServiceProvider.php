@@ -20,11 +20,21 @@ class DocumentationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Merge configuration
-        $this->mergeConfigFrom(
-            __DIR__.'/config.php',
-            'api-docs'
-        );
+        // Merge documentation configuration under both the package-local
+        // `api-docs` namespace and the RFC-facing `scramble` namespace so
+        // either config file shape can drive the same documentation surface.
+        $this->mergeConfigFrom(__DIR__.'/config.php', 'api-docs');
+        $this->mergeConfigFrom(__DIR__.'/config.php', 'scramble');
+
+        $baseConfig = require __DIR__.'/config.php';
+        $scrambleConfig = config('scramble', []);
+        $apiDocsConfig = config('api-docs', []);
+        $effectiveConfig = array_replace_recursive($baseConfig, $scrambleConfig, $apiDocsConfig);
+
+        config([
+            'api-docs' => $effectiveConfig,
+            'scramble' => $effectiveConfig,
+        ]);
 
         // Register OpenApiBuilder as singleton
         $this->app->singleton(OpenApiBuilder::class, function ($app) {
@@ -50,6 +60,10 @@ class DocumentationServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/config.php' => config_path('api-docs.php'),
             ], 'api-docs-config');
+
+            $this->publishes([
+                __DIR__.'/config.php' => config_path('scramble.php'),
+            ], 'scramble-config');
 
             $this->publishes([
                 __DIR__.'/Views' => resource_path('views/vendor/api-docs'),
@@ -79,9 +93,33 @@ class DocumentationServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         $path = config('api-docs.path', '/api/docs');
+        $middleware = ['web', ProtectDocumentation::class];
 
-        Route::middleware(['web', ProtectDocumentation::class])
+        Route::middleware($middleware)
             ->prefix($path)
             ->group(__DIR__.'/Routes/docs.php');
+
+        // RFC compatibility alias: expose the same documentation surface at
+        // /docs/api for the public website route map while keeping the
+        // canonical /api/docs route and its names intact.
+        Route::middleware($middleware)
+            ->prefix('/docs/api')
+            ->group(function (): void {
+                Route::get('/', [DocumentationController::class, 'swagger']);
+                Route::get('/swagger', [DocumentationController::class, 'swagger']);
+                Route::get('/scalar', [DocumentationController::class, 'scalar']);
+                Route::get('/redoc', [DocumentationController::class, 'redoc']);
+                Route::get('/stoplight', [DocumentationController::class, 'stoplight']);
+
+                Route::get('/openapi.json', [DocumentationController::class, 'openApiJson'])
+                    ->middleware('throttle:60,1');
+
+                Route::get('/openapi.yaml', [DocumentationController::class, 'openApiYaml'])
+                    ->middleware('throttle:60,1');
+            });
+
+        Route::middleware($middleware)
+            ->get('/api/reference', [DocumentationController::class, 'redoc'])
+            ->name('api.docs.reference.compat');
     }
 }

@@ -234,6 +234,27 @@ return [
     'seo' => [
         // HTTP timeout when fetching a page for analysis
         'timeout' => env('API_SEO_TIMEOUT', 10),
+
+        // Maximum HTML body size to read when analysing a page.
+        'max_body_bytes' => env('API_SEO_MAX_BODY_BYTES', 1048576),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cache Control
+    |--------------------------------------------------------------------------
+    |
+    | Route middleware can reference these declarative profiles:
+    | - api.cache:ephemeral
+    | - Route::get(...)->defaults('api_cache_control', 'cacheable')
+    |
+    */
+
+    'cache_control' => [
+        'profiles' => [
+            'ephemeral' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'cacheable' => 'private, max-age=60, stale-while-revalidate=30',
+        ],
     ],
 
     /*

@@ -5,9 +5,9 @@ package provider
 import (
 	"iter"
 	"slices"
-	"sync"
 
-	"dappco.re/go/core/api"
+	"dappco.re/go/api"
+	core "dappco.re/go/core"
 )
 
 // Registry collects providers and mounts them on an api.Engine.
@@ -15,7 +15,7 @@ import (
 // via engine.Register(), but the Registry enables discovery by consumers
 // (GUI, MCP) that need to query provider capabilities.
 type Registry struct {
-	mu        sync.RWMutex
+	mu        core.RWMutex
 	providers []Provider
 }
 

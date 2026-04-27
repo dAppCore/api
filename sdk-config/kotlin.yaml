@@ -1,0 +1,6 @@
+generatorName: kotlin
+outputDir: ./sdks/kotlin
+additionalProperties:
+  groupId: re.dappco
+  artifactId: core-sdk
+  packageName: re.dappco.core

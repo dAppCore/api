@@ -24,7 +24,11 @@ beforeEach(function () {
     $this->rateLimitService = app(RateLimitService::class);
     $this->middleware = new RateLimitApi($this->rateLimitService);
 
-    $this->user = User::factory()->create();
+    $this->user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $this->workspace = Workspace::factory()->create();
     $this->workspace->users()->attach($this->user->id, [
         'role' => 'owner',
@@ -327,6 +331,23 @@ describe('Workspace-Scoped Rate Limits', function () {
         // Verify key was created with workspace scope
         $cacheKey = "rate_limit:api_key:{$apiKey->id}:ws:{$workspace->id}:route:test.route";
         expect(Cache::has($cacheKey))->toBeTrue();
+    });
+
+    it('ignores malformed workspace context instead of crashing', function () {
+        $workspace = Workspace::factory()->create();
+        $apiKey = createApiKeyForWorkspace($workspace);
+
+        $request = createMockRequest([
+            'api_key' => $apiKey,
+            'workspace' => ['id' => $workspace->id],
+        ]);
+
+        $response = $this->middleware->handle($request, fn () => new Response('OK'));
+
+        expect($response->getStatusCode())->toBe(200);
+        expect($response->headers->get('X-RateLimit-Limit'))->toBe('1000');
+        expect(Cache::has("rate_limit:api_key:{$apiKey->id}:route:test.route"))->toBeTrue();
+        expect(Cache::has("rate_limit:api_key:{$apiKey->id}:ws:{$workspace->id}:route:test.route"))->toBeFalse();
     });
 
     it('can disable per-workspace limiting', function () {
@@ -774,7 +795,11 @@ function createWorkspaceWithTier(string $tier): MockTieredWorkspace
 
 function createApiKeyForWorkspace(Workspace $workspace): ApiKey
 {
-    $user = User::factory()->create();
+    $user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $result = ApiKey::generate(
         $workspace->id,
         $user->id,

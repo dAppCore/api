@@ -10,6 +10,7 @@ use Core\Api\Models\ApiKey;
 use Core\Api\Services\ApiUsageService;
 use Core\Front\Controller;
 use Core\Tenant\Models\Workspace;
+use Core\Tenant\Services\EntitlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,7 +25,8 @@ class EntitlementApiController extends Controller
     use ResolvesWorkspace;
 
     public function __construct(
-        protected ApiUsageService $usageService
+        protected ApiUsageService $usageService,
+        protected EntitlementService $entitlements
     ) {
     }
 
@@ -79,6 +81,47 @@ class EntitlementApiController extends Controller
                 'webhooks' => true,
                 'usage_alerts' => (bool) config('api.alerts.enabled', true),
             ],
+        ]);
+    }
+
+    /**
+     * Check a specific feature entitlement for the current workspace.
+     *
+     * GET /api/v1/workspaces/{workspace}/entitlements/check/{feature}
+     */
+    public function check(Request $request, string $feature): JsonResponse
+    {
+        $workspace = $this->resolveWorkspace($request);
+
+        if (! $workspace instanceof Workspace) {
+            return $this->noWorkspaceResponse();
+        }
+
+        $result = $this->entitlements->can($workspace, $feature);
+
+        return response()->json([
+            'workspace_id' => $workspace->id,
+            'feature' => $feature,
+            'entitlement' => $result->toArray(),
+        ]);
+    }
+
+    /**
+     * Get the current workspace usage breakdown.
+     *
+     * GET /api/v1/workspaces/{workspace}/entitlements/usage
+     */
+    public function usage(Request $request): JsonResponse
+    {
+        $workspace = $this->resolveWorkspace($request);
+
+        if (! $workspace instanceof Workspace) {
+            return $this->noWorkspaceResponse();
+        }
+
+        return response()->json([
+            'workspace_id' => $workspace->id,
+            'usage' => $this->usageService->getWorkspaceSummary($workspace->id),
         ]);
     }
 

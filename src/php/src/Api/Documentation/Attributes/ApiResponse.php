@@ -52,6 +52,7 @@ readonly class ApiResponse
      * @param  array<string>  $headers  Additional response headers to document
      * @param  string|null  $contentType  Explicit response media type for non-JSON responses
      * @param  array<string, mixed>|null  $schema  Explicit response schema when the body is not inferred from a resource
+     * @param  array<int, string>|null  $methods  Restrict this response to specific HTTP methods
      */
     public function __construct(
         public int $status,
@@ -61,6 +62,7 @@ readonly class ApiResponse
         public array $headers = [],
         public ?string $contentType = null,
         public ?array $schema = null,
+        public ?array $methods = null,
     ) {}
 
     /**

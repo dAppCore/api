@@ -7,11 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // ── Swagger endpoint ────────────────────────────────────────────────────
@@ -334,6 +335,16 @@ func TestSwagger_Good_WithToolBridge(t *testing.T) {
 	postOp := toolPath["post"].(map[string]any)
 	if postOp["summary"] != "Query metrics data" {
 		t.Fatalf("expected summary=%q, got %v", "Query metrics data", postOp["summary"])
+	}
+
+	// RFC.endpoints.md — GET /v1/tools listing must appear on the bridge's
+	// base path so SDK generators can discover it without iterating tools.
+	listingPath, ok := paths["/api/tools"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected bridge base path /api/tools in spec, got %v", paths["/api/tools"])
+	}
+	if _, ok := listingPath["get"]; !ok {
+		t.Fatalf("expected GET listing on bridge base path, got %v", listingPath)
 	}
 }
 
@@ -917,4 +928,155 @@ func (h *swaggerSpecHelper) ReadDoc() string {
 	}
 	h.cache = string(data)
 	return h.cache
+}
+
+// TestOpenAPISpecEndpoint_Good verifies WithOpenAPISpec mounts a public
+// GET /v1/openapi.json that returns the generated document. RFC.endpoints.md
+// lists this as a framework route alongside /health and /swagger.
+func TestOpenAPISpecEndpoint_Good(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithOpenAPISpec(),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/v1/openapi.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "application/json") {
+		t.Fatalf("expected application/json content type, got %q", contentType)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if doc["openapi"] != "3.1.0" {
+		t.Fatalf("expected openapi=3.1.0, got %v", doc["openapi"])
+	}
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths map, got %T", doc["paths"])
+	}
+	if _, ok := paths["/v1/openapi.json"]; !ok {
+		t.Fatal("expected the spec endpoint to describe itself in paths")
+	}
+}
+
+// TestOpenAPISpecEndpoint_Good_CustomPath verifies an explicit path override
+// is honoured by the router.
+func TestOpenAPISpecEndpoint_Good_CustomPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(
+		api.WithSwagger("Test API", "A test API service", "1.0.0"),
+		api.WithOpenAPISpecPath("/api/v1/openapi.json"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/openapi.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on custom spec path, got %d", resp.StatusCode)
+	}
+
+	// Default path should 404 when overridden.
+	defaultResp, err := http.Get(srv.URL + "/v1/openapi.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer defaultResp.Body.Close()
+	if defaultResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 on default spec path when overridden, got %d", defaultResp.StatusCode)
+	}
+}
+
+// TestOpenAPISpecEndpoint_Bad_DisabledByDefault verifies the endpoint is not
+// mounted unless opted in with WithOpenAPISpec().
+func TestOpenAPISpecEndpoint_Bad_DisabledByDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwagger("Test API", "A test API service", "1.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/v1/openapi.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 when endpoint is disabled, got %d", resp.StatusCode)
+	}
+}
+
+// TestOpenAPISpecEndpoint_Ugly_WorksWithoutSwagger confirms the endpoint
+// serves the spec even when the Swagger UI is not mounted — the standalone
+// JSON document is independent of the UI bundle.
+func TestOpenAPISpecEndpoint_Ugly_WorksWithoutSwagger(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpec())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/v1/openapi.json")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 without swagger UI, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if doc["openapi"] != "3.1.0" {
+		t.Fatalf("expected openapi=3.1.0, got %v", doc["openapi"])
+	}
 }

@@ -3,17 +3,24 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
-	"sync"
+	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
 
 // defaultSSEPath is the URL path where the SSE endpoint is mounted.
 const defaultSSEPath = "/events"
+
+// legacySSEPath keeps the RFC's versioned SSE surface available alongside the
+// existing default /events mount point.
+const legacySSEPath = "/v1/events"
+
+// defaultSSEHeartbeatInterval keeps idle SSE connections alive without forcing
+// clients to reconnect.
+const defaultSSEHeartbeatInterval = 15 * time.Second
 
 // SSEBroker manages Server-Sent Events connections and broadcasts events
 // to subscribed clients. Clients connect via a GET endpoint and receive
@@ -25,8 +32,8 @@ const defaultSSEPath = "/events"
 //	broker := api.NewSSEBroker()
 //	engine.GET("/events", broker.Handler())
 type SSEBroker struct {
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
+	mu      core.RWMutex
+	wg      core.WaitGroup
 	clients map[*sseClient]struct{}
 }
 
@@ -35,8 +42,8 @@ type sseClient struct {
 	channel    string
 	events     chan sseEvent
 	done       chan struct{}
-	doneOnce   sync.Once
-	eventsOnce sync.Once
+	doneOnce   core.Once
+	eventsOnce core.Once
 }
 
 // sseEvent is an internal representation of a single SSE message.
@@ -59,12 +66,12 @@ func NewSSEBroker() *SSEBroker {
 // normaliseSSEPath coerces custom SSE paths into a stable form.
 // The path always begins with a single slash and never ends with one.
 func normaliseSSEPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return defaultSSEPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimPathSlashes(path)
 	if path == "/" {
 		return defaultSSEPath
 	}
@@ -75,10 +82,19 @@ func normaliseSSEPath(path string) string {
 // resolveSSEPath returns the configured SSE path or the default path when
 // no override has been provided.
 func resolveSSEPath(path string) string {
-	if strings.TrimSpace(path) == "" {
+	if core.Trim(path) == "" {
 		return defaultSSEPath
 	}
 	return normaliseSSEPath(path)
+}
+
+// resolveLegacySSEPath returns the RFC versioned SSE alias when the broker is
+// mounted at the default /events path.
+func resolveLegacySSEPath(path string) string {
+	if resolveSSEPath(path) == defaultSSEPath {
+		return legacySSEPath
+	}
+	return ""
 }
 
 // Publish sends an event to all clients subscribed to the given channel.
@@ -89,14 +105,18 @@ func resolveSSEPath(path string) string {
 //
 //	broker.Publish("system", "ready", map[string]any{"status": "ok"})
 func (b *SSEBroker) Publish(channel, event string, data any) {
-	encoded, err := json.Marshal(data)
-	if err != nil {
+	encoded := core.JSONMarshal(data)
+	if !encoded.OK {
+		return
+	}
+	payload, ok := encoded.Value.([]byte)
+	if !ok {
 		return
 	}
 
 	msg := sseEvent{
 		Event: event,
-		Data:  string(encoded),
+		Data:  string(payload),
 	}
 
 	b.mu.RLock()
@@ -160,12 +180,22 @@ func (b *SSEBroker) Handler() gin.HandlerFunc {
 
 		// Stream events until client disconnects.
 		ctx := c.Request.Context()
+		heartbeat := time.NewTicker(defaultSSEHeartbeatInterval)
+		defer heartbeat.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-client.done:
 				return
+			case <-heartbeat.C:
+				if _, err := c.Writer.Write([]byte(": keepalive\n\n")); err != nil {
+					return
+				}
+				if f, ok := c.Writer.(http.Flusher); ok {
+					f.Flush()
+				}
 			default:
 			}
 
@@ -178,7 +208,7 @@ func (b *SSEBroker) Handler() gin.HandlerFunc {
 				if !ok {
 					return
 				}
-				_, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", evt.Event, evt.Data)
+				_, err := c.Writer.Write([]byte(core.Sprintf("event: %s\ndata: %s\n\n", evt.Event, evt.Data)))
 				if err != nil {
 					return
 				}

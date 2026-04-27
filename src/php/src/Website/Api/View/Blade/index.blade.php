@@ -2,6 +2,7 @@
 
 @section('title', 'API Documentation')
 @section('description', 'Build powerful integrations with the API. Access brain memory, content scoring, and more.')
+@php($apiKeyPrefix = \Core\Api\Models\ApiKey::keyPrefixRoot())
 
 @section('content')
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-20">
@@ -85,7 +86,7 @@
             </div>
             <pre class="overflow-x-auto p-4 text-sm"><code class="font-pt-mono text-zinc-300"><span class="text-teal-400">curl</span> <span class="text-zinc-500">--request</span> POST \
   <span class="text-zinc-500">--url</span> <span class="text-amber-400">'https://api.lthn.ai/v1/brain/recall'</span> \
-  <span class="text-zinc-500">--header</span> <span class="text-amber-400">'Authorization: Bearer hk_your_api_key'</span> \
+  <span class="text-zinc-500">--header</span> <span class="text-amber-400">'Authorization: Bearer {{ $apiKeyPrefix }}your_api_key'</span> \
   <span class="text-zinc-500">--header</span> <span class="text-amber-400">'Content-Type: application/json'</span> \
   <span class="text-zinc-500">--data</span> <span class="text-amber-400">'{"query": "hello world"}'</span></code></pre>
         </div>

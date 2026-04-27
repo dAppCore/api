@@ -7,6 +7,7 @@ namespace Core\Api\Middleware;
 use Core\Api\Models\ApiKey;
 use Core\Api\Services\IpRestrictionService;
 use Core\Api\Concerns\HasApiResponses;
+use Core\Tenant\Models\UserToken;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,7 +15,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Authenticate requests using API keys or fall back to Sanctum.
  *
- * API keys are prefixed with 'hk_' and scoped to a workspace.
+ * API keys are underscore-delimited and scoped to a workspace.
  *
  * Register in bootstrap/app.php:
  *   ->withMiddleware(function (Middleware $middleware) {
@@ -31,13 +32,31 @@ class AuthenticateApiKey
     {
         $token = $request->bearerToken();
 
+        // If no bearer token is present, allow Sanctum/session auth to try first.
+        // This keeps browser-based dashboard requests working while preserving
+        // the API-key path for SDK and server-to-server calls.
         if (! $token) {
-            return $this->unauthorized('API key required. Use Authorization: Bearer <api_key>');
+            return $this->authenticateSanctum($request, $next, $scope);
         }
 
-        // Check if it's an API key (prefixed with hk_)
-        if (str_starts_with($token, 'hk_')) {
-            return $this->authenticateApiKey($request, $next, $token, $scope);
+        // API keys are underscore-delimited; if a token looks like an API key,
+        // it must validate as one rather than falling through to Sanctum.
+        if (str_contains($token, '_')) {
+            try {
+                $apiKey = $this->resolveApiKey($token);
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return $this->serviceUnavailable(
+                    'API key authentication is temporarily unavailable.'
+                );
+            }
+
+            if ($apiKey instanceof ApiKey) {
+                return $this->authenticateResolvedApiKey($request, $next, $apiKey, $scope);
+            }
+
+            return $this->unauthorized('Invalid API key');
         }
 
         // Fall back to Sanctum for OAuth tokens
@@ -45,20 +64,22 @@ class AuthenticateApiKey
     }
 
     /**
+     * Resolve an API key from a bearer token.
+     */
+    protected function resolveApiKey(string $token): ?ApiKey
+    {
+        return ApiKey::findByPlainKey($token);
+    }
+
+    /**
      * Authenticate using an API key.
      */
-    protected function authenticateApiKey(
+    protected function authenticateResolvedApiKey(
         Request $request,
         Closure $next,
-        string $token,
+        ApiKey $apiKey,
         ?string $scope
     ): Response {
-        $apiKey = ApiKey::findByPlainKey($token);
-
-        if (! $apiKey) {
-            return $this->unauthorized('Invalid API key');
-        }
-
         if ($apiKey->isExpired()) {
             return $this->unauthorized('API key has expired');
         }
@@ -87,6 +108,8 @@ class AuthenticateApiKey
         $request->attributes->set('workspace', $apiKey->workspace);
         $request->attributes->set('workspace_id', $apiKey->workspace_id);
         $request->attributes->set('auth_type', 'api_key');
+        $request->attributes->set('principal', 'api-key:'.$apiKey->id);
+        $request->attributes->set('userID', (string) $apiKey->user_id);
 
         return $next($request);
     }
@@ -99,6 +122,32 @@ class AuthenticateApiKey
         Closure $next,
         ?string $scope
     ): Response {
+        $bearerToken = $request->bearerToken();
+
+        if (is_string($bearerToken) && $bearerToken !== '') {
+            $accessToken = UserToken::findToken($bearerToken);
+
+            if ($accessToken instanceof UserToken && $accessToken->isValid()) {
+                if ($scope !== null && ! $this->userTokenHasScope($accessToken, $scope)) {
+                    return $this->forbidden("Token missing required scope: {$scope}");
+                }
+
+                try {
+                    $accessToken->recordUsage();
+                } catch (\Throwable $exception) {
+                    report($exception);
+                }
+
+                $request->setUserResolver(fn () => $accessToken->user);
+                $request->attributes->set('auth_type', 'access_token');
+                $request->attributes->set('access_token', $accessToken);
+                $request->attributes->set('principal', 'user-token:'.$accessToken->id);
+                $request->attributes->set('userID', (string) $accessToken->user_id);
+
+                return $next($request);
+            }
+        }
+
         // For API requests, use token authentication
         if (! $request->user()) {
             // Try to authenticate via Sanctum token
@@ -110,9 +159,40 @@ class AuthenticateApiKey
             $request->setUserResolver(fn () => $guard->user());
         }
 
-        $request->attributes->set('auth_type', 'sanctum');
+        $authType = $bearerToken ? 'sanctum' : 'session';
+        $user = $request->user();
+
+        $request->attributes->set('auth_type', $authType);
+        if ($user !== null && isset($user->id)) {
+            $request->attributes->set('principal', 'user:'.$user->id);
+            $request->attributes->set('userID', (string) $user->id);
+        }
 
         return $next($request);
+    }
+
+    /**
+     * Determine whether a user token grants the requested scope.
+     *
+     * The tenant package can expose scope checks through different token APIs,
+     * so we try the common ones without coupling this middleware to one exact
+     * implementation.
+     */
+    protected function userTokenHasScope(UserToken $accessToken, string $scope): bool
+    {
+        if (method_exists($accessToken, 'hasScope')) {
+            return $accessToken->hasScope($scope);
+        }
+
+        if (method_exists($accessToken, 'tokenCan')) {
+            return $accessToken->tokenCan($scope);
+        }
+
+        if (method_exists($accessToken, 'can')) {
+            return $accessToken->can($scope);
+        }
+
+        return false;
     }
 
     /**
@@ -133,5 +213,17 @@ class AuthenticateApiKey
     protected function forbidden(string $message): Response
     {
         return $this->forbiddenResponse($message, status: 403);
+    }
+
+    /**
+     * Return 503 Service Unavailable response.
+     */
+    protected function serviceUnavailable(string $message): Response
+    {
+        return $this->errorResponse(
+            errorCode: 'service_unavailable',
+            message: $message,
+            status: 503,
+        );
     }
 }

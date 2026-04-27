@@ -15,7 +15,7 @@ import (
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // newTestSchema creates a minimal ExecutableSchema that responds to { name }
@@ -255,6 +255,39 @@ func TestWithGraphQL_Good_DefaultPathWhenEmptyCustomPath(t *testing.T) {
 
 	if pgResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 at default /graphql/playground, got %d", pgResp.StatusCode)
+	}
+}
+
+func TestWithGraphQL_Ugly_RootPathFallsBackToDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithGraphQL(newTestSchema(), api.WithGraphQLPath(" / "), api.WithPlayground()))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	body := `{"query":"{ name }"}`
+	resp, err := http.Post(srv.URL+"/graphql", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 at default /graphql after root path normalisation, got %d", resp.StatusCode)
+	}
+
+	pgResp, err := http.Get(srv.URL + "/graphql/playground")
+	if err != nil {
+		t.Fatalf("playground request failed: %v", err)
+	}
+	defer pgResp.Body.Close()
+
+	if pgResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 at default /graphql/playground after root path normalisation, got %d", pgResp.StatusCode)
 	}
 }
 

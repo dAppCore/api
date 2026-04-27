@@ -82,6 +82,8 @@ class ApiVersion
         $supported = $versionConfig['supported'] ?? [1];
         $deprecated = $versionConfig['deprecated'] ?? [];
         $sunset = $versionConfig['sunset'] ?? [];
+        $replacement = $versionConfig['replacement'] ?? [];
+        $noticeUrls = $versionConfig['notice_url'] ?? [];
 
         // Use default if no version specified
         if ($version === null) {
@@ -126,6 +128,21 @@ class ApiVersion
                     $sunsetDate = (new \DateTimeImmutable($sunsetDate))->format(\DateTimeInterface::RFC7231);
                 }
                 $response->headers->set('Sunset', $sunsetDate);
+            }
+
+            if (isset($replacement[$version])) {
+                $replacementValue = trim((string) $replacement[$version]);
+                if ($replacementValue !== '') {
+                    $response->headers->set('Link', sprintf('<%s>; rel="successor-version"', $replacementValue), false);
+                    $response->headers->set('API-Suggested-Replacement', $replacementValue, false);
+                }
+            }
+
+            if (isset($noticeUrls[$version])) {
+                $noticeUrl = trim((string) $noticeUrls[$version]);
+                if ($noticeUrl !== '') {
+                    $response->headers->set('API-Deprecation-Notice-URL', $noticeUrl, false);
+                }
             }
         }
 

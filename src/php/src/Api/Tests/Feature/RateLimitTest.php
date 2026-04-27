@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Core\Api\Tests\Feature;
 
 use Carbon\Carbon;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\Repository as CacheStoreRepository;
 use Core\LifecycleEventProvider;
 use Core\Api\Exceptions\RateLimitExceededException;
 use Core\Api\RateLimit\RateLimit;
 use Core\Api\RateLimit\RateLimitResult;
 use Core\Api\RateLimit\RateLimitService;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -28,6 +31,11 @@ class RateLimitTest extends TestCase
 
     protected RateLimitService $rateLimitService;
 
+    /**
+     * @param Application $app
+     *
+     * @return array<int, class-string>
+     */
     protected function getPackageProviders($app): array
     {
         return [
@@ -150,6 +158,15 @@ class RateLimitTest extends TestCase
         $this->assertGreaterThan(0, $result->retryAfter);
     }
 
+    public function test_service_handles_zero_effective_limit_without_crashing(): void
+    {
+        $result = $this->rateLimitService->hit('zero-limit-key', 0, 60);
+
+        $this->assertFalse($result->allowed);
+        $this->assertSame(0, $result->remaining);
+        $this->assertGreaterThan(0, $result->retryAfter);
+    }
+
     public function test_check_method_does_not_increment_counter(): void
     {
         // Hit once
@@ -188,6 +205,102 @@ class RateLimitTest extends TestCase
         $this->rateLimitService->hit('test-key', 10, 60);
 
         $this->assertSame(3, $this->rateLimitService->attempts('test-key', 60));
+    }
+
+    public function test_RateLimitTest_hit_Good_uses_atomic_lock_and_releases_it_when_available(): void
+    {
+        $cache = new class(new ArrayStore()) extends CacheStoreRepository
+        {
+            public bool $released = false;
+
+            public function lock($name, $seconds = 0, $owner = null): object
+            {
+                return new class($this) {
+                    public function __construct(private object $cache)
+                    {
+                    }
+
+                    public function get(): bool
+                    {
+                        return true;
+                    }
+
+                    public function release(): void
+                    {
+                        $this->cache->released = true;
+                    }
+                };
+            }
+        };
+
+        $service = new RateLimitService($cache);
+
+        $result = $service->hit('locked-key', 10, 60);
+
+        $this->assertTrue($result->allowed);
+        $this->assertTrue($cache->released);
+        $this->assertTrue($cache->has('rate_limit:locked-key'));
+    }
+
+    public function test_RateLimitTest_hit_Bad_fails_closed_when_atomic_lock_cannot_be_acquired(): void
+    {
+        $cache = new class(new ArrayStore()) extends CacheStoreRepository
+        {
+            public function lock($name, $seconds = 0, $owner = null): object
+            {
+                return new class {
+                    public function get(): bool
+                    {
+                        return false;
+                    }
+
+                    public function release(): void
+                    {
+                    }
+                };
+            }
+        };
+
+        $service = new RateLimitService($cache);
+
+        $result = $service->hit('locked-key', 10, 60);
+
+        $this->assertFalse($result->allowed);
+        $this->assertSame(10, $result->limit);
+        $this->assertSame(0, $result->remaining);
+        $this->assertSame(1, $result->retryAfter);
+        $this->assertFalse($cache->has('rate_limit:locked-key'));
+    }
+
+    public function test_RateLimitTest_hit_Ugly_falls_back_to_advisory_lock_when_atomic_lock_backend_throws(): void
+    {
+        $cache = new class(new ArrayStore()) extends CacheStoreRepository
+        {
+            public function lock($name, $seconds = 0, $owner = null): object
+            {
+                throw new \RuntimeException('lock backend unavailable');
+            }
+        };
+
+        $service = new RateLimitService($cache);
+
+        $result = $service->hit('locked-key', 10, 60);
+
+        $this->assertTrue($result->allowed);
+        $this->assertSame(9, $result->remaining);
+        $this->assertTrue($cache->has('rate_limit:locked-key'));
+    }
+
+    public function test_service_fails_closed_when_cached_hits_are_malformed(): void
+    {
+        Cache::put('rate_limit:corrupt-key', 'corrupt', 60);
+
+        $result = $this->rateLimitService->hit('corrupt-key', 10, 60);
+
+        $this->assertFalse($result->allowed);
+        $this->assertSame(10, $result->limit);
+        $this->assertSame(0, $result->remaining);
+        $this->assertSame(1, $result->retryAfter);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

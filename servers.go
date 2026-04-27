@@ -2,7 +2,9 @@
 
 package api
 
-import "strings"
+import (
+	core "dappco.re/go/core"
+)
 
 // normaliseServers trims whitespace, removes empty entries, and preserves
 // the first occurrence of each server URL.
@@ -36,7 +38,7 @@ func normaliseServers(servers []string) []string {
 // normaliseServer trims surrounding whitespace and removes a trailing slash
 // from non-root server URLs so equivalent metadata collapses to one entry.
 func normaliseServer(server string) string {
-	server = strings.TrimSpace(server)
+	server = core.Trim(server)
 	if server == "" {
 		return ""
 	}
@@ -44,10 +46,24 @@ func normaliseServer(server string) string {
 		return server
 	}
 
-	server = strings.TrimRight(server, "/")
+	server = trimTrailingSlashes(server)
 	if server == "" {
 		return "/"
 	}
 
 	return server
+}
+
+func trimSlashes(value string) string {
+	for core.HasPrefix(value, "/") {
+		value = core.TrimPrefix(value, "/")
+	}
+	return trimTrailingSlashes(value)
+}
+
+func trimTrailingSlashes(value string) string {
+	for core.HasSuffix(value, "/") {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
 }

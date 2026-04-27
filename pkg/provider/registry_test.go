@@ -1,12 +1,12 @@
-// SPDX-Licence-Identifier: EUPL-1.2
+// SPDX-License-Identifier: EUPL-1.2
 
 package provider_test
 
 import (
 	"testing"
 
-	"dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/api"
+	"dappco.re/go/api/pkg/provider"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -3,13 +3,11 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"net/http"
 	"runtime/debug"
-	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,8 +24,10 @@ const requestStartContextKey = "request_start"
 // and avoids Gin's default plain-text 500 response.
 func recoveryMiddleware() gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
-		fmt.Fprintf(gin.DefaultErrorWriter, "[Recovery] panic recovered: %v\n", recovered)
-		debug.PrintStack()
+		if gin.IsDebugging() {
+			_, _ = gin.DefaultErrorWriter.Write([]byte(core.Sprintf("[Recovery] panic recovered: %v\n", recovered)))
+			debug.PrintStack()
+		}
 		c.AbortWithStatusJSON(http.StatusInternalServerError, Fail(
 			"internal_server_error",
 			"Internal server error",
@@ -54,8 +54,8 @@ func bearerAuthMiddleware(token string, skip func() []string) gin.HandlerFunc {
 			return
 		}
 
-		parts := strings.SplitN(header, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] != token {
+		parts := core.SplitN(header, " ", 2)
+		if len(parts) != 2 || core.Lower(parts[0]) != "bearer" || parts[1] != token {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Fail("unauthorised", "invalid bearer token"))
 			return
 		}
@@ -72,7 +72,10 @@ func isPublicPath(requestPath, publicPath string) bool {
 		return false
 	}
 
-	normalized := strings.TrimRight(publicPath, "/")
+	normalized := publicPath
+	for core.HasSuffix(normalized, "/") && normalized != "/" {
+		normalized = core.TrimSuffix(normalized, "/")
+	}
 	if normalized == "" {
 		normalized = "/"
 	}
@@ -85,7 +88,7 @@ func isPublicPath(requestPath, publicPath string) bool {
 		return true
 	}
 
-	return strings.HasPrefix(requestPath, normalized+"/")
+	return core.HasPrefix(requestPath, normalized+"/")
 }
 
 // requestIDMiddleware ensures every response carries an X-Request-ID header.
@@ -98,8 +101,11 @@ func requestIDMiddleware() gin.HandlerFunc {
 		id := c.GetHeader("X-Request-ID")
 		if id == "" {
 			b := make([]byte, 16)
-			_, _ = rand.Read(b)
-			id = hex.EncodeToString(b)
+			if _, err := randomRead(b); err != nil {
+				id = core.Sprintf("ts-%d", time.Now().UnixNano())
+			} else {
+				id = core.HexEncode(b)
+			}
 		}
 
 		c.Set(requestIDContextKey, id)

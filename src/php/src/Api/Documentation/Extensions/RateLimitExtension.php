@@ -163,7 +163,7 @@ class RateLimitExtension implements Extension
         }
 
         // Also check for RateLimit attribute on controller
-        $controller = $route->getController();
+        $controller = $this->resolveControllerClass($route);
         if ($controller !== null) {
             $reflection = new ReflectionClass($controller);
             if (! empty($reflection->getAttributes(RateLimit::class))) {
@@ -187,7 +187,7 @@ class RateLimitExtension implements Extension
      */
     protected function extractRateLimit(Route $route): ?array
     {
-        $controller = $route->getController();
+        $controller = $this->resolveControllerClass($route);
 
         if ($controller === null) {
             return null;
@@ -221,6 +221,35 @@ class RateLimitExtension implements Extension
                 'window' => $rateLimit->window,
                 'burst' => $rateLimit->burst,
             ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve a controller class name from the route without container
+     * instantiation, so documentation generation can run outside the full host
+     * application dependency graph.
+     */
+    protected function resolveControllerClass(Route $route): ?string
+    {
+        $uses = $route->getAction('uses');
+
+        if (is_string($uses) && str_contains($uses, '@')) {
+            [$controller] = explode('@', $uses, 2);
+
+            return class_exists($controller) ? $controller : null;
+        }
+
+        if (is_string($uses) && class_exists($uses)) {
+            return $uses;
+        }
+
+        $controller = $route->getAction('controller');
+        if (is_string($controller) && str_contains($controller, '@')) {
+            [$class] = explode('@', $controller, 2);
+
+            return class_exists($class) ? $class : null;
         }
 
         return null;

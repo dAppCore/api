@@ -3,8 +3,9 @@
 package api
 
 import (
-	"net/http"
-	"strings"
+	"net/http" // Note: AX-6 - structural HTTP boundary for wrapped handlers; no core primitive.
+
+	core "dappco.re/go/core"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -114,12 +115,12 @@ func mountGraphQL(r *gin.Engine, cfg *graphqlConfig) {
 // normaliseGraphQLPath coerces custom GraphQL paths into a stable form.
 // The path always begins with a single slash and never ends with one.
 func normaliseGraphQLPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return defaultGraphQLPath
 	}
 
-	path = "/" + strings.Trim(path, "/")
+	path = "/" + trimSlashes(path)
 	if path == "/" {
 		return defaultGraphQLPath
 	}

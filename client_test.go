@@ -3,6 +3,7 @@
 package api_test
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,8 +15,37 @@ import (
 
 	"slices"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
+
+type trackingReadCloser struct {
+	io.ReadCloser
+	closed *bool
+}
+
+func (t trackingReadCloser) Close() error {
+	*t.closed = true
+	return t.ReadCloser.Close()
+}
+
+type trackingRoundTripper struct {
+	base   http.RoundTripper
+	closed *bool
+}
+
+func (t trackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil || resp == nil || resp.Body == nil {
+		return resp, err
+	}
+
+	resp.Body = trackingReadCloser{
+		ReadCloser: resp.Body,
+		closed:     t.closed,
+	}
+
+	return resp, err
+}
 
 func TestOpenAPIClient_Good_CallOperationByID(t *testing.T) {
 	errCh := make(chan error, 2)
@@ -173,6 +203,51 @@ paths:
 	}
 	if ping["message"] != "pong" {
 		t.Fatalf("expected message=pong, got %#v", ping["message"])
+	}
+}
+
+func TestOpenAPIClient_Bad_ClosesResponseBodyOnRedirectError(t *testing.T) {
+	var closed bool
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", "/final")
+		w.WriteHeader(http.StatusFound)
+		_, _ = io.WriteString(w, "redirecting")
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	specPath := writeTempSpec(t, `openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /hello:
+    get:
+      operationId: get_hello
+`)
+
+	client := api.NewOpenAPIClient(
+		api.WithSpec(specPath),
+		api.WithBaseURL(srv.URL),
+		api.WithHTTPClient(&http.Client{
+			Transport: trackingRoundTripper{
+				base:   http.DefaultTransport,
+				closed: &closed,
+			},
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return errors.New("redirect blocked")
+			},
+		}),
+	)
+
+	if _, err := client.Call("get_hello", nil); err == nil {
+		t.Fatal("expected redirect error")
+	}
+	if !closed {
+		t.Fatal("expected redirect response body to be closed")
 	}
 }
 

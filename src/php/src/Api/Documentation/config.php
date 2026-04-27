@@ -99,7 +99,7 @@ return [
 
         // OAuth2 (if applicable)
         'oauth2' => [
-            'enabled' => false,
+            'enabled' => true,
             'flows' => [
                 'authorizationCode' => [
                     'authorizationUrl' => '/oauth/authorize',
@@ -251,7 +251,7 @@ return [
 
     'ui' => [
         // Default UI renderer: 'swagger', 'scalar', 'redoc', 'stoplight'
-        'default' => 'scalar',
+        'default' => 'swagger',
 
         // Swagger UI specific options
         'swagger' => [

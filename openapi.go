@@ -3,16 +3,13 @@
 package api
 
 import (
-	"encoding/json"
 	"iter"
 	"net/http"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
-	"unicode"
-
 	"slices"
+	"time"
+	"unicode" // Note: AX-6 — Unicode-aware operationId normalization has no core primitive.
+
+	core "dappco.re/go/core"
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.
@@ -51,6 +48,10 @@ type SpecBuilder struct {
 	ExternalDocsURL         string
 	PprofEnabled            bool
 	ExpvarEnabled           bool
+	ChatCompletionsEnabled  bool
+	ChatCompletionsPath     string
+	OpenAPISpecEnabled      bool
+	OpenAPISpecPath         string
 	CacheEnabled            bool
 	CacheTTL                string
 	CacheMaxEntries         int
@@ -150,6 +151,18 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if sb.ExpvarEnabled {
 		spec["x-expvar-enabled"] = true
 	}
+	if sb.ChatCompletionsEnabled {
+		spec["x-chat-completions-enabled"] = true
+	}
+	if path := sb.effectiveChatCompletionsPath(); path != "" {
+		spec["x-chat-completions-path"] = normaliseOpenAPIPath(path)
+	}
+	if sb.OpenAPISpecEnabled {
+		spec["x-openapi-spec-enabled"] = true
+	}
+	if path := sb.effectiveOpenAPISpecPath(); path != "" {
+		spec["x-openapi-spec-path"] = normaliseOpenAPIPath(path)
+	}
 	if sb.CacheEnabled {
 		spec["x-cache-enabled"] = true
 	}
@@ -162,16 +175,16 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 	if sb.CacheMaxBytes > 0 {
 		spec["x-cache-max-bytes"] = sb.CacheMaxBytes
 	}
-	if locale := strings.TrimSpace(sb.I18nDefaultLocale); locale != "" {
+	if locale := core.Trim(sb.I18nDefaultLocale); locale != "" {
 		spec["x-i18n-default-locale"] = locale
 	}
 	if len(sb.I18nSupportedLocales) > 0 {
 		spec["x-i18n-supported-locales"] = slices.Clone(sb.I18nSupportedLocales)
 	}
-	if issuer := strings.TrimSpace(sb.AuthentikIssuer); issuer != "" {
+	if issuer := core.Trim(sb.AuthentikIssuer); issuer != "" {
 		spec["x-authentik-issuer"] = issuer
 	}
-	if clientID := strings.TrimSpace(sb.AuthentikClientID); clientID != "" {
+	if clientID := core.Trim(sb.AuthentikClientID); clientID != "" {
 		spec["x-authentik-client-id"] = clientID
 	}
 	if sb.AuthentikTrustedProxy {
@@ -259,7 +272,7 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 		"responses":       responseComponents(),
 	}
 
-	return json.MarshalIndent(spec, "", "  ")
+	return marshalCoreJSONIndent(spec, "", "  ")
 }
 
 // BuildIter generates the complete OpenAPI 3.1 JSON spec from a route-group
@@ -289,7 +302,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"description": "Returns server health status",
 				"tags":        []string{"system"},
 				"operationId": operationID("get", "/health", operationIDs),
-				"responses":   healthResponses(),
+				"responses":   healthResponses(sb.CacheEnabled),
 			},
 		},
 	}
@@ -297,7 +310,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 	graphqlPath := sb.effectiveGraphQLPath()
 	if graphqlPath != "" {
 		graphqlPath = normaliseOpenAPIPath(graphqlPath)
-		item := graphqlPathItem(graphqlPath, operationIDs)
+		item := graphqlPathItem(graphqlPath, operationIDs, sb.CacheEnabled)
 		if isPublicPathForList(graphqlPath, publicPaths) {
 			makePathItemPublic(item)
 		}
@@ -332,6 +345,14 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			makePathItemPublic(item)
 		}
 		paths[ssePath] = item
+		if ssePath == defaultSSEPath {
+			legacyPath := legacySSEPath
+			legacyItem := ssePathItem(legacyPath, operationIDs)
+			if isPublicPathForList(legacyPath, publicPaths) {
+				makePathItemPublic(legacyItem)
+			}
+			paths[legacyPath] = legacyItem
+		}
 	}
 
 	if sb.PprofEnabled {
@@ -350,12 +371,39 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 		paths["/debug/vars"] = item
 	}
 
+	if specPath := sb.effectiveOpenAPISpecPath(); specPath != "" {
+		specPath = normaliseOpenAPIPath(specPath)
+		item := openAPISpecPathItem(specPath, operationIDs)
+		if isPublicPathForList(specPath, publicPaths) {
+			makePathItemPublic(item)
+		}
+		paths[specPath] = item
+	}
+
+	if chatPath := sb.effectiveChatCompletionsPath(); chatPath != "" {
+		chatPath = normaliseOpenAPIPath(chatPath)
+		item := chatCompletionsPathItem(chatPath, operationIDs)
+		if isPublicPathForList(chatPath, publicPaths) {
+			makePathItemPublic(item)
+		}
+		paths[chatPath] = item
+	}
+
 	for _, g := range groups {
 		for _, rd := range g.descs {
 			fullPath := joinOpenAPIPath(g.basePath, rd.Path)
-			method := strings.ToLower(rd.Method)
-			deprecated := rd.Deprecated || strings.TrimSpace(rd.SunsetDate) != "" || strings.TrimSpace(rd.Replacement) != ""
-			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, rd.Replacement)
+			method := core.Lower(rd.Method)
+			replacement := core.Trim(rd.ReplacementURL)
+			if replacement == "" {
+				replacement = core.Trim(rd.Replacement)
+			}
+			deprecated := rd.Deprecated || core.Trim(rd.SunsetDate) != "" || replacement != "" || core.Trim(rd.NoticeURL) != ""
+			deprecationHeaders := deprecationResponseHeaders(deprecated, rd.SunsetDate, replacement)
+			if deprecated && core.Trim(rd.NoticeURL) != "" && deprecationHeaders != nil {
+				deprecationHeaders["API-Deprecation-Notice-URL"] = map[string]any{
+					"$ref": "#/components/headers/apiDeprecationNoticeURL",
+				}
+			}
 			isPublic := isPublicPathForList(fullPath, publicPaths)
 			security := rd.Security
 			if isPublic {
@@ -365,8 +413,8 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			operation := map[string]any{
 				"summary":     rd.Summary,
 				"description": rd.Description,
-				"operationId": operationID(method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, rd.Replacement, deprecationHeaders, sb.CacheEnabled),
+				"operationId": resolvedOperationID(rd, method, fullPath, operationIDs),
+				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, replacement, deprecationHeaders, sb.CacheEnabled, rd.CacheControl),
 			}
 			if deprecated {
 				operation["deprecated"] = true
@@ -416,6 +464,9 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 					},
 				}
 			}
+			if renderHints := resolvedRenderHints(rd); len(renderHints) > 0 {
+				operation["x-render-hints"] = renderHints
+			}
 
 			// Create or extend path item.
 			if existing, exists := paths[fullPath]; exists {
@@ -443,8 +494,8 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 // OpenAPI path without duplicate or missing separators. Gin-style parameters
 // such as :id and *path are converted to OpenAPI template parameters.
 func joinOpenAPIPath(basePath, routePath string) string {
-	basePath = strings.TrimSpace(basePath)
-	routePath = strings.TrimSpace(routePath)
+	basePath = core.Trim(basePath)
+	routePath = core.Trim(routePath)
 
 	if basePath == "" {
 		basePath = "/"
@@ -460,28 +511,28 @@ func joinOpenAPIPath(basePath, routePath string) string {
 		return routePath
 	}
 
-	return strings.TrimRight(basePath, "/") + "/" + strings.TrimPrefix(routePath, "/")
+	return trimTrailingSlashes(basePath) + "/" + core.TrimPrefix(routePath, "/")
 }
 
 // normaliseOpenAPIPath trims whitespace and collapses trailing separators
 // while preserving the root path and converting Gin-style path parameters.
 func normaliseOpenAPIPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return "/"
 	}
 
-	segments := strings.Split(path, "/")
+	segments := core.Split(path, "/")
 	cleaned := make([]string, 0, len(segments))
 	for _, segment := range segments {
-		segment = strings.TrimSpace(segment)
+		segment = core.Trim(segment)
 		if segment == "" {
 			continue
 		}
 		switch {
-		case strings.HasPrefix(segment, ":") && len(segment) > 1:
+		case core.HasPrefix(segment, ":") && len(segment) > 1:
 			segment = "{" + segment[1:] + "}"
-		case strings.HasPrefix(segment, "*") && len(segment) > 1:
+		case core.HasPrefix(segment, "*") && len(segment) > 1:
 			segment = "{" + segment[1:] + "}"
 		}
 		cleaned = append(cleaned, segment)
@@ -491,17 +542,20 @@ func normaliseOpenAPIPath(path string) string {
 		return "/"
 	}
 
-	return "/" + strings.Join(cleaned, "/")
+	return "/" + core.Join("/", cleaned...)
 }
 
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecated bool, sunsetDate, replacement string, deprecationHeaders map[string]any, cacheEnabled bool) map[string]any {
+func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecated bool, sunsetDate, replacement string, deprecationHeaders map[string]any, cacheEnabled bool, cacheControl string) map[string]any {
 	documentedHeaders := documentedResponseHeaders(responseHeaders)
 	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
 	if method == "get" && cacheEnabled {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
+	if cacheControl = core.Trim(cacheControl); cacheControl != "" {
+		successHeaders = mergeHeaders(successHeaders, cacheControlHeaders(cacheControl))
 	}
 
 	isPublic := security != nil && len(security) == 0
@@ -531,7 +585,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 	}
 
 	responses := map[string]any{
-		strconv.Itoa(code): successResponse,
+		core.Itoa(code): successResponse,
 		"400": map[string]any{
 			"description": "Bad request",
 			"content": map[string]any{
@@ -570,7 +624,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		},
 	}
 
-	if deprecated && (strings.TrimSpace(sunsetDate) != "" || strings.TrimSpace(replacement) != "") {
+	if deprecated && (core.Trim(sunsetDate) != "" || core.Trim(replacement) != "") {
 		responses["410"] = map[string]any{
 			"description": "Gone",
 			"content": map[string]any{
@@ -604,6 +658,18 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 	}
 
 	return responses
+}
+
+func cacheControlHeaders(cacheControl string) map[string]any {
+	return map[string]any{
+		"Cache-Control": map[string]any{
+			"description": "Caching policy hint for successful responses",
+			"schema": map[string]any{
+				"type":    "string",
+				"example": cacheControl,
+			},
+		},
+	}
 }
 
 func successStatusCode(statusCode int) int {
@@ -642,7 +708,12 @@ func successResponseDescription(statusCode int) string {
 
 // healthResponses builds the response set for the built-in health endpoint.
 // It stays public, but rate limiting and timeouts can still apply.
-func healthResponses() map[string]any {
+func healthResponses(cacheEnabled bool) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	if cacheEnabled {
+		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
+
 	return map[string]any{
 		"200": map[string]any{
 			"description": "Server is healthy",
@@ -651,7 +722,7 @@ func healthResponses() map[string]any {
 					"schema": envelopeSchema(map[string]any{"type": "string"}),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), cacheSuccessHeaders()),
+			"headers": successHeaders,
 		},
 		"429": map[string]any{
 			"description": "Too many requests",
@@ -684,10 +755,12 @@ func healthResponses() map[string]any {
 }
 
 // deprecationResponseHeaders documents the standard deprecation headers for
-// deprecated or sunsetted operations.
+// deprecated or sunsetted operations. The header set mirrors what
+// ApiSunset/ApiSunsetWith emit at runtime, including the spec §8 custom
+// headers (API-Suggested-Replacement, API-Deprecation-Notice-URL).
 func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string) map[string]any {
-	sunsetDate = strings.TrimSpace(sunsetDate)
-	replacement = strings.TrimSpace(replacement)
+	sunsetDate = core.Trim(sunsetDate)
+	replacement = core.Trim(replacement)
 
 	if !deprecated && sunsetDate == "" && replacement == "" {
 		return nil
@@ -712,13 +785,18 @@ func deprecationResponseHeaders(deprecated bool, sunsetDate, replacement string)
 		headers["Link"] = map[string]any{
 			"$ref": "#/components/headers/link",
 		}
+		headers["API-Suggested-Replacement"] = map[string]any{
+			"$ref": "#/components/headers/apiSuggestedReplacement",
+		}
 	}
 
 	return headers
 }
 
 // deprecationHeaderComponents returns reusable OpenAPI header components for
-// the standard deprecation and sunset middleware headers.
+// the standard deprecation and sunset middleware headers. Includes both the
+// IETF-standard headers (Deprecation, Sunset, Link) and the custom spec §8
+// headers used to communicate replacement endpoints and migration guides.
 func deprecationHeaderComponents() map[string]any {
 	return map[string]any{
 		"deprecation": map[string]any{
@@ -745,6 +823,19 @@ func deprecationHeaderComponents() map[string]any {
 			"description": "Human-readable deprecation warning for clients.",
 			"schema": map[string]any{
 				"type": "string",
+			},
+		},
+		"apiSuggestedReplacement": map[string]any{
+			"description": "Suggested replacement endpoint for clients to migrate to.",
+			"schema": map[string]any{
+				"type": "string",
+			},
+		},
+		"apiDeprecationNoticeURL": map[string]any{
+			"description": "URL pointing to a detailed deprecation notice.",
+			"schema": map[string]any{
+				"type":   "string",
+				"format": "uri",
 			},
 		},
 	}
@@ -835,7 +926,7 @@ func securitySchemeComponents(overrides map[string]any) map[string]any {
 	}
 
 	for name, scheme := range overrides {
-		name = strings.TrimSpace(name)
+		name = core.Trim(name)
 		if name == "" || scheme == nil {
 			continue
 		}
@@ -876,8 +967,16 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		seen["debug"] = true
 	}
 
+	if sb.effectiveChatCompletionsPath() != "" && !seen["inference"] {
+		tags = append(tags, map[string]any{
+			"name":        "inference",
+			"description": "Local inference endpoints (OpenAI-compatible)",
+		})
+		seen["inference"] = true
+	}
+
 	for _, g := range groups {
-		name := strings.TrimSpace(g.name)
+		name := core.Trim(g.name)
 		if name != "" && !seen[name] {
 			tags = append(tags, map[string]any{
 				"name":        name,
@@ -888,7 +987,7 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 
 		for _, rd := range g.descs {
 			for _, tag := range rd.Tags {
-				tag = strings.TrimSpace(tag)
+				tag = core.Trim(tag)
 				if tag == "" || seen[tag] {
 					continue
 				}
@@ -913,22 +1012,26 @@ func sortTags(tags []map[string]any) {
 		return
 	}
 
-	sort.SliceStable(tags, func(i, j int) bool {
-		left, _ := tags[i]["name"].(string)
-		right, _ := tags[j]["name"].(string)
+	slices.SortStableFunc(tags, func(a, b map[string]any) int {
+		left, _ := a["name"].(string)
+		right, _ := b["name"].(string)
 
 		switch {
 		case left == "system":
-			return true
+			return -1
 		case right == "system":
-			return false
+			return 1
+		case left < right:
+			return -1
+		case left > right:
+			return 1
 		default:
-			return left < right
+			return 0
 		}
 	})
 }
 
-func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
+func graphqlPathItem(path string, operationIDs map[string]int, cacheEnabled bool) map[string]any {
 	return map[string]any{
 		"get": map[string]any{
 			"summary":     "GraphQL query",
@@ -941,7 +1044,7 @@ func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 				},
 			},
 			"parameters": graphqlQueryParameters(),
-			"responses":  graphqlResponses(),
+			"responses":  graphqlResponses(cacheEnabled),
 		},
 		"post": map[string]any{
 			"summary":     "GraphQL query",
@@ -961,7 +1064,7 @@ func graphqlPathItem(path string, operationIDs map[string]int) map[string]any {
 					},
 				},
 			},
-			"responses": graphqlResponses(),
+			"responses": graphqlResponses(cacheEnabled),
 		},
 	}
 }
@@ -1240,6 +1343,245 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 	}
 }
 
+// openAPISpecPathItem returns the OpenAPI path item describing the standalone
+// JSON document endpoint (RFC.endpoints.md — "GET /v1/openapi.json"). The
+// endpoint is flagged public so SDK generators can fetch the description
+// without credentials when Authentik is configured.
+//
+//	paths["/v1/openapi.json"] = openAPISpecPathItem("/v1/openapi.json", ids)
+func openAPISpecPathItem(path string, operationIDs map[string]int) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
+	return map[string]any{
+		"get": map[string]any{
+			"summary":     "OpenAPI specification",
+			"description": "Returns the generated OpenAPI 3.1 JSON document for this API.",
+			"tags":        []string{"system"},
+			"operationId": operationID("get", path, operationIDs),
+			"security":    []any{},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "OpenAPI 3.1 JSON document",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": successHeaders,
+				},
+				"500": map[string]any{
+					"description": "Failed to render specification",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+							},
+						},
+					},
+					"headers": errorHeaders,
+				},
+			},
+		},
+	}
+}
+
+// chatCompletionsPathItem returns the OpenAPI path item describing the
+// OpenAI-compatible chat completions endpoint (RFC §11). The path documents
+// the streaming and non-streaming response shapes, the Gemma 4 calibrated
+// sampling defaults, and the OpenAI-compatible error envelope so SDK
+// generators can bind to the same surface as the hand-written client.
+//
+//	paths["/v1/chat/completions"] = chatCompletionsPathItem("/v1/chat/completions", ids)
+func chatCompletionsPathItem(path string, operationIDs map[string]int) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+
+	return map[string]any{
+		"post": map[string]any{
+			"summary":     "Chat completions",
+			"description": "OpenAI-compatible chat completion endpoint. Defaults to temperature=1.0, top_p=0.95, top_k=64, max_tokens=2048 (Gemma 4 calibrated). Set stream=true to receive Server-Sent Events matching OpenAI's streaming format.",
+			"tags":        []string{"inference"},
+			"operationId": operationID("post", path, operationIDs),
+			"security":    []any{},
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": chatCompletionsRequestSchema(),
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Chat completion response",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": chatCompletionsResponseSchema(),
+						},
+						"text/event-stream": map[string]any{
+							"schema": chatCompletionsStreamSchema(),
+						},
+					},
+					"headers": successHeaders,
+				},
+				"400": map[string]any{
+					"description": "Invalid request",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": chatCompletionsErrorSchema(),
+						},
+					},
+					"headers": errorHeaders,
+				},
+				"404": map[string]any{
+					"description": "Model not found",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": chatCompletionsErrorSchema(),
+						},
+					},
+					"headers": errorHeaders,
+				},
+				"503": map[string]any{
+					"description": "Model loading or unavailable",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": chatCompletionsErrorSchema(),
+						},
+					},
+					"headers": errorHeaders,
+				},
+				"500": map[string]any{
+					"description": "Inference error",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": chatCompletionsErrorSchema(),
+						},
+					},
+					"headers": errorHeaders,
+				},
+			},
+		},
+	}
+}
+
+// chatCompletionsRequestSchema is the OpenAPI schema for
+// ChatCompletionRequest. Gemma 4 calibrated defaults (temperature=1.0,
+// top_p=0.95, top_k=64, max_tokens=2048) are documented in the example.
+//
+//	schema := chatCompletionsRequestSchema()
+func chatCompletionsRequestSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"model": map[string]any{
+				"type":        "string",
+				"description": "Model name (lemer, lemma, lemmy, lemrd, or any identifier resolvable via ~/.core/models.yaml)",
+			},
+			"messages": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"role":    map[string]any{"type": "string", "enum": []string{"system", "user", "assistant"}},
+						"content": map[string]any{"type": "string"},
+					},
+					"required": []string{"role", "content"},
+				},
+			},
+			"temperature": map[string]any{"type": "number", "description": "Sampling temperature (default 1.0 for Gemma 4)"},
+			"top_p":       map[string]any{"type": "number", "description": "Nucleus sampling (default 0.95)"},
+			"top_k":       map[string]any{"type": "integer", "description": "Top-K sampling (default 64)"},
+			"max_tokens":  map[string]any{"type": "integer", "description": "Output token cap (default 2048)"},
+			"stream":      map[string]any{"type": "boolean", "description": "Enable SSE streaming"},
+			"stop":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"user":        map[string]any{"type": "string", "description": "Opaque end-user identifier"},
+		},
+		"required": []string{"model", "messages"},
+	}
+}
+
+// chatCompletionsResponseSchema is the OpenAPI schema for a non-streaming
+// ChatCompletionResponse. See RFC §11.3.
+//
+//	schema := chatCompletionsResponseSchema()
+func chatCompletionsResponseSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"id":      map[string]any{"type": "string"},
+			"object":  map[string]any{"type": "string"},
+			"created": map[string]any{"type": "integer"},
+			"model":   map[string]any{"type": "string"},
+			"choices": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"index": map[string]any{"type": "integer"},
+						"message": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"role":    map[string]any{"type": "string"},
+								"content": map[string]any{"type": "string"},
+							},
+						},
+						"finish_reason": map[string]any{"type": "string", "enum": []string{"stop", "length", "error"}},
+					},
+				},
+			},
+			"usage": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"prompt_tokens":     map[string]any{"type": "integer"},
+					"completion_tokens": map[string]any{"type": "integer"},
+					"total_tokens":      map[string]any{"type": "integer"},
+				},
+			},
+			"thought": map[string]any{"type": "string", "description": "Thinking channel content when the model emits <|channel>thought tokens"},
+		},
+	}
+}
+
+// chatCompletionsStreamSchema documents the text/event-stream chunk shape for
+// Server-Sent Events responses. See RFC §11.4.
+//
+//	schema := chatCompletionsStreamSchema()
+func chatCompletionsStreamSchema() map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"description": "data: <json> events terminated by data: [DONE] per OpenAI's SSE format",
+	}
+}
+
+// chatCompletionsErrorSchema is the OpenAI-compatible error envelope emitted
+// by the chat completions endpoint. See RFC §11.7.
+//
+//	schema := chatCompletionsErrorSchema()
+func chatCompletionsErrorSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"error": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"message": map[string]any{"type": "string"},
+					"type":    map[string]any{"type": "string"},
+					"param":   map[string]any{"type": "string"},
+					"code":    map[string]any{"type": "string"},
+				},
+				"required": []string{"message", "type", "code"},
+			},
+		},
+		"required": []string{"error"},
+	}
+}
+
 func graphqlRequestSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -1291,8 +1633,11 @@ func graphqlQueryParameters() []map[string]any {
 	}
 }
 
-func graphqlResponses() map[string]any {
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), cacheSuccessHeaders())
+func graphqlResponses(cacheEnabled bool) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	if cacheEnabled {
+		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
+	}
 	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
 
 	return map[string]any{
@@ -1591,10 +1936,11 @@ func collectRouteDescriptions(g RouteGroup) []RouteDescription {
 
 	descs := make([]RouteDescription, 0)
 	for rd := range descIter {
-		if rd.Hidden {
+		resolved := resolveRouteDescription(rd)
+		if resolved.Hidden {
 			continue
 		}
-		descs = append(descs, cloneRouteDescription(rd))
+		descs = append(descs, resolved)
 	}
 
 	return descs
@@ -1631,6 +1977,197 @@ func routeDescriptions(g RouteGroup) iter.Seq[RouteDescription] {
 	return nil
 }
 
+func resolveRouteDescription(rd RouteDescription) RouteDescription {
+	resolved := cloneRouteDescription(rd)
+	handler := routeDescribable(resolved.Handler)
+	if handler == nil {
+		return resolved
+	}
+
+	handlerDesc := cloneRouteDescription(handler.Describe())
+
+	if core.Trim(resolved.Method) == "" {
+		resolved.Method = handlerDesc.Method
+	}
+	if core.Trim(resolved.Path) == "" {
+		resolved.Path = handlerDesc.Path
+	}
+	if core.Trim(resolved.Summary) == "" {
+		resolved.Summary = firstNonEmpty(handler.Summary(), handlerDesc.Summary)
+	}
+	if core.Trim(resolved.Description) == "" {
+		resolved.Description = firstNonEmpty(handler.Description(), handlerDesc.Description)
+	}
+	if tags := cleanTags(resolved.Tags); len(tags) > 0 {
+		resolved.Tags = tags
+	} else if tags := cleanTags(handler.Tags()); len(tags) > 0 {
+		resolved.Tags = tags
+	} else {
+		resolved.Tags = cleanTags(handlerDesc.Tags)
+	}
+	if core.Trim(resolved.CacheControl) == "" {
+		resolved.CacheControl = handlerDesc.CacheControl
+	}
+	if !resolved.Hidden && handlerDesc.Hidden {
+		resolved.Hidden = true
+	}
+	if !resolved.Deprecated && handlerDesc.Deprecated {
+		resolved.Deprecated = true
+	}
+	if core.Trim(resolved.SunsetDate) == "" {
+		resolved.SunsetDate = handlerDesc.SunsetDate
+	}
+	if core.Trim(resolved.ReplacementURL) == "" {
+		resolved.ReplacementURL = handlerDesc.ReplacementURL
+	}
+	if core.Trim(resolved.Replacement) == "" {
+		resolved.Replacement = handlerDesc.Replacement
+	}
+	if core.Trim(resolved.NoticeURL) == "" {
+		resolved.NoticeURL = handlerDesc.NoticeURL
+	}
+	if resolved.StatusCode == 0 {
+		resolved.StatusCode = handlerDesc.StatusCode
+	}
+	if resolved.Security == nil && handlerDesc.Security != nil {
+		resolved.Security = cloneSecurityRequirements(handlerDesc.Security)
+	}
+	if resolved.Parameters == nil && handlerDesc.Parameters != nil {
+		resolved.Parameters = cloneParameterDescriptions(handlerDesc.Parameters)
+	}
+	if resolved.RequestBody == nil && handlerDesc.RequestBody != nil {
+		resolved.RequestBody = cloneOpenAPIObject(handlerDesc.RequestBody)
+	}
+	if resolved.RequestExample == nil && handlerDesc.RequestExample != nil {
+		resolved.RequestExample = cloneOpenAPIValue(handlerDesc.RequestExample)
+	}
+	if resolved.Response == nil && handlerDesc.Response != nil {
+		resolved.Response = cloneOpenAPIObject(handlerDesc.Response)
+	}
+	if resolved.ResponseExample == nil && handlerDesc.ResponseExample != nil {
+		resolved.ResponseExample = cloneOpenAPIValue(handlerDesc.ResponseExample)
+	}
+	if resolved.ResponseHeaders == nil && handlerDesc.ResponseHeaders != nil {
+		resolved.ResponseHeaders = cloneStringMap(handlerDesc.ResponseHeaders)
+	}
+
+	return resolved
+}
+
+func routeDescribable(handler any) Describable {
+	if isNilValue(handler) {
+		return nil
+	}
+
+	d, ok := handler.(Describable)
+	if !ok || isNilValue(d) {
+		return nil
+	}
+
+	return d
+}
+
+func routeRenderable(handler any) Renderable {
+	if isNilValue(handler) {
+		return nil
+	}
+
+	r, ok := handler.(Renderable)
+	if !ok || isNilValue(r) {
+		return nil
+	}
+
+	return r
+}
+
+func resolvedOperationID(rd RouteDescription, method, path string, operationIDs map[string]int) string {
+	if handler := routeDescribable(rd.Handler); handler != nil {
+		if operationID := registerOperationID(handler.OperationID(), operationIDs); operationID != "" {
+			return operationID
+		}
+	}
+
+	return operationID(method, path, operationIDs)
+}
+
+func registerOperationID(id string, operationIDs map[string]int) string {
+	id = core.Trim(id)
+	if id == "" {
+		return ""
+	}
+	if operationIDs == nil {
+		return id
+	}
+
+	count := operationIDs[id]
+	operationIDs[id] = count + 1
+	if count == 0 {
+		return id
+	}
+
+	return id + "_" + core.Itoa(count+1)
+}
+
+func resolvedRenderHints(rd RouteDescription) map[string]any {
+	handler := routeRenderable(rd.Handler)
+	if handler == nil {
+		return nil
+	}
+
+	return renderHintsExtension(handler.Render())
+}
+
+func renderHintsExtension(hints RenderHints) map[string]any {
+	extension := map[string]any{}
+
+	if kind := core.Trim(hints.Kind); kind != "" {
+		extension["kind"] = kind
+	}
+	if fields := cloneFieldHints(hints.Fields); len(fields) > 0 {
+		extension["fields"] = fields
+	}
+	if actions := cloneActionHints(hints.Actions); len(actions) > 0 {
+		extension["actions"] = actions
+	}
+	if len(extension) == 0 {
+		return nil
+	}
+
+	return extension
+}
+
+func cloneFieldHints(fields []FieldHint) []FieldHint {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	out := make([]FieldHint, len(fields))
+	for i, field := range fields {
+		out[i] = field
+		out[i].Validation = cloneOpenAPIObject(field.Validation)
+	}
+
+	return out
+}
+
+func cloneActionHints(actions []ActionHint) []ActionHint {
+	if len(actions) == 0 {
+		return nil
+	}
+
+	return slices.Clone(actions)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value = core.Trim(value); value != "" {
+			return value
+		}
+	}
+
+	return ""
+}
+
 // pathParameters extracts unique OpenAPI path parameters from a path template.
 // Parameters are returned in the order they appear in the path.
 func pathParameters(path string) []map[string]any {
@@ -1646,12 +2183,12 @@ func pathParameters(path string) []map[string]any {
 		if path[i] != open {
 			continue
 		}
-		end := strings.IndexByte(path[i+1:], close)
+		end := indexByteFrom(path, close, i+1)
 		if end < 0 {
 			continue
 		}
-		name := path[i+1 : i+1+end]
-		if name == "" || strings.ContainsAny(name, "/{}") || seen[name] {
+		name := path[i+1 : end]
+		if name == "" || containsPathParameterDelimiter(name) || seen[name] {
 			continue
 		}
 		seen[name] = true
@@ -1663,10 +2200,25 @@ func pathParameters(path string) []map[string]any {
 				"type": "string",
 			},
 		})
-		i += end + 1
+		i = end
 	}
 
 	return params
+}
+
+func indexByteFrom(value string, target byte, start int) int {
+	for i := start; i < len(value); i++ {
+		if value[i] == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func containsPathParameterDelimiter(name string) bool {
+	return core.Contains(name, "/") ||
+		core.Contains(name, "{") ||
+		core.Contains(name, "}")
 }
 
 // operationParameters converts explicit route parameter descriptions into
@@ -1753,7 +2305,7 @@ func resolvedOperationTags(groupName string, rd RouteDescription) []string {
 		return tags
 	}
 
-	if name := strings.TrimSpace(groupName); name != "" {
+	if name := core.Trim(groupName); name != "" {
 		return []string{name}
 	}
 
@@ -1770,7 +2322,7 @@ func cleanTags(tags []string) []string {
 	cleaned := make([]string, 0, len(tags))
 	seen := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		tag = strings.TrimSpace(tag)
+		tag = core.Trim(tag)
 		if tag == "" {
 			continue
 		}
@@ -1910,17 +2462,21 @@ func sseResponseHeaders() map[string]any {
 }
 
 // effectiveGraphQLPath returns the configured GraphQL path or the default
-// GraphQL path when GraphQL is enabled without an explicit path. Returns an
-// empty string when neither GraphQL nor the playground is enabled.
+// GraphQL path when GraphQL is enabled without an explicit path. An explicit
+// path also surfaces on its own so spec generation reflects configuration
+// authored ahead of runtime activation. Returns an empty string only when no
+// configuration is present.
+//
+//	sb.effectiveGraphQLPath()  // "/graphql" when enabled or configured
 func (sb *SpecBuilder) effectiveGraphQLPath() string {
-	if !sb.GraphQLEnabled && !sb.GraphQLPlayground {
-		return ""
+	graphqlPath := core.Trim(sb.GraphQLPath)
+	if graphqlPath != "" {
+		return graphqlPath
 	}
-	graphqlPath := strings.TrimSpace(sb.GraphQLPath)
-	if graphqlPath == "" {
+	if sb.GraphQLEnabled || sb.GraphQLPlayground {
 		return defaultGraphQLPath
 	}
-	return graphqlPath
+	return ""
 }
 
 // effectiveGraphQLPlaygroundPath returns the configured playground path when
@@ -1930,7 +2486,7 @@ func (sb *SpecBuilder) effectiveGraphQLPlaygroundPath() string {
 		return ""
 	}
 
-	path := strings.TrimSpace(sb.GraphQLPlaygroundPath)
+	path := core.Trim(sb.GraphQLPlaygroundPath)
 	if path != "" {
 		return path
 	}
@@ -1944,51 +2500,97 @@ func (sb *SpecBuilder) effectiveGraphQLPlaygroundPath() string {
 }
 
 // effectiveSwaggerPath returns the configured Swagger UI path or the default
-// path when Swagger is enabled without an explicit override. Returns an empty
-// string when Swagger is disabled.
+// path when Swagger is enabled without an explicit override. An explicit path
+// also surfaces on its own so spec generation reflects configuration authored
+// ahead of runtime activation. Returns an empty string only when no
+// configuration is present.
+//
+//	sb.effectiveSwaggerPath()  // "/swagger" when enabled or configured
 func (sb *SpecBuilder) effectiveSwaggerPath() string {
-	if !sb.SwaggerEnabled {
-		return ""
+	swaggerPath := core.Trim(sb.SwaggerPath)
+	if swaggerPath != "" {
+		return swaggerPath
 	}
-	swaggerPath := strings.TrimSpace(sb.SwaggerPath)
-	if swaggerPath == "" {
+	if sb.SwaggerEnabled {
 		return defaultSwaggerPath
 	}
-	return swaggerPath
+	return ""
 }
 
 // effectiveWSPath returns the configured WebSocket path or the default path
-// when WebSockets are enabled without an explicit override. Returns an empty
-// string when WebSockets are disabled.
+// when WebSockets are enabled without an explicit override. An explicit path
+// also surfaces on its own so spec generation reflects configuration authored
+// ahead of runtime activation. Returns an empty string only when no
+// configuration is present.
+//
+//	sb.effectiveWSPath()  // "/ws" when enabled or configured
 func (sb *SpecBuilder) effectiveWSPath() string {
-	if !sb.WSEnabled {
-		return ""
+	wsPath := core.Trim(sb.WSPath)
+	if wsPath != "" {
+		return wsPath
 	}
-	wsPath := strings.TrimSpace(sb.WSPath)
-	if wsPath == "" {
+	if sb.WSEnabled {
 		return defaultWSPath
 	}
-	return wsPath
+	return ""
 }
 
 // effectiveSSEPath returns the configured SSE path or the default path when
-// SSE is enabled without an explicit override. Returns an empty string when
-// SSE is disabled.
+// SSE is enabled without an explicit override. An explicit path also surfaces
+// on its own so spec generation reflects configuration authored ahead of
+// runtime activation. Returns an empty string only when no configuration is
+// present.
+//
+//	sb.effectiveSSEPath()  // "/events" when enabled or configured
 func (sb *SpecBuilder) effectiveSSEPath() string {
-	if !sb.SSEEnabled {
-		return ""
+	ssePath := core.Trim(sb.SSEPath)
+	if ssePath != "" {
+		return ssePath
 	}
-	ssePath := strings.TrimSpace(sb.SSEPath)
-	if ssePath == "" {
+	if sb.SSEEnabled {
 		return defaultSSEPath
 	}
-	return ssePath
+	return ""
+}
+
+// effectiveChatCompletionsPath returns the configured chat completions path or
+// the RFC §11.1 default when chat completions is enabled without an explicit
+// override. An explicit path also surfaces on its own so spec generation
+// reflects configuration authored ahead of runtime activation.
+//
+//	sb.effectiveChatCompletionsPath()  // "/v1/chat/completions" when enabled
+func (sb *SpecBuilder) effectiveChatCompletionsPath() string {
+	path := core.Trim(sb.ChatCompletionsPath)
+	if path != "" {
+		return path
+	}
+	if sb.ChatCompletionsEnabled {
+		return defaultChatCompletionsPath
+	}
+	return ""
+}
+
+// effectiveOpenAPISpecPath returns the configured standalone OpenAPI JSON
+// endpoint path or the RFC default "/v1/openapi.json" when enabled without an
+// explicit override. An explicit path also surfaces on its own so the spec
+// reflects configuration authored ahead of runtime activation.
+//
+//	sb.effectiveOpenAPISpecPath()  // "/v1/openapi.json" when enabled
+func (sb *SpecBuilder) effectiveOpenAPISpecPath() string {
+	path := core.Trim(sb.OpenAPISpecPath)
+	if path != "" {
+		return path
+	}
+	if sb.OpenAPISpecEnabled {
+		return defaultOpenAPISpecPath
+	}
+	return ""
 }
 
 // effectiveCacheTTL returns a normalised cache TTL when it parses to a
 // positive duration.
 func (sb *SpecBuilder) effectiveCacheTTL() string {
-	ttl := strings.TrimSpace(sb.CacheTTL)
+	ttl := core.Trim(sb.CacheTTL)
 	if ttl == "" {
 		return ""
 	}
@@ -2002,13 +2604,18 @@ func (sb *SpecBuilder) effectiveCacheTTL() string {
 }
 
 // effectiveAuthentikPublicPaths returns the public paths that Authentik skips
-// in practice, including the always-public health and Swagger endpoints.
+// in practice, including the always-public health endpoint and both the
+// default and any configured Swagger UI paths. The runtime middleware also
+// always skips "/swagger" unconditionally (see authentikMiddleware), so the
+// spec mirrors that behaviour even when a custom swagger path is mounted.
+//
+//	paths := sb.effectiveAuthentikPublicPaths()  // [/health /swagger ...]
 func (sb *SpecBuilder) effectiveAuthentikPublicPaths() []string {
 	if !sb.hasAuthentikMetadata() {
 		return nil
 	}
 
-	paths := []string{"/health"}
+	paths := []string{"/health", defaultSwaggerPath}
 	if swaggerPath := sb.effectiveSwaggerPath(); swaggerPath != "" {
 		paths = append(paths, swaggerPath)
 	}
@@ -2024,25 +2631,25 @@ func (sb *SpecBuilder) snapshot() *SpecBuilder {
 	}
 
 	out := *sb
-	out.Title = strings.TrimSpace(out.Title)
-	out.Summary = strings.TrimSpace(out.Summary)
-	out.Description = strings.TrimSpace(out.Description)
-	out.Version = strings.TrimSpace(out.Version)
-	out.SwaggerPath = strings.TrimSpace(out.SwaggerPath)
-	out.GraphQLPath = strings.TrimSpace(out.GraphQLPath)
-	out.GraphQLPlaygroundPath = strings.TrimSpace(out.GraphQLPlaygroundPath)
-	out.WSPath = strings.TrimSpace(out.WSPath)
-	out.SSEPath = strings.TrimSpace(out.SSEPath)
-	out.TermsOfService = strings.TrimSpace(out.TermsOfService)
-	out.ContactName = strings.TrimSpace(out.ContactName)
-	out.ContactURL = strings.TrimSpace(out.ContactURL)
-	out.ContactEmail = strings.TrimSpace(out.ContactEmail)
-	out.LicenseName = strings.TrimSpace(out.LicenseName)
-	out.LicenseURL = strings.TrimSpace(out.LicenseURL)
-	out.ExternalDocsDescription = strings.TrimSpace(out.ExternalDocsDescription)
-	out.ExternalDocsURL = strings.TrimSpace(out.ExternalDocsURL)
-	out.CacheTTL = strings.TrimSpace(out.CacheTTL)
-	out.I18nDefaultLocale = strings.TrimSpace(out.I18nDefaultLocale)
+	out.Title = core.Trim(out.Title)
+	out.Summary = core.Trim(out.Summary)
+	out.Description = core.Trim(out.Description)
+	out.Version = core.Trim(out.Version)
+	out.SwaggerPath = core.Trim(out.SwaggerPath)
+	out.GraphQLPath = core.Trim(out.GraphQLPath)
+	out.GraphQLPlaygroundPath = core.Trim(out.GraphQLPlaygroundPath)
+	out.WSPath = core.Trim(out.WSPath)
+	out.SSEPath = core.Trim(out.SSEPath)
+	out.TermsOfService = core.Trim(out.TermsOfService)
+	out.ContactName = core.Trim(out.ContactName)
+	out.ContactURL = core.Trim(out.ContactURL)
+	out.ContactEmail = core.Trim(out.ContactEmail)
+	out.LicenseName = core.Trim(out.LicenseName)
+	out.LicenseURL = core.Trim(out.LicenseURL)
+	out.ExternalDocsDescription = core.Trim(out.ExternalDocsDescription)
+	out.ExternalDocsURL = core.Trim(out.ExternalDocsURL)
+	out.CacheTTL = core.Trim(out.CacheTTL)
+	out.I18nDefaultLocale = core.Trim(out.I18nDefaultLocale)
 	out.Servers = slices.Clone(sb.Servers)
 	out.I18nSupportedLocales = slices.Clone(sb.I18nSupportedLocales)
 	out.AuthentikPublicPaths = normalisePublicPaths(sb.AuthentikPublicPaths)
@@ -2064,8 +2671,8 @@ func (sb *SpecBuilder) hasAuthentikMetadata() bool {
 		return false
 	}
 
-	return strings.TrimSpace(sb.AuthentikIssuer) != "" ||
-		strings.TrimSpace(sb.AuthentikClientID) != "" ||
+	return core.Trim(sb.AuthentikIssuer) != "" ||
+		core.Trim(sb.AuthentikClientID) != "" ||
 		sb.AuthentikTrustedProxy ||
 		len(sb.AuthentikPublicPaths) > 0
 }
@@ -2109,7 +2716,7 @@ func documentedResponseHeaders(headers map[string]string) map[string]any {
 
 	out := make(map[string]any, len(headers))
 	for name, description := range headers {
-		name = strings.TrimSpace(name)
+		name = core.Trim(name)
 		if name == "" {
 			continue
 		}
@@ -2153,7 +2760,7 @@ func mergeHeaders(sets ...map[string]any) map[string]any {
 // operationID builds a stable OpenAPI operationId from the HTTP method and path.
 // The generated identifier is lower snake_case and preserves path parameter names.
 func operationID(method, path string, operationIDs map[string]int) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.Grow(len(method) + len(path) + 1)
 	lastUnderscore := false
 
@@ -2195,7 +2802,7 @@ func operationID(method, path string, operationIDs map[string]int) string {
 		}
 	}
 
-	out := strings.Trim(b.String(), "_")
+	out := trimOperationIDUnderscores(b.String())
 	if out == "" {
 		return "operation"
 	}
@@ -2209,5 +2816,15 @@ func operationID(method, path string, operationIDs map[string]int) string {
 	if count == 0 {
 		return out
 	}
-	return out + "_" + strconv.Itoa(count+1)
+	return out + "_" + core.Itoa(count+1)
+}
+
+func trimOperationIDUnderscores(value string) string {
+	for core.HasPrefix(value, "_") {
+		value = core.TrimPrefix(value, "_")
+	}
+	for core.HasSuffix(value, "_") {
+		value = core.TrimSuffix(value, "_")
+	}
+	return value
 }

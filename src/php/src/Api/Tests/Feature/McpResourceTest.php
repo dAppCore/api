@@ -3,16 +3,22 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Cache;
-use Mod\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Api\Controllers\McpApiController;
+use Core\Api\Models\ApiKey;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
+use Illuminate\Http\Request;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
     Cache::flush();
 
-    $this->user = User::factory()->create();
+    $this->user = User::query()->create([
+        'name' => fake()->name(),
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
     $this->workspace = Workspace::factory()->create();
     $this->workspace->users()->attach($this->user->id, [
         'role' => 'owner',
@@ -27,6 +33,7 @@ beforeEach(function () {
     );
 
     $this->plainKey = $result['plain_key'];
+    $this->apiKey = $result['api_key'];
 
     $this->serverId = 'test-resource-server';
     $this->serverDir = resource_path('mcp/servers');
@@ -87,6 +94,43 @@ it('reads a resource from the server definition', function () {
     ]);
 });
 
+it('McpResourceTest_resource_Bad_denies_access_to_servers_outside_the_api_key_scope', function () {
+    $this->apiKey->update([
+        'server_scopes' => ['another-server'],
+    ]);
+
+    $encodedUri = rawurlencode('test-resource-server://documents/welcome');
+
+    $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertForbidden();
+    $response->assertJsonPath('error', 'forbidden');
+});
+
+it('does not alias resource names to unrelated resource paths', function () {
+    $controller = new class extends McpApiController
+    {
+        protected function readResourceViaArtisan(string $server, string $path): mixed
+        {
+            return null;
+        }
+    };
+
+    $encodedUri = rawurlencode('test-resource-server://archive/welcome');
+
+    $request = Request::create("/api/mcp/resources/{$encodedUri}", 'GET');
+    $request->attributes->set('api_key', $this->apiKey);
+
+    $response = $controller->resource($request, $encodedUri);
+
+    expect($response->getStatusCode())->toBe(404);
+    expect($response->getData(true))->toMatchArray([
+        'error' => 'not_found',
+    ]);
+});
+
 it('lists resources for a server', function () {
     $response = $this->getJson('/api/mcp/servers/test-resource-server/resources', [
         'Authorization' => "Bearer {$this->plainKey}",
@@ -99,4 +143,44 @@ it('lists resources for a server', function () {
     $response->assertJsonPath('resources.0.path', 'documents/welcome');
     $response->assertJsonPath('resources.0.name', 'welcome');
     $response->assertJsonMissingPath('resources.0.content');
+});
+
+it('rejects unsafe resource paths before dispatching to the server', function () {
+    $encodedUri = rawurlencode('test-resource-server://../secrets');
+
+    $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['uri']);
+});
+
+it('rejects double-encoded traversal in resource paths', function () {
+    $encodedUri = rawurlencode('test-resource-server://%252e%252e/secrets');
+
+    $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+        'Authorization' => "Bearer {$this->plainKey}",
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['uri']);
+});
+
+it('McpApiController_resource_Ugly_rejects_non_relative_resource_paths', function () {
+    $cases = [
+        'test-resource-server:///secrets',
+        'test-resource-server://documents\\secrets',
+    ];
+
+    foreach ($cases as $uri) {
+        $encodedUri = rawurlencode($uri);
+
+        $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
+            'Authorization' => "Bearer {$this->plainKey}",
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['uri']);
+    }
 });

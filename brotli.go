@@ -3,11 +3,12 @@
 package api
 
 import (
-	"io"
+	"io" // Note: AX-6 - brotli writer pooling needs io.Discard as the reset sink; no core primitive.
 	"net/http"
 	"strconv"
-	"strings"
-	"sync"
+	"sync" // AX-6-exception: core has no Pool wrapper; brotli writers are pooled per compression level.
+
+	core "dappco.re/go/core"
 
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
@@ -47,7 +48,7 @@ func newBrotliHandler(level int) *brotliHandler {
 
 // Handle is the Gin middleware function that compresses responses with Brotli.
 func (h *brotliHandler) Handle(c *gin.Context) {
-	if !strings.Contains(c.Request.Header.Get("Accept-Encoding"), "br") {
+	if !acceptsBrotli(c.Request.Header.Get("Accept-Encoding")) {
 		c.Next()
 		return
 	}
@@ -62,32 +63,63 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 	c.Writer = bw
 
 	defer func() {
-		if bw.status >= http.StatusBadRequest {
-			bw.Header().Del("Content-Encoding")
-			bw.Header().Del("Vary")
-			w.Reset(io.Discard)
-		} else if c.Writer.Size() < 0 {
-			w.Reset(io.Discard)
-		}
-		_ = w.Close()
-		if c.Writer.Size() > -1 {
-			c.Header("Content-Length", strconv.Itoa(c.Writer.Size()))
-		}
-		h.pool.Put(w)
+		bw.release(&h.pool)
 	}()
 
 	c.Next()
 }
 
+func acceptsBrotli(acceptEncoding string) bool {
+	found := false
+	for _, part := range core.Split(acceptEncoding, ",") {
+		token := core.Trim(part)
+		params := ""
+		if i := indexByte(token, ';'); i >= 0 {
+			params = token[i+1:]
+			token = core.Trim(token[:i])
+		}
+		if core.Lower(token) != "br" {
+			continue
+		}
+		if hasZeroQValue(params) {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
+func hasZeroQValue(params string) bool {
+	for _, part := range core.Split(params, ";") {
+		name, value, ok := cutString(core.Trim(part), "=")
+		if !ok || core.Lower(core.Trim(name)) != "q" {
+			continue
+		}
+
+		q, err := strconv.ParseFloat(core.Trim(value), 64)
+		return err == nil && q == 0
+	}
+	return false
+}
+
 // brotliWriter wraps gin.ResponseWriter to intercept writes through brotli.
 type brotliWriter struct {
 	gin.ResponseWriter
+	mu            core.Mutex
 	writer        *brotli.Writer
+	released      bool
 	statusWritten bool
 	status        int
 }
 
 func (b *brotliWriter) Write(data []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return len(data), nil
+	}
+
 	b.Header().Del("Content-Length")
 
 	if !b.statusWritten {
@@ -108,13 +140,76 @@ func (b *brotliWriter) WriteString(s string) (int, error) {
 }
 
 func (b *brotliWriter) WriteHeader(code int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+
 	b.status = code
 	b.statusWritten = true
 	b.Header().Del("Content-Length")
+	if code >= http.StatusBadRequest {
+		b.Header().Del("Content-Encoding")
+		b.Header().Del("Vary")
+	}
 	b.ResponseWriter.WriteHeader(code)
 }
 
+func (b *brotliWriter) WriteHeaderNow() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+
+	if !b.statusWritten {
+		b.status = b.ResponseWriter.Status()
+		b.statusWritten = true
+	}
+	b.Header().Del("Content-Length")
+	if b.status >= http.StatusBadRequest {
+		b.Header().Del("Content-Encoding")
+		b.Header().Del("Vary")
+	}
+	b.ResponseWriter.WriteHeaderNow()
+}
+
 func (b *brotliWriter) Flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+
 	_ = b.writer.Flush()
 	b.ResponseWriter.Flush()
+}
+
+func (b *brotliWriter) release(pool *sync.Pool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.released {
+		return
+	}
+	b.released = true
+
+	if b.status >= http.StatusBadRequest {
+		b.Header().Del("Content-Encoding")
+		b.Header().Del("Vary")
+		b.writer.Reset(io.Discard)
+	} else if b.ResponseWriter.Size() < 0 {
+		b.writer.Reset(io.Discard)
+	}
+	_ = b.writer.Close()
+	if b.ResponseWriter.Size() > -1 {
+		b.Header().Set("Content-Length", core.Sprintf("%d", b.ResponseWriter.Size()))
+	}
+	b.writer.Reset(io.Discard)
+	pool.Put(b.writer)
+	b.writer = nil
 }

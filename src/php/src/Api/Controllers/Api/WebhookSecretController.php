@@ -51,12 +51,17 @@ class WebhookSecretController extends Controller
             $validated['grace_period_seconds'] ?? null
         );
 
+        $freshWebhook = $webhook->fresh();
+        if ($freshWebhook instanceof Webhook) {
+            $webhook = $freshWebhook;
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Secret rotated successfully',
             'data' => [
                 'secret' => $newSecret,
-                'status' => $this->rotationService->getSecretStatus($webhook->fresh()),
+                'status' => $this->rotationService->getSecretStatus($webhook),
             ],
         ]);
     }
@@ -89,12 +94,17 @@ class WebhookSecretController extends Controller
             $validated['grace_period_seconds'] ?? null
         );
 
+        $freshEndpoint = $endpoint->fresh();
+        if ($freshEndpoint instanceof ContentWebhookEndpoint) {
+            $endpoint = $freshEndpoint;
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Secret rotated successfully',
             'data' => [
                 'secret' => $newSecret,
-                'status' => $this->rotationService->getSecretStatus($endpoint->fresh()),
+                'status' => $this->rotationService->getSecretStatus($endpoint),
             ],
         ]);
     }
@@ -226,11 +236,16 @@ class WebhookSecretController extends Controller
 
         $this->rotationService->updateGracePeriod($webhook, $validated['grace_period_seconds']);
 
+        $freshWebhook = $webhook->fresh();
+        $gracePeriodSeconds = $freshWebhook instanceof Webhook
+            ? $freshWebhook->grace_period_seconds
+            : $webhook->grace_period_seconds;
+
         return response()->json([
             'success' => true,
             'message' => 'Grace period updated',
             'data' => [
-                'grace_period_seconds' => $webhook->fresh()->grace_period_seconds,
+                'grace_period_seconds' => $gracePeriodSeconds,
             ],
         ]);
     }
@@ -260,11 +275,16 @@ class WebhookSecretController extends Controller
 
         $this->rotationService->updateGracePeriod($endpoint, $validated['grace_period_seconds']);
 
+        $freshEndpoint = $endpoint->fresh();
+        $gracePeriodSeconds = $freshEndpoint instanceof ContentWebhookEndpoint
+            ? $freshEndpoint->grace_period_seconds
+            : $endpoint->grace_period_seconds;
+
         return response()->json([
             'success' => true,
             'message' => 'Grace period updated',
             'data' => [
-                'grace_period_seconds' => $endpoint->fresh()->grace_period_seconds,
+                'grace_period_seconds' => $gracePeriodSeconds,
             ],
         ]);
     }

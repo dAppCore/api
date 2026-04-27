@@ -11,6 +11,7 @@ use Core\Api\Services\SeoReportService;
 use Core\Front\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -47,6 +48,10 @@ class SeoReportController extends Controller
 
         try {
             $report = $this->seoReportService->analyse($validated['url']);
+        } catch (InvalidArgumentException) {
+            return $this->validationErrorResponse([
+                'url' => ['The requested URL must be a public HTTP or HTTPS endpoint.'],
+            ]);
         } catch (RuntimeException) {
             return $this->errorResponse(
                 errorCode: 'seo_unavailable',

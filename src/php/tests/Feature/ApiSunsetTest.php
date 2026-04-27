@@ -35,6 +35,43 @@ it('adds a replacement link without a sunset date', function () {
     expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated.');
 });
 
+it('ApiSunset_successorLinkTarget_Good_strips_a_method_prefix_from_the_replacement_target', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), '2025-06-01', 'POST /api/v2/users');
+
+    expect($response->headers->get('Link'))->toBe('</api/v2/users>; rel="successor-version"');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('POST /api/v2/users');
+    expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated and will be removed on 2025-06-01.');
+});
+
+it('ApiSunset_successorLinkTarget_Bad_keeps_plain_replacement_paths_unchanged', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), '2025-06-01', '/api/v2/users');
+
+    expect($response->headers->get('Link'))->toBe('</api/v2/users>; rel="successor-version"');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('/api/v2/users');
+});
+
+it('ApiSunset_successorLinkTarget_Ugly_preserves_unrecognised_prefixes_verbatim', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), '2025-06-01', 'FETCH /api/v2/users');
+
+    expect($response->headers->get('Link'))->toBe('<FETCH /api/v2/users>; rel="successor-version"');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('FETCH /api/v2/users');
+});
+
 it('preserves existing deprecation headers while appending sunset metadata', function () {
     Config::set('api.headers.include_deprecation', true);
 
@@ -71,6 +108,49 @@ it('formats the sunset date and keeps the replacement link', function () {
     expect($response->headers->get('Sunset'))->toBe('Sun, 01 Jun 2025 00:00:00 GMT');
     expect($response->headers->get('Link'))->toBe('</api/v2/users>; rel="successor-version"');
     expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated and will be removed on 2025-06-01.');
+});
+
+it('adds a deprecation notice url when provided', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle(
+        $request,
+        fn () => new Response('OK'),
+        '2025-06-01',
+        '/api/v2/users',
+        'https://docs.example.com/deprecation/users'
+    );
+
+    expect($response->headers->get('API-Deprecation-Notice-URL'))->toBe('https://docs.example.com/deprecation/users');
+    expect($response->headers->get('API-Suggested-Replacement'))->toBe('/api/v2/users');
+});
+
+it('preserves already formatted sunset dates', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+    $sunset = 'Wed, 01 Jan 2025 00:00:00 GMT';
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), $sunset, '/api/v2/users');
+
+    expect($response->headers->get('Sunset'))->toBe($sunset);
+    expect($response->headers->get('X-API-Warn'))->toBe("This endpoint is deprecated and will be removed on {$sunset}.");
+});
+
+it('ApiSunset_formatSunsetDate_Ugly_preserves_invalid_sunset_values', function () {
+    Config::set('api.headers.include_deprecation', true);
+
+    $middleware = new ApiSunset();
+    $request = Request::create('/legacy-endpoint', 'GET');
+
+    $response = $middleware->handle($request, fn () => new Response('OK'), 'not-a-date', '/api/v2/users');
+
+    expect($response->headers->get('Sunset'))->toBe('not-a-date');
+    expect($response->headers->get('X-API-Warn'))->toBe('This endpoint is deprecated and will be removed on not-a-date.');
 });
 
 it('skips deprecation headers when they are disabled in configuration', function () {

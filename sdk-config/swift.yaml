@@ -1,0 +1,5 @@
+generatorName: swift5
+outputDir: ./sdks/swift
+additionalProperties:
+  projectName: HostSDK
+  podVersion: "1.0.0"

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 type sunsetStubGroup struct{}
@@ -72,8 +72,199 @@ func TestWithSunset_Good_AddsDeprecationHeaders(t *testing.T) {
 	if got := w.Header().Get("Link"); got != "</api/v2/status>; rel=\"successor-version\"" {
 		t.Fatalf("expected successor Link header, got %q", got)
 	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "/api/v2/status" {
+		t.Fatalf("expected API-Suggested-Replacement to mirror replacement URL, got %q", got)
+	}
 	if got := w.Header().Get("X-API-Warn"); got != "This endpoint is deprecated and will be removed on 2025-06-01." {
 		t.Fatalf("expected deprecation warning, got %q", got)
+	}
+}
+
+func TestApiSunsetWith_Good_FormatsCommonSunsetDateForms(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name       string
+		sunsetDate string
+		want       string
+	}{
+		{
+			name:       "rfc3339",
+			sunsetDate: "2026-04-30T23:59:59Z",
+			want:       "Thu, 30 Apr 2026 23:59:59 GMT",
+		},
+		{
+			name:       "rfc7231",
+			sunsetDate: "Thu, 30 Apr 2026 23:59:59 GMT",
+			want:       "Thu, 30 Apr 2026 23:59:59 GMT",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mw := api.ApiSunsetWith(tc.sunsetDate, "POST /api/v2/billing/invoices")
+
+			r := gin.New()
+			r.Use(mw)
+			r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+			r.ServeHTTP(w, req)
+
+			if got := w.Header().Get("Sunset"); got != tc.want {
+				t.Fatalf("expected Sunset=%q, got %q", tc.want, got)
+			}
+			if got := w.Header().Get("Link"); got != "</api/v2/billing/invoices>; rel=\"successor-version\"" {
+				t.Fatalf("expected successor Link header, got %q", got)
+			}
+			if got := w.Header().Get("API-Suggested-Replacement"); got != "POST /api/v2/billing/invoices" {
+				t.Fatalf("expected API-Suggested-Replacement to preserve the original replacement, got %q", got)
+			}
+		})
+	}
+}
+
+func TestApiSunsetWith_Good_StripsMethodFromSuccessorLink(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "PATCH /api/v2/billing/invoices")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "</api/v2/billing/invoices>; rel=\"successor-version\"" {
+		t.Fatalf("expected method prefix to be stripped from successor Link, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "PATCH /api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the full replacement, got %q", got)
+	}
+}
+
+func TestApiSunsetWith_Good_PreservesRawSuccessorTarget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "/api/v2/billing/invoices")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "</api/v2/billing/invoices>; rel=\"successor-version\"" {
+		t.Fatalf("expected raw replacement path to be preserved in Link header, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "/api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the raw replacement, got %q", got)
+	}
+}
+
+func TestApiSunsetWith_Ugly_PreservesUnknownMethodPrefixAsRawTarget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "PURGE /api/v2/billing/invoices")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "<PURGE /api/v2/billing/invoices>; rel=\"successor-version\"" {
+		t.Fatalf("expected unknown method prefix to be preserved, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "PURGE /api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the raw replacement, got %q", got)
+	}
+}
+
+func TestApiSunsetWith_Ugly_PreservesBareReplacementToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("2026-04-30", "POST")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Link"); got != "<POST>; rel=\"successor-version\"" {
+		t.Fatalf("expected bare replacement token to be preserved, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "POST" {
+		t.Fatalf("expected API-Suggested-Replacement to preserve the bare token, got %q", got)
+	}
+}
+
+// TestApiSunsetWith_Good_AddsNoticeURLHeader exercises ApiSunsetWith with the
+// WithSunsetNoticeURL option to verify the spec §8 notice header is emitted.
+func TestApiSunsetWith_Good_AddsNoticeURLHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith(
+		"2026-04-30",
+		"POST /api/v2/billing/invoices",
+		api.WithSunsetNoticeURL("https://docs.api.dappco.re/deprecation/billing"),
+	)
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/billing", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/billing", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("API-Deprecation-Notice-URL"); got != "https://docs.api.dappco.re/deprecation/billing" {
+		t.Fatalf("expected API-Deprecation-Notice-URL header, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "POST /api/v2/billing/invoices" {
+		t.Fatalf("expected API-Suggested-Replacement to mirror replacement, got %q", got)
+	}
+}
+
+// TestApiSunsetWith_Bad_OmitsEmptyOptionalHeaders ensures empty option values
+// do not emit blank headers, keeping the response surface clean.
+func TestApiSunsetWith_Bad_OmitsEmptyOptionalHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("", "", api.WithSunsetNoticeURL("   "))
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/x", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/x", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Sunset"); got != "" {
+		t.Fatalf("expected no Sunset header for empty date, got %q", got)
+	}
+	if got := w.Header().Get("Link"); got != "" {
+		t.Fatalf("expected no Link header for empty replacement, got %q", got)
+	}
+	if got := w.Header().Get("API-Suggested-Replacement"); got != "" {
+		t.Fatalf("expected no API-Suggested-Replacement for empty replacement, got %q", got)
+	}
+	if got := w.Header().Get("API-Deprecation-Notice-URL"); got != "" {
+		t.Fatalf("expected no API-Deprecation-Notice-URL for blank URL, got %q", got)
+	}
+	if got := w.Header().Get("Deprecation"); got != "true" {
+		t.Fatalf("expected Deprecation=true even with no metadata, got %q", got)
 	}
 }
 
@@ -134,5 +325,26 @@ func TestWithSunset_Good_PreservesExistingDeprecationHeaders(t *testing.T) {
 	}
 	if got := w.Header().Values("Link"); len(got) != 2 {
 		t.Fatalf("expected 2 Link header values, got %v", got)
+	}
+}
+
+func TestApiSunsetWith_Ugly_PreservesInvalidSunsetValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mw := api.ApiSunsetWith("not-a-date", "")
+
+	r := gin.New()
+	r.Use(mw)
+	r.GET("/broken", func(c *gin.Context) { c.JSON(http.StatusOK, api.OK("ok")) })
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/broken", nil)
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Sunset"); got != "not-a-date" {
+		t.Fatalf("expected invalid sunset value to be preserved, got %q", got)
+	}
+	if got := w.Header().Get("Deprecation"); got != "true" {
+		t.Fatalf("expected Deprecation=true even for invalid date, got %q", got)
 	}
 }

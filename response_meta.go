@@ -4,25 +4,31 @@ package api
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
+	// Note: AX-6 - Gin fallback needs stdlib stream sentinels.
 	"io"
 	"mime"
 	"net"
-	"net/http"
-	"strconv"
-	"strings"
+	"net/http" // Note: AX-6 - structural HTTP boundary for Gin response writer contracts; no core primitive.
 	"time"
+
+	core "dappco.re/go/core"
 
 	"github.com/gin-gonic/gin"
 )
+
+type responseMetaBodyBuffer interface {
+	Write([]byte) (int, error)
+	WriteString(string) (int, error)
+	Bytes() []byte
+	Reset()
+}
 
 // responseMetaRecorder buffers JSON responses so request metadata can be
 // injected into the standard envelope before the body is written to the client.
 type responseMetaRecorder struct {
 	gin.ResponseWriter
 	headers     http.Header
-	body        bytes.Buffer
+	body        responseMetaBodyBuffer
 	size        int
 	status      int
 	wroteHeader bool
@@ -39,6 +45,7 @@ func newResponseMetaRecorder(w gin.ResponseWriter) *responseMetaRecorder {
 	return &responseMetaRecorder{
 		ResponseWriter: w,
 		headers:        headers,
+		body:           core.NewBuffer(),
 		status:         http.StatusOK,
 	}
 }
@@ -203,7 +210,7 @@ func responseMetaMiddleware() gin.HandlerFunc {
 		recorder.body.Reset()
 		_, _ = recorder.body.Write(body)
 		recorder.size = len(body)
-		recorder.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		recorder.Header().Set("Content-Length", core.Itoa(len(body)))
 		recorder.commit(true)
 	}
 }
@@ -215,15 +222,8 @@ func refreshResponseMetaBody(body []byte, meta *Meta) []byte {
 		return body
 	}
 
-	var payload any
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.UseNumber()
-	if err := dec.Decode(&payload); err != nil {
-		return body
-	}
-
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
+	payload, err := decodeJSONValuePreserveNumbers(body)
+	if err != nil {
 		return body
 	}
 
@@ -252,12 +252,15 @@ func refreshResponseMetaBody(body []byte, meta *Meta) []byte {
 
 	obj["meta"] = current
 
-	updated, err := json.Marshal(obj)
-	if err != nil {
+	updated := core.JSONMarshal(obj)
+	if !updated.OK {
 		return body
 	}
 
-	return updated
+	if data, ok := updated.Value.([]byte); ok {
+		return data
+	}
+	return body
 }
 
 func shouldAttachResponseMeta(contentType string, body []byte) bool {
@@ -265,22 +268,29 @@ func shouldAttachResponseMeta(contentType string, body []byte) bool {
 		return false
 	}
 
-	trimmed := bytes.TrimSpace(body)
-	return len(trimmed) > 0 && trimmed[0] == '{'
+	for _, b := range body {
+		switch b {
+		case ' ', '\t', '\r', '\n':
+			continue
+		default:
+			return b == '{'
+		}
+	}
+	return false
 }
 
 func isJSONContentType(contentType string) bool {
-	if strings.TrimSpace(contentType) == "" {
+	if core.Trim(contentType) == "" {
 		return false
 	}
 
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		mediaType = strings.TrimSpace(contentType)
+		mediaType = core.Trim(contentType)
 	}
-	mediaType = strings.ToLower(mediaType)
+	mediaType = core.Lower(mediaType)
 
 	return mediaType == "application/json" ||
-		strings.HasSuffix(mediaType, "+json") ||
-		strings.HasSuffix(mediaType, "/json")
+		core.HasSuffix(mediaType, "+json") ||
+		core.HasSuffix(mediaType, "/json")
 }

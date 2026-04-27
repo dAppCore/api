@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Webhook Delivery - individual delivery attempt.
@@ -57,7 +59,6 @@ class WebhookDelivery extends Model
     ];
 
     protected $casts = [
-        'payload' => 'array',
         'delivered_at' => 'datetime',
         'next_retry_at' => 'datetime',
     ];
@@ -71,17 +72,26 @@ class WebhookDelivery extends Model
         array $data,
         ?int $workspaceId = null
     ): static {
+        $eventId = 'evt_'.Str::random(24);
+        $payload = [
+            'id' => $eventId,
+            'type' => $eventType,
+            'created_at' => now()->toIso8601String(),
+            'data' => $data,
+            'workspace_id' => $workspaceId,
+        ];
+
+        try {
+            $payloadJson = json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Unable to encode webhook payload as JSON.', 0, $exception);
+        }
+
         return static::create([
             'webhook_endpoint_id' => $endpoint->id,
-            'event_id' => 'evt_'.Str::random(24),
+            'event_id' => $eventId,
             'event_type' => $eventType,
-            'payload' => [
-                'id' => 'evt_'.Str::random(24),
-                'type' => $eventType,
-                'created_at' => now()->toIso8601String(),
-                'data' => $data,
-                'workspace_id' => $workspaceId,
-            ],
+            'payload' => $payloadJson,
             'status' => self::STATUS_PENDING,
             'attempt' => 1,
         ]);
@@ -92,15 +102,17 @@ class WebhookDelivery extends Model
      */
     public function markSuccess(int $responseCode, ?string $responseBody = null): void
     {
-        $this->update([
-            'status' => self::STATUS_SUCCESS,
-            'response_code' => $responseCode,
-            'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
-            'delivered_at' => now(),
-            'next_retry_at' => null,
-        ]);
+        DB::transaction(function () use ($responseCode, $responseBody): void {
+            $this->update([
+                'status' => self::STATUS_SUCCESS,
+                'response_code' => $responseCode,
+                'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
+                'delivered_at' => now(),
+                'next_retry_at' => null,
+            ]);
+        });
 
-        $this->endpoint->recordSuccess();
+        $this->updateEndpointSuccess();
     }
 
     /**
@@ -108,29 +120,31 @@ class WebhookDelivery extends Model
      */
     public function markFailed(int $responseCode, ?string $responseBody = null): void
     {
-        $this->endpoint->recordFailure();
+        DB::transaction(function () use ($responseCode, $responseBody): void {
+            if ($this->attempt >= self::MAX_RETRIES) {
+                $this->update([
+                    'status' => self::STATUS_FAILED,
+                    'response_code' => $responseCode,
+                    'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
+                ]);
 
-        if ($this->attempt >= self::MAX_RETRIES) {
+                return;
+            }
+
+            // Schedule retry
+            $nextAttempt = $this->attempt + 1;
+            $delayMinutes = self::RETRY_DELAYS[$nextAttempt] ?? 1440;
+
             $this->update([
-                'status' => self::STATUS_FAILED,
+                'status' => self::STATUS_RETRYING,
                 'response_code' => $responseCode,
                 'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
+                'attempt' => $nextAttempt,
+                'next_retry_at' => now()->addMinutes($delayMinutes),
             ]);
+        });
 
-            return;
-        }
-
-        // Schedule retry
-        $nextAttempt = $this->attempt + 1;
-        $delayMinutes = self::RETRY_DELAYS[$nextAttempt] ?? 1440;
-
-        $this->update([
-            'status' => self::STATUS_RETRYING,
-            'response_code' => $responseCode,
-            'response_body' => $responseBody ? Str::limit($responseBody, 10000) : null,
-            'attempt' => $nextAttempt,
-            'next_retry_at' => now()->addMinutes($delayMinutes),
-        ]);
+        $this->updateEndpointFailure();
     }
 
     /**
@@ -164,7 +178,11 @@ class WebhookDelivery extends Model
     public function getDeliveryPayload(?int $timestamp = null): array
     {
         $timestamp ??= time();
-        $jsonPayload = json_encode($this->payload);
+        try {
+            $jsonPayload = json_encode($this->payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Unable to encode webhook payload as JSON.', 0, $exception);
+        }
 
         return [
             'headers' => [
@@ -176,6 +194,29 @@ class WebhookDelivery extends Model
             ],
             'body' => $jsonPayload,
         ];
+    }
+
+    /**
+     * Decode the stored payload lazily so invalid in-memory payloads can be
+     * rejected at delivery formatting time instead of during model hydration.
+     */
+    public function getPayloadAttribute(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return (array) $value;
     }
 
     // Relationships
@@ -205,5 +246,60 @@ class WebhookDelivery extends Model
                         ->where('next_retry_at', '<=', now());
                 });
         });
+    }
+
+    /**
+     * Best-effort bookkeeping for a successful delivery.
+     *
+     * The delivery status must not be rolled back if the endpoint record has
+     * been deleted or its counter update fails.
+     */
+    protected function updateEndpointSuccess(): void
+    {
+        $this->updateEndpointState('recordSuccess', 'success');
+    }
+
+    /**
+     * Best-effort bookkeeping for a failed delivery.
+     *
+     * The delivery status must not be rolled back if the endpoint record has
+     * been deleted or its counter update fails.
+     */
+    protected function updateEndpointFailure(): void
+    {
+        $this->updateEndpointState('recordFailure', 'failure');
+    }
+
+    /**
+     * Apply endpoint bookkeeping without risking the delivery state update.
+     */
+    protected function updateEndpointState(string $method, string $outcome): void
+    {
+        try {
+            $endpoint = $this->endpoint;
+
+            if (! $endpoint instanceof WebhookEndpoint) {
+                Log::warning('Webhook delivery endpoint bookkeeping skipped', [
+                    'delivery_id' => $this->id,
+                    'webhook_endpoint_id' => $this->webhook_endpoint_id,
+                    'outcome' => $outcome,
+                    'reason' => 'missing_endpoint',
+                ]);
+
+                return;
+            }
+
+            $endpoint->{$method}();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            Log::warning('Webhook delivery endpoint bookkeeping failed', [
+                'delivery_id' => $this->id,
+                'webhook_endpoint_id' => $this->webhook_endpoint_id,
+                'outcome' => $outcome,
+                'error_type' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

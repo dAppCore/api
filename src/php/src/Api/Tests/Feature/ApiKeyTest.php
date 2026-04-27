@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Cache;
-use Mod\Api\Database\Factories\ApiKeyFactory;
-use Mod\Api\Models\ApiKey;
-use Mod\Tenant\Models\User;
-use Mod\Tenant\Models\Workspace;
+use Core\Api\Database\Factories\ApiKeyFactory;
+use Core\Api\Models\ApiKey;
+use Core\Tenant\Models\User;
+use Core\Tenant\Models\Workspace;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -113,6 +113,89 @@ describe('API Key Creation', function () {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// API Key Prefix Root
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('API Key Prefix Root', function () {
+    it('ApiKey_keyPrefixRoot_Good_uses_a_custom_prefix_root_for_generated_keys', function () {
+        $originalPrefix = config('api.keys.prefix');
+
+        try {
+            config(['api.keys.prefix' => 'acme']);
+
+            $result = ApiKey::generate(
+                $this->workspace->id,
+                $this->user->id,
+                'Custom Prefix Key'
+            );
+
+            expect(ApiKey::keyPrefixRoot())->toBe('acme_');
+            expect($result['plain_key'])->toStartWith('acme_');
+
+            $foundKey = ApiKey::findByPlainKey($result['plain_key']);
+            expect($foundKey)->not->toBeNull();
+            expect($foundKey->id)->toBe($result['api_key']->id);
+        } finally {
+            if ($originalPrefix === null) {
+                config()->offsetUnset('api.keys.prefix');
+            } else {
+                config(['api.keys.prefix' => $originalPrefix]);
+            }
+        }
+    });
+
+    it('ApiKey_keyPrefixRoot_Bad_falls_back_to_the_default_prefix_when_blank', function () {
+        $originalPrefix = config('api.keys.prefix');
+
+        try {
+            config(['api.keys.prefix' => '   ']);
+
+            $result = ApiKey::generate(
+                $this->workspace->id,
+                $this->user->id,
+                'Default Prefix Key'
+            );
+
+            expect(ApiKey::keyPrefixRoot())->toBe('hk_');
+            expect($result['plain_key'])->toStartWith('hk_');
+        } finally {
+            if ($originalPrefix === null) {
+                config()->offsetUnset('api.keys.prefix');
+            } else {
+                config(['api.keys.prefix' => $originalPrefix]);
+            }
+        }
+    });
+
+    it('ApiKey_keyPrefixRoot_Ugly_trims_whitespace_before_generating_and_finding_keys', function () {
+        $originalPrefix = config('api.keys.prefix');
+
+        try {
+            config(['api.keys.prefix' => '  acme  ']);
+
+            $result = ApiKey::generate(
+                $this->workspace->id,
+                $this->user->id,
+                'Whitespace Prefix Key'
+            );
+
+            expect(ApiKey::keyPrefixRoot())->toBe('acme_');
+            expect($result['plain_key'])->toStartWith('acme_');
+
+            $foundKey = ApiKey::findByPlainKey($result['plain_key']);
+            expect($foundKey)->not->toBeNull();
+            expect($foundKey->id)->toBe($result['api_key']->id);
+        } finally {
+            if ($originalPrefix === null) {
+                config()->offsetUnset('api.keys.prefix');
+            } else {
+                config(['api.keys.prefix' => $originalPrefix]);
+            }
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API Key Authentication
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -182,6 +265,24 @@ describe('API Key Authentication', function () {
         $result['api_key']->recordUsage();
 
         expect($result['api_key']->fresh()->last_used_at)->not->toBeNull();
+    });
+
+    it('does not fail if usage tracking persistence is unavailable', function () {
+        $key = new class extends ApiKey
+        {
+            public bool $updateCalled = false;
+
+            public function update(array $attributes = [], array $options = []): bool
+            {
+                $this->updateCalled = true;
+
+                throw new \RuntimeException('database unavailable');
+            }
+        };
+
+        $key->recordUsage();
+
+        expect($key->updateCalled)->toBeTrue();
     });
 });
 
@@ -348,6 +449,36 @@ describe('Server Scopes', function () {
         $key->update(['server_scopes' => ['commerce']]);
 
         expect($key->getAllowedServers())->toBe(['commerce']);
+    });
+});
+
+describe('Server Scope Normalisation', function () {
+    it('ApiKeyTest_normaliseServerScopes_Good_accepts_null_and_empty_lists', function () {
+        expect(ApiKey::normaliseServerScopes(null))->toBeNull();
+        expect(ApiKey::normaliseServerScopes([]))->toBe([]);
+    });
+
+    it('ApiKeyTest_normaliseServerScopes_Bad_rejects_malformed_identifiers', function () {
+        $cases = [
+            '',
+            ' ',
+            '../secrets',
+            '/etc/passwd',
+            'bio_host',
+            '-leading',
+            str_repeat('a', 65),
+            123,
+        ];
+
+        foreach ($cases as $case) {
+            expect(fn () => ApiKey::normaliseServerScopes([$case]))
+                ->toThrow(InvalidArgumentException::class);
+        }
+    });
+
+    it('ApiKeyTest_normaliseServerScopes_Ugly_trims_and_deduplicates_valid_identifiers', function () {
+        expect(ApiKey::normaliseServerScopes([' commerce ', 'biohost', 'commerce']))
+            ->toBe(['commerce', 'biohost']);
     });
 });
 

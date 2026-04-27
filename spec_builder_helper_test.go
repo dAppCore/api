@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"slices"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
@@ -497,6 +497,147 @@ func TestEngine_Good_TransportConfigReportsDisabledSwaggerWithoutUI(t *testing.T
 	}
 }
 
+// TestEngine_Good_TransportConfigReportsChatCompletions verifies that the
+// chat completions resolver surfaces through TransportConfig so callers can
+// discover the RFC §11.1 endpoint without rebuilding the engine.
+func TestEngine_Good_TransportConfigReportsChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	resolver := api.NewModelResolver()
+	e, err := api.New(api.WithChatCompletions(resolver))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.ChatCompletionsEnabled {
+		t.Fatal("expected chat completions to be enabled")
+	}
+	if cfg.ChatCompletionsPath != "/v1/chat/completions" {
+		t.Fatalf("expected chat completions path /v1/chat/completions, got %q", cfg.ChatCompletionsPath)
+	}
+}
+
+// TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride verifies
+// that WithChatCompletionsPath surfaces through TransportConfig.
+func TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	resolver := api.NewModelResolver()
+	e, err := api.New(
+		api.WithChatCompletions(resolver),
+		api.WithChatCompletionsPath("/chat"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if cfg.ChatCompletionsPath != "/chat" {
+		t.Fatalf("expected chat completions path /chat, got %q", cfg.ChatCompletionsPath)
+	}
+}
+
+// TestEngine_Good_TransportConfigReportsOpenAPISpec verifies that the
+// WithOpenAPISpec option surfaces the standalone JSON endpoint (RFC
+// /v1/openapi.json) through TransportConfig so callers can discover it
+// alongside the other framework routes.
+func TestEngine_Good_TransportConfigReportsOpenAPISpec(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpec())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=true")
+	}
+	if cfg.OpenAPISpecPath != "/v1/openapi.json" {
+		t.Fatalf("expected OpenAPISpecPath=/v1/openapi.json, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
+// TestEngine_Good_TransportConfigHonoursOpenAPISpecPathOverride verifies
+// that WithOpenAPISpecPath surfaces through TransportConfig.
+func TestEngine_Good_TransportConfigHonoursOpenAPISpecPathOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpecPath("/api/v1/openapi.json"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled inferred from path override")
+	}
+	if cfg.OpenAPISpecPath != "/api/v1/openapi.json" {
+		t.Fatalf("expected custom path, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
+// TestEngine_Bad_TransportConfigOmitsOpenAPISpecWhenDisabled confirms the
+// standalone OpenAPI endpoint reports as disabled when neither WithOpenAPISpec
+// nor WithOpenAPISpecPath has been invoked.
+func TestEngine_Bad_TransportConfigOmitsOpenAPISpecWhenDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=false when not configured")
+	}
+	if cfg.OpenAPISpecPath != "" {
+		t.Fatalf("expected empty OpenAPISpecPath, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
+// TestEngine_Bad_TransportConfigFallsBackToDefaultOpenAPISpecPathWhenBlank
+// verifies that a blank override still enables the endpoint and resolves to
+// the RFC default path.
+func TestEngine_Bad_TransportConfigFallsBackToDefaultOpenAPISpecPathWhenBlank(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpecPath("   "))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=true from blank override")
+	}
+	if cfg.OpenAPISpecPath != "/v1/openapi.json" {
+		t.Fatalf("expected default OpenAPISpecPath=/v1/openapi.json, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
+// TestEngine_Ugly_TransportConfigNormalisesOpenAPISpecPathOverride verifies
+// that the custom path override is trimmed and promoted to an absolute
+// route path.
+func TestEngine_Ugly_TransportConfigNormalisesOpenAPISpecPathOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithOpenAPISpecPath("  api/v1/openapi.json  "))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := e.TransportConfig()
+	if !cfg.OpenAPISpecEnabled {
+		t.Fatal("expected OpenAPISpecEnabled=true from path override")
+	}
+	if cfg.OpenAPISpecPath != "/api/v1/openapi.json" {
+		t.Fatalf("expected normalised OpenAPISpecPath=/api/v1/openapi.json, got %q", cfg.OpenAPISpecPath)
+	}
+}
+
 func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -643,5 +784,49 @@ func TestEngine_Good_OpenAPISpecBuilderClonesSecuritySchemes(t *testing.T) {
 	clientCredentials := flows["clientCredentials"].(map[string]any)
 	if clientCredentials["tokenUrl"] != "https://auth.example.com/token" {
 		t.Fatalf("expected original tokenUrl to be preserved, got %v", clientCredentials["tokenUrl"])
+	}
+}
+
+// TestEngine_Ugly_OpenAPISpecBuilderSkipsBlankSecuritySchemeEntries verifies
+// that empty or nil security scheme entries are ignored while valid entries
+// are cloned into the generated spec.
+func TestEngine_Ugly_OpenAPISpecBuilderSkipsBlankSecuritySchemeEntries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	e, err := api.New(api.WithSwagger("Engine API", "Engine metadata", "2.0.0"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	api.WithSwaggerSecuritySchemes(nil)(e)
+	api.WithSwaggerSecuritySchemes(map[string]any{
+		"":     nil,
+		"skip": nil,
+		"apiKeyAuth": map[string]any{
+			"type": "apiKey",
+			"in":   "header",
+			"name": "X-API-Key",
+		},
+	})(e)
+
+	data, err := e.OpenAPISpecBuilder().Build(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var spec map[string]any
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	securitySchemes := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)
+	if _, ok := securitySchemes["apiKeyAuth"]; !ok {
+		t.Fatalf("expected apiKeyAuth security scheme, got %v", securitySchemes)
+	}
+	if _, ok := securitySchemes[""]; ok {
+		t.Fatalf("expected blank security scheme key to be ignored, got %v", securitySchemes)
+	}
+	if _, ok := securitySchemes["skip"]; ok {
+		t.Fatalf("expected nil security scheme to be ignored, got %v", securitySchemes)
 	}
 }

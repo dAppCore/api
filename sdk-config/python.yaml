@@ -1,0 +1,6 @@
+generatorName: python
+outputDir: ./sdks/python
+additionalProperties:
+  packageName: core
+  projectName: core-sdk
+  packageVersion: "1.0.0"

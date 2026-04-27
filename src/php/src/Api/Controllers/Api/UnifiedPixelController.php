@@ -40,8 +40,9 @@ class UnifiedPixelController extends Controller
             'type' => 'string',
             'format' => 'binary',
         ],
+        methods: ['GET'],
     )]
-    #[ApiResponse(204, null, 'Accepted without a response body')]
+    #[ApiResponse(204, null, 'Accepted without a response body', methods: ['POST', 'OPTIONS'])]
     #[RateLimit(limit: 10000, window: 60)]
     public function track(Request $request, string $pixelKey): Response
     {

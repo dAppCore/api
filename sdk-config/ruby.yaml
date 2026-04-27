@@ -1,0 +1,7 @@
+generatorName: ruby
+outputDir: ./sdks/ruby
+additionalProperties:
+  gemName: core
+  gemVersion: "1.0.0"
+  gemAuthor: "Host"
+  gemHomepage: "https://api.dappco.re"

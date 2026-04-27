@@ -6,12 +6,14 @@ package api
 
 import (
 	"context"
-	"errors"
 	"iter"
-	"net/http"
-	"reflect"
+	"net/http" // Note: AX-6 — structural HTTP boundary for Handler/WebSocket contracts; no core primitive
+	"reflect"  // Note: AX-6 — reflect is structural for runtime nil-pointer detection in handler binding; no core primitive
 	"slices"
 	"time"
+
+	apistream "dappco.re/go/api/pkg/stream"
+	core "dappco.re/go/core"
 
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-contrib/pprof"
@@ -24,6 +26,13 @@ const defaultAddr = ":8080"
 // to complete during graceful shutdown.
 const shutdownTimeout = 10 * time.Second
 
+const (
+	serverReadHeaderTimeout = 10 * time.Second
+	serverReadTimeout       = 30 * time.Second
+	serverWriteTimeout      = 60 * time.Second
+	serverIdleTimeout       = 120 * time.Second
+)
+
 // Engine is the central API server managing route groups and middleware.
 //
 // Example:
@@ -35,12 +44,19 @@ const shutdownTimeout = 10 * time.Second
 //	_ = engine.Handler()
 type Engine struct {
 	addr                           string
+	http3Enabled                   bool
+	http3Addr                      string
 	groups                         []RouteGroup
+	streamGroups                   []apistream.StreamGroup
 	middlewares                    []gin.HandlerFunc
+	chatCompletionsResolver        *ModelResolver
+	chatCompletionsPath            string
+	sdkGenEnabled                  bool
 	cacheTTL                       time.Duration
 	cacheMaxEntries                int
 	cacheMaxBytes                  int
 	wsHandler                      http.Handler
+	wsGinHandler                   gin.HandlerFunc
 	wsPath                         string
 	sseBroker                      *SSEBroker
 	swaggerEnabled                 bool
@@ -65,6 +81,8 @@ type Engine struct {
 	ssePath                        string
 	graphql                        *graphqlConfig
 	i18nConfig                     I18nConfig
+	openAPISpecEnabled             bool
+	openAPISpecPath                string
 }
 
 // New creates an Engine with the given options.
@@ -82,6 +100,10 @@ func New(opts ...Option) (*Engine, error) {
 	}
 	for _, opt := range opts {
 		opt(e)
+	}
+	// Apply calibrated defaults for optional subsystems.
+	if e.chatCompletionsResolver != nil && core.Trim(e.chatCompletionsPath) == "" {
+		e.chatCompletionsPath = defaultChatCompletionsPath
 	}
 	return e, nil
 }
@@ -129,6 +151,18 @@ func (e *Engine) Register(group RouteGroup) {
 	e.groups = append(e.groups, group)
 }
 
+// RegisterStreamGroup adds a declarative SSE/WebSocket handler group to the engine.
+//
+// Example:
+//
+//	engine.RegisterStreamGroup(stream.NewGroup("events"))
+func (e *Engine) RegisterStreamGroup(group apistream.StreamGroup) {
+	if isNilStreamGroup(group) {
+		return
+	}
+	e.streamGroups = append(e.streamGroups, group)
+}
+
 // Channels returns all WebSocket channel names from registered StreamGroups.
 // Groups that do not implement StreamGroup are silently skipped.
 //
@@ -140,6 +174,13 @@ func (e *Engine) Channels() []string {
 	for _, g := range e.groups {
 		if sg, ok := g.(StreamGroup); ok {
 			channels = append(channels, sg.Channels()...)
+		}
+	}
+	for _, g := range e.streamGroups {
+		for _, h := range g.Handlers() {
+			if h.Protocol == apistream.ProtocolWebSocket {
+				channels = append(channels, h.Path)
+			}
 		}
 	}
 	return channels
@@ -154,6 +195,7 @@ func (e *Engine) Channels() []string {
 //	}
 func (e *Engine) ChannelsIter() iter.Seq[string] {
 	groups := slices.Clone(e.groups)
+	streamGroups := slices.Clone(e.streamGroups)
 	return func(yield func(string) bool) {
 		for _, g := range groups {
 			if sg, ok := g.(StreamGroup); ok {
@@ -161,6 +203,16 @@ func (e *Engine) ChannelsIter() iter.Seq[string] {
 					if !yield(c) {
 						return
 					}
+				}
+			}
+		}
+		for _, g := range streamGroups {
+			for _, h := range g.Handlers() {
+				if h.Protocol != apistream.ProtocolWebSocket {
+					continue
+				}
+				if !yield(h.Path) {
+					return
 				}
 			}
 		}
@@ -187,13 +239,17 @@ func (e *Engine) Handler() http.Handler {
 //	_ = engine.Serve(ctx)
 func (e *Engine) Serve(ctx context.Context) error {
 	srv := &http.Server{
-		Addr:    e.addr,
-		Handler: e.build(),
+		Addr:              e.addr,
+		Handler:           e.build(),
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.ListenAndServe(); err != nil && !core.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 		close(errCh)
@@ -229,10 +285,18 @@ func (e *Engine) Serve(ctx context.Context) error {
 func (e *Engine) build() *gin.Engine {
 	r := gin.New()
 	r.Use(recoveryMiddleware())
+	if e.http3Enabled {
+		if altSvc := http3AltSvcHeader(e.resolvedHTTP3Addr()); altSvc != "" {
+			r.Use(http3AltSvcMiddleware(altSvc))
+		}
+	}
 
 	// Apply user-supplied middleware after recovery but before routes.
 	for _, mw := range e.middlewares {
 		r.Use(mw)
+	}
+	if policies := cacheControlPolicies(e.groups); len(policies) > 0 {
+		r.Use(cacheControlMiddleware(policies))
 	}
 
 	// Built-in health check.
@@ -240,23 +304,54 @@ func (e *Engine) build() *gin.Engine {
 		c.JSON(http.StatusOK, OK("healthy"))
 	})
 
+	// Mount the local OpenAI-compatible chat completion endpoint when configured.
+	if e.chatCompletionsResolver != nil {
+		h := newChatCompletionsHandler(e.chatCompletionsResolver)
+		r.POST(e.chatCompletionsPath, h.ServeHTTP)
+	}
+
+	if e.sdkGenEnabled {
+		mountSDKGen(r)
+	}
+
 	// Mount each registered group at its base path.
 	for _, g := range e.groups {
 		if isNilRouteGroup(g) {
 			continue
 		}
 		rg := r.Group(g.BasePath())
+		if mw := transformerMiddlewareForGroup(g); mw != nil {
+			rg.Use(mw)
+		}
 		g.RegisterRoutes(rg)
 	}
 
-	// Mount WebSocket handler if configured.
-	if e.wsHandler != nil {
+	// Mount each registered declarative stream group at the engine root.
+	for _, g := range e.streamGroups {
+		if isNilStreamGroup(g) {
+			continue
+		}
+		g.Register(r)
+	}
+
+	// Mount WebSocket handler if configured. WithWebSocket (gin-native) takes
+	// precedence over WithWSHandler (http.Handler) when both are supplied so
+	// the more specific gin form wins.
+	switch {
+	case e.wsGinHandler != nil:
+		r.GET(resolveWSPath(e.wsPath), e.wsGinHandler)
+	case e.wsHandler != nil:
 		r.GET(resolveWSPath(e.wsPath), wrapWSHandler(e.wsHandler))
 	}
 
 	// Mount SSE endpoint if configured.
 	if e.sseBroker != nil {
-		r.GET(resolveSSEPath(e.ssePath), e.sseBroker.Handler())
+		sseHandler := e.sseBroker.Handler()
+		ssePath := resolveSSEPath(e.ssePath)
+		r.GET(ssePath, sseHandler)
+		if legacyPath := resolveLegacySSEPath(e.ssePath); legacyPath != "" && legacyPath != ssePath {
+			r.GET(legacyPath, sseHandler)
+		}
 	}
 
 	// Mount GraphQL endpoint if configured.
@@ -267,6 +362,14 @@ func (e *Engine) build() *gin.Engine {
 	// Mount Swagger UI if enabled.
 	if e.swaggerEnabled {
 		registerSwagger(r, e, e.groups)
+	}
+
+	// Mount the standalone OpenAPI JSON endpoint (RFC.endpoints.md — "GET
+	// /v1/openapi.json") when explicitly enabled. Unlike Swagger UI the spec
+	// document is served directly so ToolBridge consumers and SDK generators
+	// can fetch the latest description without loading the UI bundle.
+	if e.openAPISpecEnabled {
+		registerOpenAPISpec(r, e)
 	}
 
 	// Mount pprof profiling endpoints if enabled.
@@ -283,11 +386,19 @@ func (e *Engine) build() *gin.Engine {
 }
 
 func isNilRouteGroup(group RouteGroup) bool {
-	if group == nil {
+	return isNilValue(group)
+}
+
+func isNilStreamGroup(group apistream.StreamGroup) bool {
+	return isNilValue(group)
+}
+
+func isNilValue(v any) bool {
+	if v == nil {
 		return true
 	}
 
-	value := reflect.ValueOf(group)
+	value := reflect.ValueOf(v)
 	switch value.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return value.IsNil()

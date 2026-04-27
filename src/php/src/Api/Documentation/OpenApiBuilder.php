@@ -304,7 +304,7 @@ class OpenApiBuilder
      */
     protected function buildOperation(Route $route, string $method, array $config, array &$operationIds): ?array
     {
-        $controller = $route->getController();
+        $controller = $this->resolveControllerClass($route);
         $action = $route->getActionMethod();
 
         // Check for ApiHidden attribute
@@ -316,7 +316,7 @@ class OpenApiBuilder
             'summary' => $this->buildSummary($route, $method),
             'operationId' => $this->buildOperationId($route, $method, $operationIds),
             'tags' => $this->buildOperationTags($route, $controller, $action),
-            'responses' => $this->buildResponses($controller, $action),
+            'responses' => $this->buildResponses($controller, $action, $method),
         ];
 
         // Add description from PHPDoc if available
@@ -353,7 +353,7 @@ class OpenApiBuilder
     /**
      * Check if controller/method is hidden from docs.
      */
-    protected function isHidden(?object $controller, string $action): bool
+    protected function isHidden(?string $controller, string $action): bool
     {
         if ($controller === null) {
             return false;
@@ -426,7 +426,7 @@ class OpenApiBuilder
     /**
      * Build tags for an operation.
      */
-    protected function buildOperationTags(Route $route, ?object $controller, string $action): array
+    protected function buildOperationTags(Route $route, ?string $controller, string $action): array
     {
         // Check for ApiTag attribute
         if ($controller !== null) {
@@ -489,7 +489,7 @@ class OpenApiBuilder
     /**
      * Extract description from PHPDoc.
      */
-    protected function extractDescription(?object $controller, string $action): ?string
+    protected function extractDescription(?string $controller, string $action): ?string
     {
         if ($controller === null) {
             return null;
@@ -522,7 +522,7 @@ class OpenApiBuilder
     /**
      * Build parameters for operation.
      */
-    protected function buildParameters(Route $route, ?object $controller, string $action, array $config): array
+    protected function buildParameters(Route $route, ?string $controller, string $action, array $config): array
     {
         $parameters = [];
         $parameterIndex = [];
@@ -577,7 +577,7 @@ class OpenApiBuilder
     /**
      * Build responses section.
      */
-    protected function buildResponses(?object $controller, string $action): array
+    protected function buildResponses(?string $controller, string $action, string $httpMethod): array
     {
         $responses = [];
 
@@ -585,11 +585,14 @@ class OpenApiBuilder
         if ($controller !== null) {
             $reflection = new ReflectionClass($controller);
             if ($reflection->hasMethod($action)) {
-                $method = $reflection->getMethod($action);
-                $responseAttrs = $method->getAttributes(ApiResponse::class, ReflectionAttribute::IS_INSTANCEOF);
+                $controllerMethod = $reflection->getMethod($action);
+                $responseAttrs = $controllerMethod->getAttributes(ApiResponse::class, ReflectionAttribute::IS_INSTANCEOF);
 
                 foreach ($responseAttrs as $attr) {
                     $response = $attr->newInstance();
+                    if (! $this->responseAppliesToMethod($response, $httpMethod)) {
+                        continue;
+                    }
                     $responses[(string) $response->status] = $this->buildResponseSchema($response);
                 }
             }
@@ -657,7 +660,7 @@ class OpenApiBuilder
         }
 
         try {
-            $resource = new $resourceClass(new \stdClass);
+            $resource = new $resourceClass($this->resourceSchemaPrototype());
             $data = $resource->toArray(request());
 
             if (is_array($data)) {
@@ -671,6 +674,37 @@ class OpenApiBuilder
         return [
             'type' => 'object',
             'additionalProperties' => true,
+        ];
+    }
+
+    /**
+     * Build a representative payload object for JsonResource schema inference.
+     *
+     * The values are intentionally generic but typed so resources that read
+     * fields directly from the wrapped model can still produce a stable shape
+     * during documentation builds.
+     */
+    protected function resourceSchemaPrototype(): \stdClass
+    {
+        return (object) [
+            'id' => 1,
+            'workspace_id' => 1,
+            'user_id' => 1,
+            'name' => 'Example',
+            'title' => 'Example',
+            'slug' => 'example',
+            'description' => 'Example description',
+            'type' => 'example',
+            'status' => 'active',
+            'url' => 'https://example.com',
+            'email' => 'hello@example.com',
+            'icon' => null,
+            'color' => null,
+            'is_active' => true,
+            'settings' => [],
+            'metadata' => [],
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 
@@ -870,9 +904,9 @@ class OpenApiBuilder
     /**
      * Build request body schema.
      */
-    protected function buildRequestBody(Route $route, ?object $controller, string $action): array
+    protected function buildRequestBody(Route $route, ?string $controller, string $action): array
     {
-        if ($controller instanceof \Core\Api\Controllers\McpApiController && $action === 'callTool') {
+        if ($controller === \Core\Api\Controllers\McpApiController::class && $action === 'callTool') {
             return [
                 'required' => true,
                 'content' => [
@@ -922,7 +956,7 @@ class OpenApiBuilder
     /**
      * Build security requirements.
      */
-    protected function buildSecurity(Route $route, ?object $controller, string $action): ?array
+    protected function buildSecurity(Route $route, ?string $controller, string $action): ?array
     {
         // Check for ApiSecurity attribute
         if ($controller !== null) {
@@ -1044,7 +1078,7 @@ class OpenApiBuilder
      * @param  class-string<T>  $attributeClass
      * @return ReflectionAttribute<T>|null
      */
-    protected function getAttribute(object $controller, string $action, string $attributeClass): ?ReflectionAttribute
+    protected function getAttribute(string $controller, string $action, string $attributeClass): ?ReflectionAttribute
     {
         $reflection = new ReflectionClass($controller);
 
@@ -1061,5 +1095,52 @@ class OpenApiBuilder
         $attrs = $reflection->getAttributes($attributeClass);
 
         return $attrs[0] ?? null;
+    }
+
+    /**
+     * Resolve a controller class name from a route without instantiating it.
+     */
+    protected function resolveControllerClass(Route $route): ?string
+    {
+        $uses = $route->getAction('uses');
+
+        if (is_string($uses) && str_contains($uses, '@')) {
+            [$controller] = explode('@', $uses, 2);
+
+            return class_exists($controller) ? $controller : null;
+        }
+
+        if (is_string($uses) && class_exists($uses)) {
+            return $uses;
+        }
+
+        $controller = $route->getAction('controller');
+        if (is_string($controller) && str_contains($controller, '@')) {
+            [$class] = explode('@', $controller, 2);
+
+            return class_exists($class) ? $class : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Return true when a documented response applies to the current HTTP method.
+     */
+    protected function responseAppliesToMethod(ApiResponse $response, string $method): bool
+    {
+        if ($response->methods === null || $response->methods === []) {
+            return true;
+        }
+
+        $method = strtoupper($method);
+
+        foreach ($response->methods as $candidate) {
+            if (strtoupper((string) $candidate) === $method) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

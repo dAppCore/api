@@ -3,53 +3,53 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"strings"
+	"os" // Note: AX-6 — os.Stdout has no core equivalent for command output.
 
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/cli/pkg/cli"
+	core "dappco.re/go/core"
 
-	goapi "dappco.re/go/core/api"
+	goapi "dappco.re/go/api"
 )
 
-func addSpecCommand(parent *cli.Command) {
-	var (
-		output string
-		format string
-		cfg    specBuilderConfig
-	)
+const defaultSpecToolBridgePath = "/v1/tools"
 
-	cfg.title = "Lethean Core API"
-	cfg.description = "Lethean Core API"
-	cfg.version = "1.0.0"
+func addSpecCommand(c *core.Core) {
+	cmd := core.Command{
+		Description: "Generate OpenAPI specification",
+		Action:      specAction,
+	}
+	c.Command("api/spec", cmd)
+	c.Command("build/spec", cmd)
+}
 
-	cmd := cli.NewCommand("spec", "Generate OpenAPI specification", "", func(cmd *cli.Command, args []string) error {
-		// Build spec from all route groups registered for CLI generation.
-		builder, err := newSpecBuilder(cfg)
-		if err != nil {
-			return err
+func specAction(opts core.Options) core.Result {
+	cfg := specConfigFromOptions(opts)
+	output := opts.String("output")
+	format := opts.String("format")
+	if format == "" {
+		format = "json"
+	}
+
+	builder, err := newSpecBuilder(cfg)
+	if err != nil {
+		return core.Result{Value: err, OK: false}
+	}
+
+	bridge := specToolBridge(defaultSpecToolBridgePath)
+	groups := specGroupsIter(bridge)
+
+	if output != "" {
+		if err := goapi.ExportSpecToFileIter(output, format, builder, groups); err != nil {
+			return core.Result{Value: cli.Wrap(err, "write spec"), OK: false}
 		}
+		cli.Dim("Spec written to " + output)
+		return core.Result{OK: true}
+	}
 
-		bridge := goapi.NewToolBridge("/tools")
-		groups := specGroupsIter(bridge)
-
-		if output != "" {
-			if err := goapi.ExportSpecToFileIter(output, format, builder, groups); err != nil {
-				return err
-			}
-			fmt.Fprintf(os.Stderr, "Spec written to %s\n", output)
-			return nil
-		}
-
-		return goapi.ExportSpecIter(os.Stdout, format, builder, groups)
-	})
-
-	cli.StringFlag(cmd, &output, "output", "o", "", "Write spec to file instead of stdout")
-	cli.StringFlag(cmd, &format, "format", "f", "json", "Output format: json or yaml")
-	registerSpecBuilderFlags(cmd, &cfg)
-
-	parent.AddCommand(cmd)
+	if err := goapi.ExportSpecIter(os.Stdout, format, builder, groups); err != nil {
+		return core.Result{Value: cli.Wrap(err, "render spec"), OK: false}
+	}
+	return core.Result{OK: true}
 }
 
 func parseServers(raw string) []string {
@@ -57,49 +57,68 @@ func parseServers(raw string) []string {
 }
 
 func parseSecuritySchemes(raw string) (map[string]any, error) {
-	raw = strings.TrimSpace(raw)
+	raw = core.Trim(raw)
 	if raw == "" {
 		return nil, nil
 	}
 
 	var schemes map[string]any
-	if err := json.Unmarshal([]byte(raw), &schemes); err != nil {
-		return nil, cli.Err("invalid security schemes JSON: %w", err)
+	decoded := core.JSONUnmarshal([]byte(raw), &schemes)
+	if !decoded.OK {
+		err, _ := decoded.Value.(error)
+		return nil, cli.Wrap(err, "invalid security schemes JSON")
 	}
 	return schemes, nil
 }
 
-func registerSpecBuilderFlags(cmd *cli.Command, cfg *specBuilderConfig) {
-	cli.StringFlag(cmd, &cfg.title, "title", "t", cfg.title, "API title in spec")
-	cli.StringFlag(cmd, &cfg.summary, "summary", "", cfg.summary, "OpenAPI info summary in spec")
-	cli.StringFlag(cmd, &cfg.description, "description", "d", cfg.description, "API description in spec")
-	cli.StringFlag(cmd, &cfg.version, "version", "V", cfg.version, "API version in spec")
-	cli.StringFlag(cmd, &cfg.swaggerPath, "swagger-path", "", "", "Swagger UI path in generated spec")
-	cli.StringFlag(cmd, &cfg.graphqlPath, "graphql-path", "", "", "GraphQL endpoint path in generated spec")
-	cli.BoolFlag(cmd, &cfg.graphqlPlayground, "graphql-playground", "", false, "Include the GraphQL playground endpoint in generated spec")
-	cli.StringFlag(cmd, &cfg.graphqlPlaygroundPath, "graphql-playground-path", "", "", "GraphQL playground path in generated spec")
-	cli.StringFlag(cmd, &cfg.ssePath, "sse-path", "", "", "SSE endpoint path in generated spec")
-	cli.StringFlag(cmd, &cfg.wsPath, "ws-path", "", "", "WebSocket endpoint path in generated spec")
-	cli.BoolFlag(cmd, &cfg.pprofEnabled, "pprof", "", false, "Include pprof endpoints in generated spec")
-	cli.BoolFlag(cmd, &cfg.expvarEnabled, "expvar", "", false, "Include expvar endpoint in generated spec")
-	cli.BoolFlag(cmd, &cfg.cacheEnabled, "cache", "", false, "Include cache metadata in generated spec")
-	cli.StringFlag(cmd, &cfg.cacheTTL, "cache-ttl", "", "", "Cache TTL in generated spec")
-	cli.IntFlag(cmd, &cfg.cacheMaxEntries, "cache-max-entries", "", 0, "Cache max entries in generated spec")
-	cli.IntFlag(cmd, &cfg.cacheMaxBytes, "cache-max-bytes", "", 0, "Cache max bytes in generated spec")
-	cli.StringFlag(cmd, &cfg.i18nDefaultLocale, "i18n-default-locale", "", "", "Default locale in generated spec")
-	cli.StringFlag(cmd, &cfg.i18nSupportedLocales, "i18n-supported-locales", "", "", "Comma-separated supported locales in generated spec")
-	cli.StringFlag(cmd, &cfg.authentikIssuer, "authentik-issuer", "", "", "Authentik issuer URL in generated spec")
-	cli.StringFlag(cmd, &cfg.authentikClientID, "authentik-client-id", "", "", "Authentik client ID in generated spec")
-	cli.BoolFlag(cmd, &cfg.authentikTrustedProxy, "authentik-trusted-proxy", "", false, "Mark Authentik proxy headers as trusted in generated spec")
-	cli.StringFlag(cmd, &cfg.authentikPublicPaths, "authentik-public-paths", "", "", "Comma-separated public paths in generated spec")
-	cli.StringFlag(cmd, &cfg.termsURL, "terms-of-service", "", "", "OpenAPI terms of service URL in spec")
-	cli.StringFlag(cmd, &cfg.contactName, "contact-name", "", "", "OpenAPI contact name in spec")
-	cli.StringFlag(cmd, &cfg.contactURL, "contact-url", "", "", "OpenAPI contact URL in spec")
-	cli.StringFlag(cmd, &cfg.contactEmail, "contact-email", "", "", "OpenAPI contact email in spec")
-	cli.StringFlag(cmd, &cfg.licenseName, "license-name", "", "", "OpenAPI licence name in spec")
-	cli.StringFlag(cmd, &cfg.licenseURL, "license-url", "", "", "OpenAPI licence URL in spec")
-	cli.StringFlag(cmd, &cfg.externalDocsDescription, "external-docs-description", "", "", "OpenAPI external documentation description in spec")
-	cli.StringFlag(cmd, &cfg.externalDocsURL, "external-docs-url", "", "", "OpenAPI external documentation URL in spec")
-	cli.StringFlag(cmd, &cfg.servers, "server", "S", "", "Comma-separated OpenAPI server URL(s)")
-	cli.StringFlag(cmd, &cfg.securitySchemes, "security-schemes", "", "", "JSON object of custom OpenAPI security schemes")
+// specConfigFromOptions extracts a specBuilderConfig from the CLI options bag.
+// Callers supply flags via `--key=value` on the command line; the CLI parser
+// converts them to the option keys read here.
+func specConfigFromOptions(opts core.Options) specBuilderConfig {
+	cfg := specBuilderConfig{
+		title:                   stringOr(opts.String("title"), "Lethean Core API"),
+		summary:                 opts.String("summary"),
+		description:             stringOr(opts.String("description"), "Lethean Core API"),
+		version:                 stringOr(opts.String("version"), "1.0.0"),
+		swaggerPath:             opts.String("swagger-path"),
+		graphqlPath:             opts.String("graphql-path"),
+		graphqlPlayground:       opts.Bool("graphql-playground"),
+		graphqlPlaygroundPath:   opts.String("graphql-playground-path"),
+		ssePath:                 opts.String("sse-path"),
+		wsPath:                  opts.String("ws-path"),
+		pprofEnabled:            opts.Bool("pprof"),
+		expvarEnabled:           opts.Bool("expvar"),
+		openAPISpecEnabled:      opts.Bool("openapi-spec"),
+		openAPISpecPath:         opts.String("openapi-spec-path"),
+		chatCompletionsEnabled:  opts.Bool("chat-completions"),
+		chatCompletionsPath:     opts.String("chat-completions-path"),
+		cacheEnabled:            opts.Bool("cache"),
+		cacheTTL:                opts.String("cache-ttl"),
+		cacheMaxEntries:         opts.Int("cache-max-entries"),
+		cacheMaxBytes:           opts.Int("cache-max-bytes"),
+		i18nDefaultLocale:       opts.String("i18n-default-locale"),
+		i18nSupportedLocales:    opts.String("i18n-supported-locales"),
+		authentikIssuer:         opts.String("authentik-issuer"),
+		authentikClientID:       opts.String("authentik-client-id"),
+		authentikTrustedProxy:   opts.Bool("authentik-trusted-proxy"),
+		authentikPublicPaths:    opts.String("authentik-public-paths"),
+		termsURL:                opts.String("terms-of-service"),
+		contactName:             opts.String("contact-name"),
+		contactURL:              opts.String("contact-url"),
+		contactEmail:            opts.String("contact-email"),
+		licenseName:             opts.String("license-name"),
+		licenseURL:              opts.String("license-url"),
+		externalDocsDescription: opts.String("external-docs-description"),
+		externalDocsURL:         opts.String("external-docs-url"),
+		servers:                 opts.String("server"),
+		securitySchemes:         opts.String("security-schemes"),
+	}
+	return cfg
+}
+
+func stringOr(v, fallback string) string {
+	if core.Trim(v) == "" {
+		return fallback
+	}
+	return v
 }

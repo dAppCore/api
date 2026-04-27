@@ -29,7 +29,7 @@ class DocumentationController
      */
     public function index(Request $request): View
     {
-        $defaultUi = config('api-docs.ui.default', 'scalar');
+        $defaultUi = config('api-docs.ui.default', 'swagger');
 
         return match ($defaultUi) {
             'swagger' => $this->swagger($request),

@@ -1,0 +1,5 @@
+generatorName: rust
+outputDir: ./sdks/rust
+additionalProperties:
+  packageName: core
+  packageVersion: "1.0.0"

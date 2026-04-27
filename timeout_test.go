@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 // skipIfRaceDetector skips the test when the race detector is enabled.

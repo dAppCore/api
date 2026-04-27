@@ -174,8 +174,13 @@ class WebhookTemplateController extends Controller
 
         $template->update($validated);
 
+        $freshTemplate = $template->fresh();
+        if ($freshTemplate instanceof WebhookPayloadTemplate) {
+            $template = $freshTemplate;
+        }
+
         return response()->json([
-            'data' => $this->formatTemplate($template->fresh(), true),
+            'data' => $this->formatTemplate($template, true),
         ]);
     }
 
@@ -296,8 +301,13 @@ class WebhookTemplateController extends Controller
 
         $template->setAsDefault();
 
+        $freshTemplate = $template->fresh();
+        if ($freshTemplate instanceof WebhookPayloadTemplate) {
+            $template = $freshTemplate;
+        }
+
         return response()->json([
-            'data' => $this->formatTemplate($template->fresh(), true),
+            'data' => $this->formatTemplate($template, true),
         ]);
     }
 

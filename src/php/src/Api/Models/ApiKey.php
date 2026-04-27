@@ -16,12 +16,12 @@ use Illuminate\Support\Str;
 /**
  * API Key - authenticates SDK and REST API requests.
  *
- * Keys are prefixed with 'hk_' for identification.
- * The actual key is hashed using bcrypt and never stored in plain text.
+ * Keys are prefixed with a short random identifier for identification.
+ * The actual key is hashed with a slow password hash and never stored in plain text.
  *
- * Security: Keys created before the bcrypt migration use SHA-256 (without salt).
- * The hash_algorithm column tracks which algorithm was used for each key.
- * Legacy SHA-256 keys should be rotated to use the secure bcrypt algorithm.
+ * Security: New keys use bcrypt; legacy SHA-256 keys remain readable only for
+ * migration/rotation. The hash_algorithm column tracks which algorithm was used
+ * for each key.
  */
 class ApiKey extends Model
 {
@@ -54,6 +54,39 @@ class ApiKey extends Model
         self::SCOPE_WRITE,
         self::SCOPE_DELETE,
     ];
+
+    /**
+     * Safe MCP server identifier pattern for server-scoped API keys.
+     */
+    public const SERVER_ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/';
+
+    /**
+     * Build the visible key prefix root used for new API keys.
+     *
+     * The configured prefix is normalised to end with an underscore so
+     * generated keys read as `hk_<random>_<token>`.
+     */
+    public static function keyPrefixRoot(): string
+    {
+        $prefix = trim((string) config('api.keys.prefix', 'hk_'));
+
+        if ($prefix === '') {
+            return 'hk_';
+        }
+
+        return str_ends_with($prefix, '_') ? $prefix : $prefix.'_';
+    }
+
+    /**
+     * Generate the visible prefix portion of a new API key.
+     *
+     * Example:
+     * `ApiKey::generatePrefix()` can return `hk_ab12cd34`.
+     */
+    public static function generatePrefix(): string
+    {
+        return static::keyPrefixRoot().Str::random(8);
+    }
 
     protected $fillable = [
         'workspace_id',
@@ -100,13 +133,13 @@ class ApiKey extends Model
         ?\DateTimeInterface $expiresAt = null
     ): array {
         $plainKey = Str::random(48);
-        $prefix = 'hk_'.Str::random(8);
+        $prefix = static::generatePrefix();
 
         $apiKey = static::create([
             'workspace_id' => $workspaceId,
             'user_id' => $userId,
             'name' => $name,
-            'key' => Hash::make($plainKey),
+            'key' => Hash::driver('bcrypt')->make($plainKey),
             'hash_algorithm' => self::HASH_BCRYPT,
             'prefix' => $prefix,
             'scopes' => $scopes,
@@ -128,18 +161,37 @@ class ApiKey extends Model
      */
     public static function findByPlainKey(string $plainKey): ?static
     {
-        // Expected format: hk_xxxxxxxx_xxxxx...
-        if (! str_starts_with($plainKey, 'hk_')) {
+        $plainKey = trim($plainKey);
+        if ($plainKey === '' || ! str_contains($plainKey, '_')) {
             return null;
         }
 
-        $parts = explode('_', $plainKey, 3);
-        if (count($parts) !== 3) {
-            return null;
+        $prefixRoot = static::keyPrefixRoot();
+        $prefix = null;
+        $key = null;
+
+        if (str_starts_with($plainKey, $prefixRoot)) {
+            $remainder = substr($plainKey, strlen($prefixRoot));
+            if ($remainder !== false && $remainder !== '' && str_contains($remainder, '_')) {
+                [$suffix, $key] = explode('_', $remainder, 2);
+                if ($suffix !== '') {
+                    $prefix = $prefixRoot.$suffix;
+                }
+            }
         }
 
-        $prefix = $parts[0].'_'.$parts[1]; // hk_xxxxxxxx
-        $key = $parts[2];
+        if ($prefix === null || $key === null) {
+            $parts = explode('_', $plainKey, 2);
+            if (count($parts) < 2) {
+                return null;
+            }
+
+            [$prefix, $key] = $parts;
+        }
+
+        if ($prefix === '' || $key === '') {
+            return null;
+        }
 
         // Find potential matches by prefix
         $candidates = static::where('prefix', $prefix)
@@ -261,7 +313,11 @@ class ApiKey extends Model
      */
     public function recordUsage(): void
     {
-        $this->update(['last_used_at' => now()]);
+        try {
+            $this->update(['last_used_at' => now()]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 
     /**
@@ -362,6 +418,38 @@ class ApiKey extends Model
     public function getAllowedServers(): ?array
     {
         return $this->server_scopes;
+    }
+
+    /**
+     * Normalise and validate a list of server scopes.
+     *
+     * Returns null unchanged, preserves an empty array as an explicit
+     * "no servers allowed" scope set, and rejects malformed identifiers.
+     *
+     * @param  array<int, string>|null  $serverScopes
+     * @return array<int, string>|null
+     */
+    public static function normaliseServerScopes(?array $serverScopes): ?array
+    {
+        if ($serverScopes === null) {
+            return null;
+        }
+
+        $normalised = [];
+        foreach ($serverScopes as $serverId) {
+            if (! is_string($serverId)) {
+                throw new \InvalidArgumentException('Server scopes must be valid MCP server identifiers.');
+            }
+
+            $serverId = trim($serverId);
+            if ($serverId === '' || ! preg_match(self::SERVER_ID_PATTERN, $serverId)) {
+                throw new \InvalidArgumentException('Server scopes must be valid MCP server identifiers.');
+            }
+
+            $normalised[$serverId] = true;
+        }
+
+        return array_keys($normalised);
     }
 
     /**

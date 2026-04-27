@@ -5,8 +5,9 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Mod\Api\Database\Factories\ApiKeyFactory;
-use Mod\Api\Models\ApiKey;
+use Core\Api\Database\Factories\ApiKeyFactory;
+use Core\Api\Models\ApiKey;
+use Core\Api\Services\ApiKeyService;
 use Mod\Tenant\Models\User;
 use Mod\Tenant\Models\Workspace;
 
@@ -336,6 +337,30 @@ describe('Hash Algorithm Constants', function () {
 
     it('defines default grace period constant', function () {
         expect(ApiKey::DEFAULT_GRACE_PERIOD_HOURS)->toBe(24);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workspace Key Limit Enforcement
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Workspace Key Limit Enforcement', function () {
+    it('refuses to create more api keys than the configured maximum', function () {
+        config()->set('api.keys.max_per_workspace', 1);
+
+        ApiKey::generate(
+            $this->workspace->id,
+            $this->user->id,
+            'Existing Key'
+        );
+
+        $service = app(ApiKeyService::class);
+
+        expect(fn () => $service->create(
+            $this->workspace->id,
+            $this->user->id,
+            'Overflow Key'
+        ))->toThrow(RuntimeException::class);
     });
 });
 

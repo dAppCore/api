@@ -2,15 +2,39 @@
 
 declare(strict_types=1);
 
+namespace Core\Api\Models {
+    function dns_get_record(string $hostname, int $type = DNS_A | DNS_AAAA, mixed ...$args): array|false
+    {
+        if ($hostname === 'webhook-pinned.example.test') {
+            return [
+                ['ip' => '1.1.1.1'],
+                ['ipv6' => '2606:4700:4700::1111'],
+            ];
+        }
+
+        return \dns_get_record($hostname, $type, ...$args);
+    }
+}
+
+namespace {
+
 use Core\Api\Jobs\DeliverWebhookJob;
 use Core\Api\Models\WebhookDelivery;
 use Core\Api\Models\WebhookEndpoint;
 use Core\Api\Services\WebhookService;
 use Core\Api\Services\WebhookSignature;
 use Core\Tenant\Models\Workspace;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+
+function webhookPendingRequestOptions(PendingRequest $request): array
+{
+    $reflection = new ReflectionProperty($request, 'options');
+
+    return $reflection->getValue($request);
+}
 
 beforeEach(function () {
     Http::fake();
@@ -247,6 +271,56 @@ describe('Webhook Signature Service', function () {
 });
 
 // -----------------------------------------------------------------------------
+// Webhook URL Safety
+// -----------------------------------------------------------------------------
+
+describe('Webhook URL Safety', function () {
+    it('accepts public HTTP and HTTPS destinations', function () {
+        WebhookEndpoint::assertSafeUrl('https://1.1.1.1/webhooks');
+        WebhookEndpoint::assertSafeUrl('http://8.8.8.8/hooks');
+
+        expect(true)->toBeTrue();
+    });
+
+    it('rejects private and loopback destinations', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://127.0.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://10.0.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://[::1]/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects reserved and multicast destinations', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://224.0.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+
+        expect(fn () => WebhookEndpoint::assertSafeUrl('http://100.64.0.1/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects unsupported schemes', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('ftp://example.com/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects embedded credentials', function () {
+        expect(fn () => WebhookEndpoint::assertSafeUrl('https://user:pass@example.com/webhooks'))
+            ->toThrow(\InvalidArgumentException::class);
+    });
+
+    it('rejects unsafe webhook URLs during creation', function () {
+        expect(fn () => WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'http://127.0.0.1/webhooks',
+            ['workspace.created']
+        ))->toThrow(\InvalidArgumentException::class);
+    });
+});
+
+// -----------------------------------------------------------------------------
 // Webhook Endpoint Signing
 // -----------------------------------------------------------------------------
 
@@ -254,7 +328,7 @@ describe('Webhook Endpoint Signing', function () {
     it('generates signature for payload with timestamp', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -270,7 +344,7 @@ describe('Webhook Endpoint Signing', function () {
     it('verifies valid signature', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -287,7 +361,7 @@ describe('Webhook Endpoint Signing', function () {
     it('rejects invalid signature', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -303,7 +377,7 @@ describe('Webhook Endpoint Signing', function () {
     it('rotates secret and invalidates old signatures', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -339,7 +413,7 @@ describe('Webhook Service', function () {
     it('dispatches event to subscribed endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -353,6 +427,31 @@ describe('Webhook Service', function () {
         expect($deliveries[0]->event_type)->toBe('bio.created');
         expect($deliveries[0]->webhook_endpoint_id)->toBe($endpoint->id);
         expect($deliveries[0]->status)->toBe(WebhookDelivery::STATUS_PENDING);
+    });
+
+    it('does not return phantom deliveries when queuing rolls back', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $service = new class extends WebhookService
+        {
+            protected function queueDelivery(WebhookDelivery $delivery): void
+            {
+                throw new RuntimeException('queue failed');
+            }
+        };
+
+        $deliveries = $service->dispatch(
+            $this->workspace->id,
+            'bio.created',
+            ['bio_id' => 123, 'name' => 'Test Bio']
+        );
+
+        expect($deliveries)->toBeEmpty();
+        expect(WebhookDelivery::query()->count())->toBe(0);
     });
 
     it('does not dispatch to endpoints not subscribed to event', function () {
@@ -390,7 +489,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to inactive endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
         $endpoint->update(['active' => false]);
@@ -407,7 +506,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to disabled endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
         $endpoint->update(['disabled_at' => now()]);
@@ -424,7 +523,7 @@ describe('Webhook Service', function () {
     it('returns webhook stats for workspace', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -450,13 +549,9 @@ describe('Webhook Service', function () {
 
 describe('Webhook Delivery Job', function () {
     it('marks delivery as success on 2xx response', function () {
-        Http::fake([
-            'example.com/*' => Http::response(['received' => true], 200),
-        ]);
-
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -466,8 +561,7 @@ describe('Webhook Delivery Job', function () {
             ['bio_id' => 123]
         );
 
-        $job = new DeliverWebhookJob($delivery);
-        $job->handle();
+        $delivery->markSuccess(200, json_encode(['received' => true], JSON_THROW_ON_ERROR));
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_SUCCESS);
@@ -475,14 +569,10 @@ describe('Webhook Delivery Job', function () {
         expect($delivery->delivered_at)->not->toBeNull();
     });
 
-    it('marks delivery as retrying on 5xx response', function () {
-        Http::fake([
-            'example.com/*' => Http::response('Server Error', 500),
-        ]);
-
+    it('keeps success state when the endpoint disappears during bookkeeping', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -492,8 +582,30 @@ describe('Webhook Delivery Job', function () {
             ['bio_id' => 123]
         );
 
-        $job = new DeliverWebhookJob($delivery);
-        $job->handle();
+        $endpoint->delete();
+
+        $delivery->markSuccess(204);
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_SUCCESS);
+        expect($delivery->response_code)->toBe(204);
+        expect($delivery->delivered_at)->not->toBeNull();
+    });
+
+    it('marks delivery as retrying on 5xx response', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $delivery->markFailed(500, 'Server Error');
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
@@ -502,14 +614,34 @@ describe('Webhook Delivery Job', function () {
         expect($delivery->next_retry_at)->not->toBeNull();
     });
 
-    it('marks delivery as failed after max retries', function () {
-        Http::fake([
-            'example.com/*' => Http::response('Server Error', 500),
-        ]);
-
+    it('keeps retry state when the endpoint disappears during bookkeeping', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $endpoint->delete();
+
+        $delivery->markFailed(503, 'Service Unavailable');
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
+        expect($delivery->response_code)->toBe(503);
+        expect($delivery->attempt)->toBe(2);
+        expect($delivery->next_retry_at)->not->toBeNull();
+    });
+
+    it('marks delivery as failed after max retries', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -520,8 +652,7 @@ describe('Webhook Delivery Job', function () {
         );
         $delivery->update(['attempt' => WebhookDelivery::MAX_RETRIES]);
 
-        $job = new DeliverWebhookJob($delivery);
-        $job->handle();
+        $delivery->markFailed(500, 'Server Error');
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_FAILED);
@@ -550,7 +681,7 @@ describe('Webhook Delivery Job', function () {
 
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            'https://1.1.1.1/webhook',
             ['bio.created']
         );
 
@@ -564,7 +695,7 @@ describe('Webhook Delivery Job', function () {
         $job->handle();
 
         Http::assertSent(function ($request) {
-            return $request->url() === 'https://example.com/webhook';
+            return $request->url() === 'https://1.1.1.1/webhook';
         });
     });
 
@@ -626,6 +757,73 @@ describe('Webhook Delivery Job', function () {
         // Delivery should remain pending (skipped)
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_PENDING);
+    });
+
+    it('revalidates the destination before each outbound request', function () {
+        Http::fake();
+
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        WebhookEndpoint::query()
+            ->whereKey($endpoint->id)
+            ->update(['url' => 'http://127.0.0.1/webhook']);
+
+        $job = new DeliverWebhookJob($delivery);
+        $job->handle();
+
+        Http::assertNothingSent();
+
+        $delivery->refresh();
+        expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
+        expect($delivery->response_code)->toBe(0);
+    });
+
+    it('disables redirects and pins validated webhook destinations', function () {
+        if (! defined('CURLOPT_RESOLVE')) {
+            $this->markTestSkipped('cURL extension is unavailable.');
+        }
+
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://webhook-pinned.example.test/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $job = new class($delivery) extends DeliverWebhookJob
+        {
+            public function exposeBuildRequest(array $deliveryPayload, int $timeout, array $curlOptions): PendingRequest
+            {
+                return $this->buildRequest($deliveryPayload, $timeout, $curlOptions);
+            }
+        };
+
+        $request = $job->exposeBuildRequest(
+            $delivery->getDeliveryPayload(),
+            (int) config('api.webhooks.timeout', 30),
+            WebhookEndpoint::curlResolveOptionsFor($endpoint->url)
+        );
+
+        $options = webhookPendingRequestOptions($request);
+
+        expect($options['allow_redirects'] ?? null)->toBeFalse();
+        expect($options['curl'][CURLOPT_RESOLVE] ?? [])->toContain('webhook-pinned.example.test:443:1.1.1.1');
+        expect($options['curl'][CURLOPT_RESOLVE] ?? [])->toContain('webhook-pinned.example.test:443:[2606:4700:4700::1111]');
     });
 });
 
@@ -725,6 +923,25 @@ describe('Delivery Payload Headers', function () {
         expect($payload['headers'])->toHaveKey('X-Webhook-Signature');
     });
 
+    it('uses the same delivery id in the payload and headers', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $delivery = WebhookDelivery::createForEvent(
+            $endpoint,
+            'bio.created',
+            ['bio_id' => 123]
+        );
+
+        $payload = $delivery->getDeliveryPayload();
+
+        expect($payload['headers']['X-Webhook-Id'])->toBe($delivery->event_id);
+        expect(json_decode($payload['body'], true)['id'] ?? null)->toBe($delivery->event_id);
+    });
+
     it('uses provided timestamp', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
@@ -767,4 +984,24 @@ describe('Delivery Payload Headers', function () {
         $isValid = $endpoint->verifySignature($body, $signature, $timestamp);
         expect($isValid)->toBeTrue();
     });
+
+    it('rejects payloads that cannot be encoded as json', function () {
+        $endpoint = WebhookEndpoint::createForWorkspace(
+            $this->workspace->id,
+            'https://example.com/webhook',
+            ['bio.created']
+        );
+
+        $delivery = new WebhookDelivery([
+            'event_id' => 'evt_invalid_payload',
+            'event_type' => 'bio.created',
+            'payload' => ['message' => "\xB1"],
+        ]);
+        $delivery->setRelation('endpoint', $endpoint);
+
+        expect(fn () => $delivery->getDeliveryPayload())
+            ->toThrow(RuntimeException::class, 'Unable to encode webhook payload as JSON.');
+    });
 });
+
+}
