@@ -381,6 +381,15 @@ func mustParseProviderCIDRs(values ...string) []*net.IPNet {
 	return cidrs
 }
 
+// providerMetadataHosts is the SSRF deny-list of cloud-metadata service
+// endpoints. These IPs/hostnames are FIXED by AWS/GCP/Azure/Alibaba; they
+// MUST be hardcoded because they are the security boundary itself —
+// configurability would defeat the SSRF defence. SonarCloud "IP should not
+// be hardcoded" is a false positive on this map.
+//
+//	169.254.169.254  AWS / GCP / OpenStack / Azure metadata (link-local)
+//	fd00:ec2::254    AWS IPv6 metadata
+//	100.100.100.200  Alibaba Cloud metadata
 var providerMetadataHosts = map[string]struct{}{
 	"metadata.google.internal": {},
 	"metadata.googleapis.com":  {},
@@ -390,18 +399,23 @@ var providerMetadataHosts = map[string]struct{}{
 	"100.100.100.200":          {},
 }
 
+// providerBlockedCIDRs is the SSRF deny-list of IANA-reserved/special-use
+// CIDR blocks per RFC 5735, RFC 6890, RFC 4193, RFC 4291. These ranges are
+// IETF-defined and MUST be hardcoded — they are the SSRF security boundary,
+// not a configuration value. SonarCloud "IP should not be hardcoded" is a
+// false positive on this list.
 var providerBlockedCIDRs = mustParseProviderCIDRs(
-	"0.0.0.0/8",
-	"100.64.0.0/10",
-	"127.0.0.0/8",
-	"169.254.0.0/16",
-	"192.0.0.0/24",
-	"192.0.2.0/24",
-	"198.18.0.0/15",
-	"198.51.100.0/24",
-	"203.0.113.0/24",
-	"224.0.0.0/4",
-	"240.0.0.0/4",
+	"0.0.0.0/8",        // RFC 1122 "this network"
+	"100.64.0.0/10",    // RFC 6598 carrier-grade NAT
+	"127.0.0.0/8",      // RFC 1122 loopback
+	"169.254.0.0/16",   // RFC 3927 link-local
+	"192.0.0.0/24",     // RFC 6890 IETF protocol assignments
+	"192.0.2.0/24",     // RFC 5737 TEST-NET-1
+	"198.18.0.0/15",    // RFC 2544 benchmark
+	"198.51.100.0/24",  // RFC 5737 TEST-NET-2
+	"203.0.113.0/24",   // RFC 5737 TEST-NET-3
+	"224.0.0.0/4",      // RFC 5771 multicast
+	"240.0.0.0/4",      // RFC 1112 reserved
 	"::/128",
 	"::1/128",
 	"64:ff9b:1::/48",

@@ -45,6 +45,11 @@ var allowedSchemes = map[string]struct{}{
 
 // metadataHosts are cloud instance-metadata hostnames that must NOT resolve
 // to a usable backend. Compared after URL parse, before DNS resolution.
+//
+// The IPs below MUST be hardcoded — they are vendor-fixed metadata service
+// endpoints and ARE the SSRF security boundary itself. Configurability
+// would defeat the defence. SonarCloud's "IP should not be hardcoded" rule
+// is a false positive on this map.
 var metadataHosts = map[string]struct{}{
 	"metadata.google.internal": {},
 	"metadata.googleapis.com":  {},
