@@ -45,8 +45,15 @@ trait ResolvesWorkspace
         if ($workspaceParam instanceof Workspace) {
             return $workspaceParam;
         }
-        if (is_scalar($workspaceParam) && $workspaceParam !== '') {
-            return $this->findWorkspaceForUser($request, (int) $workspaceParam);
+        if ($workspaceParam !== null) {
+            if (is_scalar($workspaceParam) && $workspaceParam !== '' && ctype_digit((string) $workspaceParam)) {
+                return $this->findWorkspaceForUser($request, (int) $workspaceParam);
+            }
+
+            // Fail closed: an explicit but invalid workspace route value must
+            // NOT silently fall back to the user's default. That could route
+            // a workspace-scoped request onto the wrong tenant.
+            return null;
         }
 
         // Fall back to user's default workspace

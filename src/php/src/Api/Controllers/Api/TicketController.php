@@ -55,6 +55,13 @@ class TicketController extends Controller
     public function store(Request $request): JsonResponse
     {
         $workspace = $this->resolveWorkspace($request);
+        $user = $request->user();
+
+        // Refuse to create orphaned tickets — without either workspace or
+        // user context the ticket would be unreachable via findTicket().
+        if ($workspace === null && $user === null) {
+            return $this->forbiddenResponse('Authentication or workspace context required.');
+        }
 
         $data = $request->validate([
             'subject' => ['required', 'string', 'max:255'],
@@ -65,7 +72,7 @@ class TicketController extends Controller
 
         $ticket = SupportTicket::query()->create([
             'workspace_id' => $workspace?->id,
-            'user_id' => $request->user()?->id,
+            'user_id' => $user?->id,
             'subject' => $data['subject'],
             'message' => $data['message'],
             'status' => 'open',

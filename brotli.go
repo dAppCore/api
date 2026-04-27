@@ -150,6 +150,10 @@ func (b *brotliWriter) WriteHeader(code int) {
 	b.status = code
 	b.statusWritten = true
 	b.Header().Del("Content-Length")
+	if code >= http.StatusBadRequest {
+		b.Header().Del("Content-Encoding")
+		b.Header().Del("Vary")
+	}
 	b.ResponseWriter.WriteHeader(code)
 }
 
@@ -161,6 +165,15 @@ func (b *brotliWriter) WriteHeaderNow() {
 		return
 	}
 
+	if !b.statusWritten {
+		b.status = b.ResponseWriter.Status()
+		b.statusWritten = true
+	}
+	b.Header().Del("Content-Length")
+	if b.status >= http.StatusBadRequest {
+		b.Header().Del("Content-Encoding")
+		b.Header().Del("Vary")
+	}
 	b.ResponseWriter.WriteHeaderNow()
 }
 

@@ -209,11 +209,30 @@ class WebhookController extends Controller
             'status' => $delivery->status,
             'attempt' => $delivery->attempt,
             'response_code' => $delivery->response_code,
-            'response_body' => $delivery->response_body,
+            'response_body' => $this->redactResponseBody($delivery->response_body),
             'delivered_at' => $delivery->delivered_at?->toIso8601String(),
             'next_retry_at' => $delivery->next_retry_at?->toIso8601String(),
             'created_at' => $delivery->created_at?->toIso8601String(),
             'updated_at' => $delivery->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Truncate webhook response bodies before returning them to API callers.
+     * Full bodies can contain secrets, tokens, or third-party PII; the public
+     * delivery-history endpoint must not expose them in raw form.
+     */
+    protected function redactResponseBody(?string $body): ?string
+    {
+        if ($body === null) {
+            return null;
+        }
+
+        $maxLength = 256;
+        if (strlen($body) <= $maxLength) {
+            return $body;
+        }
+
+        return substr($body, 0, $maxLength).'... [truncated]';
     }
 }

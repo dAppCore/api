@@ -60,7 +60,7 @@ class WorkspaceMemberController extends Controller
 
         $data = $request->validate([
             'email' => ['required', 'email', 'max:255'],
-            'role' => ['sometimes', 'string', 'in:owner,admin,member'],
+            'role' => ['sometimes', 'string', 'in:admin,member'],
             'expires_in_days' => ['sometimes', 'integer', 'min:1', 'max:30'],
         ]);
 
