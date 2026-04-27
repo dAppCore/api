@@ -149,5 +149,14 @@ func wrapBlocked(reason string) error {
 
 type blockedURLError struct{ reason string }
 
+// Error renders "<base>: <reason>" so the caller sees why the SSRF guard
+// rejected the URL.
+//
+//	_ = blockedURLError{reason: "metadata host"}.Error()
 func (e blockedURLError) Error() string { return errOutboundURLBlocked.Error() + ": " + e.reason }
+
+// Unwrap returns errOutboundURLBlocked so errors.Is works on the rejection
+// class regardless of the specific reason text.
+//
+//	errors.Is(err, errOutboundURLBlocked)
 func (e blockedURLError) Unwrap() error { return errOutboundURLBlocked }

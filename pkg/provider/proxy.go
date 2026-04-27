@@ -31,6 +31,12 @@ type ProviderUpstreamBlockedError struct {
 	Cause    error
 }
 
+// Error renders the wrapped reason in "<base>: <reason>" form so callers
+// see why the SSRF guard blocked the request. Empty Reason falls back to
+// the bare ErrProviderUpstreamBlocked text.
+//
+//	err := &ProviderUpstreamBlockedError{Reason: "metadata host"}
+//	_ = err.Error()
 func (e *ProviderUpstreamBlockedError) Error() string {
 	if e == nil {
 		return ErrProviderUpstreamBlocked.Error()
@@ -41,10 +47,19 @@ func (e *ProviderUpstreamBlockedError) Error() string {
 	return ErrProviderUpstreamBlocked.Error() + ": " + e.Reason
 }
 
+// Is reports whether target is ErrProviderUpstreamBlocked, so callers can
+// errors.Is(err, ErrProviderUpstreamBlocked) without unwrapping.
+//
+//	errors.Is(err, ErrProviderUpstreamBlocked)
 func (e *ProviderUpstreamBlockedError) Is(target error) bool {
 	return target == ErrProviderUpstreamBlocked
 }
 
+// Unwrap exposes the underlying Cause for errors.As / errors.Unwrap chain
+// inspection.
+//
+//	var inner *net.OpError
+//	if errors.As(err, &inner) { /* ... */ }
 func (e *ProviderUpstreamBlockedError) Unwrap() error {
 	if e == nil {
 		return nil
