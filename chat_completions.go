@@ -42,8 +42,52 @@ type ChatCompletionRequest struct {
 	TopK        *int          `json:"top_k,omitempty"`
 	MaxTokens   *int          `json:"max_tokens,omitempty"`
 	Stream      bool          `json:"stream,omitempty"`
-	Stop        []string      `json:"stop,omitempty"` // Stop sequences, excluded from the final completion text.
+	Stop        chatStopList  `json:"stop,omitempty"` // Stop sequences, excluded from the final completion text. Accepts a single string or an array (OpenAI compat).
 	User        string        `json:"user,omitempty"`
+}
+
+// chatStopList accepts the OpenAI `stop` parameter in either of its supported
+// forms: a single string ("stop":"\n\n") or an array of strings
+// ("stop":["\n", "stop"]). Internally it is just a []string slice.
+//
+//	var stops chatStopList // unmarshals from either a JSON string or array
+type chatStopList []string
+
+// UnmarshalJSON normalises both supported shapes into a []string slice. A
+// single string becomes a one-element slice; an array passes through as-is.
+//
+//	var s chatStopList
+//	_ = s.UnmarshalJSON([]byte(`"\n\n"`))      // → ["\n\n"]
+//	_ = s.UnmarshalJSON([]byte(`["a","b"]`))   // → ["a","b"]
+func (s *chatStopList) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*s = nil
+		return nil
+	}
+	// Array form: decode into a string slice directly.
+	if data[0] == '[' {
+		var arr []string
+		result := core.JSONUnmarshalString(string(data), &arr)
+		if !result.OK {
+			if err, ok := result.Value.(error); ok {
+				return err
+			}
+			return core.E("ChatCompletionRequest.Stop", "decode array stop sequences", nil)
+		}
+		*s = arr
+		return nil
+	}
+	// String form: decode the single string and wrap into a one-element slice.
+	var single string
+	result := core.JSONUnmarshalString(string(data), &single)
+	if !result.OK {
+		if err, ok := result.Value.(error); ok {
+			return err
+		}
+		return core.E("ChatCompletionRequest.Stop", "decode string stop sequence", nil)
+	}
+	*s = []string{single}
+	return nil
 }
 
 // ChatMessage is a single turn in a conversation.
@@ -179,6 +223,10 @@ type ModelResolver struct {
 	loadedByName map[string]inference.TextModel
 	loadedByPath map[string]inference.TextModel
 	discovery    map[string]string
+	// inFlight tracks model loads currently in progress, keyed by cleanPath.
+	// Concurrent callers waiting for the same path block on the channel
+	// until the original loader closes it; they then re-check the cache.
+	inFlight map[string]chan struct{}
 }
 
 // NewModelResolver constructs a ModelResolver with empty caches. The returned
@@ -192,6 +240,7 @@ func NewModelResolver() *ModelResolver {
 		loadedByName: make(map[string]inference.TextModel),
 		loadedByPath: make(map[string]inference.TextModel),
 		discovery:    make(map[string]string),
+		inFlight:     make(map[string]chan struct{}),
 	}
 }
 
@@ -246,43 +295,65 @@ func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 
 func (r *ModelResolver) loadByPath(name, path string) (inference.TextModel, error) {
 	cleanPath := core.Path(path)
-	r.mu.Lock()
-	if cached, ok := r.loadedByPath[cleanPath]; ok {
-		r.loadedByName[name] = cached
-		normalizedName := core.Lower(name)
-		if normalizedName != name {
-			r.loadedByName[normalizedName] = cached
+
+	// Loop because a waiter wakes up to retry: either the cache now has
+	// the model (success path), or the original loader failed and we
+	// must take over the load ourselves.
+	for {
+		r.mu.Lock()
+		if cached, ok := r.loadedByPath[cleanPath]; ok {
+			r.loadedByName[name] = cached
+			normalizedName := core.Lower(name)
+			if normalizedName != name {
+				r.loadedByName[normalizedName] = cached
+			}
+			r.mu.Unlock()
+			return cached, nil
+		}
+		// Another goroutine is already loading this path — block on its
+		// completion channel and re-check the cache when it closes.
+		if waitCh, inFlight := r.inFlight[cleanPath]; inFlight {
+			r.mu.Unlock()
+			<-waitCh
+			continue
+		}
+		// We are the leader. Mark this path as in-flight so other callers
+		// wait for us. Close the channel on return regardless of outcome.
+		doneCh := make(chan struct{})
+		r.inFlight[cleanPath] = doneCh
+		r.mu.Unlock()
+
+		loaded, err := inference.LoadModel(cleanPath)
+
+		r.mu.Lock()
+		delete(r.inFlight, cleanPath)
+		if err == nil {
+			r.loadedByName[name] = loaded
+			normalizedName := core.Lower(name)
+			if normalizedName != name {
+				r.loadedByName[normalizedName] = loaded
+			}
+			r.loadedByPath[cleanPath] = loaded
 		}
 		r.mu.Unlock()
-		return cached, nil
-	}
-	r.mu.Unlock()
+		close(doneCh)
 
-	loaded, err := inference.LoadModel(cleanPath)
-	if err != nil {
-		if core.Contains(core.Lower(err.Error()), "loading") {
+		if err != nil {
+			if core.Contains(core.Lower(err.Error()), "loading") {
+				return nil, &modelResolutionError{
+					code:  "model_loading",
+					param: "model",
+					msg:   err.Error(),
+				}
+			}
 			return nil, &modelResolutionError{
-				code:  "model_loading",
+				code:  "model_not_found",
 				param: "model",
 				msg:   err.Error(),
 			}
 		}
-		return nil, &modelResolutionError{
-			code:  "model_not_found",
-			param: "model",
-			msg:   err.Error(),
-		}
+		return loaded, nil
 	}
-
-	r.mu.Lock()
-	r.loadedByName[name] = loaded
-	normalizedName := core.Lower(name)
-	if normalizedName != name {
-		r.loadedByName[normalizedName] = loaded
-	}
-	r.loadedByPath[cleanPath] = loaded
-	r.mu.Unlock()
-	return loaded, nil
 }
 
 func (r *ModelResolver) lookupModelPath(name string) (string, bool) {
@@ -902,6 +973,46 @@ func validateChatRequest(req *ChatCompletionRequest) error {
 		}
 	}
 
+	// Bounds-check sampling parameters before they reach the inference
+	// backend. Out-of-range values (e.g. negative max_tokens) silently
+	// disable downstream length caps; reject with 400 up front.
+	if req.Temperature != nil && (*req.Temperature < 0 || *req.Temperature > 2) {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "temperature",
+			Message: "temperature must be in [0, 2]",
+		}
+	}
+	if req.TopP != nil && (*req.TopP < 0 || *req.TopP > 1) {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "top_p",
+			Message: "top_p must be in [0, 1]",
+		}
+	}
+	if req.TopK != nil && *req.TopK < 0 {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "top_k",
+			Message: "top_k must be >= 0",
+		}
+	}
+	if req.MaxTokens != nil && *req.MaxTokens < 0 {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "max_tokens",
+			Message: "max_tokens must be >= 0",
+		}
+	}
+
 	return nil
 }
 
@@ -987,6 +1098,11 @@ func normalizedStopSequences(stops []string) ([]string, error) {
 	return out, nil
 }
 
+// parsedStopTokens extracts numeric token-ID entries from the OpenAI-style
+// stop list and returns them as int32s for inference.WithStopTokens. Text
+// entries (the common OpenAI usage like "\n\n" or "stop") are silently
+// skipped here — they are still applied client-side via firstStopSequenceCut
+// against the response content. Empty entries are rejected as malformed.
 func parsedStopTokens(stops []string) ([]int32, error) {
 	if len(stops) == 0 {
 		return nil, nil
@@ -1000,11 +1116,13 @@ func parsedStopTokens(stops []string) ([]int32, error) {
 		}
 		parsed := core.ParseInt(raw, 10, 32)
 		if !parsed.OK {
-			return nil, core.E("", core.Sprintf("invalid stop token %q", raw), nil)
+			// Text stop sequence — applied client-side, not as a model
+			// stop-token. Skip without error to honour OpenAI compat.
+			continue
 		}
 		value, ok := parsed.Value.(int64)
 		if !ok {
-			return nil, core.E("", core.Sprintf("invalid stop token %q", raw), nil)
+			continue
 		}
 		out = append(out, int32(value))
 	}
