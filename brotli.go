@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"sync" // AX-6-exception: core has no Pool wrapper; brotli writers are pooled per compression level.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"

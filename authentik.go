@@ -7,7 +7,7 @@ import (
 	"net/http" // Note: AX-6 - structural HTTP status boundary for Gin auth responses; no core primitive.
 	"slices"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"

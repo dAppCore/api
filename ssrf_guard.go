@@ -9,7 +9,7 @@ import (
 	// Note: AX-6 — URL parsing is structural for SSRF scheme and host extraction before outbound requests.
 	"net/url"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreerr "dappco.re/go/log"
 )
 

@@ -3,7 +3,7 @@
 package api
 
 import (
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // normaliseServers trims whitespace, removes empty entries, and preserves

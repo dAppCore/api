@@ -6,8 +6,8 @@ import (
 	"iter"
 	"os" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
 
+	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	core "dappco.re/go/core"
 
 	goapi "dappco.re/go/api"
 	coreio "dappco.re/go/io"

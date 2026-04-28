@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode" // Note: AX-6 — Unicode-aware operationId normalization has no core primitive.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // SpecBuilder constructs an OpenAPI 3.1 specification from registered RouteGroups.

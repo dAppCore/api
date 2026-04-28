@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	inference "dappco.re/go/inference"
 
 	"github.com/gin-gonic/gin"
@@ -1099,10 +1099,9 @@ func normalizedStopSequences(stops []string) ([]string, error) {
 }
 
 // parsedStopTokens extracts numeric token-ID entries from the OpenAI-style
-// stop list and returns them as int32s for inference.WithStopTokens. Text
-// entries (the common OpenAI usage like "\n\n" or "stop") are silently
-// skipped here — they are still applied client-side via firstStopSequenceCut
-// against the response content. Empty entries are rejected as malformed.
+// stop list and returns them as int32s for inference.WithStopTokens. Text stop
+// sequences are applied separately via normalizedStopSequences; reaching this
+// parser with a nonnumeric entry is malformed.
 func parsedStopTokens(stops []string) ([]int32, error) {
 	if len(stops) == 0 {
 		return nil, nil
@@ -1116,9 +1115,7 @@ func parsedStopTokens(stops []string) ([]int32, error) {
 		}
 		parsed := core.ParseInt(raw, 10, 32)
 		if !parsed.OK {
-			// Text stop sequence — applied client-side, not as a model
-			// stop-token. Skip without error to honour OpenAI compat.
-			continue
+			return nil, core.E("", "stop entries must be token IDs", nil)
 		}
 		value, ok := parsed.Value.(int64)
 		if !ok {

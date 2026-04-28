@@ -5,7 +5,7 @@ package api
 import (
 	"testing"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // TestCmd_AddAPICommands_Good_RegistersBothCommandGroups verifies the root

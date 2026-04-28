@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
+	core "dappco.re/go"
 	coreapi "dappco.re/go/api"
-	core "dappco.re/go/core"
-	miner "dappco.re/go/core/miner"
-	minerapi "dappco.re/go/core/miner/pkg/api"
 	coreio "dappco.re/go/io"
+	miner "dappco.re/go/miner"
+	minerapi "dappco.re/go/miner/pkg/api"
 	process "dappco.re/go/process"
 	processapi "dappco.re/go/process/pkg/api"
 	proxy "dappco.re/go/proxy"
@@ -561,6 +561,54 @@ func (g minerRouteGroup) Describe() []coreapi.RouteDescription {
 	return descriptions
 }
 
+type proxyRouteHandler struct {
+	path    string
+	handler func(http.ResponseWriter, *http.Request)
+}
+
+type proxyRouteGroup struct {
+	handlers []proxyRouteHandler
+}
+
+func (g *proxyRouteGroup) Name() string {
+	return "proxy"
+}
+
+func (g *proxyRouteGroup) BasePath() string {
+	return ""
+}
+
+func (g *proxyRouteGroup) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	if core.Trim(pattern) == "" || handler == nil {
+		return
+	}
+	g.handlers = append(g.handlers, proxyRouteHandler{path: pattern, handler: handler})
+}
+
+func (g *proxyRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	if g == nil {
+		return
+	}
+	for _, route := range g.handlers {
+		rg.GET(route.path, gin.WrapF(route.handler))
+	}
+}
+
+func (g *proxyRouteGroup) Describe() []coreapi.RouteDescription {
+	if g == nil {
+		return nil
+	}
+	descriptions := make([]coreapi.RouteDescription, 0, len(g.handlers))
+	for _, route := range g.handlers {
+		descriptions = append(descriptions, coreapi.RouteDescription{
+			Method: "GET",
+			Path:   route.path,
+			Tags:   []string{"proxy"},
+		})
+	}
+	return descriptions
+}
+
 func newProxyRouteGroup() coreapi.RouteGroup {
 	instance, result := proxy.New(&proxy.Config{
 		Mode: "simple",
@@ -575,14 +623,10 @@ func newProxyRouteGroup() coreapi.RouteGroup {
 	if !result.OK {
 		panic(result.Error)
 	}
-	engine, err := coreapi.New()
-	if err != nil {
-		panic(err)
-	}
-	proxyapi.RegisterRoutes(engine, instance)
-	groups := engine.Groups()
-	if len(groups) == 0 {
+	group := &proxyRouteGroup{}
+	proxyapi.RegisterRoutes(group, instance)
+	if len(group.handlers) == 0 {
 		return nil
 	}
-	return groups[0]
+	return group
 }

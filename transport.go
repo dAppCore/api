@@ -2,7 +2,7 @@
 
 package api
 
-import core "dappco.re/go/core"
+import core "dappco.re/go"
 
 // TransportConfig captures the configured transport endpoints and flags for an Engine.
 //

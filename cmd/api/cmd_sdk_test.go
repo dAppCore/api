@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	core "dappco.re/go/core"
 
 	api "dappco.re/go/api"
 )

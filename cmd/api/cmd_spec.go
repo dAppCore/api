@@ -5,8 +5,8 @@ package api
 import (
 	"os" // Note: AX-6 — os.Stdout has no core equivalent for command output.
 
+	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
-	core "dappco.re/go/core"
 
 	goapi "dappco.re/go/api"
 )

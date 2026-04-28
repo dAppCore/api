@@ -5,7 +5,7 @@ package api
 import (
 	"net/http" // Note: AX-6 - transformer response wrappers emit HTTP status codes.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/gin-gonic/gin"
 )

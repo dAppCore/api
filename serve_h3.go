@@ -9,7 +9,7 @@ import (
 	"net"
 	"net/http"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/gin-gonic/gin"
 	quichttp3 "github.com/quic-go/quic-go/http3"

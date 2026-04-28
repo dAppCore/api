@@ -7,7 +7,7 @@ import (
 	"net/http"       // Note: AX-6 - Gin cache middleware must handle HTTP headers/methods directly.
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/gin-gonic/gin"
 )

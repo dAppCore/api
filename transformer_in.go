@@ -6,7 +6,7 @@ import (
 	"io"       // Note: AX-6 - request body reads and resets are HTTP stream boundaries.
 	"net/http" // Note: AX-6 - transformer middleware emits HTTP status codes.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/gin-gonic/gin"
 )

@@ -11,7 +11,7 @@ import (
 	"net/http" // Note: AX-6 - structural HTTP boundary for Gin response writer contracts; no core primitive.
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/gin-gonic/gin"
 )

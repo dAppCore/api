@@ -5,7 +5,7 @@ package api
 import (
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	goapi "dappco.re/go/api"
 )

@@ -11,11 +11,11 @@ import (
 	"os"
 	// Note: AX-6 - retained for the subprocess boundary because SDKGenerator has no Core instance with registered process.run.
 	"os/exec"
-	// Note: AX-6 - no core.Regex primitive exists in dappco.re/go/core v0.8; compiled regexp anchors PackageName validation for command-argument safety.
+	// Note: AX-6 - compiled regexp anchors PackageName validation for command-argument safety.
 	"regexp"
 	"slices"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreerr "dappco.re/go/log"
 )
 

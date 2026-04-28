@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreerr "dappco.re/go/log"
 )
 

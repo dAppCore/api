@@ -18,7 +18,7 @@ import (
 	// Note: AX-6 — deterministic ordering and snapshot cloning need slices sort/clone helpers.
 	"slices"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"gopkg.in/yaml.v3"
 )

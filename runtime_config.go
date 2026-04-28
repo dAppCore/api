@@ -13,12 +13,12 @@ package api
 //
 //	cfg := engine.RuntimeConfig()
 type RuntimeConfig struct {
-	Swagger    SwaggerConfig
-	Transport  TransportConfig
-	GraphQL    GraphQLConfig
-	Cache      CacheConfig
-	I18n       I18nConfig
-	Authentik  AuthentikConfig
+	Swagger   SwaggerConfig
+	Transport TransportConfig
+	GraphQL   GraphQLConfig
+	Cache     CacheConfig
+	I18n      I18nConfig
+	Authentik AuthentikConfig
 }
 
 // RuntimeConfig returns a stable snapshot of the engine's current runtime

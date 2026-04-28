@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"gopkg.in/yaml.v3"
 )
 
@@ -136,9 +136,6 @@ func canonicalProviderDir(dir string) (string, bool, error) {
 		return "", false, core.E(op, "resolve provider directory symlinks: "+absolute, err)
 	}
 	cleaned := filepath.Clean(resolved)
-	if cleaned != absolute {
-		return "", false, core.E(op, "symlink in ancestor path segment rejected: "+absolute, nil)
-	}
 	return cleaned, true, nil
 }
 
@@ -166,9 +163,6 @@ func canonicalProviderManifestFile(canonicalDir, path string) (providerManifestF
 		return providerManifestFile{}, core.E(op, "resolve provider manifest symlinks: "+absolute, err)
 	}
 	resolved = filepath.Clean(resolved)
-	if resolved != absolute {
-		return providerManifestFile{}, core.E(op, "symlink in ancestor path segment rejected: "+absolute, nil)
-	}
 
 	relative, err := filepath.Rel(canonicalDir, resolved)
 	if err != nil {

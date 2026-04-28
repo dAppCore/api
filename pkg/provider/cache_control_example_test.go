@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"github.com/gin-gonic/gin"
 )
 

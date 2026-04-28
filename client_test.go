@@ -3,11 +3,14 @@
 package api_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,6 +48,35 @@ func (t trackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	return resp, err
+}
+
+func openAPITestBaseURL(t *testing.T, srv *httptest.Server) string {
+	t.Helper()
+
+	parsed, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parse test server URL: %v", err)
+	}
+	parsed.Host = "93.184.216.34"
+	return parsed.String()
+}
+
+func openAPITestTransport(t *testing.T, srv *httptest.Server) http.RoundTripper {
+	t.Helper()
+
+	targetAddr := srv.Listener.Addr().String()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, targetAddr)
+	}
+	return transport
+}
+
+func openAPITestHTTPClient(t *testing.T, srv *httptest.Server) *http.Client {
+	t.Helper()
+
+	return &http.Client{Transport: openAPITestTransport(t, srv)}
 }
 
 func TestOpenAPIClient_Good_CallOperationByID(t *testing.T) {
@@ -103,7 +135,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("get_hello", map[string]any{
@@ -184,7 +217,8 @@ paths:
     get:
       operationId: ping
 `)),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("ping", nil)
@@ -231,10 +265,10 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
 		api.WithHTTPClient(&http.Client{
 			Transport: trackingRoundTripper{
-				base:   http.DefaultTransport,
+				base:   openAPITestTransport(t, srv),
 				closed: &closed,
 			},
 			CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -449,7 +483,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("head_check", map[string]any{
@@ -506,7 +541,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("search_items", map[string]any{
@@ -584,7 +620,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("submit_item", map[string]any{
@@ -637,7 +674,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	if _, err := client.Call("submit_item", map[string]any{
@@ -682,7 +720,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	if _, err := client.Call("search_items", map[string]any{
@@ -728,7 +767,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	if _, err := client.Call("get_user", map[string]any{
@@ -811,7 +851,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("inspect_request", map[string]any{
@@ -864,9 +905,9 @@ info:
   title: Test API
   version: 1.0.0
 servers:
-  - url: " `+srv.URL+` "
+  - url: " `+openAPITestBaseURL(t, srv)+` "
   - url: /
-  - url: " `+srv.URL+` "
+  - url: " `+openAPITestBaseURL(t, srv)+` "
 paths:
   /hello:
     get:
@@ -875,6 +916,7 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	result, err := client.Call("get_hello", nil)
@@ -945,7 +987,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	if _, err := client.Call("create_user", map[string]any{
@@ -1000,7 +1043,8 @@ paths:
 
 	client := api.NewOpenAPIClient(
 		api.WithSpec(specPath),
-		api.WithBaseURL(srv.URL),
+		api.WithBaseURL(openAPITestBaseURL(t, srv)),
+		api.WithHTTPClient(openAPITestHTTPClient(t, srv)),
 	)
 
 	if _, err := client.Call("list_users", nil); err == nil {

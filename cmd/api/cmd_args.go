@@ -2,7 +2,7 @@
 
 package api
 
-import core "dappco.re/go/core"
+import core "dappco.re/go"
 
 // splitUniqueCSV trims and deduplicates a comma-separated list while
 // preserving the first occurrence of each value.

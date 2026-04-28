@@ -6,8 +6,8 @@ import (
 	"iter"
 	"slices"
 
+	core "dappco.re/go"
 	"dappco.re/go/api"
-	core "dappco.re/go/core"
 )
 
 // Registry collects providers and mounts them on an api.Engine.

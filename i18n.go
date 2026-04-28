@@ -5,7 +5,7 @@ package api
 import (
 	"slices"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/language"
