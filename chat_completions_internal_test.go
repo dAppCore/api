@@ -506,10 +506,15 @@ func TestChatCompletions_ResolveModel_Good_UsesCachePathAndDiscovery(t *testing.
 	})
 }
 
-// TestChatCompletions_lookupModelPath_Bad_NeedsDirHomeSeam documents the
-// missing seam for redirecting core.Env("DIR_HOME") during unit tests.
 func TestChatCompletions_lookupModelPath_Bad_NeedsDirHomeSeam(t *testing.T) {
-	t.Skip("missing seam: core.Env(\"DIR_HOME\") is snapshotted at init, so models.yaml lookup cannot be redirected to a temp directory in a unit test")
+	resolver := NewModelResolver()
+	path, ok := resolver.lookupModelPath("missing-model")
+	if ok {
+		t.Fatalf("expected missing model path lookup to fail, got %q", path)
+	}
+	if path != "" {
+		t.Fatalf("expected empty path for missing model, got %q", path)
+	}
 }
 
 func TestChatCompletions_discoveryModels_Good_FindsValidModels(t *testing.T) {

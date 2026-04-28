@@ -159,7 +159,9 @@ func gatewayProviderSpecs() []providerSpec {
 					panic(core.Sprintf("process service factory returned %T", value))
 				}
 				deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
-					_ = service.OnShutdown(ctx)
+					if r := service.OnShutdown(ctx); !r.OK {
+						slog.Default().Warn("process service shutdown failed", "err", r.Error())
+					}
 				})
 				return processapi.NewProvider(process.DefaultRegistry(), service, deps.hub)
 			},
@@ -180,7 +182,9 @@ func gatewayProviderSpecs() []providerSpec {
 			New: func(deps *gatewayDeps) coreapi.RouteGroup {
 				service := miner.NewServiceWithCore(deps.core)
 				deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
-					_ = service.OnShutdown(ctx)
+					if r := service.OnShutdown(ctx); !r.OK {
+						slog.Default().Warn("miner service shutdown failed", "err", r.Error())
+					}
 				})
 				return minerRouteGroup{provider: minerapi.NewProvider(service)}
 			},

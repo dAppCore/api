@@ -185,7 +185,9 @@ func (b *brotliWriter) Flush() {
 		return
 	}
 
-	_ = b.writer.Flush()
+	if err := b.writer.Flush(); err != nil {
+		return
+	}
 	b.ResponseWriter.Flush()
 }
 
@@ -205,7 +207,9 @@ func (b *brotliWriter) release(pool *sync.Pool) {
 	} else if b.ResponseWriter.Size() < 0 {
 		b.writer.Reset(io.Discard)
 	}
-	_ = b.writer.Close()
+	if err := b.writer.Close(); err != nil {
+		b.Header().Del("Content-Length")
+	}
 	if b.ResponseWriter.Size() > -1 {
 		b.Header().Set("Content-Length", core.Sprintf("%d", b.ResponseWriter.Size()))
 	}

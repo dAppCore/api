@@ -5,12 +5,11 @@ package provider_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"testing"
 
+	. "dappco.re/go"
 	"dappco.re/go/api"
 	"dappco.re/go/api/pkg/provider"
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 type cacheControlProvider struct {
@@ -83,7 +82,7 @@ func mountProviderHandler(providers ...provider.Provider) http.Handler {
 	return engine.Handler()
 }
 
-func TestCacheControl_MountAll_Good_AppliesDescribedPolicies(t *testing.T) {
+func TestCacheControl_MountAll_Good_AppliesDescribedPolicies(t *T) {
 	gin.SetMode(gin.TestMode)
 
 	handler := mountProviderHandler(&cacheControlProvider{
@@ -94,15 +93,15 @@ func TestCacheControl_MountAll_Good_AppliesDescribedPolicies(t *testing.T) {
 	getRec := httptest.NewRecorder()
 	getReq := httptest.NewRequest(http.MethodGet, "/api/cache/items/123", nil)
 	handler.ServeHTTP(getRec, getReq)
-	require.Equal(t, "public, max-age=300", getRec.Header().Get("Cache-Control"))
+	AssertEqual(t, "public, max-age=300", getRec.Header().Get("Cache-Control"))
 
 	postRec := httptest.NewRecorder()
 	postReq := httptest.NewRequest(http.MethodPost, "/api/cache/sessions", nil)
 	handler.ServeHTTP(postRec, postReq)
-	require.Equal(t, "no-store", postRec.Header().Get("Cache-Control"))
+	AssertEqual(t, "no-store", postRec.Header().Get("Cache-Control"))
 }
 
-func TestCacheControl_MountAll_Bad_SkipsProvidersWithoutDescriptions(t *testing.T) {
+func TestCacheControl_MountAll_Bad_SkipsProvidersWithoutDescriptions(t *T) {
 	gin.SetMode(gin.TestMode)
 
 	handler := mountProviderHandler(&undescribedCacheControlProvider{
@@ -112,10 +111,10 @@ func TestCacheControl_MountAll_Bad_SkipsProvidersWithoutDescriptions(t *testing.
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/plain/items/123", nil)
 	handler.ServeHTTP(rec, req)
-	require.Equal(t, "", rec.Header().Get("Cache-Control"))
+	AssertEqual(t, "", rec.Header().Get("Cache-Control"))
 }
 
-func TestCacheControl_MountAll_Ugly_PreservesExplicitHandlerHeaders(t *testing.T) {
+func TestCacheControl_MountAll_Ugly_PreservesExplicitHandlerHeaders(t *T) {
 	gin.SetMode(gin.TestMode)
 
 	handler := mountProviderHandler(&cacheControlProvider{
@@ -127,5 +126,5 @@ func TestCacheControl_MountAll_Ugly_PreservesExplicitHandlerHeaders(t *testing.T
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/override/items/123", nil)
 	handler.ServeHTTP(rec, req)
-	require.Equal(t, "private, no-store", rec.Header().Get("Cache-Control"))
+	AssertEqual(t, "private, no-store", rec.Header().Get("Cache-Control"))
 }

@@ -190,8 +190,12 @@ func TestSDKGenerator_Good_OutputDirCreated(t *testing.T) {
 
 func TestSDKGenerator_Good_Available(t *testing.T) {
 	gen := &api.SDKGenerator{}
-	// Just verify it returns a bool and does not panic.
-	_ = gen.Available()
+	available := gen.Available()
+	if available {
+		t.Log("openapi-generator-cli is available")
+	} else {
+		t.Log("openapi-generator-cli is unavailable")
+	}
 }
 
 // TestSDKGenerator_Generate_PackageNameRejected_Bad verifies the regex-validation

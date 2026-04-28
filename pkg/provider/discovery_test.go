@@ -8,15 +8,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"testing"
 
+	. "dappco.re/go"
 	"dappco.re/go/api"
 	"dappco.re/go/api/pkg/provider"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestDiscover_Good_LoadsYAMLProxyProvider(t *testing.T) {
+func TestDiscover_Good_LoadsYAMLProxyProvider(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"path": r.URL.Path})
@@ -24,11 +22,11 @@ func TestDiscover_Good_LoadsYAMLProxyProvider(t *testing.T) {
 	defer upstream.Close()
 
 	dir := filepath.Join(t.TempDir(), ".core", "providers")
-	require.NoError(t, os.MkdirAll(dir, 0755))
+	RequireNoError(t, os.MkdirAll(dir, 0755))
 	specPath := filepath.Join(filepath.Dir(dir), "specs", "openapi.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(specPath), 0755))
-	require.NoError(t, os.WriteFile(specPath, []byte("openapi: 3.1.0\n"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "cool.yaml"), []byte(`
+	RequireNoError(t, os.MkdirAll(filepath.Dir(specPath), 0755))
+	RequireNoError(t, os.WriteFile(specPath, []byte("openapi: 3.1.0\n"), 0644))
+	RequireNoError(t, os.WriteFile(filepath.Join(dir, "cool.yaml"), []byte(`
 name: cool-widget
 runtime: php
 base_path: /api/v1/cool-widget/
@@ -40,131 +38,131 @@ element:
 `), 0644))
 
 	providers, err := provider.Discover(dir)
-	require.NoError(t, err)
-	require.Len(t, providers, 1)
+	RequireNoError(t, err)
+	AssertLen(t, providers, 1)
 
 	p := providers[0]
-	assert.Equal(t, "cool-widget", p.Name())
-	assert.Equal(t, "/api/v1/cool-widget", p.BasePath())
+	AssertEqual(t, "cool-widget", p.Name())
+	AssertEqual(t, "/api/v1/cool-widget", p.BasePath())
 
 	specProvider, ok := p.(interface{ SpecFile() string })
-	require.True(t, ok)
+	RequireTrue(t, ok)
 	canonicalSpecPath, err := filepath.EvalSymlinks(specPath)
-	require.NoError(t, err)
-	assert.Equal(t, canonicalSpecPath, specProvider.SpecFile())
+	RequireNoError(t, err)
+	AssertEqual(t, canonicalSpecPath, specProvider.SpecFile())
 
 	renderable, ok := p.(provider.Renderable)
-	require.True(t, ok)
-	assert.Equal(t, "core-cool-widget", renderable.Element().Tag)
+	RequireTrue(t, ok)
+	AssertEqual(t, "core-cool-widget", renderable.Element().Tag)
 
 	engine, err := api.New()
-	require.NoError(t, err)
+	RequireNoError(t, err)
 	engine.Register(p)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/cool-widget/ping", nil)
 	engine.Handler().ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	AssertEqual(t, http.StatusOK, w.Code)
 	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "/ping", body["path"])
+	RequireNoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	AssertEqual(t, "/ping", body["path"])
 }
 
-func TestDiscover_Good_MissingDirIsEmpty(t *testing.T) {
+func TestDiscover_Good_MissingDirIsEmpty(t *T) {
 	providers, err := provider.Discover(filepath.Join(t.TempDir(), ".core", "providers"))
-	require.NoError(t, err)
-	assert.Empty(t, providers)
+	RequireNoError(t, err)
+	AssertEmpty(t, providers)
 }
 
-func TestDiscover_Good_LoadsYAMLProvidersFromCleanDir(t *testing.T) {
+func TestDiscover_Good_LoadsYAMLProvidersFromCleanDir(t *T) {
 	dir := filepath.Join(t.TempDir(), ".core", "providers")
-	require.NoError(t, os.MkdirAll(dir, 0755))
+	RequireNoError(t, os.MkdirAll(dir, 0755))
 	upstream := newDiscoveryUpstream(t)
 
 	writeProviderManifest(t, dir, "alpha", upstream)
 	writeProviderManifest(t, dir, "beta", upstream)
 
 	providers, err := provider.Discover(dir)
-	require.NoError(t, err)
-	require.Len(t, providers, 2)
+	RequireNoError(t, err)
+	AssertLen(t, providers, 2)
 
 	names := []string{providers[0].Name(), providers[1].Name()}
-	assert.ElementsMatch(t, []string{"alpha", "beta"}, names)
+	AssertElementsMatch(t, []string{"alpha", "beta"}, names)
 }
 
-func TestDiscover_Good_DirWithDotDotSegmentResolves(t *testing.T) {
+func TestDiscover_Good_DirWithDotDotSegmentResolves(t *T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "providers")
-	require.NoError(t, os.MkdirAll(dir, 0755))
+	RequireNoError(t, os.MkdirAll(dir, 0755))
 	writeProviderManifest(t, dir, "dotdot", newDiscoveryUpstream(t))
 
 	providers, err := provider.Discover(filepath.Join(root, "other", "..", "providers"))
-	require.NoError(t, err)
-	require.Len(t, providers, 1)
-	assert.Equal(t, "dotdot", providers[0].Name())
+	RequireNoError(t, err)
+	AssertLen(t, providers, 1)
+	AssertEqual(t, "dotdot", providers[0].Name())
 }
 
-func TestDiscover_Bad_InvalidManifest(t *testing.T) {
+func TestDiscover_Bad_InvalidManifest(t *T) {
 	dir := filepath.Join(t.TempDir(), ".core", "providers")
-	require.NoError(t, os.MkdirAll(dir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte(`
+	RequireNoError(t, os.MkdirAll(dir, 0755))
+	RequireNoError(t, os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte(`
 name: broken
 basePath: /api/broken
 `), 0644))
 
 	providers, err := provider.Discover(dir)
-	require.Error(t, err)
-	assert.Nil(t, providers)
-	assert.Contains(t, err.Error(), "upstream is required")
+	AssertError(t, err)
+	AssertNil(t, providers)
+	AssertContains(t, err.Error(), "upstream is required")
 }
 
-func TestDiscover_Bad_SymlinkedDirRefused(t *testing.T) {
+func TestDiscover_Bad_SymlinkedDirRefused(t *T) {
 	root := t.TempDir()
 	realDir := filepath.Join(root, "real-providers")
 	linkDir := filepath.Join(root, "providers")
-	require.NoError(t, os.MkdirAll(realDir, 0755))
+	RequireNoError(t, os.MkdirAll(realDir, 0755))
 	if err := os.Symlink(realDir, linkDir); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
 	providers, err := provider.Discover(linkDir)
-	require.Error(t, err)
-	assert.Nil(t, providers)
-	assert.Contains(t, err.Error(), "symlinked provider directory rejected")
+	AssertError(t, err)
+	AssertNil(t, providers)
+	AssertContains(t, err.Error(), "symlinked provider directory rejected")
 }
 
-func TestDiscover_Bad_SymlinkManifestOutsideDirRefused(t *testing.T) {
+func TestDiscover_Bad_SymlinkManifestOutsideDirRefused(t *T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "providers")
-	require.NoError(t, os.MkdirAll(dir, 0755))
+	RequireNoError(t, os.MkdirAll(dir, 0755))
 	outside := filepath.Join(root, "outside.yaml")
-	require.NoError(t, os.WriteFile(outside, []byte("not: loaded\n"), 0644))
+	RequireNoError(t, os.WriteFile(outside, []byte("not: loaded\n"), 0644))
 	if err := os.Symlink(outside, filepath.Join(dir, "leak.yaml")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
 	providers, err := provider.Discover(dir)
-	require.Error(t, err)
-	assert.Nil(t, providers)
-	assert.Contains(t, err.Error(), "symlinked provider manifest rejected")
+	AssertError(t, err)
+	AssertNil(t, providers)
+	AssertContains(t, err.Error(), "symlinked provider manifest rejected")
 }
 
-func TestDiscover_Bad_SymlinkManifestWithinDirRefused(t *testing.T) {
+func TestDiscover_Bad_SymlinkManifestWithinDirRefused(t *T) {
 	dir := filepath.Join(t.TempDir(), "providers")
-	require.NoError(t, os.MkdirAll(dir, 0755))
+	RequireNoError(t, os.MkdirAll(dir, 0755))
 	realManifest := writeProviderManifest(t, dir, "real", newDiscoveryUpstream(t))
 	if err := os.Symlink(realManifest, filepath.Join(dir, "alias.yaml")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
 	providers, err := provider.Discover(dir)
-	require.Error(t, err)
-	assert.Nil(t, providers)
-	assert.Contains(t, err.Error(), "symlinked provider manifest rejected")
+	AssertError(t, err)
+	AssertNil(t, providers)
+	AssertContains(t, err.Error(), "symlinked provider manifest rejected")
 }
 
-func newDiscoveryUpstream(t *testing.T) string {
+func newDiscoveryUpstream(t *T) string {
 	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -173,10 +171,10 @@ func newDiscoveryUpstream(t *testing.T) string {
 	return upstream.URL
 }
 
-func writeProviderManifest(t *testing.T, dir, name, upstream string) string {
+func writeProviderManifest(t *T, dir, name, upstream string) string {
 	t.Helper()
 	path := filepath.Join(dir, name+".yaml")
-	require.NoError(t, os.WriteFile(path, []byte(`
+	RequireNoError(t, os.WriteFile(path, []byte(`
 name: `+name+`
 basePath: /api/`+name+`
 upstream: `+upstream+`

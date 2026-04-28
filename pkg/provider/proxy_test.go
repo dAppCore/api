@@ -10,10 +10,9 @@ import (
 	"os"
 	"testing"
 
+	. "dappco.re/go"
 	"dappco.re/go/api"
 	"dappco.re/go/api/pkg/provider"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -32,25 +31,25 @@ func TestMain(m *testing.M) {
 
 // -- ProxyProvider tests ------------------------------------------------------
 
-func TestProxyProvider_Name_Good(t *testing.T) {
+func TestProxyProvider_Name_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "cool-widget",
 		BasePath: "/api/v1/cool-widget",
 		Upstream: "http://127.0.0.1:9999",
 	})
-	assert.Equal(t, "cool-widget", p.Name())
+	AssertEqual(t, "cool-widget", p.Name())
 }
 
-func TestProxyProvider_BasePath_Good(t *testing.T) {
+func TestProxyProvider_BasePath_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "cool-widget",
 		BasePath: "/api/v1/cool-widget",
 		Upstream: "http://127.0.0.1:9999",
 	})
-	assert.Equal(t, "/api/v1/cool-widget", p.BasePath())
+	AssertEqual(t, "/api/v1/cool-widget", p.BasePath())
 }
 
-func TestProxyProvider_Element_Good(t *testing.T) {
+func TestProxyProvider_Element_Good(t *T) {
 	elem := provider.ElementSpec{
 		Tag:    "core-cool-widget",
 		Source: "/assets/cool-widget.js",
@@ -61,21 +60,21 @@ func TestProxyProvider_Element_Good(t *testing.T) {
 		Upstream: "http://127.0.0.1:9999",
 		Element:  elem,
 	})
-	assert.Equal(t, "core-cool-widget", p.Element().Tag)
-	assert.Equal(t, "/assets/cool-widget.js", p.Element().Source)
+	AssertEqual(t, "core-cool-widget", p.Element().Tag)
+	AssertEqual(t, "/assets/cool-widget.js", p.Element().Source)
 }
 
-func TestProxyProvider_SpecFile_Good(t *testing.T) {
+func TestProxyProvider_SpecFile_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "cool-widget",
 		BasePath: "/api/v1/cool-widget",
 		Upstream: "http://127.0.0.1:9999",
 		SpecFile: "/tmp/openapi.json",
 	})
-	assert.Equal(t, "/tmp/openapi.json", p.SpecFile())
+	AssertEqual(t, "/tmp/openapi.json", p.SpecFile())
 }
 
-func TestProxyProvider_Proxy_Good(t *testing.T) {
+func TestProxyProvider_Proxy_Good(t *T) {
 	// Start a test upstream server.
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
@@ -96,7 +95,7 @@ func TestProxyProvider_Proxy_Good(t *testing.T) {
 
 	// Mount on an api.Engine.
 	engine, err := api.New()
-	require.NoError(t, err)
+	RequireNoError(t, err)
 	engine.Register(p)
 
 	handler := engine.Handler()
@@ -106,18 +105,18 @@ func TestProxyProvider_Proxy_Good(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	AssertEqual(t, http.StatusOK, w.Code)
 
 	var body map[string]string
 	err = json.Unmarshal(w.Body.Bytes(), &body)
-	require.NoError(t, err)
+	RequireNoError(t, err)
 
 	// The upstream should see the path with base path stripped.
-	assert.Equal(t, "/items", body["path"])
-	assert.Equal(t, "GET", body["method"])
+	AssertEqual(t, "/items", body["path"])
+	AssertEqual(t, "GET", body["method"])
 }
 
-func TestProxyProvider_ProxyRoot_Good(t *testing.T) {
+func TestProxyProvider_ProxyRoot_Good(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{"path": r.URL.Path}
 		w.Header().Set("Content-Type", "application/json")
@@ -132,7 +131,7 @@ func TestProxyProvider_ProxyRoot_Good(t *testing.T) {
 	})
 
 	engine, err := api.New()
-	require.NoError(t, err)
+	RequireNoError(t, err)
 	engine.Register(p)
 
 	handler := engine.Handler()
@@ -142,15 +141,15 @@ func TestProxyProvider_ProxyRoot_Good(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	AssertEqual(t, http.StatusOK, w.Code)
 
 	var body map[string]string
 	err = json.Unmarshal(w.Body.Bytes(), &body)
-	require.NoError(t, err)
-	assert.Equal(t, "/", body["path"])
+	RequireNoError(t, err)
+	AssertEqual(t, "/", body["path"])
 }
 
-func TestProxyProvider_HealthPassthrough_Good(t *testing.T) {
+func TestProxyProvider_HealthPassthrough_Good(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			w.Header().Set("Content-Type", "application/json")
@@ -168,7 +167,7 @@ func TestProxyProvider_HealthPassthrough_Good(t *testing.T) {
 	})
 
 	engine, err := api.New()
-	require.NoError(t, err)
+	RequireNoError(t, err)
 	engine.Register(p)
 
 	handler := engine.Handler()
@@ -177,11 +176,11 @@ func TestProxyProvider_HealthPassthrough_Good(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), `"status":"ok"`)
+	AssertEqual(t, http.StatusOK, w.Code)
+	AssertContains(t, w.Body.String(), `"status":"ok"`)
 }
 
-func TestProxyProvider_Renderable_Good(t *testing.T) {
+func TestProxyProvider_Renderable_Good(t *T) {
 	// Verify ProxyProvider satisfies Renderable via the Registry.
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "renderable-proxy",
@@ -194,22 +193,22 @@ func TestProxyProvider_Renderable_Good(t *testing.T) {
 	reg.Add(p)
 
 	renderables := reg.Renderable()
-	require.Len(t, renderables, 1)
-	assert.Equal(t, "core-test-panel", renderables[0].Element().Tag)
+	AssertLen(t, renderables, 1)
+	AssertEqual(t, "core-test-panel", renderables[0].Element().Tag)
 }
 
-func TestProxyProvider_Ugly_InvalidUpstream(t *testing.T) {
+func TestProxyProvider_Ugly_InvalidUpstream(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "bad",
 		BasePath: "/api/v1/bad",
 		Upstream: "://not-a-url",
 	})
 
-	require.NotNil(t, p)
-	assert.Error(t, p.Err())
+	AssertNotNil(t, p)
+	AssertError(t, p.Err())
 
 	engine, err := api.New()
-	require.NoError(t, err)
+	RequireNoError(t, err)
 	engine.Register(p)
 
 	handler := engine.Handler()
@@ -218,18 +217,18 @@ func TestProxyProvider_Ugly_InvalidUpstream(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	AssertEqual(t, http.StatusInternalServerError, w.Code)
 
 	var body map[string]any
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	RequireNoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 
-	assert.Equal(t, false, body["success"])
+	AssertEqual(t, false, body["success"])
 	errObj, ok := body["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "invalid_provider_configuration", errObj["code"])
+	RequireTrue(t, ok)
+	AssertEqual(t, "invalid_provider_configuration", errObj["code"])
 }
 
-func TestProxyProvider_NewProxy_Good_PublicUpstream(t *testing.T) {
+func TestProxyProvider_NewProxy_Good_PublicUpstream(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
 
 	p := provider.NewProxy(provider.ProxyConfig{
@@ -238,29 +237,32 @@ func TestProxyProvider_NewProxy_Good_PublicUpstream(t *testing.T) {
 		Upstream: "http://1.1.1.1/x",
 	})
 
-	require.NotNil(t, p)
-	assert.NoError(t, p.Err())
+	AssertNotNil(t, p)
+	AssertNoError(t, p.Err())
 }
 
-func TestProxyProvider_NewProxy_Bad_BlocksMetadataIP(t *testing.T) {
+func TestProxyProvider_NewProxy_Bad_BlocksMetadataIP(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
 
-	assertProviderUpstreamBlocked(t, "http://169.254.169.254/x")
+	err := assertProviderUpstreamBlocked(t, "http://169.254.169.254/x")
+	AssertContains(t, err.Error(), "blocked")
 }
 
-func TestProxyProvider_NewProxy_Bad_BlocksLoopback(t *testing.T) {
+func TestProxyProvider_NewProxy_Bad_BlocksLoopback(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
 
-	assertProviderUpstreamBlocked(t, "http://127.0.0.1:5432/")
+	err := assertProviderUpstreamBlocked(t, "http://127.0.0.1:5432/")
+	AssertContains(t, err.Error(), "blocked")
 }
 
-func TestProxyProvider_NewProxy_Bad_BlocksRFC1918(t *testing.T) {
+func TestProxyProvider_NewProxy_Bad_BlocksRFC1918(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
 
-	assertProviderUpstreamBlocked(t, "http://10.0.0.1/x")
+	err := assertProviderUpstreamBlocked(t, "http://10.0.0.1/x")
+	AssertContains(t, err.Error(), "blocked")
 }
 
-func TestProxyProvider_NewProxy_Good_AllowListPermitsLoopback(t *testing.T) {
+func TestProxyProvider_NewProxy_Good_AllowListPermitsLoopback(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "127.0.0.0/8")
 
 	p := provider.NewProxy(provider.ProxyConfig{
@@ -269,23 +271,25 @@ func TestProxyProvider_NewProxy_Good_AllowListPermitsLoopback(t *testing.T) {
 		Upstream: "http://127.0.0.1:5432/",
 	})
 
-	require.NotNil(t, p)
-	assert.NoError(t, p.Err())
+	AssertNotNil(t, p)
+	AssertNoError(t, p.Err())
 }
 
-func TestProxyProvider_NewProxy_Bad_AllowListDoesNotPermitOtherPrivateCIDRs(t *testing.T) {
+func TestProxyProvider_NewProxy_Bad_AllowListDoesNotPermitOtherPrivateCIDRs(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "127.0.0.0/8")
 
-	assertProviderUpstreamBlocked(t, "http://10.0.0.1/")
+	err := assertProviderUpstreamBlocked(t, "http://10.0.0.1/")
+	AssertContains(t, err.Error(), "blocked")
 }
 
-func TestProxyProvider_NewProxy_Bad_BlocksHostnameResolvingToLoopback(t *testing.T) {
+func TestProxyProvider_NewProxy_Bad_BlocksHostnameResolvingToLoopback(t *T) {
 	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
 
-	assertProviderUpstreamBlocked(t, "http://localhost:5432/")
+	err := assertProviderUpstreamBlocked(t, "http://localhost:5432/")
+	AssertContains(t, err.Error(), "blocked")
 }
 
-func assertProviderUpstreamBlocked(t *testing.T, upstream string) {
+func assertProviderUpstreamBlocked(t *T, upstream string) error {
 	t.Helper()
 
 	p := provider.NewProxy(provider.ProxyConfig{
@@ -294,13 +298,14 @@ func assertProviderUpstreamBlocked(t *testing.T, upstream string) {
 		Upstream: upstream,
 	})
 
-	require.NotNil(t, p)
+	AssertNotNil(t, p)
 	err := p.Err()
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, provider.ErrProviderUpstreamBlocked), "expected ErrProviderUpstreamBlocked, got %v", err)
+	AssertError(t, err)
+	AssertTrue(t, errors.Is(err, provider.ErrProviderUpstreamBlocked), "expected ErrProviderUpstreamBlocked")
 
 	var blocked *provider.ProviderUpstreamBlockedError
-	require.True(t, errors.As(err, &blocked), "expected ProviderUpstreamBlockedError, got %T", err)
-	assert.Equal(t, upstream, blocked.Upstream)
-	assert.NotEmpty(t, blocked.Reason)
+	RequireTrue(t, errors.As(err, &blocked), "expected ProviderUpstreamBlockedError")
+	AssertEqual(t, upstream, blocked.Upstream)
+	AssertNotEmpty(t, blocked.Reason)
+	return err
 }

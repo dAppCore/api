@@ -5,6 +5,7 @@ package api
 import (
 	"bufio" // Note: AX-6 — SSE stream line scanning
 	"context"
+	"errors"
 	"io"       // Note: AX-6 — io.Reader contract
 	"net/http" // Note: AX-6 — HTTP transport boundary
 	"net/url"
@@ -326,7 +327,9 @@ func parseSSEStream(ctx context.Context, body io.Reader, out chan<- SSEEvent) {
 		}
 	}
 
-	_ = emit()
+	if !emit() {
+		return
+	}
 }
 
 func normaliseWebSocketClientURL(rawURL string) (string, error) {
@@ -461,7 +464,9 @@ func doHTTPClientRequest(client *http.Client, req *http.Request) (*http.Response
 	resp, err := requestClient.Do(req)
 	if err != nil {
 		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				return nil, errors.Join(err, closeErr)
+			}
 		}
 
 		return nil, err

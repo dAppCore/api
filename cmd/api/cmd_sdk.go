@@ -74,7 +74,9 @@ func sdkAction(opts core.Options) core.Result {
 		defer coreio.Local.Delete(tmpPath)
 
 		if err := goapi.ExportSpecIter(tmpFile, "json", builder, groups); err != nil {
-			_ = tmpFile.Close()
+			if closeErr := tmpFile.Close(); closeErr != nil {
+				return core.Fail(cli.Wrap(closeErr, "close temp spec file after generate spec failure"))
+			}
 			return core.Fail(cli.Wrap(err, "generate spec"))
 		}
 		if err := tmpFile.Close(); err != nil {
