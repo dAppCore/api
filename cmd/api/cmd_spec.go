@@ -32,7 +32,7 @@ func specAction(opts core.Options) core.Result {
 
 	builder, err := newSpecBuilder(cfg)
 	if err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 
 	bridge := specToolBridge(defaultSpecToolBridgePath)
@@ -40,16 +40,16 @@ func specAction(opts core.Options) core.Result {
 
 	if output != "" {
 		if err := goapi.ExportSpecToFileIter(output, format, builder, groups); err != nil {
-			return core.Result{Value: cli.Wrap(err, "write spec"), OK: false}
+			return core.Fail(cli.Wrap(err, "write spec"))
 		}
 		cli.Dim("Spec written to " + output)
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	}
 
 	if err := goapi.ExportSpecIter(os.Stdout, format, builder, groups); err != nil {
-		return core.Result{Value: cli.Wrap(err, "render spec"), OK: false}
+		return core.Fail(cli.Wrap(err, "render spec"))
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 func parseServers(raw string) []string {

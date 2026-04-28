@@ -42,7 +42,7 @@ func sdkAction(opts core.Options) core.Result {
 
 	languages := splitUniqueCSV(lang)
 	if len(languages) == 0 {
-		return core.Result{Value: cli.Err("--lang is required and must include at least one non-empty language"), OK: false}
+		return core.Fail(cli.Err("--lang is required and must include at least one non-empty language"))
 	}
 
 	gen := &goapi.SDKGenerator{
@@ -54,7 +54,7 @@ func sdkAction(opts core.Options) core.Result {
 		cli.Error("openapi-generator-cli not found. Install with:")
 		cli.Print("  brew install openapi-generator    (macOS)")
 		cli.Print("  npm install @openapitools/openapi-generator-cli -g")
-		return core.Result{Value: cli.Err("openapi-generator-cli not installed"), OK: false}
+		return core.Fail(cli.Err("openapi-generator-cli not installed"))
 	}
 
 	resolvedSpecFile := specFile
@@ -62,23 +62,23 @@ func sdkAction(opts core.Options) core.Result {
 		cfg := sdkConfigFromOptions(opts)
 		builder, err := sdkSpecBuilder(cfg)
 		if err != nil {
-			return core.Result{Value: err, OK: false}
+			return core.Fail(err)
 		}
 		groups := sdkSpecGroupsIter()
 
 		tmpFile, err := os.CreateTemp("", "openapi-*.json")
 		if err != nil {
-			return core.Result{Value: cli.Wrap(err, "create temp spec file"), OK: false}
+			return core.Fail(cli.Wrap(err, "create temp spec file"))
 		}
 		tmpPath := tmpFile.Name()
 		defer coreio.Local.Delete(tmpPath)
 
 		if err := goapi.ExportSpecIter(tmpFile, "json", builder, groups); err != nil {
 			_ = tmpFile.Close()
-			return core.Result{Value: cli.Wrap(err, "generate spec"), OK: false}
+			return core.Fail(cli.Wrap(err, "generate spec"))
 		}
 		if err := tmpFile.Close(); err != nil {
-			return core.Result{Value: cli.Wrap(err, "close temp spec file"), OK: false}
+			return core.Fail(cli.Wrap(err, "close temp spec file"))
 		}
 		resolvedSpecFile = tmpPath
 	}
@@ -88,12 +88,12 @@ func sdkAction(opts core.Options) core.Result {
 	for _, l := range languages {
 		cli.Dim("Generating " + l + " SDK...")
 		if err := gen.Generate(cli.Context(), l); err != nil {
-			return core.Result{Value: cli.Wrap(err, "generate "+l), OK: false}
+			return core.Fail(cli.Wrap(err, "generate "+l))
 		}
 		cli.Dim("  Done: " + output + "/" + l + "/")
 	}
 
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 func sdkSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
