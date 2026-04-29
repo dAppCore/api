@@ -3,11 +3,11 @@
 package api_test
 
 import (
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -236,7 +236,7 @@ func TestSwagger_Good_SpecNotEmpty(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
 		},
 	}, func(c *gin.Context) {

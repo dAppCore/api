@@ -5,7 +5,7 @@ package api
 import (
 	"bufio" // Note: AX-6 — SSE stream line scanning
 	"context"
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
 	"io"       // Note: AX-6 — io.Reader contract
 	"net/http" // Note: AX-6 — HTTP transport boundary
 	"net/url"

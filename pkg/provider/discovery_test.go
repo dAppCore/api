@@ -3,11 +3,11 @@
 package provider_test
 
 import (
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 
 	. "dappco.re/go"
 	"dappco.re/go/api"
@@ -17,7 +17,7 @@ import (
 func TestDiscover_Good_LoadsYAMLProxyProvider(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"path": r.URL.Path})
+		json.NewEncoder(w).Encode(map[string]string{`path`: r.URL.Path})
 	}))
 	defer upstream.Close()
 
@@ -66,7 +66,7 @@ element:
 	AssertEqual(t, http.StatusOK, w.Code)
 	var body map[string]string
 	RequireNoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	AssertEqual(t, "/ping", body["path"])
+	AssertEqual(t, "/ping", body[`path`])
 }
 
 func TestDiscover_Good_MissingDirIsEmpty(t *T) {

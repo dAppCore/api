@@ -3,8 +3,8 @@
 package api
 
 import (
+	"dappco.re/go/api/internal/stdcompat/os" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
 	"iter"
-	"os" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
 
 	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"

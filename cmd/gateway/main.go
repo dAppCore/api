@@ -4,13 +4,11 @@ package main
 
 import (
 	"context"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
 	"reflect"
-	"syscall"
 	"time"
 
 	core "dappco.re/go"
@@ -21,7 +19,6 @@ import (
 	process "dappco.re/go/process"
 	processapi "dappco.re/go/process/pkg/api"
 	proxy "dappco.re/go/proxy"
-	proxyapi "dappco.re/go/proxy/api"
 	"dappco.re/go/scm/marketplace"
 	scmapi "dappco.re/go/scm/pkg/api"
 	"dappco.re/go/scm/repos"
@@ -344,22 +341,13 @@ func displayBasePath(path string) string {
 }
 
 func forwardSignalsToCore(c *core.Core, logger *slog.Logger) func() {
-	signals := make(chan os.Signal, 1)
-	done := make(chan struct{})
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		select {
-		case sig := <-signals:
-			if logger != nil {
-				logger.Info("shutdown signal received", "signal", sig.String())
-			}
-			c.ServiceShutdown(context.Background())
-		case <-done:
-		}
-	}()
 	return func() {
-		signal.Stop(signals)
-		close(done)
+		if c != nil {
+			c.ServiceShutdown(context.Background())
+		}
+		if logger != nil {
+			logger.Debug("gateway signal bridge stopped")
+		}
 	}
 }
 
@@ -568,9 +556,11 @@ func (g minerRouteGroup) Describe() []coreapi.RouteDescription {
 type proxyRouteHandler struct {
 	path    string
 	handler func(http.ResponseWriter, *http.Request)
+	render  func() any
 }
 
 type proxyRouteGroup struct {
+	proxy    *proxy.Proxy
 	handlers []proxyRouteHandler
 }
 
@@ -594,7 +584,29 @@ func (g *proxyRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 		return
 	}
 	for _, route := range g.handlers {
-		rg.GET(route.path, gin.WrapF(route.handler))
+		route := route
+		if route.handler != nil {
+			rg.GET(route.path, gin.WrapF(route.handler))
+			continue
+		}
+		rg.GET(route.path, func(c *gin.Context) {
+			if g.proxy == nil || route.render == nil {
+				c.Status(http.StatusServiceUnavailable)
+				return
+			}
+			if status, ok := g.proxy.AllowMonitoringRequest(c.Request); !ok {
+				switch status {
+				case http.StatusMethodNotAllowed:
+					c.Header("Allow", http.MethodGet)
+				case http.StatusUnauthorized:
+					c.Header("WWW-Authenticate", "Bearer")
+				}
+				c.Status(status)
+				return
+			}
+			c.Header("Content-Type", "application/json")
+			c.String(http.StatusOK, core.JSONMarshalString(route.render())+"\n")
+		})
 	}
 }
 
@@ -627,8 +639,14 @@ func newProxyRouteGroup() coreapi.RouteGroup {
 	if !result.OK {
 		panic(result.Error)
 	}
-	group := &proxyRouteGroup{}
-	proxyapi.RegisterRoutes(group, instance)
+	group := &proxyRouteGroup{
+		proxy: instance,
+		handlers: []proxyRouteHandler{
+			{path: "/1/summary", render: func() any { return instance.SummaryDocument() }},
+			{path: "/1/workers", render: func() any { return instance.WorkersDocument() }},
+			{path: "/1/miners", render: func() any { return instance.MinersDocument() }},
+		},
+	}
 	if len(group.handlers) == 0 {
 		return nil
 	}

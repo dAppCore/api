@@ -3,9 +3,9 @@
 package api
 
 import (
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"iter"
-	"os"
 	"testing"
 
 	core "dappco.re/go"
@@ -41,9 +41,9 @@ func collectRouteGroups(groups iter.Seq[api.RouteGroup]) []api.RouteGroup {
 	return out
 }
 
-// TestCmdSpec_AddSpecCommand_Good verifies the spec command registers under
+// TestCmdSpecAddSpecCommandRegisters verifies the spec command registers under
 // the expected api/spec path with an executable Action.
-func TestCmdSpec_AddSpecCommand_Good(t *testing.T) {
+func TestCmdSpecAddSpecCommandRegisters(t *testing.T) {
 	c := core.New()
 	addSpecCommand(c)
 

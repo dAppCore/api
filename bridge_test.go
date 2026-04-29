@@ -3,11 +3,11 @@
 package api_test
 
 import (
-	"bytes"
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/bytes"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -254,7 +254,7 @@ func TestBridge_Good_Describe(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
 		},
 		OutputSchema: map[string]any{
@@ -355,23 +355,23 @@ func TestBridge_Good_ValidatesRequestBody(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
 		var payload map[string]any
 		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
 			t.Fatalf("handler could not read validated body: %v", err)
 		}
-		c.JSON(http.StatusOK, api.OK(payload["path"]))
+		c.JSON(http.StatusOK, api.OK(payload[`path`]))
 	})
 
 	rg := engine.Group(bridge.BasePath())
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(`{"path":"/tmp/file.txt"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("{\""+`path`+"\":\"/tmp/file.txt\"}"))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -399,12 +399,12 @@ func TestBridge_Good_ValidatesResponseBody(t *testing.T) {
 		OutputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
-		c.JSON(http.StatusOK, api.OK(map[string]any{"path": "/tmp/file.txt"}))
+		c.JSON(http.StatusOK, api.OK(map[string]any{`path`: "/tmp/file.txt"}))
 	})
 
 	rg := engine.Group(bridge.BasePath())
@@ -425,8 +425,8 @@ func TestBridge_Good_ValidatesResponseBody(t *testing.T) {
 	if !resp.Success {
 		t.Fatal("expected Success=true")
 	}
-	if resp.Data["path"] != "/tmp/file.txt" {
-		t.Fatalf("expected validated response data to reach client, got %v", resp.Data["path"])
+	if resp.Data[`path`] != "/tmp/file.txt" {
+		t.Fatalf("expected validated response data to reach client, got %v", resp.Data[`path`])
 	}
 }
 
@@ -442,12 +442,12 @@ func TestBridge_Bad_InvalidResponseBody(t *testing.T) {
 		OutputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
-		c.JSON(http.StatusOK, api.OK(map[string]any{"path": 123}))
+		c.JSON(http.StatusOK, api.OK(map[string]any{`path`: 123}))
 	})
 
 	rg := engine.Group(bridge.BasePath())
@@ -485,9 +485,9 @@ func TestBridge_Bad_InvalidRequestBody(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
 		c.JSON(http.StatusOK, api.OK("should not run"))
@@ -497,7 +497,7 @@ func TestBridge_Bad_InvalidRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(`{"path":123}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("{\""+`path`+"\":123}"))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -528,9 +528,9 @@ func TestBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
 		c.JSON(http.StatusOK, api.OK("should not run"))
@@ -568,9 +568,9 @@ func TestBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
 		c.JSON(http.StatusOK, api.OK("should not run"))
@@ -580,7 +580,7 @@ func TestBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(`{"path":`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("{\""+`path`+"\":"))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -608,9 +608,9 @@ func TestBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
-			"required": []any{"path"},
+			"required": []any{`path`},
 		},
 	}, func(c *gin.Context) {
 		c.JSON(http.StatusOK, api.OK("should not run"))
@@ -1020,7 +1020,7 @@ func TestBridge_Good_ListsRegisteredTools(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
 		},
 	}, func(c *gin.Context) {})

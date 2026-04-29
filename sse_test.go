@@ -5,10 +5,10 @@ package api_test
 import (
 	"bufio"
 	"context"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 	"time"

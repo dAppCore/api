@@ -3,9 +3,9 @@
 package api
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/os"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +16,9 @@ import (
 	api "dappco.re/go/api"
 )
 
-// TestCmdSdk_AddSDKCommand_Good verifies the sdk command registers under
+// TestCmdSdkAddSDKCommandRegisters verifies the sdk command registers under
 // the expected api/sdk path with an executable Action.
-func TestCmdSdk_AddSDKCommand_Good(t *testing.T) {
+func TestCmdSdkAddSDKCommandRegisters(t *testing.T) {
 	c := core.New()
 	addSDKCommand(c)
 

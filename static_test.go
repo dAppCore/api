@@ -3,10 +3,10 @@
 package api_test
 
 import (
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/gin-gonic/gin"

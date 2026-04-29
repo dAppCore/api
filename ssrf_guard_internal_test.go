@@ -3,16 +3,16 @@
 package api
 
 import (
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"net"
-	"strings"
 	"testing"
 )
 
-// TestSSRF_OutboundURL_BlocksMetadata_Ugly — Cerberus mechanism review
+// TestSSRFBlocksMetadata — Cerberus mechanism review
 // recommendation per Mantis #318. AWS/GCP/Azure metadata endpoints must be
 // rejected by literal-host match before DNS resolution.
-func TestSSRF_OutboundURL_BlocksMetadata_Ugly(t *testing.T) {
+func TestSSRFBlocksMetadata(t *testing.T) {
 	cases := []string{
 		"http://169.254.169.254/latest/meta-data/iam/security-credentials/",
 		"https://metadata.google.internal/computeMetadata/v1/instance/",
@@ -33,8 +33,8 @@ func TestSSRF_OutboundURL_BlocksMetadata_Ugly(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksLoopback_Ugly — localhost variants.
-func TestSSRF_OutboundURL_BlocksLoopback_Ugly(t *testing.T) {
+// TestSSRFBlocksLoopback — localhost variants.
+func TestSSRFBlocksLoopback(t *testing.T) {
 	cases := []string{
 		"http://127.0.0.1/",
 		"http://127.5.5.5/",
@@ -54,8 +54,8 @@ func TestSSRF_OutboundURL_BlocksLoopback_Ugly(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksRFC1918_Ugly — internal-network IP ranges.
-func TestSSRF_OutboundURL_BlocksRFC1918_Ugly(t *testing.T) {
+// TestSSRFBlocksRFC1918 — internal-network IP ranges.
+func TestSSRFBlocksRFC1918(t *testing.T) {
 	cases := []string{
 		"http://10.0.0.1/",
 		"http://10.255.255.255/",
@@ -79,8 +79,8 @@ func TestSSRF_OutboundURL_BlocksRFC1918_Ugly(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksDisallowedScheme_Bad — non-http(s) schemes.
-func TestSSRF_OutboundURL_BlocksDisallowedScheme_Bad(t *testing.T) {
+// TestSSRFBlocksDisallowedScheme — non-http(s) schemes.
+func TestSSRFBlocksDisallowedScheme(t *testing.T) {
 	cases := []string{
 		"file:///etc/passwd",
 		"gopher://evil.example.com/_command",
@@ -102,9 +102,9 @@ func TestSSRF_OutboundURL_BlocksDisallowedScheme_Bad(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksEmbeddedCredentials_Bad — URL userinfo can leak
+// TestSSRFBlocksEmbeddedCredentials — URL userinfo can leak
 // into logs/proxies and is rejected at the outbound boundary.
-func TestSSRF_OutboundURL_BlocksEmbeddedCredentials_Bad(t *testing.T) {
+func TestSSRFBlocksEmbeddedCredentials(t *testing.T) {
 	badCases := []string{
 		"https://user:pass@example.com/path",
 		"https://user@example.com/path",
@@ -135,9 +135,9 @@ func TestSSRF_OutboundURL_BlocksEmbeddedCredentials_Bad(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_AllowsHTTPS_Good — sanity that public HTTPS still works.
+// TestSSRFAllowsHTTPS — sanity that public HTTPS still works.
 // We override resolveHost to return a public IP so we don't depend on real DNS.
-func TestSSRF_OutboundURL_AllowsHTTPS_Good(t *testing.T) {
+func TestSSRFAllowsHTTPS(t *testing.T) {
 	prev := resolveHost
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {
@@ -159,10 +159,10 @@ func TestSSRF_OutboundURL_AllowsHTTPS_Good(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksDNSResolveToPrivate_Ugly — DNS-rebinding-style:
+// TestSSRFBlocksDNSResolveToPrivate — DNS-rebinding-style:
 // a public-looking hostname that resolves to an RFC1918 IP must still be
 // blocked by the post-resolution check.
-func TestSSRF_OutboundURL_BlocksDNSResolveToPrivate_Ugly(t *testing.T) {
+func TestSSRFBlocksDNSResolveToPrivate(t *testing.T) {
 	prev := resolveHost
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {
@@ -182,8 +182,8 @@ func TestSSRF_OutboundURL_BlocksDNSResolveToPrivate_Ugly(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_EmptyURL_Bad — defensive case.
-func TestSSRF_OutboundURL_EmptyURL_Bad(t *testing.T) {
+// TestSSRFEmptyURL — defensive case.
+func TestSSRFEmptyURL(t *testing.T) {
 	err := validateOutboundURL("")
 	if err == nil {
 		t.Fatal("expected empty-URL block; got nil")
@@ -193,9 +193,9 @@ func TestSSRF_OutboundURL_EmptyURL_Bad(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksResolverFailure_Bad — DNS resolution failure must
+// TestSSRFBlocksResolverFailure — DNS resolution failure must
 // fail closed so split-resolver mismatches cannot bypass the IP blocklist.
-func TestSSRF_OutboundURL_BlocksResolverFailure_Bad(t *testing.T) {
+func TestSSRFBlocksResolverFailure(t *testing.T) {
 	prev := resolveHost
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {
@@ -214,9 +214,9 @@ func TestSSRF_OutboundURL_BlocksResolverFailure_Bad(t *testing.T) {
 	}
 }
 
-// TestSSRF_OutboundURL_BlocksEmptyResolverResult_Bad — an empty DNS answer is
+// TestSSRFBlocksEmptyResolverResult — an empty DNS answer is
 // equivalent to no usable IP for SSRF validation and must fail closed.
-func TestSSRF_OutboundURL_BlocksEmptyResolverResult_Bad(t *testing.T) {
+func TestSSRFBlocksEmptyResolverResult(t *testing.T) {
 	prev := resolveHost
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {

@@ -4,7 +4,7 @@ package api
 
 import (
 	// Note: AX-6 — byte-slice JSON whitespace checks have no core byte-trim primitive.
-	"bytes"
+	"dappco.re/go/api/internal/stdcompat/bytes"
 	// Note: AX-6 — io.Reader API and HTTP body reads are structural stream boundaries.
 	"io"
 	// Note: AX-6 — iter.Seq is the public lazy iteration shape for operation/server snapshots.
@@ -285,7 +285,7 @@ func (c *OpenAPIClient) ServersIter() (iter.Seq[string], error) {
 // Call invokes the operation with the given operationId.
 //
 // The params argument may be a map, struct, or nil. For convenience, a map may
-// include "path", "query", "header", "cookie", and "body" keys to explicitly
+// include `path`, "query", "header", "cookie", and "body" keys to explicitly
 // control where the values are sent. When no explicit body is provided,
 // requests with a declared requestBody send the remaining parameters as JSON.
 //
@@ -513,7 +513,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	path := op.pathTemplate
 	pathKeys := pathParameterNames(path)
 	pathValues := map[string]any{}
-	if explicitPath, ok := nestedMap(params, "path"); ok {
+	if explicitPath, ok := nestedMap(params, `path`); ok {
 		pathValues = explicitPath
 	} else {
 		pathValues = params
@@ -549,7 +549,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 		}
 	}
 	for key, value := range params {
-		if key == "path" || key == "body" || key == "query" || key == "header" || key == "cookie" {
+		if key == `path` || key == "body" || key == "query" || key == "header" || key == "cookie" {
 			continue
 		}
 		if containsString(pathKeys, key) {
@@ -595,7 +595,7 @@ func (c *OpenAPIClient) buildBody(op openAPIOperation, params map[string]any) ([
 
 	payload := make(map[string]any, len(params))
 	for key, value := range params {
-		if key == "path" || key == "query" || key == "body" || key == "header" || key == "cookie" {
+		if key == `path` || key == "query" || key == "body" || key == "header" || key == "cookie" {
 			continue
 		}
 		if containsString(pathKeys, key) {
@@ -634,7 +634,7 @@ func applyRequestParameters(req *http.Request, op openAPIOperation, params map[s
 
 func applyTopLevelHeaderParameters(headers http.Header, op openAPIOperation, params, explicit map[string]any, hasExplicit bool) {
 	for key, value := range params {
-		if key == "path" || key == "query" || key == "body" || key == "header" || key == "cookie" {
+		if key == `path` || key == "query" || key == "body" || key == "header" || key == "cookie" {
 			continue
 		}
 		if operationParameterLocation(op, key) != "header" {
@@ -651,7 +651,7 @@ func applyTopLevelHeaderParameters(headers http.Header, op openAPIOperation, par
 
 func applyTopLevelCookieParameters(req *http.Request, op openAPIOperation, params, explicit map[string]any, hasExplicit bool) {
 	for key, value := range params {
-		if key == "path" || key == "query" || key == "body" || key == "header" || key == "cookie" {
+		if key == `path` || key == "query" || key == "body" || key == "header" || key == "cookie" {
 			continue
 		}
 		if operationParameterLocation(op, key) != "cookie" {

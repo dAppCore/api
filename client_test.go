@@ -4,16 +4,16 @@ package api_test
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"dappco.re/go/api/internal/stdcompat/errors"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/fmt"
+	"dappco.re/go/api/internal/stdcompat/os"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"slices"
@@ -160,7 +160,7 @@ paths:
 	}
 
 	result, err = client.Call("update_user", map[string]any{
-		"path": map[string]any{
+		`path`: map[string]any{
 			"id": "123",
 		},
 		"query": map[string]any{
@@ -772,7 +772,7 @@ paths:
 	)
 
 	if _, err := client.Call("get_user", map[string]any{
-		"path": map[string]any{
+		`path`: map[string]any{
 			"id": "abc",
 		},
 	}); err == nil {

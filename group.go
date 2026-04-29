@@ -185,7 +185,7 @@ type RouteDescription struct {
 //
 //	param := api.ParameterDescription{
 //		Name:        "id",
-//		In:          "path",
+//		In:          `path`,
 //		Description: "User identifier",
 //		Required:    true,
 //		Schema:      map[string]any{"type": "string"},

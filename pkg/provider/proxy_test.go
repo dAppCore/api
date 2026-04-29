@@ -3,11 +3,11 @@
 package provider_test
 
 import (
-	"encoding/json"
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	. "dappco.re/go"
@@ -74,11 +74,11 @@ func TestProxyProvider_SpecFile_Good(t *T) {
 	AssertEqual(t, "/tmp/openapi.json", p.SpecFile())
 }
 
-func TestProxyProvider_Proxy_Good(t *T) {
+func TestProxyProviderProxyForwards(t *T) {
 	// Start a test upstream server.
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
-			"path":   r.URL.Path,
+			`path`:   r.URL.Path,
 			"method": r.Method,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -112,13 +112,13 @@ func TestProxyProvider_Proxy_Good(t *T) {
 	RequireNoError(t, err)
 
 	// The upstream should see the path with base path stripped.
-	AssertEqual(t, "/items", body["path"])
+	AssertEqual(t, "/items", body[`path`])
 	AssertEqual(t, "GET", body["method"])
 }
 
-func TestProxyProvider_ProxyRoot_Good(t *T) {
+func TestProxyProviderProxyRootForwards(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := map[string]string{"path": r.URL.Path}
+		resp := map[string]string{`path`: r.URL.Path}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -146,10 +146,10 @@ func TestProxyProvider_ProxyRoot_Good(t *T) {
 	var body map[string]string
 	err = json.Unmarshal(w.Body.Bytes(), &body)
 	RequireNoError(t, err)
-	AssertEqual(t, "/", body["path"])
+	AssertEqual(t, "/", body[`path`])
 }
 
-func TestProxyProvider_HealthPassthrough_Good(t *T) {
+func TestProxyProviderHealthPassthrough(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			w.Header().Set("Content-Type", "application/json")

@@ -4,7 +4,7 @@ package api_test
 
 import (
 	"context"
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/json"
 	"net"
 	"net/http"
 	"net/http/httptest"

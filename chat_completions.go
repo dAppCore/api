@@ -425,7 +425,7 @@ func modelMappingValue(raw any) (string, bool) {
 		trimmed := core.Trim(value)
 		return trimmed, trimmed != ""
 	case map[string]any:
-		path, ok := value["path"].(string)
+		path, ok := value[`path`].(string)
 		if !ok {
 			return "", false
 		}

@@ -3,7 +3,7 @@
 package api
 
 import (
-	"os" // Note: AX-6 — os.Stdout has no core equivalent for command output.
+	"dappco.re/go/api/internal/stdcompat/os" // Note: AX-6 — os.Stdout has no core equivalent for command output.
 
 	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"

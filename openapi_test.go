@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/json"
 	"iter"
 	"net/http"
 	"testing"
@@ -1663,7 +1663,7 @@ func TestSpecBuilder_Good_DeepClonesRouteMetadata(t *testing.T) {
 				Parameters: []api.ParameterDescription{
 					{
 						Name: "id",
-						In:   "path",
+						In:   `path`,
 						Schema: map[string]any{
 							"type": "string",
 						},
@@ -2530,7 +2530,7 @@ func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 	if first["name"] != "id" {
 		t.Fatalf("expected first parameter name=id, got %v", first["name"])
 	}
-	if first["in"] != "path" {
+	if first["in"] != `path` {
 		t.Fatalf("expected first parameter in=path, got %v", first["in"])
 	}
 	if required, ok := first["required"].(bool); !ok || !required {
@@ -2635,7 +2635,7 @@ func TestSpecBuilder_Good_GinPathParameters(t *testing.T) {
 	if len(fileParams) != 1 {
 		t.Fatalf("expected 1 parameter for wildcard path, got %d", len(fileParams))
 	}
-	if fileParams[0].(map[string]any)["name"] != "path" {
+	if fileParams[0].(map[string]any)["name"] != `path` {
 		t.Fatalf("expected wildcard parameter name=path, got %v", fileParams[0])
 	}
 }
@@ -2657,7 +2657,7 @@ func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
 				Parameters: []api.ParameterDescription{
 					{
 						Name:        "id",
-						In:          "path",
+						In:          `path`,
 						Description: "User identifier",
 						Schema: map[string]any{
 							"type": "string",
@@ -2702,7 +2702,7 @@ func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
 	if pathParam["name"] != "id" {
 		t.Fatalf("expected path parameter name=id, got %v", pathParam["name"])
 	}
-	if pathParam["in"] != "path" {
+	if pathParam["in"] != `path` {
 		t.Fatalf("expected path parameter in=path, got %v", pathParam["in"])
 	}
 	if pathParam["description"] != "User identifier" {
@@ -3220,7 +3220,7 @@ func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
 		},
 		OutputSchema: map[string]any{

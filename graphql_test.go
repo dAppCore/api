@@ -4,10 +4,10 @@ package api_test
 
 import (
 	"context"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/99designs/gqlgen/graphql"

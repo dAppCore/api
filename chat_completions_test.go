@@ -3,10 +3,10 @@
 package api_test
 
 import (
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -120,8 +120,8 @@ func TestChatCompletions_WithChatCompletionsPath_Good(t *testing.T) {
 	}
 }
 
-// TestChatCompletions_ValidateRequest_Bad verifies that missing messages produces a 400.
-func TestChatCompletions_ValidateRequest_Bad(t *testing.T) {
+// TestChatCompletionsValidateRequestBadPayload verifies that missing messages produces a 400.
+func TestChatCompletionsValidateRequestBadPayload(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	resolver := api.NewModelResolver()
@@ -172,9 +172,9 @@ func TestChatCompletions_ValidateRequest_Bad(t *testing.T) {
 	}
 }
 
-// TestChatCompletions_NoResolver_Ugly verifies graceful handling when an engine
+// TestChatCompletionsNoResolverNotMounted verifies graceful handling when an engine
 // is constructed WITHOUT a resolver — no route is mounted.
-func TestChatCompletions_NoResolver_Ugly(t *testing.T) {
+func TestChatCompletionsNoResolverNotMounted(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	engine, _ := api.New()

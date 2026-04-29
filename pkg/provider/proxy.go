@@ -3,12 +3,12 @@
 package provider
 
 import (
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url" // Note: AX-6 — net/url url.URL fields are structural for reverse-proxy URL rewriting.
-	"os"
 	"strconv"
 
 	core "dappco.re/go"

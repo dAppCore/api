@@ -4,14 +4,14 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/fmt"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/os"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"iter"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	inference "dappco.re/go/inference"

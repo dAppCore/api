@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
 	"net"
 	"net/http"
 

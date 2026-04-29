@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	"bytes"
+	"dappco.re/go/api/internal/stdcompat/bytes"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +40,7 @@ func TestWithSlog_Good_LogsRequestFields(t *testing.T) {
 	}
 
 	// The structured log should contain request fields.
-	for _, field := range []string{"status", "method", "path", "latency", "ip"} {
+	for _, field := range []string{"status", "method", `path`, "latency", "ip"} {
 		if !bytes.Contains(buf.Bytes(), []byte(field)) {
 			t.Errorf("expected log output to contain field %q, got: %s", field, output)
 		}

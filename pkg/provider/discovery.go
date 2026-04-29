@@ -3,8 +3,8 @@
 package provider
 
 import (
-	"os"
-	"path/filepath"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/os"
 	"slices"
 
 	core "dappco.re/go"

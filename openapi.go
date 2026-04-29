@@ -2194,7 +2194,7 @@ func pathParameters(path string) []map[string]any {
 		seen[name] = true
 		params = append(params, map[string]any{
 			"name":     name,
-			"in":       "path",
+			"in":       `path`,
 			"required": true,
 			"schema": map[string]any{
 				"type": "string",
@@ -2237,7 +2237,7 @@ func operationParameters(params []ParameterDescription) []map[string]any {
 		entry := map[string]any{
 			"name":     param.Name,
 			"in":       param.In,
-			"required": param.Required || param.In == "path",
+			"required": param.Required || param.In == `path`,
 		}
 		if param.Description != "" {
 			entry["description"] = param.Description
@@ -2247,7 +2247,7 @@ func operationParameters(params []ParameterDescription) []map[string]any {
 		}
 		if len(param.Schema) > 0 {
 			entry["schema"] = param.Schema
-		} else if param.In == "path" || param.In == "query" || param.In == "header" || param.In == "cookie" {
+		} else if param.In == `path` || param.In == "query" || param.In == "header" || param.In == "cookie" {
 			entry["schema"] = map[string]any{"type": "string"}
 		}
 		if param.Example != nil {

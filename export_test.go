@@ -3,13 +3,13 @@
 package api_test
 
 import (
-	"bytes"
-	"encoding/json"
+	"dappco.re/go/api/internal/stdcompat/bytes"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/os"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"iter"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -179,7 +179,7 @@ func TestExportSpec_Good_WithToolBridge(t *testing.T) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{"type": "string"},
+				`path`: map[string]any{"type": "string"},
 			},
 		},
 	}, func(c *gin.Context) {

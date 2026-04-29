@@ -4,10 +4,10 @@ package api_test
 
 import (
 	"context"
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"

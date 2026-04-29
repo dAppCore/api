@@ -4,10 +4,10 @@ package api_test
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"dappco.re/go/api/internal/stdcompat/filepath"
+	"dappco.re/go/api/internal/stdcompat/os"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"slices"
-	"strings"
 	"testing"
 
 	api "dappco.re/go/api"

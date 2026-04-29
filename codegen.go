@@ -8,9 +8,9 @@ import (
 	"iter"
 	"maps"
 	// Note: AX-6 - retained for inheriting stdout/stderr when invoking the SDK generator; filesystem checks below use core.Fs.
-	"os"
+	"dappco.re/go/api/internal/stdcompat/os"
 	// Note: AX-6 - retained for the subprocess boundary because SDKGenerator has no Core instance with registered process.run.
-	"os/exec"
+	"dappco.re/go/api/internal/stdcompat/exec"
 	// Note: AX-6 - compiled regexp anchors PackageName validation for command-argument safety.
 	"regexp"
 	"slices"

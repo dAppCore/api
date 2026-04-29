@@ -3,14 +3,14 @@
 package api_test
 
 import (
-	"encoding/json"
-	"fmt"
+	"dappco.re/go/api/internal/stdcompat/fmt"
+	"dappco.re/go/api/internal/stdcompat/json"
+	"dappco.re/go/api/internal/stdcompat/os"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"strings"
 	"testing"
 
 	api "dappco.re/go/api"

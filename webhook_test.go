@@ -3,13 +3,13 @@
 package api
 
 import (
-	"errors"
+	"dappco.re/go/api/internal/stdcompat/errors"
+	"dappco.re/go/api/internal/stdcompat/strings"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
