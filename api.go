@@ -94,7 +94,10 @@ type Engine struct {
 //	if err != nil {
 //		panic(err)
 //	}
-func New(opts ...Option) (*Engine, error) {
+func New(opts ...Option) (
+	*Engine,
+	error,
+) {
 	e := &Engine{
 		addr: defaultAddr,
 	}
@@ -237,7 +240,9 @@ func (e *Engine) Handler() http.Handler {
 //	ctx, cancel := context.WithCancel(context.Background())
 //	defer cancel()
 //	_ = engine.Serve(ctx)
-func (e *Engine) Serve(ctx context.Context) error {
+func (e *Engine) Serve(ctx context.Context) (
+	_ error,
+) {
 	srv := &http.Server{
 		Addr:              e.addr,
 		Handler:           e.build(),

@@ -407,7 +407,9 @@ func newToolInputValidator(schema map[string]any) *toolInputValidator {
 	return &toolInputValidator{schema: schema}
 }
 
-func (v *toolInputValidator) Validate(body []byte) error {
+func (v *toolInputValidator) Validate(body []byte) (
+	_ error,
+) {
 	if core.Trim(string(body)) == "" {
 		return core.E("ToolBridge.Validate", "request body is required", nil)
 	}
@@ -420,7 +422,9 @@ func (v *toolInputValidator) Validate(body []byte) error {
 	return validateSchemaNode(payload, v.schema, "")
 }
 
-func (v *toolInputValidator) ValidateResponse(body []byte) error {
+func (v *toolInputValidator) ValidateResponse(body []byte) (
+	_ error,
+) {
 	if len(v.schema) == 0 {
 		return nil
 	}
@@ -460,7 +464,9 @@ func (v *toolInputValidator) ValidateResponse(body []byte) error {
 	return validateSchemaNode(payload, v.schema, "")
 }
 
-func validateSchemaNode(value any, schema map[string]any, path string) error {
+func validateSchemaNode(value any, schema map[string]any, path string) (
+	_ error,
+) {
 	if len(schema) == 0 {
 		return nil
 	}
@@ -575,7 +581,9 @@ func validateSchemaNode(value any, schema map[string]any, path string) error {
 	return nil
 }
 
-func validateSchemaCombinators(value any, schema map[string]any, path string) error {
+func validateSchemaCombinators(value any, schema map[string]any, path string) (
+	_ error,
+) {
 	if subschemas := schemaObjects(schema["allOf"]); len(subschemas) > 0 {
 		for _, subschema := range subschemas {
 			if err := validateSchemaNode(value, subschema, path); err != nil {
@@ -618,7 +626,9 @@ anyOfMatched:
 	return nil
 }
 
-func validateStringConstraints(value string, schema map[string]any, path string) error {
+func validateStringConstraints(value string, schema map[string]any, path string) (
+	_ error,
+) {
 	length := core.RuneCount(value)
 	if minLength, ok := schemaInt(schema["minLength"]); ok && length < minLength {
 		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be at least %d characters long", displayPath(path), minLength), nil)
@@ -638,7 +648,9 @@ func validateStringConstraints(value string, schema map[string]any, path string)
 	return nil
 }
 
-func validateNumericConstraints(value any, schema map[string]any, path string) error {
+func validateNumericConstraints(value any, schema map[string]any, path string) (
+	_ error,
+) {
 	if minimum, ok := schemaFloat(schema["minimum"]); ok && numericLessThan(value, minimum) {
 		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be greater than or equal to %v", displayPath(path), minimum), nil)
 	}
@@ -648,7 +660,9 @@ func validateNumericConstraints(value any, schema map[string]any, path string) e
 	return nil
 }
 
-func validateArrayConstraints(value []any, schema map[string]any, path string) error {
+func validateArrayConstraints(value []any, schema map[string]any, path string) (
+	_ error,
+) {
 	if minItems, ok := schemaInt(schema["minItems"]); ok && len(value) < minItems {
 		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must contain at least %d items", displayPath(path), minItems), nil)
 	}
@@ -658,7 +672,9 @@ func validateArrayConstraints(value []any, schema map[string]any, path string) e
 	return nil
 }
 
-func validateObjectConstraints(value map[string]any, schema map[string]any, path string) error {
+func validateObjectConstraints(value map[string]any, schema map[string]any, path string) (
+	_ error,
+) {
 	if minProps, ok := schemaInt(schema["minProperties"]); ok && len(value) < minProps {
 		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must contain at least %d properties", displayPath(path), minProps), nil)
 	}
@@ -799,7 +815,10 @@ func (w *toolResponseRecorder) WriteHeaderNow() {
 	w.wroteHeader = true
 }
 
-func (w *toolResponseRecorder) Write(data []byte) (int, error) {
+func (w *toolResponseRecorder) Write(data []byte) (
+	int,
+	error,
+) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
@@ -807,7 +826,10 @@ func (w *toolResponseRecorder) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (w *toolResponseRecorder) WriteString(s string) (int, error) {
+func (w *toolResponseRecorder) WriteString(s string) (
+	int,
+	error,
+) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
@@ -833,7 +855,11 @@ func (w *toolResponseRecorder) Written() bool {
 	return w.wroteHeader
 }
 
-func (w *toolResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *toolResponseRecorder) Hijack() (
+	net.Conn,
+	*bufio.ReadWriter,
+	error,
+) {
 	return nil, nil, core.E("ToolBridge.ResponseRecorder", "response hijacking is not supported by ToolBridge output validation", nil)
 }
 
@@ -880,7 +906,9 @@ func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]
 	w.commit()
 }
 
-func typeError(path, want string, value any) error {
+func typeError(path, want string, value any) (
+	_ error,
+) {
 	return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be %s, got %s", displayPath(path), want, describeJSONValue(value)), nil)
 }
 
@@ -1050,7 +1078,10 @@ func numericValue(value any) (float64, bool) {
 	}
 }
 
-func compiledPattern(pattern string) (*regexp.Regexp, error) {
+func compiledPattern(pattern string) (
+	*regexp.Regexp,
+	error,
+) {
 	if cached, ok := regexPatternCache.Load(pattern); ok {
 		return cached.(*regexp.Regexp), nil
 	}

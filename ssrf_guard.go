@@ -68,7 +68,9 @@ var resolveHost = net.LookupIP
 //
 // Pass empty rawURL is rejected. Caller should never call client.Do with
 // an unvalidated URL.
-func validateOutboundURL(rawURL string) error {
+func validateOutboundURL(rawURL string) (
+	_ error,
+) {
 	if rawURL == "" {
 		return wrapBlocked("empty URL")
 	}
@@ -143,7 +145,9 @@ func blockedIPReason(ip net.IP) string {
 
 // wrapBlocked formats a rejection reason as an error wrapping errOutboundURLBlocked
 // so callers can errors.Is(err, errOutboundURLBlocked) on the rejection class.
-func wrapBlocked(reason string) error {
+func wrapBlocked(reason string) (
+	_ error,
+) {
 	return blockedURLError{reason: reason}
 }
 

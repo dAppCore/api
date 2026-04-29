@@ -40,7 +40,10 @@ type TransformerOut[I, O any] interface {
 type TransformerInFunc[I, O any] func(*gin.Context, I) (O, error)
 
 // TransformIn runs f.
-func (f TransformerInFunc[I, O]) TransformIn(c *gin.Context, in I) (O, error) {
+func (f TransformerInFunc[I, O]) TransformIn(c *gin.Context, in I) (
+	O,
+	error,
+) {
 	return f(c, in)
 }
 
@@ -48,7 +51,10 @@ func (f TransformerInFunc[I, O]) TransformIn(c *gin.Context, in I) (O, error) {
 type TransformerOutFunc[I, O any] func(*gin.Context, I) (O, error)
 
 // TransformOut runs f.
-func (f TransformerOutFunc[I, O]) TransformOut(c *gin.Context, in I) (O, error) {
+func (f TransformerOutFunc[I, O]) TransformOut(c *gin.Context, in I) (
+	O,
+	error,
+) {
 	return f(c, in)
 }
 
@@ -69,12 +75,18 @@ func RenameFields(fields map[string]string) FieldRenamer {
 }
 
 // TransformIn renames inbound request fields.
-func (r FieldRenamer) TransformIn(_ *gin.Context, payload map[string]any) (map[string]any, error) {
+func (r FieldRenamer) TransformIn(_ *gin.Context, payload map[string]any) (
+	map[string]any,
+	error,
+) {
 	return r.rename(payload), nil
 }
 
 // TransformOut renames outbound response fields.
-func (r FieldRenamer) TransformOut(_ *gin.Context, payload map[string]any) (map[string]any, error) {
+func (r FieldRenamer) TransformOut(_ *gin.Context, payload map[string]any) (
+	map[string]any,
+	error,
+) {
 	return r.rename(payload), nil
 }
 
@@ -121,7 +133,10 @@ type compiledTransformer struct {
 	withContext bool
 }
 
-func compileTransformerPipeline(direction string, raw any) ([]compiledTransformer, error) {
+func compileTransformerPipeline(direction string, raw any) (
+	[]compiledTransformer,
+	error,
+) {
 	if isNilValue(raw) {
 		return nil, nil
 	}
@@ -155,7 +170,10 @@ func compileTransformerPipeline(direction string, raw any) ([]compiledTransforme
 	}
 }
 
-func compileTransformer(direction string, raw any) (compiledTransformer, error) {
+func compileTransformer(direction string, raw any) (
+	compiledTransformer,
+	error,
+) {
 	methodName := transformerMethodName(direction)
 	method := reflect.ValueOf(raw).MethodByName(methodName)
 	if !method.IsValid() {
@@ -199,7 +217,10 @@ func transformerMethodName(direction string) string {
 	return "TransformIn"
 }
 
-func (t compiledTransformer) transform(c *gin.Context, payload []byte) ([]byte, error) {
+func (t compiledTransformer) transform(c *gin.Context, payload []byte) (
+	[]byte,
+	error,
+) {
 	input, err := decodeTransformerInput(payload, t.inputType)
 	if err != nil {
 		return nil, err
@@ -218,7 +239,10 @@ func (t compiledTransformer) transform(c *gin.Context, payload []byte) ([]byte, 
 	return encodeTransformerOutput(out[0])
 }
 
-func decodeTransformerInput(payload []byte, inputType reflect.Type) (reflect.Value, error) {
+func decodeTransformerInput(payload []byte, inputType reflect.Type) (
+	reflect.Value,
+	error,
+) {
 	if inputType.Kind() == reflect.Pointer {
 		target := reflect.New(inputType.Elem())
 		if err := unmarshalTransformerPayload(payload, target.Interface()); err != nil {
@@ -234,7 +258,9 @@ func decodeTransformerInput(payload []byte, inputType reflect.Type) (reflect.Val
 	return target.Elem(), nil
 }
 
-func unmarshalTransformerPayload(payload []byte, target any) error {
+func unmarshalTransformerPayload(payload []byte, target any) (
+	_ error,
+) {
 	result := core.JSONUnmarshal(payload, target)
 	if result.OK {
 		return nil
@@ -245,7 +271,10 @@ func unmarshalTransformerPayload(payload []byte, target any) error {
 	return core.E("Transformer.Decode", "decode payload", nil)
 }
 
-func encodeTransformerOutput(value reflect.Value) ([]byte, error) {
+func encodeTransformerOutput(value reflect.Value) (
+	[]byte,
+	error,
+) {
 	var payload any
 	if value.IsValid() {
 		payload = value.Interface()
@@ -266,7 +295,10 @@ func encodeTransformerOutput(value reflect.Value) ([]byte, error) {
 	return data, nil
 }
 
-func runTransformerPipeline(c *gin.Context, payload []byte, pipeline []compiledTransformer) ([]byte, error) {
+func runTransformerPipeline(c *gin.Context, payload []byte, pipeline []compiledTransformer) (
+	[]byte,
+	error,
+) {
 	var err error
 	for _, transformer := range pipeline {
 		payload, err = transformer.transform(c, payload)

@@ -3,7 +3,7 @@
 package api
 
 import (
-	"dappco.re/go/api/internal/stdcompat/os" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
+	os "dappco.re/go/api/internal/stdcompat/coreos" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
 	"iter"
 
 	core "dappco.re/go"
@@ -98,7 +98,10 @@ func sdkAction(opts core.Options) core.Result {
 	return core.Ok(nil)
 }
 
-func sdkSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
+func sdkSpecBuilder(cfg specBuilderConfig) (
+	*goapi.SpecBuilder,
+	error,
+) {
 	return newSpecBuilder(cfg)
 }
 

@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	"dappco.re/go/api/internal/stdcompat/errors"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
 	"net"
 	"net/http"
 
@@ -33,7 +33,9 @@ var (
 // ServeH3 is intentionally separate from Serve so callers can run the QUIC
 // listener alongside their existing HTTP/1.1+2 server with an explicit TLS
 // configuration.
-func (e *Engine) ServeH3(ctx context.Context, tlsConfig *tls.Config) error {
+func (e *Engine) ServeH3(ctx context.Context, tlsConfig *tls.Config) (
+	_ error,
+) {
 	if e == nil || !e.http3Enabled {
 		return ErrHTTP3NotConfigured
 	}

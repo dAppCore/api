@@ -69,7 +69,10 @@ func NewEntitlementBridge(cfg EntitlementBridgeConfig) *EntitlementBridge {
 // Check returns whether feature is allowed for the current workspace. A blank
 // workspaceID uses the current-workspace PHP route, resolved from forwarded
 // request auth/session headers.
-func (b *EntitlementBridge) Check(ctx context.Context, workspaceID, feature string, headers http.Header) (bool, error) {
+func (b *EntitlementBridge) Check(ctx context.Context, workspaceID, feature string, headers http.Header) (
+	bool,
+	error,
+) {
 	const op = "EntitlementBridge.Check"
 
 	if b == nil {

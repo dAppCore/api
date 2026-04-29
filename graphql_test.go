@@ -4,7 +4,7 @@ package api_test
 
 import (
 	"context"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"io"
 	"net/http"
 	"net/http/httptest"

@@ -106,7 +106,10 @@ var oidcProviders = make(map[string]*oidc.Provider)
 
 // getOIDCProvider returns a cached OIDC provider for the given issuer,
 // performing discovery on first access.
-func getOIDCProvider(ctx context.Context, issuer string) (*oidc.Provider, error) {
+func getOIDCProvider(ctx context.Context, issuer string) (
+	*oidc.Provider,
+	error,
+) {
 	oidcProviderMu.Lock()
 	defer oidcProviderMu.Unlock()
 
@@ -125,7 +128,10 @@ func getOIDCProvider(ctx context.Context, issuer string) (*oidc.Provider, error)
 
 // validateJWT verifies a raw JWT against the configured OIDC issuer and
 // extracts user claims on success.
-func validateJWT(ctx context.Context, cfg AuthentikConfig, rawToken string) (*AuthentikUser, error) {
+func validateJWT(ctx context.Context, cfg AuthentikConfig, rawToken string) (
+	*AuthentikUser,
+	error,
+) {
 	provider, err := getOIDCProvider(ctx, cfg.Issuer)
 	if err != nil {
 		return nil, err

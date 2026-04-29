@@ -5,7 +5,7 @@ package api_test
 import (
 	"bufio"
 	"context"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"net"
 	"net/http"
 	"net/http/httptest"

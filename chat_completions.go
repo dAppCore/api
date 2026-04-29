@@ -59,7 +59,9 @@ type chatStopList []string
 //	var s chatStopList
 //	_ = s.UnmarshalJSON([]byte(`"\n\n"`))      // → ["\n\n"]
 //	_ = s.UnmarshalJSON([]byte(`["a","b"]`))   // → ["a","b"]
-func (s *chatStopList) UnmarshalJSON(data []byte) error {
+func (s *chatStopList) UnmarshalJSON(data []byte) (
+	_ error,
+) {
 	if len(data) == 0 || string(data) == "null" {
 		*s = nil
 		return nil
@@ -164,7 +166,10 @@ type ChatMessageDelta struct {
 //
 // The first streaming chunk carries the assistant role and an explicit empty
 // content string. A terminal chunk, by contrast, carries neither field.
-func (d ChatMessageDelta) MarshalJSON() ([]byte, error) {
+func (d ChatMessageDelta) MarshalJSON() (
+	[]byte,
+	error,
+) {
 	if d.Role == "" && d.Content == "" {
 		return []byte("{}"), nil
 	}
@@ -246,7 +251,10 @@ func NewModelResolver() *ModelResolver {
 
 // ResolveModel maps a model name to a loaded inference.TextModel.
 // Cached models are reused. Unknown names return an error.
-func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
+func (r *ModelResolver) ResolveModel(name string) (
+	inference.TextModel,
+	error,
+) {
 	if r == nil {
 		return nil, &modelResolutionError{
 			code:  "model_not_found",
@@ -293,7 +301,10 @@ func (r *ModelResolver) ResolveModel(name string) (inference.TextModel, error) {
 	}
 }
 
-func (r *ModelResolver) loadByPath(name, path string) (inference.TextModel, error) {
+func (r *ModelResolver) loadByPath(name, path string) (
+	inference.TextModel,
+	error,
+) {
 	cleanPath := core.Path(path)
 
 	// Loop because a waiter wakes up to retry: either the cache now has
@@ -323,7 +334,18 @@ func (r *ModelResolver) loadByPath(name, path string) (inference.TextModel, erro
 		r.inFlight[cleanPath] = doneCh
 		r.mu.Unlock()
 
-		loaded, err := inference.LoadModel(cleanPath)
+		loadedResult := inference.LoadModel(cleanPath)
+		var loaded inference.TextModel
+		var err error
+		if loadedResult.OK {
+			var ok bool
+			loaded, ok = loadedResult.Value.(inference.TextModel)
+			if !ok {
+				err = core.E("ModelResolver.loadByPath", "loaded model has unexpected type", nil)
+			}
+		} else {
+			err = coreResultError(loadedResult)
+		}
 
 		r.mu.Lock()
 		delete(r.inFlight, cleanPath)
@@ -928,7 +950,9 @@ func (e *chatCompletionRequestError) Error() string {
 	return e.Message
 }
 
-func validateChatRequest(req *ChatCompletionRequest) error {
+func validateChatRequest(req *ChatCompletionRequest) (
+	_ error,
+) {
 	if core.Trim(req.Model) == "" {
 		return &chatCompletionRequestError{
 			Status:  400,
@@ -1016,7 +1040,10 @@ func validateChatRequest(req *ChatCompletionRequest) error {
 	return nil
 }
 
-func chatRequestOptions(req *ChatCompletionRequest) ([]inference.GenerateOption, error) {
+func chatRequestOptions(req *ChatCompletionRequest) (
+	[]inference.GenerateOption,
+	error,
+) {
 	opts := make([]inference.GenerateOption, 0, 5)
 	opts = append(opts, inference.WithTemperature(chatResolvedFloat(req.Temperature, chatDefaultTemperature)))
 	opts = append(opts, inference.WithTopP(chatResolvedFloat(req.TopP, chatDefaultTopP)))
@@ -1082,7 +1109,10 @@ func isLoopbackRequest(r *http.Request) bool {
 	return ip.IsLoopback()
 }
 
-func normalizedStopSequences(stops []string) ([]string, error) {
+func normalizedStopSequences(stops []string) (
+	[]string,
+	error,
+) {
 	if len(stops) == 0 {
 		return nil, nil
 	}
@@ -1102,7 +1132,10 @@ func normalizedStopSequences(stops []string) ([]string, error) {
 // stop list and returns them as int32s for inference.WithStopTokens. Text stop
 // sequences are applied separately via normalizedStopSequences; reaching this
 // parser with a nonnumeric entry is malformed.
-func parsedStopTokens(stops []string) ([]int32, error) {
+func parsedStopTokens(stops []string) (
+	[]int32,
+	error,
+) {
 	if len(stops) == 0 {
 		return nil, nil
 	}
@@ -1225,7 +1258,9 @@ func newChatCompletionID() string {
 	return core.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
 }
 
-func decodeJSONBody(reader any, dest any) error {
+func decodeJSONBody(reader any, dest any) (
+	_ error,
+) {
 	read := core.ReadAll(reader)
 	if !read.OK {
 		return core.E("decodeJSONBody", "read request body", coreResultError(read))
@@ -1248,7 +1283,9 @@ func decodeJSONBody(reader any, dest any) error {
 	return nil
 }
 
-func rejectUnknownChatCompletionFields(raw string) error {
+func rejectUnknownChatCompletionFields(raw string) (
+	_ error,
+) {
 	var body map[string]any
 	result := core.JSONUnmarshalString(raw, &body)
 	if !result.OK {
@@ -1296,11 +1333,15 @@ func allowedChatMessageField(name string) bool {
 	}
 }
 
-func unknownJSONFieldError(name string) error {
+func unknownJSONFieldError(name string) (
+	_ error,
+) {
 	return core.E("", core.Sprintf("json: unknown field %q", name), nil)
 }
 
-func coreResultError(result core.Result) error {
+func coreResultError(result core.Result) (
+	_ error,
+) {
 	if err, ok := result.Value.(error); ok {
 		return err
 	}

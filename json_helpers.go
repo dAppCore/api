@@ -14,15 +14,24 @@ func (n jsonNumber) String() string {
 	return string(n)
 }
 
-func (n jsonNumber) Float64() (float64, error) {
+func (n jsonNumber) Float64() (
+	float64,
+	error,
+) {
 	return strconv.ParseFloat(string(n), 64)
 }
 
-func (n jsonNumber) Int64() (int64, error) {
+func (n jsonNumber) Int64() (
+	int64,
+	error,
+) {
 	return strconv.ParseInt(string(n), 10, 64)
 }
 
-func (n jsonNumber) MarshalJSON() ([]byte, error) {
+func (n jsonNumber) MarshalJSON() (
+	[]byte,
+	error,
+) {
 	if n == "" {
 		return nil, core.E("jsonNumber.MarshalJSON", "empty JSON number", nil)
 	}
@@ -31,14 +40,19 @@ func (n jsonNumber) MarshalJSON() ([]byte, error) {
 
 type jsonRawMessage []byte
 
-func (m jsonRawMessage) MarshalJSON() ([]byte, error) {
+func (m jsonRawMessage) MarshalJSON() (
+	[]byte,
+	error,
+) {
 	if m == nil {
 		return []byte("null"), nil
 	}
 	return append([]byte(nil), m...), nil
 }
 
-func (m *jsonRawMessage) UnmarshalJSON(data []byte) error {
+func (m *jsonRawMessage) UnmarshalJSON(data []byte) (
+	_ error,
+) {
 	if m == nil {
 		return core.E("jsonRawMessage.UnmarshalJSON", "target is nil", nil)
 	}
@@ -50,7 +64,9 @@ type jsonValue struct {
 	value any
 }
 
-func (v *jsonValue) UnmarshalJSON(data []byte) error {
+func (v *jsonValue) UnmarshalJSON(data []byte) (
+	_ error,
+) {
 	if v == nil {
 		return core.E("jsonValue.UnmarshalJSON", "target is nil", nil)
 	}
@@ -106,7 +122,10 @@ func (v *jsonValue) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func decodeJSONValuePreserveNumbers(data []byte) (any, error) {
+func decodeJSONValuePreserveNumbers(data []byte) (
+	any,
+	error,
+) {
 	var out jsonValue
 	if err := unmarshalCoreJSON(data, &out); err != nil {
 		return nil, err
@@ -114,7 +133,10 @@ func decodeJSONValuePreserveNumbers(data []byte) (any, error) {
 	return out.value, nil
 }
 
-func marshalCoreJSON(value any) ([]byte, error) {
+func marshalCoreJSON(value any) (
+	[]byte,
+	error,
+) {
 	result := core.JSONMarshal(value)
 	if !result.OK {
 		return nil, coreResultError(result)
@@ -127,7 +149,10 @@ func marshalCoreJSON(value any) ([]byte, error) {
 	return data, nil
 }
 
-func marshalCoreJSONIndent(value any, prefix, indent string) ([]byte, error) {
+func marshalCoreJSONIndent(value any, prefix, indent string) (
+	[]byte,
+	error,
+) {
 	data, err := marshalCoreJSON(value)
 	if err != nil {
 		return nil, err
@@ -199,7 +224,9 @@ func indentJSON(data []byte, prefix, indent string) []byte {
 	return out.Bytes()
 }
 
-func unmarshalCoreJSON(data []byte, target any) error {
+func unmarshalCoreJSON(data []byte, target any) (
+	_ error,
+) {
 	result := core.JSONUnmarshal(data, target)
 	if result.OK {
 		return nil

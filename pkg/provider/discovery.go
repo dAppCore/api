@@ -3,8 +3,8 @@
 package provider
 
 import (
-	"dappco.re/go/api/internal/stdcompat/filepath"
-	"dappco.re/go/api/internal/stdcompat/os"
+	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"slices"
 
 	core "dappco.re/go"
@@ -16,7 +16,10 @@ const DefaultProvidersDir = ".core/providers"
 // Discover loads local polyglot provider manifests from dir. A blank dir uses
 // ".core/providers". Missing directories or no matching YAML files are treated
 // as empty discovery results.
-func Discover(dir string) ([]Provider, error) {
+func Discover(dir string) (
+	[]Provider,
+	error,
+) {
 	const op = "provider.Discover"
 
 	canonicalDir, files, err := providerManifestFiles(dir)
@@ -40,12 +43,17 @@ func Discover(dir string) ([]Provider, error) {
 }
 
 // DiscoverDefault loads provider manifests from ".core/providers".
-func DiscoverDefault() ([]Provider, error) {
+func DiscoverDefault() (
+	[]Provider,
+	error,
+) {
 	return Discover(DefaultProvidersDir)
 }
 
 // Discover adds every provider manifest found in dir to the registry.
-func (r *Registry) Discover(dir string) error {
+func (r *Registry) Discover(dir string) (
+	_ error,
+) {
 	providers, err := Discover(dir)
 	if err != nil {
 		return err
@@ -57,7 +65,9 @@ func (r *Registry) Discover(dir string) error {
 }
 
 // DiscoverDefault adds providers from ".core/providers" to the registry.
-func (r *Registry) DiscoverDefault() error {
+func (r *Registry) DiscoverDefault() (
+	_ error,
+) {
 	return r.Discover(DefaultProvidersDir)
 }
 
@@ -84,7 +94,11 @@ type providerManifestFile struct {
 	readPath string
 }
 
-func providerManifestFiles(dir string) (string, []providerManifestFile, error) {
+func providerManifestFiles(dir string) (
+	string,
+	[]providerManifestFile,
+	error,
+) {
 	dir = core.Trim(dir)
 	if dir == "" {
 		dir = DefaultProvidersDir
@@ -109,7 +123,11 @@ func providerManifestFiles(dir string) (string, []providerManifestFile, error) {
 	return canonicalDir, files, nil
 }
 
-func canonicalProviderDir(dir string) (string, bool, error) {
+func canonicalProviderDir(dir string) (
+	string,
+	bool,
+	error,
+) {
 	const op = "provider.providerManifestFiles"
 
 	absolute, err := filepath.Abs(filepath.Clean(dir))
@@ -139,7 +157,10 @@ func canonicalProviderDir(dir string) (string, bool, error) {
 	return cleaned, true, nil
 }
 
-func canonicalProviderManifestFile(canonicalDir, path string) (providerManifestFile, error) {
+func canonicalProviderManifestFile(canonicalDir, path string) (
+	providerManifestFile,
+	error,
+) {
 	const op = "provider.providerManifestFiles"
 
 	absolute, err := filepath.Abs(filepath.Clean(path))
@@ -184,7 +205,10 @@ func canonicalProviderManifestFile(canonicalDir, path string) (providerManifestF
 	}, nil
 }
 
-func loadProviderManifest(fs *core.Fs, file providerManifestFile) (Provider, error) {
+func loadProviderManifest(fs *core.Fs, file providerManifestFile) (
+	Provider,
+	error,
+) {
 	const op = "provider.loadProviderManifest"
 
 	result := fs.Read(file.readPath)
@@ -217,7 +241,10 @@ func loadProviderManifest(fs *core.Fs, file providerManifestFile) (Provider, err
 	return p, nil
 }
 
-func (m providerManifest) proxyConfig(path string) (ProxyConfig, error) {
+func (m providerManifest) proxyConfig(path string) (
+	ProxyConfig,
+	error,
+) {
 	const op = "provider.Manifest.proxyConfig"
 
 	name := core.Trim(m.Name)
@@ -247,7 +274,10 @@ func (m providerManifest) proxyConfig(path string) (ProxyConfig, error) {
 	}, nil
 }
 
-func normaliseManifestBasePath(path string) (string, error) {
+func normaliseManifestBasePath(path string) (
+	string,
+	error,
+) {
 	path = core.Trim(path)
 	if path == "" {
 		return "", core.E("provider.normaliseManifestBasePath", "basePath is required", nil)

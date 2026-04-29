@@ -3,8 +3,8 @@
 package api_test
 
 import (
-	"dappco.re/go/api/internal/stdcompat/filepath"
-	"dappco.re/go/api/internal/stdcompat/os"
+	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"net/http"
 	"net/http/httptest"
 	"testing"

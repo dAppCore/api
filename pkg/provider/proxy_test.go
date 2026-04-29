@@ -3,9 +3,9 @@
 package provider_test
 
 import (
-	"dappco.re/go/api/internal/stdcompat/errors"
-	"dappco.re/go/api/internal/stdcompat/json"
-	"dappco.re/go/api/internal/stdcompat/os"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"net/http"
 	"net/http/httptest"
 	"testing"

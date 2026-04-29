@@ -5,7 +5,7 @@ package api
 import (
 	"bufio" // Note: AX-6 — SSE stream line scanning
 	"context"
-	"dappco.re/go/api/internal/stdcompat/errors"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
 	"io"       // Note: AX-6 — io.Reader contract
 	"net/http" // Note: AX-6 — HTTP transport boundary
 	"net/url"
@@ -97,7 +97,11 @@ func NewWebSocketClient(rawURL string, opts ...WebSocketClientOption) *WebSocket
 // Example:
 //
 //	conn, resp, err := client.DialContext(ctx)
-func (c *WebSocketClient) DialContext(ctx context.Context) (*websocket.Conn, *http.Response, error) {
+func (c *WebSocketClient) DialContext(ctx context.Context) (
+	*websocket.Conn,
+	*http.Response,
+	error,
+) {
 	if c == nil {
 		return nil, nil, coreerr.E("", "WebSocketClient is nil", nil)
 	}
@@ -205,7 +209,10 @@ func NewSSEClient(rawURL string, opts ...SSEClientOption) *SSEClient {
 // Example:
 //
 //	resp, err := client.Connect(ctx)
-func (c *SSEClient) Connect(ctx context.Context) (*http.Response, error) {
+func (c *SSEClient) Connect(ctx context.Context) (
+	*http.Response,
+	error,
+) {
 	if c == nil {
 		return nil, coreerr.E("", "SSEClient is nil", nil)
 	}
@@ -250,7 +257,10 @@ func (c *SSEClient) Connect(ctx context.Context) (*http.Response, error) {
 //	events, err := client.Events(ctx)
 //	if err != nil { ... }
 //	for evt := range events { _ = evt }
-func (c *SSEClient) Events(ctx context.Context) (<-chan SSEEvent, error) {
+func (c *SSEClient) Events(ctx context.Context) (
+	<-chan SSEEvent,
+	error,
+) {
 	resp, err := c.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -332,7 +342,10 @@ func parseSSEStream(ctx context.Context, body io.Reader, out chan<- SSEEvent) {
 	}
 }
 
-func normaliseWebSocketClientURL(rawURL string) (string, error) {
+func normaliseWebSocketClientURL(rawURL string) (
+	string,
+	error,
+) {
 	rawURL = core.Trim(rawURL)
 	if rawURL == "" {
 		return "", core.E("", "WebSocketClient URL is required", nil)
@@ -373,11 +386,15 @@ func normaliseWebSocketClientURL(rawURL string) (string, error) {
 	}
 }
 
-func invalidWebSocketClientURLError(err error) error {
+func invalidWebSocketClientURLError(err error) (
+	_ error,
+) {
 	return core.E("", "invalid WebSocketClient URL", err)
 }
 
-func validateWebSocketClientPort(parsed *url.URL) error {
+func validateWebSocketClientPort(parsed *url.URL) (
+	_ error,
+) {
 	if parsed == nil {
 		return invalidWebSocketClientURLError(nil)
 	}
@@ -395,7 +412,9 @@ func validateWebSocketClientPort(parsed *url.URL) error {
 	return nil
 }
 
-func validateOutboundWebSocketClientURL(rawURL string) error {
+func validateOutboundWebSocketClientURL(rawURL string) (
+	_ error,
+) {
 	guardURL, err := outboundWebSocketGuardURL(rawURL)
 	if err != nil {
 		return err
@@ -403,7 +422,10 @@ func validateOutboundWebSocketClientURL(rawURL string) error {
 	return validateOutboundURL(guardURL)
 }
 
-func outboundWebSocketGuardURL(rawURL string) (string, error) {
+func outboundWebSocketGuardURL(rawURL string) (
+	string,
+	error,
+) {
 	parsedResult := core.URLParse(rawURL)
 	if !parsedResult.OK {
 		if err, ok := parsedResult.Value.(error); ok {
@@ -447,7 +469,10 @@ func cloneHTTPHeader(header http.Header) http.Header {
 // any followed redirects against the deny-by-default outbound policy (see
 // ssrf_guard.go) before invoking client.Do. Cerberus mechanism review attached
 // to Mantis #318.
-func doHTTPClientRequest(client *http.Client, req *http.Request) (*http.Response, error) {
+func doHTTPClientRequest(client *http.Client, req *http.Request) (
+	*http.Response,
+	error,
+) {
 	if client == nil {
 		client = http.DefaultClient
 	}

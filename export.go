@@ -18,7 +18,9 @@ import (
 // Example:
 //
 //	_ = api.ExportSpec(os.Stdout, "yaml", builder, engine.Groups())
-func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []RouteGroup) error {
+func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []RouteGroup) (
+	_ error,
+) {
 	data, err := builder.Build(groups)
 	if err != nil {
 		return coreerr.E("ExportSpec", "build spec", err)
@@ -33,7 +35,9 @@ func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []Route
 // Example:
 //
 //	_ = api.ExportSpecIter(os.Stdout, "json", builder, api.RegisteredSpecGroupsIter())
-func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
+func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) (
+	_ error,
+) {
 	data, err := builder.BuildIter(groups)
 	if err != nil {
 		return coreerr.E("ExportSpecIter", "build spec", err)
@@ -42,7 +46,9 @@ func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups ite
 	return writeSpec(w, format, data, "ExportSpecIter")
 }
 
-func writeSpec(w io.Writer, format string, data []byte, op string) error {
+func writeSpec(w io.Writer, format string, data []byte, op string) (
+	_ error,
+) {
 	switch core.Lower(core.Trim(format)) {
 	case "json":
 		_, err := w.Write(data)
@@ -74,7 +80,9 @@ func writeSpec(w io.Writer, format string, data []byte, op string) error {
 // Example:
 //
 //	_ = api.ExportSpecToFile("./api/openapi.yaml", "yaml", builder, engine.Groups())
-func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup) error {
+func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteGroup) (
+	_ error,
+) {
 	return exportSpecToFile(path, "ExportSpecToFile", func(w io.Writer) error {
 		return ExportSpec(w, format, builder, groups)
 	})
@@ -86,13 +94,17 @@ func ExportSpecToFile(path, format string, builder *SpecBuilder, groups []RouteG
 // Example:
 //
 //	_ = api.ExportSpecToFileIter("./api/openapi.json", "json", builder, api.RegisteredSpecGroupsIter())
-func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) error {
+func ExportSpecToFileIter(path, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) (
+	_ error,
+) {
 	return exportSpecToFile(path, "ExportSpecToFileIter", func(w io.Writer) error {
 		return ExportSpecIter(w, format, builder, groups)
 	})
 }
 
-func exportSpecToFile(path, op string, write func(io.Writer) error) (err error) {
+func exportSpecToFile(path, op string, write func(io.Writer) error) (
+	err error,
+) {
 	buf := core.NewBuffer()
 	if writeErr := write(buf); writeErr != nil {
 		return writeErr

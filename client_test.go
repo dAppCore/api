@@ -4,11 +4,11 @@ package api_test
 
 import (
 	"context"
-	"dappco.re/go/api/internal/stdcompat/errors"
-	"dappco.re/go/api/internal/stdcompat/filepath"
-	"dappco.re/go/api/internal/stdcompat/fmt"
-	"dappco.re/go/api/internal/stdcompat/os"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
+	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
+	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"io"
 	"net"
 	"net/http"

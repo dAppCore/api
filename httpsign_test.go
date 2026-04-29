@@ -5,8 +5,8 @@ package api_test
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"dappco.re/go/api/internal/stdcompat/fmt"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"

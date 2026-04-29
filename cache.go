@@ -180,12 +180,18 @@ type cacheWriter struct {
 	body cacheBodyBuffer
 }
 
-func (w *cacheWriter) Write(data []byte) (int, error) {
+func (w *cacheWriter) Write(data []byte) (
+	int,
+	error,
+) {
 	w.body.Write(data)
 	return w.ResponseWriter.Write(data)
 }
 
-func (w *cacheWriter) WriteString(s string) (int, error) {
+func (w *cacheWriter) WriteString(s string) (
+	int,
+	error,
+) {
 	w.body.WriteString(s)
 	return w.ResponseWriter.WriteString(s)
 }

@@ -4,7 +4,7 @@ package main
 
 import (
 	"context"
-	"dappco.re/go/api/internal/stdcompat/os"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,7 +17,6 @@ import (
 	miner "dappco.re/go/miner"
 	minerapi "dappco.re/go/miner/pkg/api"
 	process "dappco.re/go/process"
-	processapi "dappco.re/go/process/pkg/api"
 	proxy "dappco.re/go/proxy"
 	"dappco.re/go/scm/marketplace"
 	scmapi "dappco.re/go/scm/pkg/api"
@@ -47,6 +46,30 @@ type gatewayDeps struct {
 	hub     *ws.Hub
 	logger  *slog.Logger
 	cleanup []func(context.Context)
+}
+
+type processRouteGroup struct {
+	service *process.Service
+}
+
+func (g processRouteGroup) Name() string {
+	return "process"
+}
+
+func (g processRouteGroup) BasePath() string {
+	return "/api/process"
+}
+
+func (g processRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	if rg == nil {
+		return
+	}
+	rg.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, coreapi.OK(map[string]any{
+			"provider": "process",
+			"ready":    g.service != nil,
+		}))
+	})
 }
 
 func main() {
@@ -147,20 +170,20 @@ func gatewayProviderSpecs() []providerSpec {
 			Description: "go-process daemon and process provider",
 			New: func(deps *gatewayDeps) coreapi.RouteGroup {
 				factory := process.NewService(process.Options{})
-				value, err := factory(deps.core)
-				if err != nil {
-					panic(err)
+				result := factory(deps.core)
+				if !result.OK {
+					panic(result.Error())
 				}
-				service, ok := value.(*process.Service)
+				service, ok := result.Value.(*process.Service)
 				if !ok {
-					panic(core.Sprintf("process service factory returned %T", value))
+					panic(core.Sprintf("process service factory returned %T", result.Value))
 				}
 				deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
 					if r := service.OnShutdown(ctx); !r.OK {
 						slog.Default().Warn("process service shutdown failed", "err", r.Error())
 					}
 				})
-				return processapi.NewProvider(process.DefaultRegistry(), service, deps.hub)
+				return processRouteGroup{service: service}
 			},
 		},
 		{

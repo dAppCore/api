@@ -3,9 +3,9 @@
 package api_test
 
 import (
-	"dappco.re/go/api/internal/stdcompat/fmt"
-	"dappco.re/go/api/internal/stdcompat/json"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"

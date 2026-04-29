@@ -3,7 +3,7 @@
 package api
 
 import (
-	"dappco.re/go/api/internal/stdcompat/json"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"testing"
 
 	"github.com/gin-gonic/gin"

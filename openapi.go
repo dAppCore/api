@@ -79,7 +79,10 @@ const openAPIDialect = "https://spec.openapis.org/oas/3.1/dialect/base"
 // Example:
 //
 //	data, err := (&api.SpecBuilder{Title: "Service", Version: "1.0.0"}).Build(engine.Groups())
-func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
+func (sb *SpecBuilder) Build(groups []RouteGroup) (
+	[]byte,
+	error,
+) {
 	if sb == nil {
 		sb = &SpecBuilder{}
 	}
@@ -282,7 +285,10 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) ([]byte, error) {
 // Example:
 //
 //	data, err := (&api.SpecBuilder{Title: "Service"}).BuildIter(api.RegisteredSpecGroupsIter())
-func (sb *SpecBuilder) BuildIter(groups iter.Seq[RouteGroup]) ([]byte, error) {
+func (sb *SpecBuilder) BuildIter(groups iter.Seq[RouteGroup]) (
+	[]byte,
+	error,
+) {
 	if sb == nil {
 		sb = &SpecBuilder{}
 	}

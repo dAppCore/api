@@ -8,7 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"dappco.re/go/api/internal/stdcompat/errors"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
 	"math/big"
 	"net"
 	"net/http"

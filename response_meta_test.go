@@ -4,9 +4,9 @@ package api
 
 import (
 	"bufio"
-	"dappco.re/go/api/internal/stdcompat/bytes"
-	"dappco.re/go/api/internal/stdcompat/errors"
-	"dappco.re/go/api/internal/stdcompat/json"
+	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net"
 	"net/http"
 	"testing"

@@ -3,7 +3,7 @@
 package api
 
 import (
-	"dappco.re/go/api/internal/stdcompat/os" // Note: AX-6 — os.Stdout has no core equivalent for command output.
+	os "dappco.re/go/api/internal/stdcompat/coreos" // Note: AX-6 — os.Stdout has no core equivalent for command output.
 
 	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
@@ -56,7 +56,10 @@ func parseServers(raw string) []string {
 	return splitUniqueCSV(raw)
 }
 
-func parseSecuritySchemes(raw string) (map[string]any, error) {
+func parseSecuritySchemes(raw string) (
+	map[string]any,
+	error,
+) {
 	raw = core.Trim(raw)
 	if raw == "" {
 		return nil, nil

@@ -135,7 +135,10 @@ func NewWebhookSignerWithTolerance(secret string, tolerance time.Duration) *Webh
 //
 //	secret, err := api.GenerateWebhookSecret()
 //	// secret = "9f1a..." (64 hex chars)
-func GenerateWebhookSecret() (string, error) {
+func GenerateWebhookSecret() (
+	string,
+	error,
+) {
 	buf := make([]byte, 32)
 	if _, err := randomRead(buf); err != nil {
 		return "", core.E("WebhookSigner.GenerateSecret", "read random bytes", err)
@@ -272,7 +275,9 @@ func (s *WebhookSigner) VerifyRequest(r *http.Request, payload []byte) bool {
 //	if err := api.ValidateWebhookURL("https://hooks.example.com/inbox"); err != nil {
 //	    return err
 //	}
-func ValidateWebhookURL(raw string) error {
+func ValidateWebhookURL(raw string) (
+	_ error,
+) {
 	parsedResult := core.URLParse(core.Trim(raw))
 	if !parsedResult.OK {
 		err, _ := parsedResult.Value.(error)

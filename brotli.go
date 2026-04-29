@@ -112,7 +112,10 @@ type brotliWriter struct {
 	status        int
 }
 
-func (b *brotliWriter) Write(data []byte) (int, error) {
+func (b *brotliWriter) Write(data []byte) (
+	int,
+	error,
+) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -135,7 +138,10 @@ func (b *brotliWriter) Write(data []byte) (int, error) {
 	return b.writer.Write(data)
 }
 
-func (b *brotliWriter) WriteString(s string) (int, error) {
+func (b *brotliWriter) WriteString(s string) (
+	int,
+	error,
+) {
 	return b.Write([]byte(s))
 }
 

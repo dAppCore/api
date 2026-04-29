@@ -3,8 +3,8 @@
 package provider
 
 import (
-	"dappco.re/go/api/internal/stdcompat/errors"
-	"dappco.re/go/api/internal/stdcompat/os"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -60,7 +60,9 @@ func (e *ProviderUpstreamBlockedError) Is(target error) bool {
 //
 //	var inner *net.OpError
 //	if errors.As(err, &inner) { /* ... */ }
-func (e *ProviderUpstreamBlockedError) Unwrap() error {
+func (e *ProviderUpstreamBlockedError) Unwrap() (
+	_ error,
+) {
 	if e == nil {
 		return nil
 	}
@@ -164,7 +166,9 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 
 // Err reports any configuration error detected while constructing the proxy.
 // A nil error means the proxy is ready to mount and serve requests.
-func (p *ProxyProvider) Err() error {
+func (p *ProxyProvider) Err() (
+	_ error,
+) {
 	if p == nil {
 		return nil
 	}
@@ -251,7 +255,9 @@ func (p *ProxyProvider) Upstream() string {
 	return p.config.Upstream
 }
 
-func validateProviderUpstreamURL(raw string, target *url.URL) error {
+func validateProviderUpstreamURL(raw string, target *url.URL) (
+	_ error,
+) {
 	if target == nil {
 		return blockProviderUpstream(raw, "invalid upstream URL result", nil)
 	}
@@ -305,7 +311,9 @@ func validateProviderUpstreamURL(raw string, target *url.URL) error {
 	return nil
 }
 
-func validateProviderUpstreamIP(raw, host string, ip net.IP, allowCIDRs []*net.IPNet) error {
+func validateProviderUpstreamIP(raw, host string, ip net.IP, allowCIDRs []*net.IPNet) (
+	_ error,
+) {
 	if reason := blockedProviderUpstreamIPReason(ip); reason != "" {
 		if providerUpstreamIPAllowed(ip, allowCIDRs) {
 			return nil
@@ -315,7 +323,9 @@ func validateProviderUpstreamIP(raw, host string, ip net.IP, allowCIDRs []*net.I
 	return nil
 }
 
-func blockProviderUpstream(raw, reason string, cause error) error {
+func blockProviderUpstream(raw, reason string, cause error) (
+	_ error,
+) {
 	return &ProviderUpstreamBlockedError{
 		Upstream: raw,
 		Reason:   reason,
@@ -323,7 +333,10 @@ func blockProviderUpstream(raw, reason string, cause error) error {
 	}
 }
 
-func providerUpstreamAllowCIDRs() ([]*net.IPNet, error) {
+func providerUpstreamAllowCIDRs() (
+	[]*net.IPNet,
+	error,
+) {
 	raw := core.Trim(os.Getenv(providerUpstreamAllowEnv))
 	if raw == "" {
 		return nil, nil

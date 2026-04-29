@@ -3,8 +3,8 @@
 package api
 
 import (
-	"dappco.re/go/api/internal/stdcompat/json"
-	"dappco.re/go/api/internal/stdcompat/os"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"iter"
 	"testing"
 

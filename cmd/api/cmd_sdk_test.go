@@ -3,9 +3,9 @@
 package api
 
 import (
-	"dappco.re/go/api/internal/stdcompat/filepath"
-	"dappco.re/go/api/internal/stdcompat/os"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"testing"
 
 	"github.com/gin-gonic/gin"

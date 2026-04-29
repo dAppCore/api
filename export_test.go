@@ -3,11 +3,11 @@
 package api_test
 
 import (
-	"dappco.re/go/api/internal/stdcompat/bytes"
-	"dappco.re/go/api/internal/stdcompat/filepath"
-	"dappco.re/go/api/internal/stdcompat/json"
-	"dappco.re/go/api/internal/stdcompat/os"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
+	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"iter"
 	"net/http"
 	"testing"

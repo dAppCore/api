@@ -8,9 +8,9 @@ import (
 	"iter"
 	"maps"
 	// Note: AX-6 - retained for inheriting stdout/stderr when invoking the SDK generator; filesystem checks below use core.Fs.
-	"dappco.re/go/api/internal/stdcompat/os"
+	os "dappco.re/go/api/internal/stdcompat/coreos"
 	// Note: AX-6 - retained for the subprocess boundary because SDKGenerator has no Core instance with registered process.run.
-	"dappco.re/go/api/internal/stdcompat/exec"
+	exec "dappco.re/go/api/internal/stdcompat/coreexec"
 	// Note: AX-6 - compiled regexp anchors PackageName validation for command-argument safety.
 	"regexp"
 	"slices"
@@ -64,7 +64,9 @@ type SDKGenerator struct {
 // Example:
 //
 //	err := gen.Generate(context.Background(), "go")
-func (g *SDKGenerator) Generate(ctx context.Context, language string) error {
+func (g *SDKGenerator) Generate(ctx context.Context, language string) (
+	_ error,
+) {
 	if g == nil {
 		return coreerr.E("SDKGenerator.Generate", "generator is nil", nil)
 	}

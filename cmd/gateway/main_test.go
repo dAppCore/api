@@ -3,8 +3,8 @@
 package main
 
 import (
-	"dappco.re/go/api/internal/stdcompat/bytes"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"io"
 	"log/slog"
 	"testing"

@@ -49,7 +49,10 @@ type specBuilderConfig struct {
 	securitySchemes         string
 }
 
-func newSpecBuilder(cfg specBuilderConfig) (*goapi.SpecBuilder, error) {
+func newSpecBuilder(cfg specBuilderConfig) (
+	*goapi.SpecBuilder,
+	error,
+) {
 	swaggerPath := core.Trim(cfg.swaggerPath)
 	graphqlPath := core.Trim(cfg.graphqlPath)
 	ssePath := core.Trim(cfg.ssePath)

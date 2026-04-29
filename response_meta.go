@@ -74,7 +74,10 @@ func (w *responseMetaRecorder) WriteHeaderNow() {
 	w.wroteHeader = true
 }
 
-func (w *responseMetaRecorder) Write(data []byte) (int, error) {
+func (w *responseMetaRecorder) Write(data []byte) (
+	int,
+	error,
+) {
 	if w.passthrough {
 		if !w.wroteHeader {
 			w.WriteHeader(http.StatusOK)
@@ -89,7 +92,10 @@ func (w *responseMetaRecorder) Write(data []byte) (int, error) {
 	return n, err
 }
 
-func (w *responseMetaRecorder) WriteString(s string) (int, error) {
+func (w *responseMetaRecorder) WriteString(s string) (
+	int,
+	error,
+) {
 	if w.passthrough {
 		if !w.wroteHeader {
 			w.WriteHeader(http.StatusOK)
@@ -143,7 +149,11 @@ func (w *responseMetaRecorder) Written() bool {
 	return w.wroteHeader
 }
 
-func (w *responseMetaRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *responseMetaRecorder) Hijack() (
+	net.Conn,
+	*bufio.ReadWriter,
+	error,
+) {
 	if w.passthrough {
 		if h, ok := w.ResponseWriter.(http.Hijacker); ok {
 			return h.Hijack()

@@ -3,8 +3,8 @@
 package api
 
 import (
-	"dappco.re/go/api/internal/stdcompat/errors"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"net"
 	"testing"
 )

@@ -4,7 +4,7 @@ package api
 
 import (
 	// Note: AX-6 — byte-slice JSON whitespace checks have no core byte-trim primitive.
-	"dappco.re/go/api/internal/stdcompat/bytes"
+	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
 	// Note: AX-6 — io.Reader API and HTTP body reads are structural stream boundaries.
 	"io"
 	// Note: AX-6 — iter.Seq is the public lazy iteration shape for operation/server snapshots.
@@ -182,7 +182,10 @@ func NewOpenAPIClient(opts ...OpenAPIClientOption) *OpenAPIClient {
 // Example:
 //
 //	ops, err := client.Operations()
-func (c *OpenAPIClient) Operations() ([]OpenAPIOperation, error) {
+func (c *OpenAPIClient) Operations() (
+	[]OpenAPIOperation,
+	error,
+) {
 	if err := c.load(); err != nil {
 		return nil, err
 	}
@@ -226,7 +229,10 @@ func (c *OpenAPIClient) Operations() ([]OpenAPIOperation, error) {
 //	for op := range ops {
 //		fmt.Println(op.OperationID, op.PathTemplate)
 //	}
-func (c *OpenAPIClient) OperationsIter() (iter.Seq[OpenAPIOperation], error) {
+func (c *OpenAPIClient) OperationsIter() (
+	iter.Seq[OpenAPIOperation],
+	error,
+) {
 	operations, err := c.Operations()
 	if err != nil {
 		return nil, err
@@ -247,7 +253,10 @@ func (c *OpenAPIClient) OperationsIter() (iter.Seq[OpenAPIOperation], error) {
 // Example:
 //
 //	servers, err := client.Servers()
-func (c *OpenAPIClient) Servers() ([]string, error) {
+func (c *OpenAPIClient) Servers() (
+	[]string,
+	error,
+) {
 	if err := c.load(); err != nil {
 		return nil, err
 	}
@@ -267,7 +276,10 @@ func (c *OpenAPIClient) Servers() ([]string, error) {
 //	for server := range servers {
 //		fmt.Println(server)
 //	}
-func (c *OpenAPIClient) ServersIter() (iter.Seq[string], error) {
+func (c *OpenAPIClient) ServersIter() (
+	iter.Seq[string],
+	error,
+) {
 	servers, err := c.Servers()
 	if err != nil {
 		return nil, err
@@ -292,7 +304,10 @@ func (c *OpenAPIClient) ServersIter() (iter.Seq[string], error) {
 // Example:
 //
 //	data, err := client.Call("create_item", map[string]any{"name": "alpha"})
-func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
+func (c *OpenAPIClient) Call(operationID string, params any) (
+	any,
+	error,
+) {
 	if err := c.load(); err != nil {
 		return nil, err
 	}
@@ -390,14 +405,18 @@ func (c *OpenAPIClient) Call(operationID string, params any) (any, error) {
 	return decoded, nil
 }
 
-func (c *OpenAPIClient) load() error {
+func (c *OpenAPIClient) load() (
+	_ error,
+) {
 	c.once.Do(func() {
 		c.loadErr = c.loadSpec()
 	})
 	return c.loadErr
 }
 
-func (c *OpenAPIClient) loadSpec() error {
+func (c *OpenAPIClient) loadSpec() (
+	_ error,
+) {
 	var (
 		data []byte
 		err  error
@@ -501,7 +520,10 @@ func snapshotOpenAPIOperation(operationID string, op openAPIOperation) OpenAPIOp
 	}
 }
 
-func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (string, error) {
+func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (
+	string,
+	error,
+) {
 	base := c.baseURL
 	for core.HasSuffix(base, "/") {
 		base = core.TrimSuffix(base, "/")
@@ -572,7 +594,10 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (st
 	return fullURL, nil
 }
 
-func (c *OpenAPIClient) buildBody(op openAPIOperation, params map[string]any) ([]byte, error) {
+func (c *OpenAPIClient) buildBody(op openAPIOperation, params map[string]any) (
+	[]byte,
+	error,
+) {
 	if explicitBody, ok := params["body"]; ok {
 		return encodeJSONBody(explicitBody)
 	}
@@ -784,7 +809,9 @@ func operationParameterLocation(op openAPIOperation, name string) string {
 	return ""
 }
 
-func validateParameterValues(op openAPIOperation, params map[string]any) error {
+func validateParameterValues(op openAPIOperation, params map[string]any) (
+	_ error,
+) {
 	for _, param := range op.parameters {
 		if len(param.schema) == 0 {
 			continue
@@ -808,7 +835,9 @@ func validateParameterValues(op openAPIOperation, params map[string]any) error {
 	return nil
 }
 
-func validateParameterValue(param openAPIParameter, value any) error {
+func validateParameterValue(param openAPIParameter, value any) (
+	_ error,
+) {
 	if value == nil {
 		return nil
 	}
@@ -823,7 +852,9 @@ func validateParameterValue(param openAPIParameter, value any) error {
 	return nil
 }
 
-func validateRequiredParameters(op openAPIOperation, params map[string]any, pathKeys []string) error {
+func validateRequiredParameters(op openAPIOperation, params map[string]any, pathKeys []string) (
+	_ error,
+) {
 	for _, param := range op.parameters {
 		if !param.required {
 			continue
@@ -852,11 +883,17 @@ func parameterProvided(params map[string]any, name, location string) bool {
 	return false
 }
 
-func encodeJSONBody(v any) ([]byte, error) {
+func encodeJSONBody(v any) (
+	[]byte,
+	error,
+) {
 	return marshalCoreJSON(v)
 }
 
-func normaliseParams(params any) (map[string]any, error) {
+func normaliseParams(params any) (
+	map[string]any,
+	error,
+) {
 	if params == nil {
 		return map[string]any{}, nil
 	}
@@ -1031,7 +1068,9 @@ func firstSuccessResponseSchema(operation map[string]any) map[string]any {
 	return nil
 }
 
-func validateOpenAPISchema(body []byte, schema map[string]any, label string) error {
+func validateOpenAPISchema(body []byte, schema map[string]any, label string) (
+	_ error,
+) {
 	if len(bytes.TrimSpace(body)) == 0 {
 		return nil
 	}
@@ -1048,7 +1087,9 @@ func validateOpenAPISchema(body []byte, schema map[string]any, label string) err
 	return nil
 }
 
-func validateOpenAPIResponse(payload []byte, schema map[string]any, operationID string) error {
+func validateOpenAPIResponse(payload []byte, schema map[string]any, operationID string) (
+	_ error,
+) {
 	decoded, err := decodeJSONValuePreserveNumbers(payload)
 	if err != nil {
 		return core.E("OpenAPIClient.validateOpenAPIResponse", core.Sprintf("openapi call %s returned invalid JSON", operationID), err)

@@ -178,7 +178,12 @@ func setTransformerRequestBody(c *gin.Context, body []byte) {
 	c.Request.ContentLength = int64(len(body))
 }
 
-func abortTransformerRequest(c *gin.Context, status int, message string, err error) {
+func abortTransformerRequest(
+	c *gin.Context,
+	status int,
+	message string,
+	err error,
+) {
 	details := map[string]any{}
 	if err != nil {
 		details["error"] = err.Error()

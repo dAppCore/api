@@ -3,9 +3,9 @@
 package api_test
 
 import (
-	"dappco.re/go/api/internal/stdcompat/bytes"
-	"dappco.re/go/api/internal/stdcompat/json"
-	"dappco.re/go/api/internal/stdcompat/strings"
+	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
+	json "dappco.re/go/api/internal/stdcompat/corejson"
+	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"net/http"
 	"net/http/httptest"
 	"testing"

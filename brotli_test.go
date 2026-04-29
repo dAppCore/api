@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	"dappco.re/go/api/internal/stdcompat/bytes"
+	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
 	"io"
 	"net/http"
 	"net/http/httptest"

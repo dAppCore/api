@@ -54,7 +54,10 @@ func wrapTransformerOutHandler(handler gin.HandlerFunc, pipeline []compiledTrans
 	}
 }
 
-func transformResponseEnvelope(c *gin.Context, body []byte, pipeline []compiledTransformer) ([]byte, error) {
+func transformResponseEnvelope(c *gin.Context, body []byte, pipeline []compiledTransformer) (
+	[]byte,
+	error,
+) {
 	if len(pipeline) == 0 || core.Trim(string(body)) == "" {
 		return body, nil
 	}
@@ -103,7 +106,9 @@ func transformResponseEnvelope(c *gin.Context, body []byte, pipeline []compiledT
 	return data, nil
 }
 
-func unmarshalEnvelope(data []byte, target any) error {
+func unmarshalEnvelope(data []byte, target any) (
+	_ error,
+) {
 	result := core.JSONUnmarshal(data, target)
 	if result.OK {
 		return nil
@@ -114,7 +119,11 @@ func unmarshalEnvelope(data []byte, target any) error {
 	return core.E("TransformerOut", "decode response envelope", nil)
 }
 
-func writeTransformerResponseError(recorder *toolResponseRecorder, message string, err error) {
+func writeTransformerResponseError(
+	recorder *toolResponseRecorder,
+	message string,
+	err error,
+) {
 	recorder.reset()
 	recorder.writeErrorResponse(http.StatusInternalServerError, FailWithDetails(
 		"invalid_response_body",
