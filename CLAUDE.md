@@ -8,6 +8,55 @@ Core API is the REST framework for the Lethean ecosystem, providing both a **Go 
 
 Module: `dappco.re/go/api` | Package: `dappco.re/php/service` | Licence: EUPL-1.2
 
+## Repo Layout
+
+```
+core/api/
+├── go.work                            ← workspace root (one level above the module)
+├── external/<dappco.re-go-dep>/       ← git submodules tracking dev branches on github
+├── go/                                ← Go module root (module dappco.re/go/api)
+├── php/                               ← PHP package
+├── docs/                              ← engine docs (symlinked from go/)
+├── sdk-config/                        ← cross-language SDK gen configs
+└── scripts/                           ← cross-language build helpers
+```
+
+Cross-language symmetry target: `dappco.re/<lang>/api/<feature>` ↔ `core/api/<lang>/<feature>` (Go today, PHP today, TS+Py later).
+
+## Go Resolution Modes
+
+Two ways the same `go/go.mod` resolves dappco.re/go/* deps:
+
+| Mode | When | What runs |
+|------|------|-----------|
+| **Workspace ON** (default for devs) | `go build` / `go test` from any subdir of `core/api/` | Walks up to `go.work`, uses local `external/<x>` checkouts at submodule pin (typically dev tip). Fast iteration; finds upstream bugs early. |
+| **`GOWORK=off`** | Woodpecker CI | Pure go.mod, fetches the pinned tag from the proxy. Reproducible builds. No replace directives — 0% policy intact. |
+
+### Working with submodules
+
+```bash
+git clone --recursive https://github.com/dappcore/api.git    # full dev workspace
+git submodule update --init --recursive                      # if cloned without --recursive
+
+# Bump a single dep to its current dev tip
+git submodule update --remote external/go-process
+
+# See latest tag in a dep
+( cd external/go-process && git tag --sort=-v:refname | head )
+
+# When ready to bump the api go.mod to that dep's new tag
+( cd go && go get dappco.re/go/process@v0.11.0 && go mod tidy )
+```
+
+### Workspace mode caveat
+
+Workspace mode validates each `external/<x>/go.sum` against current proxy bits. If an upstream repo has a stale or missing go.sum entry, the build errors with `verifying ...: checksum mismatch`. Two ways to handle:
+
+1. **Fix upstream**: `cd external/<x> && go mod tidy`, commit + push to that repo's dev, then `git submodule update --remote external/<x>` here.
+2. **CI mode locally**: `GOWORK=off go test ./go/...` — uses the api repo's pinned hashes.
+
+This is the "find bugs as they roll out" payoff: workspace mode surfaces stale-sum issues across the whole tree.
+
 ## Build and Test Commands
 
 ### Go
