@@ -102,7 +102,9 @@ func (b *EntitlementBridge) Check(ctx context.Context, workspaceID, feature stri
 		return false, core.E(op, "call entitlement service", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			core.Error("entitlement response body close failed", "err", closeErr)
+		}
 	}()
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxEntitlementResponseBytes))

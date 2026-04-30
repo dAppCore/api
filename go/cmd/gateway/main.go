@@ -82,7 +82,9 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	c := core.New()
 	defer func() {
-		_ = c.ServiceShutdown(context.Background())
+		if r := c.ServiceShutdown(context.Background()); !r.OK {
+			logger.Error("gateway core shutdown failed", "err", r.Error())
+		}
 	}()
 
 	bind := core.Trim(core.Getenv(envGatewayBind))
@@ -351,7 +353,9 @@ func displayBasePath(path string) string {
 func forwardSignalsToCore(c *core.Core, logger *slog.Logger) func() {
 	return func() {
 		if c != nil {
-			_ = c.ServiceShutdown(context.Background())
+			if r := c.ServiceShutdown(context.Background()); !r.OK && logger != nil {
+				logger.Error("gateway signal shutdown failed", "err", r.Error())
+			}
 		}
 		if logger != nil {
 			logger.Debug("gateway signal bridge stopped")

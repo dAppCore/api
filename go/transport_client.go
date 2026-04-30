@@ -241,7 +241,9 @@ func (c *SSEClient) Connect(ctx context.Context) (
 	}
 	if resp.StatusCode != http.StatusOK {
 		defer func() {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				core.Error("sse response body close failed", "err", closeErr)
+			}
 		}()
 		return nil, coreerr.E("", core.Sprintf("unexpected SSE status %d", resp.StatusCode), nil)
 	}
@@ -269,7 +271,9 @@ func (c *SSEClient) Events(ctx context.Context) (
 	go func() {
 		defer close(out)
 		defer func() {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				core.Error("sse stream body close failed", "err", closeErr)
+			}
 		}()
 		parseSSEStream(ctx, resp.Body, out)
 	}()
