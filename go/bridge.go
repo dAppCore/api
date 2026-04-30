@@ -1005,10 +1005,7 @@ func enumValues(rawEnum any) []any {
 	switch values := rawEnum.(type) {
 	case []any:
 		out := make([]any, 0, len(values))
-		for _, value := range values {
-			out = append(out, value)
-		}
-		return out
+		return append(out, values...)
 	case []string:
 		out := make([]any, 0, len(values))
 		for _, value := range values {

@@ -105,6 +105,8 @@ func (c *WebSocketClient) DialContext(ctx context.Context) (
 		return nil, nil, coreerr.E("", "WebSocketClient is nil", nil)
 	}
 
+	header := cloneHTTPHeader(c.Header)
+
 	rawURL, err := normaliseWebSocketClientURL(c.URL)
 	if err != nil {
 		return nil, nil, err
@@ -113,17 +115,13 @@ func (c *WebSocketClient) DialContext(ctx context.Context) (
 		return nil, nil, err
 	}
 
-	dialer := websocket.DefaultDialer
 	if c.Dialer != nil {
 		copyDialer := *c.Dialer
-		dialer = &copyDialer
-	} else {
-		copyDialer := *websocket.DefaultDialer
-		dialer = &copyDialer
+		return (&copyDialer).DialContext(ctx, rawURL, header)
 	}
 
-	header := cloneHTTPHeader(c.Header)
-	return dialer.DialContext(ctx, rawURL, header)
+	copyDialer := *websocket.DefaultDialer
+	return (&copyDialer).DialContext(ctx, rawURL, header)
 }
 
 // SSEEvent is a parsed Server-Sent Events message.
@@ -242,7 +240,9 @@ func (c *SSEClient) Connect(ctx context.Context) (
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		return nil, coreerr.E("", core.Sprintf("unexpected SSE status %d", resp.StatusCode), nil)
 	}
 	return resp, nil
@@ -268,7 +268,9 @@ func (c *SSEClient) Events(ctx context.Context) (
 	out := make(chan SSEEvent)
 	go func() {
 		defer close(out)
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		parseSSEStream(ctx, resp.Body, out)
 	}()
 

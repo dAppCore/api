@@ -81,7 +81,9 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	c := core.New()
-	defer c.ServiceShutdown(context.Background())
+	defer func() {
+		_ = c.ServiceShutdown(context.Background())
+	}()
 
 	bind := core.Trim(core.Getenv(envGatewayBind))
 	if bind == "" {
@@ -349,7 +351,7 @@ func displayBasePath(path string) string {
 func forwardSignalsToCore(c *core.Core, logger *slog.Logger) func() {
 	return func() {
 		if c != nil {
-			c.ServiceShutdown(context.Background())
+			_ = c.ServiceShutdown(context.Background())
 		}
 		if logger != nil {
 			logger.Debug("gateway signal bridge stopped")

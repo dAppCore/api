@@ -2664,12 +2664,6 @@ func (sb *SpecBuilder) snapshot() *SpecBuilder {
 	return &out
 }
 
-// isPublicOperationPath reports whether an OpenAPI path should be documented
-// as public because Authentik bypasses it in the running engine.
-func (sb *SpecBuilder) isPublicOperationPath(path string) bool {
-	return isPublicPathForList(path, sb.effectiveAuthentikPublicPaths())
-}
-
 // hasAuthentikMetadata reports whether the spec carries any Authentik-related
 // configuration worth surfacing.
 func (sb *SpecBuilder) hasAuthentikMetadata() bool {

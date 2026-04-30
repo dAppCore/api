@@ -361,7 +361,9 @@ func (c *OpenAPIClient) Call(operationID string, params any) (
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -533,11 +535,9 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (
 
 	path := op.pathTemplate
 	pathKeys := pathParameterNames(path)
-	pathValues := map[string]any{}
+	pathValues := params
 	if explicitPath, ok := nestedMap(params, `path`); ok {
 		pathValues = explicitPath
-	} else {
-		pathValues = params
 	}
 
 	if err := validateRequiredParameters(op, params, pathKeys); err != nil {
@@ -577,7 +577,7 @@ func (c *OpenAPIClient) buildURL(op openAPIOperation, params map[string]any) (
 			continue
 		}
 		location := operationParameterLocation(op, key)
-		if location != "query" && !(location == "" && (op.method == http.MethodGet || (op.method == http.MethodHead && !op.hasRequestBody))) {
+		if (location != "query" && location != "") || (location == "" && op.method != http.MethodGet && (op.method != http.MethodHead || op.hasRequestBody)) {
 			continue
 		}
 		if _, exists := query[key]; exists {
@@ -713,7 +713,7 @@ func applyHeaderValue(headers http.Header, key string, value any) {
 	}
 
 	rv := reflect.ValueOf(value)
-	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && !(rv.Type().Elem().Kind() == reflect.Uint8) {
+	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && rv.Type().Elem().Kind() != reflect.Uint8 {
 		for i := 0; i < rv.Len(); i++ {
 			headers.Add(key, core.Sprint(rv.Index(i).Interface()))
 		}
@@ -759,7 +759,7 @@ func applyCookieValue(req *http.Request, key string, value any) {
 	}
 
 	rv := reflect.ValueOf(value)
-	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && !(rv.Type().Elem().Kind() == reflect.Uint8) {
+	if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && rv.Type().Elem().Kind() != reflect.Uint8 {
 		for i := 0; i < rv.Len(); i++ {
 
 			//#nosec G124 -- outbound request cookie, not Set-Cookie response.

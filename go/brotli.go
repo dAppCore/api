@@ -126,7 +126,7 @@ func (b *brotliWriter) Write(data []byte) (
 	b.Header().Del("Content-Length")
 
 	if !b.statusWritten {
-		b.status = b.ResponseWriter.Status()
+			b.status = b.Status()
 	}
 
 	if b.status >= http.StatusBadRequest {
@@ -172,7 +172,7 @@ func (b *brotliWriter) WriteHeaderNow() {
 	}
 
 	if !b.statusWritten {
-		b.status = b.ResponseWriter.Status()
+			b.status = b.Status()
 		b.statusWritten = true
 	}
 	b.Header().Del("Content-Length")
@@ -210,15 +210,15 @@ func (b *brotliWriter) release(pool *sync.Pool) {
 		b.Header().Del("Content-Encoding")
 		b.Header().Del("Vary")
 		b.writer.Reset(io.Discard)
-	} else if b.ResponseWriter.Size() < 0 {
+		} else if b.Size() < 0 {
 		b.writer.Reset(io.Discard)
 	}
 	if err := b.writer.Close(); err != nil {
 		b.Header().Del("Content-Length")
 	}
-	if b.ResponseWriter.Size() > -1 {
-		b.Header().Set("Content-Length", core.Sprintf("%d", b.ResponseWriter.Size()))
-	}
+		if b.Size() > -1 {
+			b.Header().Set("Content-Length", core.Sprintf("%d", b.Size()))
+		}
 	b.writer.Reset(io.Discard)
 	pool.Put(b.writer)
 	b.writer = nil

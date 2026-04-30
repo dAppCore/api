@@ -140,20 +140,21 @@ func NewProxy(cfg ProxyConfig) *ProxyProvider {
 		}
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(target)
-
-	// Preserve the original Director but strip the base path so the
+	// Preserve the original proxy target path rewriting and strip the base path so
 	// upstream receives clean paths (e.g. /items instead of /api/v1/cool-widget/items).
-	defaultDirector := proxy.Director
 	basePath := core.TrimSuffix(cfg.BasePath, "/")
 
-	proxy.Director = func(req *http.Request) {
-		defaultDirector(req)
-		// Strip the base path prefix from the request path.
-		req.URL.Path = stripBasePath(req.URL.Path, basePath)
-		if req.URL.RawPath != "" {
-			req.URL.RawPath = stripBasePath(req.URL.RawPath, basePath)
-		}
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(proxyReq *httputil.ProxyRequest) {
+			proxyReq.SetURL(target)
+			proxyReq.Out.Host = proxyReq.In.Host
+
+			// Strip the base path prefix from the request path.
+			proxyReq.Out.URL.Path = stripBasePath(proxyReq.Out.URL.Path, basePath)
+			if proxyReq.Out.URL.RawPath != "" {
+				proxyReq.Out.URL.RawPath = stripBasePath(proxyReq.Out.URL.RawPath, basePath)
+			}
+		},
 	}
 
 	return &ProxyProvider{

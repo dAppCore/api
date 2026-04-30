@@ -184,7 +184,7 @@ func (w *cacheWriter) Write(data []byte) (
 	int,
 	error,
 ) {
-	w.body.Write(data)
+	_, _ = w.body.Write(data)
 	return w.ResponseWriter.Write(data)
 }
 
@@ -192,7 +192,7 @@ func (w *cacheWriter) WriteString(s string) (
 	int,
 	error,
 ) {
-	w.body.WriteString(s)
+	_, _ = w.body.WriteString(s)
 	return w.ResponseWriter.WriteString(s)
 }
 
@@ -269,10 +269,10 @@ func cacheMiddleware(store *cacheStore, ttl time.Duration) gin.HandlerFunc {
 		c.Next()
 
 		// Only cache successful responses.
-		status := cw.ResponseWriter.Status()
+		status := cw.Status()
 		if status >= 200 && status < 300 {
 			headers := make(http.Header)
-			for key, vals := range cw.ResponseWriter.Header() {
+			for key, vals := range cw.Header() {
 				headers[key] = append([]string(nil), vals...)
 			}
 			store.set(key, &cacheEntry{
