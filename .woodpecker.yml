@@ -1,9 +1,10 @@
 # Woodpecker CI pipeline.
-# Server: ci.lthn.sh. Lint + sonar in parallel, both depend only on clone.
-# sonar_token is admin-scoped on the Woodpecker server.
+# Server: ci.lthn.sh.
+# Lint + test run in parallel; sonar (lthn.sh + sonarcloud) + codecov fan
+# out from go-test.
 
 when:
-  - event: push
+  - event: [push, manual, tag]
     branch: [dev, main]
 
 steps:
@@ -26,7 +27,8 @@ steps:
     commands:
       - apk add --no-cache git build-base
       - cd go && go test -race -coverprofile=coverage.out -covermode=atomic -count=1 ./...
-  - name: sonar
+
+  - name: sonar-internal
     image: sonarsource/sonar-scanner-cli:latest
     depends_on: [go-test]
     environment:
@@ -35,3 +37,26 @@ steps:
         from_secret: sonar_token
     commands:
       - sonar-scanner
+
+  - name: sonarcloud
+    image: sonarsource/sonar-scanner-cli:latest
+    depends_on: [go-test]
+    environment:
+      SONAR_TOKEN:
+        from_secret: sonarcloud_token
+    commands:
+      - sonar-scanner
+        -Dsonar.host.url=https://sonarcloud.io
+        -Dsonar.organization=dappcore
+        -Dsonar.projectKey=dappcore_api
+        -Dsonar.go.coverage.reportPaths=go/coverage.out
+
+  - name: codecov
+    image: alpine:3.20
+    depends_on: [go-test]
+    environment:
+      CODECOV_TOKEN:
+        from_secret: codecov_token
+    commands:
+      - apk add --no-cache curl bash git
+      - cd go && bash <(curl -s https://codecov.io/bash) -f coverage.out -t "$CODECOV_TOKEN" -F unittests
