@@ -9,7 +9,7 @@ description: How to build, test, and contribute to the go-api REST framework -- 
 
 This guide covers everything needed to build, test, extend, and contribute to go-api.
 
-**Module path:** `forge.lthn.ai/core/go-api`
+**Module path:** `dappco.re/go/api`
 **Licence:** EUPL-1.2
 **Language:** Go 1.26
 
@@ -41,9 +41,10 @@ go version
 
 ### Minimal dependencies
 
-go-api has no sibling `forge.lthn.ai/core/*` dependencies at the library level (the `cmd/api/`
-subcommands import `core/cli`, but the main package compiles independently). There are no
-`replace` directives. Cloning go-api alone is sufficient to build and test the library.
+go-api depends on the provider modules that the gateway wires (`process`, `scm`, `miner`,
+`proxy`, and `ws`) plus the core helper modules it uses directly. The `cmd/api/` CLI lives in
+its own nested module and imports `dappco.re/go/cli`. There are no `replace` directives in the
+root module.
 
 If working within the Go workspace at `~/Code/go.work`, the workspace `use` directive handles
 local module resolution automatically.
@@ -275,7 +276,7 @@ package mypackage
 import (
     "net/http"
 
-    api "forge.lthn.ai/core/go-api"
+    api "dappco.re/go/api"
     "github.com/gin-gonic/gin"
 )
 

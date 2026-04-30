@@ -29,15 +29,15 @@
     ],
     "autoload": {
         "psr-4": {
-            "Core\\Api\\": "src/php/src/Api/",
+            "Core\\Api\\": "php/src/Api/",
             "Core\\Tenant\\": "../php-tenant/",
-            "Core\\Front\\Api\\": "src/php/src/Front/Api/",
-            "Core\\Website\\Api\\": "src/php/src/Website/Api/"
+            "Core\\Front\\Api\\": "php/src/Front/Api/",
+            "Core\\Website\\Api\\": "php/src/Website/Api/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Core\\Api\\Tests\\": "src/php/tests/"
+            "Core\\Api\\Tests\\": "php/tests/"
         }
     },
     "extra": {

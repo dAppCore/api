@@ -1,0 +1,1390 @@
+// SPDX-License-Identifier: EUPL-1.2
+
+package api
+
+import (
+	"math/rand" // Note: AX-6 — non-security display/correlation ID suffix; core.RandIntN unavailable
+	"net"       // Note: AX-6 — structural IP parsing for loopback-only HTTP boundary
+	"net/http"  // Note: AX-6 — structural HTTP server boundary for request/status handling
+	"time"
+	"unicode"
+
+	"dappco.re/go"
+	inference "dappco.re/go/inference"
+
+	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
+)
+
+const defaultChatCompletionsPath = "/v1/chat/completions"
+
+const (
+	chatDefaultTemperature = 1.0
+	chatDefaultTopP        = 0.95
+	chatDefaultTopK        = 64
+	chatDefaultMaxTokens   = 2048
+)
+
+const channelMarker = "<|channel>"
+
+// ChatCompletionRequest is the OpenAI-compatible request body.
+//
+//	body := ChatCompletionRequest{
+//	    Model:    "lemer",
+//	    Messages: []ChatMessage{{Role: "user", Content: "What is 2+2?"}},
+//	    Stream:   true,
+//	}
+type ChatCompletionRequest struct {
+	Model       string        `json:"model"`
+	Messages    []ChatMessage `json:"messages"`
+	Temperature *float32      `json:"temperature,omitempty"`
+	TopP        *float32      `json:"top_p,omitempty"`
+	TopK        *int          `json:"top_k,omitempty"`
+	MaxTokens   *int          `json:"max_tokens,omitempty"`
+	Stream      bool          `json:"stream,omitempty"`
+	Stop        chatStopList  `json:"stop,omitempty"` // Stop sequences, excluded from the final completion text. Accepts a single string or an array (OpenAI compat).
+	User        string        `json:"user,omitempty"`
+}
+
+// chatStopList accepts the OpenAI `stop` parameter in either of its supported
+// forms: a single string ("stop":"\n\n") or an array of strings
+// ("stop":["\n", "stop"]). Internally it is just a []string slice.
+//
+//	var stops chatStopList // unmarshals from either a JSON string or array
+type chatStopList []string
+
+// UnmarshalJSON normalises both supported shapes into a []string slice. A
+// single string becomes a one-element slice; an array passes through as-is.
+//
+//	var s chatStopList
+//	_ = s.UnmarshalJSON([]byte(`"\n\n"`))      // → ["\n\n"]
+//	_ = s.UnmarshalJSON([]byte(`["a","b"]`))   // → ["a","b"]
+func (s *chatStopList) UnmarshalJSON(data []byte) (
+	_ error,
+) {
+	if len(data) == 0 || string(data) == "null" {
+		*s = nil
+		return nil
+	}
+	// Array form: decode into a string slice directly.
+	if data[0] == '[' {
+		var arr []string
+		result := core.JSONUnmarshalString(string(data), &arr)
+		if !result.OK {
+			if err, ok := result.Value.(error); ok {
+				return err
+			}
+			return core.E("ChatCompletionRequest.Stop", "decode array stop sequences", nil)
+		}
+		*s = arr
+		return nil
+	}
+	// String form: decode the single string and wrap into a one-element slice.
+	var single string
+	result := core.JSONUnmarshalString(string(data), &single)
+	if !result.OK {
+		if err, ok := result.Value.(error); ok {
+			return err
+		}
+		return core.E("ChatCompletionRequest.Stop", "decode string stop sequence", nil)
+	}
+	*s = []string{single}
+	return nil
+}
+
+// ChatMessage is a single turn in a conversation.
+//
+//	msg := ChatMessage{Role: "user", Content: "Hello"}
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// ChatCompletionResponse is the OpenAI-compatible response body.
+//
+//	resp.Choices[0].Message.Content // "4"
+type ChatCompletionResponse struct {
+	ID      string       `json:"id"`
+	Object  string       `json:"object"`
+	Created int64        `json:"created"`
+	Model   string       `json:"model"`
+	Choices []ChatChoice `json:"choices"`
+	Usage   ChatUsage    `json:"usage"`
+	Thought *string      `json:"thought,omitempty"`
+}
+
+// ChatChoice is a single response option.
+//
+//	choice.Message.Content  // The generated text
+//	choice.FinishReason     // "stop", "length", or "error"
+type ChatChoice struct {
+	Index        int         `json:"index"`
+	Message      ChatMessage `json:"message"`
+	FinishReason string      `json:"finish_reason"`
+}
+
+// ChatUsage reports token consumption for the request.
+//
+//	usage.TotalTokens // PromptTokens + CompletionTokens
+type ChatUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
+// ChatCompletionChunk is a single SSE chunk during streaming.
+//
+//	chunk.Choices[0].Delta.Content // Partial token text
+type ChatCompletionChunk struct {
+	ID      string            `json:"id"`
+	Object  string            `json:"object"`
+	Created int64             `json:"created"`
+	Model   string            `json:"model"`
+	Choices []ChatChunkChoice `json:"choices"`
+	Thought *string           `json:"thought,omitempty"`
+}
+
+// ChatChunkChoice is a streaming delta.
+//
+//	delta.Content // New token(s) in this chunk
+type ChatChunkChoice struct {
+	Index        int              `json:"index"`
+	Delta        ChatMessageDelta `json:"delta"`
+	FinishReason *string          `json:"finish_reason"`
+}
+
+// ChatMessageDelta is the incremental content within a streaming chunk.
+//
+//	delta.Content // "" on first chunk (role-only), then token text
+type ChatMessageDelta struct {
+	Role    string `json:"role,omitempty"`
+	Content string `json:"content,omitempty"`
+}
+
+// MarshalJSON preserves the OpenAI-style priming chunk shape while still
+// omitting empty deltas for terminal chunks.
+//
+// The first streaming chunk carries the assistant role and an explicit empty
+// content string. A terminal chunk, by contrast, carries neither field.
+func (d ChatMessageDelta) MarshalJSON() (
+	[]byte,
+	error,
+) {
+	if d.Role == "" && d.Content == "" {
+		return []byte("{}"), nil
+	}
+
+	payload := struct {
+		Role    *string `json:"role,omitempty"`
+		Content *string `json:"content,omitempty"`
+	}{}
+
+	if d.Role != "" {
+		role := d.Role
+		content := d.Content
+		payload.Role = &role
+		payload.Content = &content
+	} else if d.Content != "" {
+		content := d.Content
+		payload.Content = &content
+	}
+
+	return []byte(core.JSONMarshalString(payload)), nil
+}
+
+type chatCompletionError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Param   string `json:"param,omitempty"`
+	Code    string `json:"code"`
+}
+
+type chatCompletionErrorResponse struct {
+	Error chatCompletionError `json:"error"`
+}
+
+type modelResolutionError struct {
+	code  string
+	param string
+	msg   string
+}
+
+func (e *modelResolutionError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.msg
+}
+
+// ModelResolver resolves model names to loaded inference.TextModel instances.
+//
+// Resolution order:
+//
+//  1. Exact cache hit
+//  2. ~/.core/models.yaml path mapping
+//  3. discovery by architecture via inference.Discover()
+type ModelResolver struct {
+	mu           core.RWMutex
+	loadedByName map[string]inference.TextModel
+	loadedByPath map[string]inference.TextModel
+	discovery    map[string]string
+	// inFlight tracks model loads currently in progress, keyed by cleanPath.
+	// Concurrent callers waiting for the same path block on the channel
+	// until the original loader closes it; they then re-check the cache.
+	inFlight map[string]chan struct{}
+}
+
+// NewModelResolver constructs a ModelResolver with empty caches. The returned
+// resolver is safe for concurrent use — ResolveModel serialises cache updates
+// through an internal core.RWMutex.
+//
+//	resolver := api.NewModelResolver()
+//	engine, _ := api.New(api.WithChatCompletions(resolver))
+func NewModelResolver() *ModelResolver {
+	return &ModelResolver{
+		loadedByName: make(map[string]inference.TextModel),
+		loadedByPath: make(map[string]inference.TextModel),
+		discovery:    make(map[string]string),
+		inFlight:     make(map[string]chan struct{}),
+	}
+}
+
+// ResolveModel maps a model name to a loaded inference.TextModel.
+// Cached models are reused. Unknown names return an error.
+func (r *ModelResolver) ResolveModel(name string) (
+	inference.TextModel,
+	error,
+) {
+	if r == nil {
+		return nil, &modelResolutionError{
+			code:  "model_not_found",
+			param: "model",
+			msg:   "model resolver is not configured",
+		}
+	}
+
+	requested := core.Trim(name)
+	if requested == "" {
+		return nil, &modelResolutionError{
+			code:  "invalid_request_error",
+			param: "model",
+			msg:   "model is required",
+		}
+	}
+
+	r.mu.RLock()
+	if cached, ok := r.loadedByName[requested]; ok {
+		r.mu.RUnlock()
+		return cached, nil
+	}
+	normalized := core.Lower(requested)
+	if normalized != requested {
+		if cached, ok := r.loadedByName[normalized]; ok {
+			r.mu.RUnlock()
+			return cached, nil
+		}
+	}
+	r.mu.RUnlock()
+
+	if path, ok := r.lookupModelPath(normalized); ok {
+		return r.loadByPath(requested, path)
+	}
+
+	if path, ok := r.resolveDiscoveredPath(normalized); ok {
+		return r.loadByPath(requested, path)
+	}
+
+	return nil, &modelResolutionError{
+		code:  "model_not_found",
+		param: "model",
+		msg:   core.Sprintf("model %q not found", requested),
+	}
+}
+
+func (r *ModelResolver) loadByPath(name, path string) (
+	inference.TextModel,
+	error,
+) {
+	cleanPath := core.Path(path)
+
+	// Loop because a waiter wakes up to retry: either the cache now has
+	// the model (success path), or the original loader failed and we
+	// must take over the load ourselves.
+	for {
+		r.mu.Lock()
+		if cached, ok := r.loadedByPath[cleanPath]; ok {
+			r.loadedByName[name] = cached
+			normalizedName := core.Lower(name)
+			if normalizedName != name {
+				r.loadedByName[normalizedName] = cached
+			}
+			r.mu.Unlock()
+			return cached, nil
+		}
+		// Another goroutine is already loading this path — block on its
+		// completion channel and re-check the cache when it closes.
+		if waitCh, inFlight := r.inFlight[cleanPath]; inFlight {
+			r.mu.Unlock()
+			<-waitCh
+			continue
+		}
+		// We are the leader. Mark this path as in-flight so other callers
+		// wait for us. Close the channel on return regardless of outcome.
+		doneCh := make(chan struct{})
+		r.inFlight[cleanPath] = doneCh
+		r.mu.Unlock()
+
+		loadedResult := inference.LoadModel(cleanPath)
+		var loaded inference.TextModel
+		var err error
+		if loadedResult.OK {
+			var ok bool
+			loaded, ok = loadedResult.Value.(inference.TextModel)
+			if !ok {
+				err = core.E("ModelResolver.loadByPath", "loaded model has unexpected type", nil)
+			}
+		} else {
+			err = coreResultError(loadedResult)
+		}
+
+		r.mu.Lock()
+		delete(r.inFlight, cleanPath)
+		if err == nil {
+			r.loadedByName[name] = loaded
+			normalizedName := core.Lower(name)
+			if normalizedName != name {
+				r.loadedByName[normalizedName] = loaded
+			}
+			r.loadedByPath[cleanPath] = loaded
+		}
+		r.mu.Unlock()
+		close(doneCh)
+
+		if err != nil {
+			if core.Contains(core.Lower(err.Error()), "loading") {
+				return nil, &modelResolutionError{
+					code:  "model_loading",
+					param: "model",
+					msg:   err.Error(),
+				}
+			}
+			return nil, &modelResolutionError{
+				code:  "model_not_found",
+				param: "model",
+				msg:   err.Error(),
+			}
+		}
+		return loaded, nil
+	}
+}
+
+func (r *ModelResolver) lookupModelPath(name string) (string, bool) {
+	mappings, ok := r.modelsYAMLMapping()
+	if !ok {
+		return "", false
+	}
+
+	if path, ok := mappings[name]; ok && core.Trim(path) != "" {
+		return path, true
+	}
+	return "", false
+}
+
+func (r *ModelResolver) modelsYAMLMapping() (map[string]string, bool) {
+	configPath := modelsYAMLConfigPath()
+	read := core.New().Fs().Read(configPath)
+	if !read.OK {
+		return nil, false
+	}
+	data, ok := read.Value.(string)
+	if !ok {
+		return nil, false
+	}
+
+	var content any
+	if err := yaml.Unmarshal([]byte(data), &content); err != nil {
+		return nil, false
+	}
+
+	root, ok := content.(map[string]any)
+	if !ok || root == nil {
+		return nil, false
+	}
+
+	normalized := make(map[string]string)
+
+	if models, ok := root["models"].(map[string]any); ok && models != nil {
+		for key, raw := range models {
+			if value, ok := raw.(string); ok {
+				normalized[core.Lower(core.Trim(key))] = core.Trim(value)
+			}
+		}
+	}
+
+	for key, raw := range root {
+		if value, ok := modelMappingValue(raw); ok {
+			normalized[core.Lower(core.Trim(key))] = value
+		}
+	}
+
+	if len(normalized) == 0 {
+		return nil, false
+	}
+	return normalized, true
+}
+
+func modelsYAMLConfigPath() string {
+	if home := core.Trim(core.Env("DIR_HOME")); home != "" {
+		return core.Path(home, ".core", "models.yaml")
+	}
+
+	return core.Path(".core", "models.yaml")
+}
+
+func modelMappingValue(raw any) (string, bool) {
+	switch value := raw.(type) {
+	case string:
+		trimmed := core.Trim(value)
+		return trimmed, trimmed != ""
+	case map[string]any:
+		path, ok := value[`path`].(string)
+		if !ok {
+			return "", false
+		}
+		trimmed := core.Trim(path)
+		return trimmed, trimmed != ""
+	default:
+		return "", false
+	}
+}
+
+func (r *ModelResolver) resolveDiscoveredPath(name string) (string, bool) {
+	candidates := []string{name}
+	if n := indexByte(name, ':'); n > 0 {
+		candidates = append(candidates, name[:n])
+	}
+
+	r.mu.RLock()
+	for _, candidate := range candidates {
+		if path, ok := r.discovery[candidate]; ok {
+			r.mu.RUnlock()
+			return path, true
+		}
+	}
+	r.mu.RUnlock()
+
+	base := core.Path(core.Env("DIR_HOME"), ".core", "models")
+	var discovered string
+	for _, m := range discoveryModels(base) {
+		modelType := core.Lower(core.Trim(m.ModelType))
+		for _, candidate := range candidates {
+			if candidate != "" && candidate == modelType {
+				discovered = m.Path
+				break
+			}
+		}
+		if discovered != "" {
+			break
+		}
+	}
+
+	if discovered == "" {
+		return "", false
+	}
+
+	r.mu.Lock()
+	for _, candidate := range candidates {
+		if candidate != "" {
+			r.discovery[candidate] = discovered
+		}
+	}
+	r.mu.Unlock()
+
+	return discovered, true
+}
+
+type discoveredModel struct {
+	Path      string
+	ModelType string
+}
+
+// discoveryModels enumerates locally discovered models under base and
+// returns Path + ModelType pairs for name resolution.
+//
+//	for _, m := range discoveryModels(base) {
+//	    _ = m.Path
+//	}
+func discoveryModels(base string) []discoveredModel {
+	var out []discoveredModel
+	for m := range inference.Discover(base) {
+		if m.Path == "" || m.ModelType == "" {
+			continue
+		}
+		out = append(out, discoveredModel{Path: m.Path, ModelType: m.ModelType})
+	}
+	return out
+}
+
+// ThinkingExtractor separates thinking channel content from response text.
+// Applied as a post-processing step on the token stream.
+//
+//	extractor := NewThinkingExtractor()
+//	for tok := range model.Chat(ctx, messages) {
+//		extractor.Process(tok)
+//	}
+//	response := extractor.Content()   // User-facing text
+//	thinking := extractor.Thinking()  // Internal reasoning (may be nil)
+type ThinkingExtractor struct {
+	currentChannel string
+	content        string
+	thought        string
+}
+
+// NewThinkingExtractor constructs a ThinkingExtractor that starts on the
+// "assistant" channel. Tokens are routed to Content() until a
+// "<|channel>thought" marker switches the stream to the thinking channel (and
+// similarly back).
+//
+//	extractor := api.NewThinkingExtractor()
+func NewThinkingExtractor() *ThinkingExtractor {
+	return &ThinkingExtractor{
+		currentChannel: "assistant",
+	}
+}
+
+// Process feeds a single generated token into the extractor. Tokens are
+// appended to the current channel buffer (content or thought), switching on
+// the "<|channel>NAME" marker. Non-streaming handlers call Process in a loop
+// and then read Content and Thinking when generation completes.
+//
+//	for tok := range model.Chat(ctx, messages) {
+//	    extractor.Process(tok)
+//	}
+func (te *ThinkingExtractor) Process(token inference.Token) {
+	te.writeDeltas(token.Text)
+}
+
+// Content returns all text accumulated on the user-facing "assistant" channel
+// so far. Safe to call on a nil receiver (returns "").
+//
+//	text := extractor.Content()
+func (te *ThinkingExtractor) Content() string {
+	if te == nil {
+		return ""
+	}
+	return te.content
+}
+
+// Thinking returns all text accumulated on the internal "thought" channel so
+// far or nil when no thinking tokens were produced. Safe to call on a nil
+// receiver.
+//
+//	if thinking := extractor.Thinking(); thinking != nil {
+//	    response.Thought = thinking
+//	}
+func (te *ThinkingExtractor) Thinking() *string {
+	if te == nil {
+		return nil
+	}
+	if te.thought == "" {
+		return nil
+	}
+	out := te.thought
+	return &out
+}
+
+// writeDeltas tokenises text into the current channel, switching channels
+// whenever it encounters the "<|channel>NAME" marker. It returns the content
+// and thought fragments that were added to the builders during this call so
+// streaming handlers can emit only the new bytes to the wire.
+//
+//	contentDelta, thoughtDelta := extractor.writeDeltas(tok.Text)
+func (te *ThinkingExtractor) writeDeltas(text string) (string, string) {
+	if te == nil {
+		return "", ""
+	}
+
+	beforeContentLen := len(te.content)
+	beforeThoughtLen := len(te.thought)
+
+	remaining := text
+	for {
+		next := indexString(remaining, channelMarker)
+		if next < 0 {
+			te.writeToCurrentChannel(remaining)
+			break
+		}
+
+		te.writeToCurrentChannel(remaining[:next])
+		remaining = remaining[next+len(channelMarker):]
+
+		remaining = trimLeftFunc(remaining, unicode.IsSpace)
+		if remaining == "" {
+			break
+		}
+
+		chanName, consumed := parseChannelName(remaining)
+		if consumed <= 0 {
+			te.writeToCurrentChannel(channelMarker)
+			if remaining != "" {
+				te.writeToCurrentChannel(remaining)
+			}
+			break
+		}
+
+		if chanName == "" {
+			te.writeToCurrentChannel(channelMarker)
+		} else {
+			te.currentChannel = chanName
+		}
+		remaining = remaining[consumed:]
+	}
+
+	return te.content[beforeContentLen:], te.thought[beforeThoughtLen:]
+}
+
+func (te *ThinkingExtractor) writeToCurrentChannel(text string) {
+	if text == "" {
+		return
+	}
+
+	if te.currentChannel == "thought" {
+		te.thought += text
+		return
+	}
+	te.content += text
+}
+
+func parseChannelName(s string) (string, int) {
+	if s == "" {
+		return "", 0
+	}
+	count := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
+			count++
+			continue
+		}
+		break
+	}
+	if count == 0 {
+		return "", 0
+	}
+	return core.Lower(s[:count]), count
+}
+
+type chatCompletionsHandler struct {
+	resolver *ModelResolver
+}
+
+func newChatCompletionsHandler(resolver *ModelResolver) *chatCompletionsHandler {
+	return &chatCompletionsHandler{
+		resolver: resolver,
+	}
+}
+
+func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
+	if h == nil || h.resolver == nil {
+		writeChatCompletionError(c, http.StatusServiceUnavailable, "invalid_request_error", "model", "chat handler is not configured", "model")
+		return
+	}
+
+	if !isLoopbackRequest(c.Request) {
+		writeChatCompletionError(c, http.StatusForbidden, "invalid_request_error", "request", "chat completions is only available on loopback interfaces", "")
+		return
+	}
+
+	var req ChatCompletionRequest
+	if err := decodeJSONBody(c.Request.Body, &req); err != nil {
+		writeChatCompletionError(c, 400, "invalid_request_error", "body", "invalid request body", "")
+		return
+	}
+
+	if err := validateChatRequest(&req); err != nil {
+		chatErr, ok := err.(*chatCompletionRequestError)
+		if !ok {
+			writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "body", err.Error(), "")
+			return
+		}
+		writeChatCompletionError(c, chatErr.Status, chatErr.Type, chatErr.Param, chatErr.Message, chatErr.Code)
+		return
+	}
+
+	model, err := h.resolver.ResolveModel(req.Model)
+	if err != nil {
+		status, errType, errCode, errParam := mapResolverError(err)
+		writeChatCompletionError(c, status, errType, errParam, err.Error(), errCode)
+		return
+	}
+
+	reqForOptions := req
+	reqForOptions.Stop = nil
+	options, err := chatRequestOptions(&reqForOptions)
+	if err != nil {
+		writeChatCompletionError(c, 400, "invalid_request_error", "stop", err.Error(), "")
+		return
+	}
+	stopSequences, err := normalizedStopSequences(req.Stop)
+	if err != nil {
+		writeChatCompletionError(c, 400, "invalid_request_error", "stop", err.Error(), "")
+		return
+	}
+
+	messages := make([]inference.Message, 0, len(req.Messages))
+	for _, msg := range req.Messages {
+		messages = append(messages, inference.Message{
+			Role:    msg.Role,
+			Content: msg.Content,
+		})
+	}
+
+	if req.Stream {
+		h.serveStreaming(c, model, req, messages, stopSequences, options...)
+		return
+	}
+	h.serveNonStreaming(c, model, req, messages, stopSequences, options...)
+}
+
+func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inference.TextModel, req ChatCompletionRequest, messages []inference.Message, stopSequences []string, opts ...inference.GenerateOption) {
+	ctx := c.Request.Context()
+	created := time.Now().Unix()
+	completionID := newChatCompletionID()
+
+	extractor := NewThinkingExtractor()
+	for tok := range model.Chat(ctx, messages, opts...) {
+		extractor.Process(tok)
+	}
+	if err := model.Err(); err != nil {
+		if core.Contains(core.Lower(err.Error()), "loading") {
+			writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
+			return
+		}
+		writeChatCompletionError(c, http.StatusInternalServerError, "inference_error", "model", err.Error(), "")
+		return
+	}
+
+	metrics := model.Metrics()
+	content := truncateAtStopSequence(extractor.Content(), stopSequences)
+	finishReason := "stop"
+	if isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
+		finishReason = "length"
+	}
+
+	response := ChatCompletionResponse{
+		ID:      completionID,
+		Object:  "chat.completion",
+		Created: created,
+		Model:   req.Model,
+		Choices: []ChatChoice{
+			{
+				Index: 0,
+				Message: ChatMessage{
+					Role:    "assistant",
+					Content: content,
+				},
+				FinishReason: finishReason,
+			},
+		},
+		Usage: ChatUsage{
+			PromptTokens:     metrics.PromptTokens,
+			CompletionTokens: metrics.GeneratedTokens,
+			TotalTokens:      metrics.PromptTokens + metrics.GeneratedTokens,
+		},
+	}
+	if thought := extractor.Thinking(); thought != nil {
+		response.Thought = thought
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.TextModel, req ChatCompletionRequest, messages []inference.Message, stopSequences []string, opts ...inference.GenerateOption) {
+	ctx := c.Request.Context()
+	created := time.Now().Unix()
+	completionID := newChatCompletionID()
+
+	extractor := NewThinkingExtractor()
+	streamStarted := false
+	emittedContent := ""
+	writePrimingChunk := func() {
+		if streamStarted {
+			return
+		}
+
+		c.Header("Content-Type", "text/event-stream")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Status(200)
+		c.Writer.Flush()
+
+		primingChunk := ChatCompletionChunk{
+			ID:      completionID,
+			Object:  "chat.completion.chunk",
+			Created: created,
+			Model:   req.Model,
+			Choices: []ChatChunkChoice{
+				{
+					Index: 0,
+					Delta: ChatMessageDelta{
+						Role: "assistant",
+					},
+					FinishReason: nil,
+				},
+			},
+		}
+	encoded := core.JSONMarshalString(primingChunk)
+	_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+	c.Writer.Flush()
+
+		streamStarted = true
+	}
+
+	for tok := range model.Chat(ctx, messages, opts...) {
+		writePrimingChunk()
+
+		contentDelta, thoughtDelta := extractor.writeDeltas(tok.Text)
+		candidateContent := emittedContent + contentDelta
+		stopCut, stopHit := firstStopSequenceCut(candidateContent, stopSequences)
+		if stopHit {
+			if stopCut <= len(emittedContent) {
+				contentDelta = ""
+			} else {
+				contentDelta = candidateContent[len(emittedContent):stopCut]
+			}
+		}
+
+		if !stopHit && contentDelta == "" && thoughtDelta == "" {
+			continue
+		}
+
+		delta := ChatMessageDelta{
+			Content: contentDelta,
+		}
+
+		chunk := ChatCompletionChunk{
+			ID:      completionID,
+			Object:  "chat.completion.chunk",
+			Created: created,
+			Model:   req.Model,
+			Choices: []ChatChunkChoice{
+				{
+					Index:        0,
+					Delta:        delta,
+					FinishReason: nil,
+				},
+			},
+		}
+		if thoughtDelta != "" {
+			t := thoughtDelta
+			chunk.Thought = &t
+		}
+
+	encoded := core.JSONMarshalString(chunk)
+	_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+	c.Writer.Flush()
+		if stopHit {
+			emittedContent = candidateContent[:stopCut]
+		} else {
+			emittedContent = candidateContent
+		}
+		if stopHit {
+			break
+		}
+	}
+
+	if err := model.Err(); err != nil {
+		if !streamStarted {
+			if core.Contains(core.Lower(err.Error()), "loading") {
+				writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
+				return
+			}
+			writeChatCompletionError(c, http.StatusInternalServerError, "inference_error", "model", err.Error(), "")
+			return
+		}
+	}
+
+	finishReason := "stop"
+	metrics := model.Metrics()
+	if err := model.Err(); err != nil {
+		finishReason = "error"
+	}
+	if finishReason != "error" && isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
+		finishReason = "length"
+	}
+
+	writePrimingChunk()
+
+	finished := finishReason
+	finalChunk := ChatCompletionChunk{
+		ID:      completionID,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   req.Model,
+		Choices: []ChatChunkChoice{
+			{
+				Index:        0,
+				Delta:        ChatMessageDelta{},
+				FinishReason: &finished,
+			},
+		},
+	}
+	encoded := core.JSONMarshalString(finalChunk)
+	_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+	_, _ = c.Writer.WriteString("data: [DONE]\n\n")
+	c.Writer.Flush()
+}
+
+type chatCompletionRequestError struct {
+	Status  int
+	Type    string
+	Code    string
+	Param   string
+	Message string
+}
+
+func (e *chatCompletionRequestError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func validateChatRequest(req *ChatCompletionRequest) (
+	_ error,
+) {
+	if core.Trim(req.Model) == "" {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "model",
+			Message: "model is required",
+		}
+	}
+
+	if len(req.Messages) == 0 {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "messages",
+			Message: "messages must be a non-empty array",
+		}
+	}
+
+	for i, msg := range req.Messages {
+		role := core.Lower(core.Trim(msg.Role))
+		if role == "" {
+			return &chatCompletionRequestError{
+				Status:  400,
+				Type:    "invalid_request_error",
+				Code:    "invalid_request_error",
+				Param:   core.Sprintf("messages[%d].role", i),
+				Message: "message role is required",
+			}
+		}
+		switch role {
+		case "system", "user", "assistant":
+		default:
+			return &chatCompletionRequestError{
+				Status:  400,
+				Type:    "invalid_request_error",
+				Code:    "invalid_request_error",
+				Param:   core.Sprintf("messages[%d].role", i),
+				Message: "message role must be system, user, or assistant",
+			}
+		}
+	}
+
+	// Bounds-check sampling parameters before they reach the inference
+	// backend. Out-of-range values (e.g. negative max_tokens) silently
+	// disable downstream length caps; reject with 400 up front.
+	if req.Temperature != nil && (*req.Temperature < 0 || *req.Temperature > 2) {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "temperature",
+			Message: "temperature must be in [0, 2]",
+		}
+	}
+	if req.TopP != nil && (*req.TopP < 0 || *req.TopP > 1) {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "top_p",
+			Message: "top_p must be in [0, 1]",
+		}
+	}
+	if req.TopK != nil && *req.TopK < 0 {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "top_k",
+			Message: "top_k must be >= 0",
+		}
+	}
+	if req.MaxTokens != nil && *req.MaxTokens < 0 {
+		return &chatCompletionRequestError{
+			Status:  400,
+			Type:    "invalid_request_error",
+			Code:    "invalid_request_error",
+			Param:   "max_tokens",
+			Message: "max_tokens must be >= 0",
+		}
+	}
+
+	return nil
+}
+
+func chatRequestOptions(req *ChatCompletionRequest) (
+	[]inference.GenerateOption,
+	error,
+) {
+	opts := make([]inference.GenerateOption, 0, 5)
+	opts = append(opts, inference.WithTemperature(chatResolvedFloat(req.Temperature, chatDefaultTemperature)))
+	opts = append(opts, inference.WithTopP(chatResolvedFloat(req.TopP, chatDefaultTopP)))
+	opts = append(opts, inference.WithTopK(chatResolvedInt(req.TopK, chatDefaultTopK)))
+	opts = append(opts, inference.WithMaxTokens(chatResolvedInt(req.MaxTokens, chatDefaultMaxTokens)))
+	stops, err := parsedStopTokens(req.Stop)
+	if err != nil {
+		return nil, err
+	}
+	if len(stops) > 0 {
+		opts = append(opts, inference.WithStopTokens(stops...))
+	}
+	return opts, nil
+}
+
+// chatResolvedFloat honours an explicitly set float sampling parameter or
+// falls back to the calibrated default when the pointer is nil.
+//
+// Spec §11.2: "When a parameter is omitted (nil), the server applies the
+// calibrated default. When explicitly set (including 0.0), the server honours
+// the caller's value."
+//
+//	temperature := chatResolvedFloat(req.Temperature, chatDefaultTemperature)
+func chatResolvedFloat(v *float32, def float32) float32 {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+// chatResolvedInt honours an explicitly set integer sampling parameter or
+// falls back to the calibrated default when the pointer is nil.
+//
+//	topK := chatResolvedInt(req.TopK, chatDefaultTopK)
+func chatResolvedInt(v *int, def int) int {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+func isLoopbackRequest(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+
+	remoteAddr := core.Trim(r.RemoteAddr)
+	if remoteAddr == "" {
+		return true
+	}
+
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+
+	host = trimSquareBrackets(host)
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback()
+}
+
+func normalizedStopSequences(stops []string) (
+	[]string,
+	error,
+) {
+	if len(stops) == 0 {
+		return nil, nil
+	}
+
+	out := make([]string, 0, len(stops))
+	for _, raw := range stops {
+		raw = core.Trim(raw)
+		if raw == "" {
+			return nil, core.E("", "stop entries cannot be empty", nil)
+		}
+		out = append(out, raw)
+	}
+	return out, nil
+}
+
+// parsedStopTokens extracts numeric token-ID entries from the OpenAI-style
+// stop list and returns them as int32s for inference.WithStopTokens. Text stop
+// sequences are applied separately via normalizedStopSequences; reaching this
+// parser with a nonnumeric entry is malformed.
+func parsedStopTokens(stops []string) (
+	[]int32,
+	error,
+) {
+	if len(stops) == 0 {
+		return nil, nil
+	}
+
+	out := make([]int32, 0, len(stops))
+	for _, raw := range stops {
+		raw = core.Trim(raw)
+		if raw == "" {
+			return nil, core.E("", "stop entries cannot be empty", nil)
+		}
+		parsed := core.ParseInt(raw, 10, 32)
+		if !parsed.OK {
+			return nil, core.E("", "stop entries must be token IDs", nil)
+		}
+		value, ok := parsed.Value.(int64)
+		if !ok {
+			continue
+		}
+		out = append(out, int32(value))
+	}
+	return out, nil
+}
+
+func firstStopSequenceCut(content string, stops []string) (int, bool) {
+	if len(stops) == 0 || content == "" {
+		return 0, false
+	}
+
+	cut := -1
+	for _, stop := range stops {
+		if stop == "" {
+			continue
+		}
+		idx := indexString(content, stop)
+		if idx < 0 {
+			continue
+		}
+		if cut < 0 || idx < cut {
+			cut = idx
+		}
+	}
+
+	if cut < 0 {
+		return 0, false
+	}
+	return cut, true
+}
+
+func truncateAtStopSequence(content string, stops []string) string {
+	cut, ok := firstStopSequenceCut(content, stops)
+	if !ok {
+		return content
+	}
+	return content[:cut]
+}
+
+// isTokenLengthCapReached reports whether the generated token count meets or
+// exceeds the caller's max_tokens budget. Nil or non-positive caps disable the
+// check (streams terminate by backend signal only).
+//
+//	if isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
+//	    finishReason = "length"
+//	}
+func isTokenLengthCapReached(maxTokens *int, generated int) bool {
+	if maxTokens == nil || *maxTokens <= 0 {
+		return false
+	}
+	return generated >= *maxTokens
+}
+
+func mapResolverError(err error) (int, string, string, string) {
+	resErr, ok := err.(*modelResolutionError)
+	if !ok {
+		return 500, "inference_error", "inference_error", "model"
+	}
+	switch resErr.code {
+	case "model_loading":
+		return http.StatusServiceUnavailable, "model_loading", "model_loading", resErr.param
+	case "model_not_found":
+		return 404, "model_not_found", "model_not_found", resErr.param
+	default:
+		return 500, "inference_error", "inference_error", resErr.param
+	}
+}
+
+func writeChatCompletionError(c *gin.Context, status int, errType, param, message, code string) {
+	if status <= 0 {
+		status = http.StatusInternalServerError
+	}
+	resp := chatCompletionErrorResponse{
+		Error: chatCompletionError{
+			Message: message,
+			Type:    errType,
+			Param:   param,
+			Code:    codeOrDefault(code, errType),
+		},
+	}
+	c.Header("Content-Type", "application/json")
+	if status == http.StatusServiceUnavailable {
+		// Retry-After must be set BEFORE c.JSON commits headers to the
+		// wire. RFC 9110 §10.2.3 allows either seconds or an HTTP-date;
+		// we use seconds for simplicity and OpenAI parity.
+		c.Header("Retry-After", "10")
+	}
+	c.JSON(status, resp)
+}
+
+func codeOrDefault(code, fallback string) string {
+	if code != "" {
+		return code
+	}
+	if fallback != "" {
+		return fallback
+	}
+	return "inference_error"
+}
+
+func newChatCompletionID() string {
+	//#nosec G404 -- non-security ID for display/correlation only
+	return core.Sprintf("chatcmpl-%d-%06d", time.Now().Unix(), rand.Intn(1_000_000))
+}
+
+func decodeJSONBody(reader any, dest any) (
+	_ error,
+) {
+	read := core.ReadAll(reader)
+	if !read.OK {
+		return core.E("decodeJSONBody", "read request body", coreResultError(read))
+	}
+	raw, ok := read.Value.(string)
+	if !ok {
+		return core.E("decodeJSONBody", "read request body", nil)
+	}
+
+	if _, ok := dest.(*ChatCompletionRequest); ok {
+		if err := rejectUnknownChatCompletionFields(raw); err != nil {
+			return err
+		}
+	}
+
+	result := core.JSONUnmarshalString(raw, dest)
+	if !result.OK {
+		return coreResultError(result)
+	}
+	return nil
+}
+
+func rejectUnknownChatCompletionFields(raw string) (
+	_ error,
+) {
+	var body map[string]any
+	result := core.JSONUnmarshalString(raw, &body)
+	if !result.OK {
+		return coreResultError(result)
+	}
+	for key := range body {
+		if !allowedChatCompletionRequestField(key) {
+			return unknownJSONFieldError(key)
+		}
+	}
+
+	messages, ok := body["messages"].([]any)
+	if !ok {
+		return nil
+	}
+	for _, rawMessage := range messages {
+		message, ok := rawMessage.(map[string]any)
+		if !ok {
+			continue
+		}
+		for key := range message {
+			if !allowedChatMessageField(key) {
+				return unknownJSONFieldError(key)
+			}
+		}
+	}
+	return nil
+}
+
+func allowedChatCompletionRequestField(name string) bool {
+	switch name {
+	case "model", "messages", "temperature", "top_p", "top_k", "max_tokens", "stream", "stop", "user":
+		return true
+	default:
+		return false
+	}
+}
+
+func allowedChatMessageField(name string) bool {
+	switch name {
+	case "role", "content":
+		return true
+	default:
+		return false
+	}
+}
+
+func unknownJSONFieldError(name string) (
+	_ error,
+) {
+	return core.E("", core.Sprintf("json: unknown field %q", name), nil)
+}
+
+func coreResultError(result core.Result) (
+	_ error,
+) {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.E("", "operation failed", nil)
+}
+
+func indexString(s, substr string) int {
+	if substr == "" {
+		return 0
+	}
+	if len(substr) > len(s) {
+		return -1
+	}
+
+	max := len(s) - len(substr)
+	first := substr[0]
+	for i := 0; i <= max; i++ {
+		if s[i] == first && s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func indexByte(s string, target byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func trimSquareBrackets(s string) string {
+	for len(s) > 0 && (s[0] == '[' || s[0] == ']') {
+		s = s[1:]
+	}
+	for len(s) > 0 {
+		last := s[len(s)-1]
+		if last != '[' && last != ']' {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
+}
