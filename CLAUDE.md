@@ -36,7 +36,7 @@ composer lint                                    # Laravel Pint (PSR-12)
 ./vendor/bin/pint --dirty                        # Format changed files
 ```
 
-Tests live in `src/php/src/Api/Tests/Feature/` (in-source) and `src/php/tests/` (standalone).
+Tests live in `php/src/Api/Tests/Feature/` (in-source) and `php/tests/` (standalone).
 
 ## Architecture
 
@@ -63,15 +63,15 @@ engine.Serve(ctx)
 
 **CLI** (`cmd/api/`): Registers `core api spec` and `core api sdk` commands.
 
-### PHP Package (`src/php/`)
+### PHP Package (`php/`)
 
 Three namespace roots:
 
 | Namespace | Path | Role |
 |-----------|------|------|
-| `Core\Front\Api` | `src/php/src/Front/Api/` | API frontage — middleware, versioning, auto-discovered provider |
-| `Core\Api` | `src/php/src/Api/` | Backend — auth, scopes, models, webhooks, OpenAPI docs |
-| `Core\Website\Api` | `src/php/src/Website/Api/` | Documentation UI — controllers, Blade views, web routes |
+| `Core\Front\Api` | `php/src/Front/Api/` | API frontage — middleware, versioning, auto-discovered provider |
+| `Core\Api` | `php/src/Api/` | Backend — auth, scopes, models, webhooks, OpenAPI docs |
+| `Core\Website\Api` | `php/src/Website/Api/` | Documentation UI — controllers, Blade views, web routes |
 
 Boot chain: `Front\Api\Boot` (auto-discovered) fires `ApiRoutesRegistering` -> `Api\Boot` registers middleware and routes.
 

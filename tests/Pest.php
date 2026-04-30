@@ -81,6 +81,6 @@ abstract class TestCase extends Orchestra\Testbench\TestCase
 
 uses(TestCase::class)
     ->in(
-        __DIR__.'/../src/php/tests/Feature',
-        __DIR__.'/../src/php/src/Api/Tests/Feature',
+        __DIR__.'/../php/tests/Feature',
+        __DIR__.'/../php/src/Api/Tests/Feature',
     );
