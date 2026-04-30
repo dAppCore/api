@@ -833,9 +833,9 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 				},
 			},
 		}
-	encoded := core.JSONMarshalString(primingChunk)
-	_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
-	c.Writer.Flush()
+		encoded := core.JSONMarshalString(primingChunk)
+		_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+		c.Writer.Flush()
 
 		streamStarted = true
 	}
@@ -880,9 +880,9 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 			chunk.Thought = &t
 		}
 
-	encoded := core.JSONMarshalString(chunk)
-	_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
-	c.Writer.Flush()
+		encoded := core.JSONMarshalString(chunk)
+		_, _ = c.Writer.WriteString(core.Sprintf("data: %s\n\n", encoded))
+		c.Writer.Flush()
 		if stopHit {
 			emittedContent = candidateContent[:stopCut]
 		} else {

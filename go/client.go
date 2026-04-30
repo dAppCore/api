@@ -362,7 +362,9 @@ func (c *OpenAPIClient) Call(operationID string, params any) (
 		return nil, err
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			core.Error("openapi response body close failed", "err", closeErr)
+		}
 	}()
 
 	payload, err := io.ReadAll(resp.Body)
