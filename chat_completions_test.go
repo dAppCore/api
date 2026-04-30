@@ -3,8 +3,7 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +14,7 @@ import (
 )
 
 func newLoopbackRequest(method, target, body string) *http.Request {
-	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req := httptest.NewRequest(method, target, core.NewReader(body))
 	req.RemoteAddr = "127.0.0.1:1234"
 	return req
 }
@@ -53,7 +52,7 @@ func TestChatCompletions_WithChatCompletions_Good(t *testing.T) {
 			Code    string `json:"code"`
 		} `json:"error"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+	if err := coreJSONUnmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("invalid JSON body: %v", err)
 	}
 	if payload.Error.Code != "model_not_found" {
@@ -162,7 +161,7 @@ func TestChatCompletionsValidateRequestBadPayload(t *testing.T) {
 					Code string `json:"code"`
 				} `json:"error"`
 			}
-			if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			if err := coreJSONUnmarshal(rec.Body.Bytes(), &payload); err != nil {
 				t.Fatalf("invalid JSON body: %v", err)
 			}
 			if payload.Error.Type != tc.code {

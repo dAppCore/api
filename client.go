@@ -4,7 +4,6 @@ package api
 
 import (
 	// Note: AX-6 — byte-slice JSON whitespace checks have no core byte-trim primitive.
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
 	// Note: AX-6 — io.Reader API and HTTP body reads are structural stream boundaries.
 	"io"
 	// Note: AX-6 — iter.Seq is the public lazy iteration shape for operation/server snapshots.
@@ -373,13 +372,13 @@ func (c *OpenAPIClient) Call(operationID string, params any) (
 		return nil, core.E("OpenAPIClient.Call", core.Sprintf("openapi call %s returned %s: %s", operationID, resp.Status, core.Trim(string(payload))), nil)
 	}
 
-	if op.responseSchema != nil && len(bytes.TrimSpace(payload)) > 0 {
+	if op.responseSchema != nil && len(core.Trim(string(payload))) > 0 {
 		if err := validateOpenAPIResponse(payload, op.responseSchema, operationID); err != nil {
 			return nil, err
 		}
 	}
 
-	if len(bytes.TrimSpace(payload)) == 0 {
+	if len(core.Trim(string(payload))) == 0 {
 		return nil, nil
 	}
 
@@ -1071,7 +1070,7 @@ func firstSuccessResponseSchema(operation map[string]any) map[string]any {
 func validateOpenAPISchema(body []byte, schema map[string]any, label string) (
 	_ error,
 ) {
-	if len(bytes.TrimSpace(body)) == 0 {
+	if len(core.Trim(string(body))) == 0 {
 		return nil
 	}
 

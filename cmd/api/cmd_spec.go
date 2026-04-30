@@ -3,8 +3,6 @@
 package api
 
 import (
-	os "dappco.re/go/api/internal/stdcompat/coreos" // Note: AX-6 — os.Stdout has no core equivalent for command output.
-
 	core "dappco.re/go"
 	"dappco.re/go/cli/pkg/cli"
 
@@ -46,7 +44,7 @@ func specAction(opts core.Options) core.Result {
 		return core.Ok(nil)
 	}
 
-	if err := goapi.ExportSpecIter(os.Stdout, format, builder, groups); err != nil {
+	if err := goapi.ExportSpecIter(core.Stdout(), format, builder, groups); err != nil {
 		return core.Fail(cli.Wrap(err, "render spec"))
 	}
 	return core.Ok(nil)

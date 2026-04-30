@@ -4,9 +4,7 @@ package api_test
 
 import (
 	"context"
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"slices"
 	"testing"
 
@@ -39,14 +37,14 @@ func TestSDKGenerator_Bad_UnsupportedLanguage(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unsupported language, got nil")
 	}
-	if !strings.Contains(err.Error(), "unsupported language") {
+	if !core.Contains(err.Error(), "unsupported language") {
 		t.Fatalf("expected error to contain 'unsupported language', got: %v", err)
 	}
 }
 
 func TestSDKGenerator_Bad_MissingSpec(t *testing.T) {
 	gen := &api.SDKGenerator{
-		SpecPath:  filepath.Join(t.TempDir(), "nonexistent.json"),
+		SpecPath:  core.PathJoin(t.TempDir(), "nonexistent.json"),
 		OutputDir: t.TempDir(),
 	}
 
@@ -54,7 +52,7 @@ func TestSDKGenerator_Bad_MissingSpec(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing spec file, got nil")
 	}
-	if !strings.Contains(err.Error(), "spec file not found") {
+	if !core.Contains(err.Error(), "spec file not found") {
 		t.Fatalf("expected error to contain 'spec file not found', got: %v", err)
 	}
 }
@@ -68,15 +66,15 @@ func TestSDKGenerator_Bad_EmptySpecPath(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty spec path, got nil")
 	}
-	if !strings.Contains(err.Error(), "spec path is required") {
+	if !core.Contains(err.Error(), "spec path is required") {
 		t.Fatalf("expected error to contain 'spec path is required', got: %v", err)
 	}
 }
 
 func TestSDKGenerator_Bad_EmptyOutputDir(t *testing.T) {
 	specDir := t.TempDir()
-	specPath := filepath.Join(specDir, "spec.json")
-	if err := os.WriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
+	specPath := core.PathJoin(specDir, "spec.json")
+	if err := coreWriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
 		t.Fatalf("failed to write spec file: %v", err)
 	}
 
@@ -88,14 +86,14 @@ func TestSDKGenerator_Bad_EmptyOutputDir(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty output directory, got nil")
 	}
-	if !strings.Contains(err.Error(), "output directory is required") {
+	if !core.Contains(err.Error(), "output directory is required") {
 		t.Fatalf("expected error to contain 'output directory is required', got: %v", err)
 	}
 }
 
 func TestSDKGenerator_Bad_NilContext(t *testing.T) {
 	gen := &api.SDKGenerator{
-		SpecPath:  filepath.Join(t.TempDir(), "nonexistent.json"),
+		SpecPath:  core.PathJoin(t.TempDir(), "nonexistent.json"),
 		OutputDir: t.TempDir(),
 	}
 
@@ -103,7 +101,7 @@ func TestSDKGenerator_Bad_NilContext(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil context, got nil")
 	}
-	if !strings.Contains(err.Error(), "context is nil") {
+	if !core.Contains(err.Error(), "context is nil") {
 		t.Fatalf("expected error to contain 'context is nil', got: %v", err)
 	}
 }
@@ -115,7 +113,7 @@ func TestSDKGenerator_Bad_NilReceiver(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil generator, got nil")
 	}
-	if !strings.Contains(err.Error(), "generator is nil") {
+	if !core.Contains(err.Error(), "generator is nil") {
 		t.Fatalf("expected error to contain 'generator is nil', got: %v", err)
 	}
 }
@@ -124,12 +122,12 @@ func TestSDKGenerator_Bad_MissingGenerator(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
 	specDir := t.TempDir()
-	specPath := filepath.Join(specDir, "spec.json")
-	if err := os.WriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
+	specPath := core.PathJoin(specDir, "spec.json")
+	if err := coreWriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
 		t.Fatalf("failed to write spec file: %v", err)
 	}
 
-	outputDir := filepath.Join(t.TempDir(), "nested", "sdk")
+	outputDir := core.PathJoin(t.TempDir(), "nested", "sdk")
 	gen := &api.SDKGenerator{
 		SpecPath:  specPath,
 		OutputDir: outputDir,
@@ -139,36 +137,36 @@ func TestSDKGenerator_Bad_MissingGenerator(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when openapi-generator-cli is missing, got nil")
 	}
-	if !strings.Contains(err.Error(), "openapi-generator-cli not installed") {
+	if !core.Contains(err.Error(), "openapi-generator-cli not installed") {
 		t.Fatalf("expected missing-generator error, got: %v", err)
 	}
 
-	if _, statErr := os.Stat(filepath.Join(outputDir, "go")); !os.IsNotExist(statErr) {
+	if _, statErr := coreStat(core.PathJoin(outputDir, "go")); !core.IsNotExist(statErr) {
 		t.Fatalf("expected output directory not to be created when generator is missing, got err=%v", statErr)
 	}
 }
 
 func TestSDKGenerator_Good_OutputDirCreated(t *testing.T) {
-	oldPath := os.Getenv("PATH")
+	oldPath := core.Getenv("PATH")
 
 	// Provide a fake openapi-generator-cli so Generate reaches the exec step
 	// without depending on the host environment.
 	binDir := t.TempDir()
-	binPath := filepath.Join(binDir, "openapi-generator-cli")
+	binPath := core.PathJoin(binDir, "openapi-generator-cli")
 	script := []byte("#!/bin/sh\nexit 1\n")
-	if err := os.WriteFile(binPath, script, 0o755); err != nil {
+	if err := coreWriteFile(binPath, script, 0o755); err != nil {
 		t.Fatalf("failed to write fake generator: %v", err)
 	}
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+oldPath)
 
 	// Write a minimal spec file so we pass the file-exists check.
 	specDir := t.TempDir()
-	specPath := filepath.Join(specDir, "spec.json")
-	if err := os.WriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
+	specPath := core.PathJoin(specDir, "spec.json")
+	if err := coreWriteFile(specPath, []byte(`{"openapi":"3.1.0"}`), 0o644); err != nil {
 		t.Fatalf("failed to write spec file: %v", err)
 	}
 
-	outputDir := filepath.Join(t.TempDir(), "nested", "sdk")
+	outputDir := core.PathJoin(t.TempDir(), "nested", "sdk")
 	gen := &api.SDKGenerator{
 		SpecPath:  specPath,
 		OutputDir: outputDir,
@@ -178,8 +176,8 @@ func TestSDKGenerator_Good_OutputDirCreated(t *testing.T) {
 	// been created before the CLI returned its non-zero status.
 	_ = gen.Generate(context.Background(), "go")
 
-	expected := filepath.Join(outputDir, "go")
-	info, err := os.Stat(expected)
+	expected := core.PathJoin(outputDir, "go")
+	info, err := coreStat(expected)
 	if err != nil {
 		t.Fatalf("expected output directory %s to exist, got error: %v", expected, err)
 	}
@@ -203,8 +201,8 @@ func TestSDKGenerator_Good_Available(t *testing.T) {
 // is rejected before exec.CommandContext is reached.
 func TestSDKGenerator_Generate_PackageNameRejected_Bad(t *testing.T) {
 	tmp := t.TempDir()
-	specPath := filepath.Join(tmp, "spec.yaml")
-	if err := os.WriteFile(specPath, []byte("openapi: 3.0.0\n"), 0o644); err != nil {
+	specPath := core.PathJoin(tmp, "spec.yaml")
+	if err := coreWriteFile(specPath, []byte("openapi: 3.0.0\n"), 0o644); err != nil {
 		t.Fatalf("write spec: %v", err)
 	}
 
@@ -227,7 +225,7 @@ func TestSDKGenerator_Generate_PackageNameRejected_Bad(t *testing.T) {
 				t.Errorf("expected rejection for PackageName=%q, got nil error", name)
 				return
 			}
-			if !strings.Contains(err.Error(), "package name") {
+			if !core.Contains(err.Error(), "package name") {
 				t.Errorf("expected rejection error containing 'package name', got %q", err.Error())
 			}
 		})
@@ -246,8 +244,8 @@ func TestSDKGenerator_Generate_PackageNameAccepted_Good(t *testing.T) {
 		"a",
 	}
 	tmp := t.TempDir()
-	specPath := filepath.Join(tmp, "spec.yaml")
-	if err := os.WriteFile(specPath, []byte("openapi: 3.0.0\n"), 0o644); err != nil {
+	specPath := core.PathJoin(tmp, "spec.yaml")
+	if err := coreWriteFile(specPath, []byte("openapi: 3.0.0\n"), 0o644); err != nil {
 		t.Fatalf("write spec: %v", err)
 	}
 	for _, name := range accepts {
@@ -261,8 +259,8 @@ func TestSDKGenerator_Generate_PackageNameAccepted_Good(t *testing.T) {
 			// Likely fails because openapi-generator-cli isn't installed in
 			// CI; the error MUST NOT be the regex-rejection ("package name
 			// X rejected").
-			if err != nil && strings.Contains(err.Error(), "package name") &&
-				strings.Contains(err.Error(), "rejected") {
+			if err != nil && core.Contains(err.Error(), "package name") &&
+				core.Contains(err.Error(), "rejected") {
 				t.Errorf("name %q was unexpectedly rejected by regex: %v", name, err)
 			}
 		})

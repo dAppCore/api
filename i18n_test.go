@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -72,7 +71,7 @@ func TestWithI18n_Good_DetectsLocaleFromHeader(t *testing.T) {
 	}
 
 	var resp i18nLocaleResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["locale"] != "fr" {
@@ -99,7 +98,7 @@ func TestWithI18n_Good_FallsBackToDefault(t *testing.T) {
 	}
 
 	var resp i18nLocaleResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["locale"] != "en" {
@@ -126,7 +125,7 @@ func TestWithI18n_Good_QualityWeighting(t *testing.T) {
 	}
 
 	var resp i18nLocaleResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["locale"] != "fr" {
@@ -153,7 +152,7 @@ func TestWithI18n_Good_PreservesMatchedLocaleTag(t *testing.T) {
 	}
 
 	var resp i18nLocaleResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["locale"] != "fr-CA" {
@@ -183,7 +182,7 @@ func TestWithI18n_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	// i18n middleware should detect French.
 	var resp i18nLocaleResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["locale"] != "fr" {
@@ -221,7 +220,7 @@ func TestWithI18n_Good_LooksUpMessage(t *testing.T) {
 	}
 
 	var resp i18nMessageResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data.Locale != "fr" {
@@ -245,7 +244,7 @@ func TestWithI18n_Good_LooksUpMessage(t *testing.T) {
 	}
 
 	var respEn i18nMessageResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &respEn); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &respEn); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if respEn.Data.Message != "Hello" {
@@ -276,7 +275,7 @@ func TestWithI18n_Good_FallsBackToParentLocaleMessage(t *testing.T) {
 	}
 
 	var resp i18nMessageResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data.Locale != "fr-CA" {
@@ -364,7 +363,7 @@ func TestWithI18n_Good_SnapshotsMutableInputs(t *testing.T) {
 	}
 
 	var resp i18nMessageResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data.Message != "Bonjour" {

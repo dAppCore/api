@@ -4,11 +4,7 @@ package api_test
 
 import (
 	"context"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"net"
 	"net/http"
@@ -84,12 +80,12 @@ func TestOpenAPIClient_Good_CallOperationByID(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			errCh <- core.Errorf("expected GET, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.URL.Query().Get("name"); got != "Ada" {
-			errCh <- fmt.Errorf("expected query name=Ada, got %q", got)
+			errCh <- core.Errorf("expected query name=Ada, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -98,12 +94,12 @@ func TestOpenAPIClient_Good_CallOperationByID(t *testing.T) {
 	})
 	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			errCh <- fmt.Errorf("expected POST, got %s", r.Method)
+			errCh <- core.Errorf("expected POST, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.URL.Query().Get("verbose"); got != "true" {
-			errCh <- fmt.Errorf("expected query verbose=true, got %q", got)
+			errCh <- core.Errorf("expected query verbose=true, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -196,7 +192,7 @@ func TestOpenAPIClient_Good_LoadsSpecFromReader(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			errCh <- core.Errorf("expected GET, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -208,7 +204,7 @@ func TestOpenAPIClient_Good_LoadsSpecFromReader(t *testing.T) {
 	defer srv.Close()
 
 	client := api.NewOpenAPIClient(
-		api.WithSpecReader(strings.NewReader(`openapi: 3.1.0
+		api.WithSpecReader(core.NewReader(`openapi: 3.1.0
 info:
   title: Test API
   version: 1.0.0
@@ -272,7 +268,7 @@ paths:
 				closed: &closed,
 			},
 			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return errors.New("redirect blocked")
+				return core.NewError("redirect blocked")
 			},
 		}),
 	)
@@ -353,7 +349,7 @@ paths:
 }
 
 func TestOpenAPIClient_Good_ExposesServerSnapshots(t *testing.T) {
-	client := api.NewOpenAPIClient(api.WithSpecReader(strings.NewReader(`openapi: 3.1.0
+	client := api.NewOpenAPIClient(api.WithSpecReader(core.NewReader(`openapi: 3.1.0
 info:
   title: Test API
   version: 1.0.0
@@ -382,7 +378,7 @@ paths: {}
 }
 
 func TestOpenAPIClient_Good_IteratorsExposeSnapshots(t *testing.T) {
-	client := api.NewOpenAPIClient(api.WithSpecReader(strings.NewReader(`openapi: 3.1.0
+	client := api.NewOpenAPIClient(api.WithSpecReader(core.NewReader(`openapi: 3.1.0
 info:
   title: Test API
   version: 1.0.0
@@ -438,23 +434,23 @@ func TestOpenAPIClient_Good_CallHeadOperationWithRequestBody(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/head", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodHead {
-			errCh <- fmt.Errorf("expected HEAD, got %s", r.Method)
+			errCh <- core.Errorf("expected HEAD, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.URL.RawQuery; got != "" {
-			errCh <- fmt.Errorf("expected no query string, got %q", got)
+			errCh <- core.Errorf("expected no query string, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			errCh <- fmt.Errorf("read body: %v", err)
+			errCh <- core.Errorf("read body: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if string(body) != `{"name":"Ada"}` {
-			errCh <- fmt.Errorf("expected JSON body {\"name\":\"Ada\"}, got %q", string(body))
+			errCh <- core.Errorf("expected JSON body {\"name\":\"Ada\"}, got %q", string(body))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -508,17 +504,17 @@ func TestOpenAPIClient_Good_CallOperationWithRepeatedQueryValues(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			errCh <- core.Errorf("expected GET, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.URL.Query()["tag"]; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
-			errCh <- fmt.Errorf("expected repeated tag values [alpha beta], got %v", got)
+			errCh <- core.Errorf("expected repeated tag values [alpha beta], got %v", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.URL.Query().Get("page"); got != "2" {
-			errCh <- fmt.Errorf("expected page=2, got %q", got)
+			errCh <- core.Errorf("expected page=2, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -572,23 +568,23 @@ func TestOpenAPIClient_Good_UsesTopLevelQueryParametersOnPost(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			errCh <- fmt.Errorf("expected POST, got %s", r.Method)
+			errCh <- core.Errorf("expected POST, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.URL.Query().Get("verbose"); got != "true" {
-			errCh <- fmt.Errorf("expected query verbose=true, got %q", got)
+			errCh <- core.Errorf("expected query verbose=true, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			errCh <- fmt.Errorf("read body: %v", err)
+			errCh <- core.Errorf("read body: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if string(body) != `{"name":"Ada"}` {
-			errCh <- fmt.Errorf("expected JSON body {\"name\":\"Ada\"}, got %q", string(body))
+			errCh <- core.Errorf("expected JSON body {\"name\":\"Ada\"}, got %q", string(body))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -791,39 +787,39 @@ func TestOpenAPIClient_Good_UsesHeaderAndCookieParameters(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/inspect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			errCh <- core.Errorf("expected GET, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.Header.Get("X-Trace-ID"); got != "trace-123" {
-			errCh <- fmt.Errorf("expected X-Trace-ID=trace-123, got %q", got)
+			errCh <- core.Errorf("expected X-Trace-ID=trace-123, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if got := r.Header.Get("X-Custom-Header"); got != "custom-value" {
-			errCh <- fmt.Errorf("expected X-Custom-Header=custom-value, got %q", got)
+			errCh <- core.Errorf("expected X-Custom-Header=custom-value, got %q", got)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		session, err := r.Cookie("session_id")
 		if err != nil {
-			errCh <- fmt.Errorf("expected session_id cookie: %v", err)
+			errCh <- core.Errorf("expected session_id cookie: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if session.Value != "cookie-123" {
-			errCh <- fmt.Errorf("expected session_id=cookie-123, got %q", session.Value)
+			errCh <- core.Errorf("expected session_id=cookie-123, got %q", session.Value)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		pref, err := r.Cookie("pref")
 		if err != nil {
-			errCh <- fmt.Errorf("expected pref cookie: %v", err)
+			errCh <- core.Errorf("expected pref cookie: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if pref.Value != "dark" {
-			errCh <- fmt.Errorf("expected pref=dark, got %q", pref.Value)
+			errCh <- core.Errorf("expected pref=dark, got %q", pref.Value)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -889,7 +885,7 @@ func TestOpenAPIClient_Good_UsesFirstAbsoluteServer(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			errCh <- fmt.Errorf("expected GET, got %s", r.Method)
+			errCh <- core.Errorf("expected GET, got %s", r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -1074,8 +1070,8 @@ func writeTempSpec(t *testing.T, contents string) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "openapi.yaml")
-	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+	path := core.PathJoin(dir, "openapi.yaml")
+	if err := coreWriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write spec: %v", err)
 	}
 	return path

@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -443,7 +443,7 @@ func TestRequireAuth_Bad_NoUser(t *testing.T) {
 		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `"unauthorised"`) {
+	if !core.Contains(body, `"unauthorised"`) {
 		t.Fatalf("expected error code 'unauthorised' in body, got %s", body)
 	}
 }
@@ -502,7 +502,7 @@ func TestRequireGroup_Bad_WrongGroup(t *testing.T) {
 		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `"forbidden"`) {
+	if !core.Contains(body, `"forbidden"`) {
 		t.Fatalf("expected error code 'forbidden' in body, got %s", body)
 	}
 }

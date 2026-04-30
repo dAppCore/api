@@ -3,10 +3,7 @@
 package api_test
 
 import (
-	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +40,7 @@ func getClientCredentialsToken(t *testing.T, issuer, clientID, clientSecret stri
 	t.Helper()
 
 	// Discover token endpoint.
-	disc := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
+	disc := core.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 	resp, err := http.Get(disc)
 	if err != nil {
 		t.Fatalf("OIDC discovery failed: %v", err)
@@ -53,7 +50,7 @@ func getClientCredentialsToken(t *testing.T, issuer, clientID, clientSecret stri
 	var config struct {
 		TokenEndpoint string `json:"token_endpoint"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+	if err := coreJSONDecode(resp.Body, &config); err != nil {
 		t.Fatalf("decode discovery: %v", err)
 	}
 
@@ -76,7 +73,7 @@ func getClientCredentialsToken(t *testing.T, issuer, clientID, clientSecret stri
 		Error       string `json:"error"`
 		ErrorDesc   string `json:"error_description"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := coreJSONDecode(resp.Body, &tokenResp); err != nil {
 		t.Fatalf("decode token response: %v", err)
 	}
 	if tokenResp.Error != "" {
@@ -88,13 +85,13 @@ func getClientCredentialsToken(t *testing.T, issuer, clientID, clientSecret stri
 
 func TestAuthentikIntegration(t *testing.T) {
 	// Skip unless explicitly enabled — requires live Authentik at auth.lthn.io.
-	if os.Getenv("AUTHENTIK_INTEGRATION") != "1" {
+	if core.Getenv("AUTHENTIK_INTEGRATION") != "1" {
 		t.Skip("set AUTHENTIK_INTEGRATION=1 to run live Authentik tests")
 	}
 
 	issuer := envOr("AUTHENTIK_ISSUER", "https://auth.lthn.io/application/o/core-api/")
 	clientID := envOr("AUTHENTIK_CLIENT_ID", "core-api")
-	clientSecret := os.Getenv("AUTHENTIK_CLIENT_SECRET")
+	clientSecret := core.Getenv("AUTHENTIK_CLIENT_SECRET")
 	if clientSecret == "" {
 		t.Fatal("AUTHENTIK_CLIENT_SECRET is required")
 	}
@@ -160,13 +157,13 @@ func TestAuthentikIntegration(t *testing.T) {
 		var envelope struct {
 			Data api.AuthentikUser `json:"data"`
 		}
-		if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		if err := coreJSONUnmarshal([]byte(body), &envelope); err != nil {
 			t.Fatalf("parse whoami: %v", err)
 		}
 		if envelope.Data.UID == "" {
 			t.Error("expected non-empty UID")
 		}
-		if !strings.Contains(envelope.Data.Username, "client_credentials") {
+		if !core.Contains(envelope.Data.Username, "client_credentials") {
 			t.Logf("username: %s (service account)", envelope.Data.Username)
 		}
 	})
@@ -200,7 +197,7 @@ func TestAuthentikIntegration(t *testing.T) {
 		var envelope struct {
 			Data api.AuthentikUser `json:"data"`
 		}
-		if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		if err := coreJSONUnmarshal([]byte(body), &envelope); err != nil {
 			t.Fatalf("parse: %v", err)
 		}
 		if envelope.Data.Username != "akadmin" {
@@ -274,7 +271,7 @@ func assertStatus(t *testing.T, resp *http.Response, want int) {
 }
 
 func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+	if v := core.Getenv(key); v != "" {
 		return v
 	}
 	return fallback
@@ -282,12 +279,12 @@ func envOr(key, fallback string) string {
 
 // TestOIDCDiscovery validates that the OIDC discovery endpoint is reachable.
 func TestOIDCDiscovery(t *testing.T) {
-	if os.Getenv("AUTHENTIK_INTEGRATION") != "1" {
+	if core.Getenv("AUTHENTIK_INTEGRATION") != "1" {
 		t.Skip("set AUTHENTIK_INTEGRATION=1 to run live Authentik tests")
 	}
 
 	issuer := envOr("AUTHENTIK_ISSUER", "https://auth.lthn.io/application/o/core-api/")
-	disc := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
+	disc := core.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 
 	resp, err := http.Get(disc)
 	if err != nil {
@@ -300,7 +297,7 @@ func TestOIDCDiscovery(t *testing.T) {
 	}
 
 	var config map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+	if err := coreJSONDecode(resp.Body, &config); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 
@@ -331,7 +328,7 @@ func TestOIDCDiscovery(t *testing.T) {
 		t.Error("client_credentials grant not supported")
 	}
 
-	fmt.Printf("  OIDC discovery OK — issuer: %s\n", config["issuer"])
-	fmt.Printf("  Token endpoint: %s\n", config["token_endpoint"])
-	fmt.Printf("  JWKS URI: %s\n", config["jwks_uri"])
+	core.Print(nil, "  OIDC discovery OK — issuer: %s", config["issuer"])
+	core.Print(nil, "  Token endpoint: %s", config["token_endpoint"])
+	core.Print(nil, "  JWKS URI: %s", config["jwks_uri"])
 }

@@ -4,9 +4,7 @@ package api
 
 import (
 	"bufio"
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
+	core "dappco.re/go"
 	"net"
 	"net/http"
 	"testing"
@@ -15,7 +13,7 @@ import (
 type responseMetaWriterStub struct {
 	header            http.Header
 	status            int
-	body              bytes.Buffer
+	body              responseMetaBodyBuffer
 	wroteHeader       bool
 	writeHeaderNowHit bool
 	flushed           bool
@@ -26,6 +24,7 @@ func newResponseMetaWriterStub() *responseMetaWriterStub {
 	return &responseMetaWriterStub{
 		header: make(http.Header),
 		status: http.StatusOK,
+		body:   core.NewBuffer(),
 	}
 }
 
@@ -75,7 +74,7 @@ func (w *responseMetaWriterStub) Flush() {
 
 func (w *responseMetaWriterStub) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	w.hijacked = true
-	return nil, nil, errors.New("hijack not supported")
+	return nil, nil, core.NewError("hijack not supported")
 }
 
 func (w *responseMetaWriterStub) CloseNotify() <-chan bool {
@@ -151,12 +150,12 @@ func TestResponseMetaRecorder_Bad_RejectsNonJSONPayloads(t *testing.T) {
 
 	body := []byte(`{"success":true,"meta":{"page":2,"per_page":10,"total":100}}`)
 	updated := refreshResponseMetaBody(body, meta)
-	if bytes.Equal(updated, body) {
+	if coreBytesEqual(updated, body) {
 		t.Fatal("expected metadata body to be updated")
 	}
 
 	var refreshed map[string]any
-	if err := json.Unmarshal(updated, &refreshed); err != nil {
+	if err := coreJSONUnmarshal(updated, &refreshed); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
 	metaObj, ok := refreshed["meta"].(map[string]any)

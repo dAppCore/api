@@ -5,7 +5,7 @@ package api_test
 import (
 	"bufio"
 	"context"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +43,7 @@ func TestWithSSE_Good_EndpointExists(t *testing.T) {
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/event-stream") {
+	if !core.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 }
@@ -71,7 +71,7 @@ func TestWithSSE_Good_LegacyVersionedPathExistsByDefault(t *testing.T) {
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/event-stream") {
+	if !core.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 }
@@ -99,7 +99,7 @@ func TestWithSSE_Good_CustomPath(t *testing.T) {
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/event-stream") {
+	if !core.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 
@@ -205,10 +205,10 @@ func TestWithSSE_Good_ReceivesPublishedEvent(t *testing.T) {
 		defer close(done)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if after, ok := strings.CutPrefix(line, "event: "); ok {
+			if after, ok := coreCutPrefix(line, "event: "); ok {
 				eventLine = after
 			}
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
+			if after, ok := coreCutPrefix(line, "data: "); ok {
 				dataLine = after
 				return
 			}
@@ -224,7 +224,7 @@ func TestWithSSE_Good_ReceivesPublishedEvent(t *testing.T) {
 	if eventLine != "greeting" {
 		t.Fatalf("expected event=%q, got %q", "greeting", eventLine)
 	}
-	if !strings.Contains(dataLine, `"msg":"hello"`) {
+	if !core.Contains(dataLine, `"msg":"hello"`) {
 		t.Fatalf("expected data containing msg:hello, got %q", dataLine)
 	}
 }
@@ -268,7 +268,7 @@ func TestWithSSE_Good_ChannelFiltering(t *testing.T) {
 		defer close(done)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if after, ok := strings.CutPrefix(line, "event: "); ok {
+			if after, ok := coreCutPrefix(line, "event: "); ok {
 				eventLine = after
 				// Read past the data and blank line.
 				scanner.Scan() // data line
@@ -321,7 +321,7 @@ func TestWithSSE_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/event-stream") {
+	if !core.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 }
@@ -348,7 +348,7 @@ func TestWithSSE_Good_WithResponseMetaStillStreamsEvents(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+	if ct := resp.Header.Get("Content-Type"); !core.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 	if reqID := resp.Header.Get("X-Request-ID"); reqID == "" {
@@ -369,7 +369,7 @@ func TestWithSSE_Good_WithResponseMetaStillStreamsEvents(t *testing.T) {
 		defer close(done)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if after, ok := strings.CutPrefix(line, "event: "); ok {
+			if after, ok := coreCutPrefix(line, "event: "); ok {
 				eventLine = after
 				return
 			}
@@ -431,7 +431,7 @@ func TestWithSSE_Good_MultipleClients(t *testing.T) {
 		go func() {
 			for scanner.Scan() {
 				line := scanner.Text()
-				if after, ok := strings.CutPrefix(line, "event: "); ok {
+				if after, ok := coreCutPrefix(line, "event: "); ok {
 					done <- after
 					return
 				}

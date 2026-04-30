@@ -17,7 +17,7 @@ import (
 //
 // Example:
 //
-//	_ = api.ExportSpec(os.Stdout, "yaml", builder, engine.Groups())
+//	_ = api.ExportSpec(core.Stdout(), "yaml", builder, engine.Groups())
 func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []RouteGroup) (
 	_ error,
 ) {
@@ -34,7 +34,7 @@ func ExportSpec(w io.Writer, format string, builder *SpecBuilder, groups []Route
 //
 // Example:
 //
-//	_ = api.ExportSpecIter(os.Stdout, "json", builder, api.RegisteredSpecGroupsIter())
+//	_ = api.ExportSpecIter(core.Stdout(), "json", builder, api.RegisteredSpecGroupsIter())
 func ExportSpecIter(w io.Writer, format string, builder *SpecBuilder, groups iter.Seq[RouteGroup]) (
 	_ error,
 ) {

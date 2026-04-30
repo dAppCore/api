@@ -3,8 +3,7 @@
 package api
 
 import (
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net"
 	"testing"
 )
@@ -26,8 +25,8 @@ func TestSSRFBlocksMetadata(t *testing.T) {
 				t.Errorf("validateOutboundURL(%q) returned nil; expected block", raw)
 				return
 			}
-			if !errors.Is(err, errOutboundURLBlocked) {
-				t.Errorf("expected errors.Is(err, errOutboundURLBlocked) for %q; got %v", raw, err)
+			if !core.Is(err, errOutboundURLBlocked) {
+				t.Errorf("expected core.Is(err, errOutboundURLBlocked) for %q; got %v", raw, err)
 			}
 		})
 	}
@@ -47,8 +46,8 @@ func TestSSRFBlocksLoopback(t *testing.T) {
 				t.Errorf("validateOutboundURL(%q) returned nil; expected loopback block", raw)
 				return
 			}
-			if !errors.Is(err, errOutboundURLBlocked) {
-				t.Errorf("expected errors.Is(err, errOutboundURLBlocked); got %v", err)
+			if !core.Is(err, errOutboundURLBlocked) {
+				t.Errorf("expected core.Is(err, errOutboundURLBlocked); got %v", err)
 			}
 		})
 	}
@@ -72,8 +71,8 @@ func TestSSRFBlocksRFC1918(t *testing.T) {
 				t.Errorf("validateOutboundURL(%q) returned nil; expected RFC1918/ULA block", raw)
 				return
 			}
-			if !errors.Is(err, errOutboundURLBlocked) {
-				t.Errorf("expected errors.Is(err, errOutboundURLBlocked); got %v", err)
+			if !core.Is(err, errOutboundURLBlocked) {
+				t.Errorf("expected core.Is(err, errOutboundURLBlocked); got %v", err)
 			}
 		})
 	}
@@ -95,7 +94,7 @@ func TestSSRFBlocksDisallowedScheme(t *testing.T) {
 				t.Errorf("validateOutboundURL(%q) returned nil; expected scheme block", raw)
 				return
 			}
-			if !strings.Contains(err.Error(), "disallowed scheme") {
+			if !core.Contains(err.Error(), "disallowed scheme") {
 				t.Errorf("expected 'disallowed scheme' error; got %v", err)
 			}
 		})
@@ -116,10 +115,10 @@ func TestSSRFBlocksEmbeddedCredentials(t *testing.T) {
 				t.Errorf("validateOutboundURL(%q) returned nil; expected credential block", raw)
 				return
 			}
-			if !errors.Is(err, errOutboundURLBlocked) {
+			if !core.Is(err, errOutboundURLBlocked) {
 				t.Errorf("expected errOutboundURLBlocked; got %v", err)
 			}
-			if !strings.Contains(err.Error(), "URL contains embedded credentials") {
+			if !core.Contains(err.Error(), "URL contains embedded credentials") {
 				t.Errorf("expected embedded credentials error; got %v", err)
 			}
 		})
@@ -174,10 +173,10 @@ func TestSSRFBlocksDNSResolveToPrivate(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected post-resolution private-IP block; got nil")
 	}
-	if !errors.Is(err, errOutboundURLBlocked) {
+	if !core.Is(err, errOutboundURLBlocked) {
 		t.Errorf("expected errOutboundURLBlocked; got %v", err)
 	}
-	if !strings.Contains(err.Error(), "10.0.0.1") {
+	if !core.Contains(err.Error(), "10.0.0.1") {
 		t.Errorf("expected error to mention resolved IP; got %v", err)
 	}
 }
@@ -188,7 +187,7 @@ func TestSSRFEmptyURL(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected empty-URL block; got nil")
 	}
-	if !errors.Is(err, errOutboundURLBlocked) {
+	if !core.Is(err, errOutboundURLBlocked) {
 		t.Errorf("expected errOutboundURLBlocked; got %v", err)
 	}
 }
@@ -199,17 +198,17 @@ func TestSSRFBlocksResolverFailure(t *testing.T) {
 	prev := resolveHost
 	defer func() { resolveHost = prev }()
 	resolveHost = func(host string) ([]net.IP, error) {
-		return nil, errors.New("DNS failure")
+		return nil, core.NewError("DNS failure")
 	}
 
 	err := validateOutboundURL("https://nonexistent.example.invalid/")
 	if err == nil {
 		t.Fatal("expected resolver failure to block; got nil")
 	}
-	if !errors.Is(err, errOutboundURLBlocked) {
+	if !core.Is(err, errOutboundURLBlocked) {
 		t.Errorf("expected errOutboundURLBlocked; got %v", err)
 	}
-	if !strings.Contains(err.Error(), "DNS failure") {
+	if !core.Contains(err.Error(), "DNS failure") {
 		t.Errorf("expected error to mention DNS failure; got %v", err)
 	}
 }
@@ -227,10 +226,10 @@ func TestSSRFBlocksEmptyResolverResult(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected empty resolver result to block; got nil")
 	}
-	if !errors.Is(err, errOutboundURLBlocked) {
+	if !core.Is(err, errOutboundURLBlocked) {
 		t.Errorf("expected errOutboundURLBlocked; got %v", err)
 	}
-	if !strings.Contains(err.Error(), "no IPs") {
+	if !core.Contains(err.Error(), "no IPs") {
 		t.Errorf("expected error to mention empty DNS result; got %v", err)
 	}
 }

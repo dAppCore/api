@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,7 +54,7 @@ func TestWithTimeout_Good_FastRequestSucceeds(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -98,7 +97,7 @@ func TestWithTimeout_Good_TimeoutResponseEnvelope(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -139,7 +138,7 @@ func TestWithTimeout_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data != "pong" {
@@ -166,7 +165,7 @@ func TestWithTimeout_Ugly_ZeroDurationDoesNotPanic(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data != "pong" {

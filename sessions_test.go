@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -103,7 +102,7 @@ func TestWithSessions_Good_SessionPersistsAcrossRequests(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
@@ -128,7 +127,7 @@ func TestWithSessions_Good_EmptySessionReturnsNil(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 

@@ -3,8 +3,6 @@
 package provider
 
 import (
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -21,7 +19,7 @@ const providerUpstreamAllowEnv = "CORE_PROVIDER_UPSTREAM_ALLOW"
 
 // ErrProviderUpstreamBlocked marks provider upstream URL rejections by the
 // construction-time SSRF guard.
-var ErrProviderUpstreamBlocked = errors.New("provider upstream blocked by SSRF guard")
+var ErrProviderUpstreamBlocked = core.NewError("provider upstream blocked by SSRF guard")
 
 // ProviderUpstreamBlockedError carries the concrete rejection reason for a
 // provider upstream URL blocked by the SSRF guard.
@@ -48,18 +46,18 @@ func (e *ProviderUpstreamBlockedError) Error() string {
 }
 
 // Is reports whether target is ErrProviderUpstreamBlocked, so callers can
-// errors.Is(err, ErrProviderUpstreamBlocked) without unwrapping.
+// core.Is(err, ErrProviderUpstreamBlocked) without unwrapping.
 //
-//	errors.Is(err, ErrProviderUpstreamBlocked)
+//	core.Is(err, ErrProviderUpstreamBlocked)
 func (e *ProviderUpstreamBlockedError) Is(target error) bool {
 	return target == ErrProviderUpstreamBlocked
 }
 
-// Unwrap exposes the underlying Cause for errors.As / errors.Unwrap chain
+// Unwrap exposes the underlying Cause for core.As / errors.Unwrap chain
 // inspection.
 //
 //	var inner *net.OpError
-//	if errors.As(err, &inner) { /* ... */ }
+//	if core.As(err, &inner) { /* ... */ }
 func (e *ProviderUpstreamBlockedError) Unwrap() (
 	_ error,
 ) {
@@ -337,7 +335,7 @@ func providerUpstreamAllowCIDRs() (
 	[]*net.IPNet,
 	error,
 ) {
-	raw := core.Trim(os.Getenv(providerUpstreamAllowEnv))
+	raw := core.Trim(core.Getenv(providerUpstreamAllowEnv))
 	if raw == "" {
 		return nil, nil
 	}

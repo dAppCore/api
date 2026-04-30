@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +38,7 @@ func TestWithExpvar_Good_EndpointReturnsJSON(t *testing.T) {
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "application/json") {
+	if !core.Contains(ct, "application/json") {
 		t.Fatalf("expected application/json content type, got %q", ct)
 	}
 }
@@ -65,7 +65,7 @@ func TestWithExpvar_Good_ContainsMemstats(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(body), "memstats") {
+	if !core.Contains(string(body), "memstats") {
 		t.Fatal("expected response body to contain \"memstats\"")
 	}
 }
@@ -92,7 +92,7 @@ func TestWithExpvar_Good_ContainsCmdline(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(body), "cmdline") {
+	if !core.Contains(string(body), "cmdline") {
 		t.Fatal("expected response body to contain \"cmdline\"")
 	}
 }

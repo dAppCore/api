@@ -3,9 +3,7 @@
 package api_test
 
 import (
-	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -28,15 +26,15 @@ func (g *cacheCounterGroup) BasePath() string { return "/cache" }
 func (g *cacheCounterGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/counter", func(c *gin.Context) {
 		n := g.counter.Add(1)
-		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("call-%d", n)))
+		c.JSON(http.StatusOK, api.OK(core.Sprintf("call-%d", n)))
 	})
 	rg.GET("/other", func(c *gin.Context) {
 		n := g.counter.Add(1)
-		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("other-%d", n)))
+		c.JSON(http.StatusOK, api.OK(core.Sprintf("other-%d", n)))
 	})
 	rg.POST("/counter", func(c *gin.Context) {
 		n := g.counter.Add(1)
-		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("post-%d", n)))
+		c.JSON(http.StatusOK, api.OK(core.Sprintf("post-%d", n)))
 	})
 }
 
@@ -49,11 +47,11 @@ func (g *cacheSizedGroup) BasePath() string { return "/cache" }
 func (g *cacheSizedGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/small", func(c *gin.Context) {
 		n := g.counter.Add(1)
-		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("small-%d-%s", n, strings.Repeat("a", 96))))
+		c.JSON(http.StatusOK, api.OK(core.Sprintf("small-%d-%s", n, coreStringRepeat("a", 96))))
 	})
 	rg.GET("/large", func(c *gin.Context) {
 		n := g.counter.Add(1)
-		c.JSON(http.StatusOK, api.OK(fmt.Sprintf("large-%d-%s", n, strings.Repeat("b", 96))))
+		c.JSON(http.StatusOK, api.OK(core.Sprintf("large-%d-%s", n, coreStringRepeat("b", 96))))
 	})
 }
 
@@ -77,7 +75,7 @@ func TestWithCache_Good_CachesGETResponse(t *testing.T) {
 	}
 
 	body1 := w1.Body.String()
-	if !strings.Contains(body1, "call-1") {
+	if !core.Contains(body1, "call-1") {
 		t.Fatalf("expected body to contain %q, got %q", "call-1", body1)
 	}
 
@@ -154,7 +152,7 @@ func TestWithCache_Good_POSTNotCached(t *testing.T) {
 	}
 
 	var resp1 api.Response[string]
-	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+	if err := coreJSONUnmarshal(w1.Body.Bytes(), &resp1); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp1.Data != "post-1" {
@@ -167,7 +165,7 @@ func TestWithCache_Good_POSTNotCached(t *testing.T) {
 	h.ServeHTTP(w2, req2)
 
 	var resp2 api.Response[string]
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp2.Data != "post-2" {
@@ -194,7 +192,7 @@ func TestWithCache_Good_DifferentPathsSeparatelyCached(t *testing.T) {
 	h.ServeHTTP(w1, req1)
 
 	body1 := w1.Body.String()
-	if !strings.Contains(body1, "call-1") {
+	if !core.Contains(body1, "call-1") {
 		t.Fatalf("expected body to contain %q, got %q", "call-1", body1)
 	}
 
@@ -204,7 +202,7 @@ func TestWithCache_Good_DifferentPathsSeparatelyCached(t *testing.T) {
 	h.ServeHTTP(w2, req2)
 
 	body2 := w2.Body.String()
-	if !strings.Contains(body2, "other-2") {
+	if !core.Contains(body2, "other-2") {
 		t.Fatalf("expected body to contain %q, got %q", "other-2", body2)
 	}
 
@@ -256,7 +254,7 @@ func TestWithCache_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	// Body should contain the expected response.
 	body := w.Body.String()
-	if !strings.Contains(body, "call-1") {
+	if !core.Contains(body, "call-1") {
 		t.Fatalf("expected body to contain %q, got %q", "call-1", body)
 	}
 }
@@ -299,7 +297,7 @@ func TestWithCache_Good_PreservesCurrentRequestIDOnHit(t *testing.T) {
 	}
 
 	var resp2 api.Response[string]
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp2.Data != "call-1" {
@@ -335,7 +333,7 @@ func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
 	}
 
 	var resp1 api.Response[string]
-	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+	if err := coreJSONUnmarshal(w1.Body.Bytes(), &resp1); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp1.Meta == nil {
@@ -354,7 +352,7 @@ func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
 	}
 
 	var resp2 api.Response[string]
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp2.Meta == nil {
@@ -486,7 +484,7 @@ func TestWithCache_Good_ExpiredCacheMisses(t *testing.T) {
 	h.ServeHTTP(w1, req1)
 
 	body1 := w1.Body.String()
-	if !strings.Contains(body1, "call-1") {
+	if !core.Contains(body1, "call-1") {
 		t.Fatalf("expected body to contain %q, got %q", "call-1", body1)
 	}
 
@@ -499,7 +497,7 @@ func TestWithCache_Good_ExpiredCacheMisses(t *testing.T) {
 	h.ServeHTTP(w2, req2)
 
 	body2 := w2.Body.String()
-	if !strings.Contains(body2, "call-2") {
+	if !core.Contains(body2, "call-2") {
 		t.Fatalf("expected body to contain %q after expiry, got %q", "call-2", body2)
 	}
 
@@ -520,21 +518,21 @@ func TestWithCache_Good_EvictsWhenCapacityReached(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	req1, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
 	h.ServeHTTP(w1, req1)
-	if !strings.Contains(w1.Body.String(), "call-1") {
+	if !core.Contains(w1.Body.String(), "call-1") {
 		t.Fatalf("expected first response to contain %q, got %q", "call-1", w1.Body.String())
 	}
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/cache/other", nil)
 	h.ServeHTTP(w2, req2)
-	if !strings.Contains(w2.Body.String(), "other-2") {
+	if !core.Contains(w2.Body.String(), "other-2") {
 		t.Fatalf("expected second response to contain %q, got %q", "other-2", w2.Body.String())
 	}
 
 	w3 := httptest.NewRecorder()
 	req3, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
 	h.ServeHTTP(w3, req3)
-	if !strings.Contains(w3.Body.String(), "call-3") {
+	if !core.Contains(w3.Body.String(), "call-3") {
 		t.Fatalf("expected evicted response to contain %q, got %q", "call-3", w3.Body.String())
 	}
 
@@ -554,21 +552,21 @@ func TestWithCache_Good_EvictsWhenSizeLimitReached(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	req1, _ := http.NewRequest(http.MethodGet, "/cache/small", nil)
 	h.ServeHTTP(w1, req1)
-	if !strings.Contains(w1.Body.String(), "small-1") {
+	if !core.Contains(w1.Body.String(), "small-1") {
 		t.Fatalf("expected first response to contain %q, got %q", "small-1", w1.Body.String())
 	}
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/cache/large", nil)
 	h.ServeHTTP(w2, req2)
-	if !strings.Contains(w2.Body.String(), "large-2") {
+	if !core.Contains(w2.Body.String(), "large-2") {
 		t.Fatalf("expected second response to contain %q, got %q", "large-2", w2.Body.String())
 	}
 
 	w3 := httptest.NewRecorder()
 	req3, _ := http.NewRequest(http.MethodGet, "/cache/small", nil)
 	h.ServeHTTP(w3, req3)
-	if !strings.Contains(w3.Body.String(), "small-3") {
+	if !core.Contains(w3.Body.String(), "small-3") {
 		t.Fatalf("expected size-limited cache to evict the oldest entry, got %q", w3.Body.String())
 	}
 

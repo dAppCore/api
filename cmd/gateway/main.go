@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,8 +13,6 @@ import (
 	core "dappco.re/go"
 	coreapi "dappco.re/go/api"
 	coreio "dappco.re/go/io"
-	miner "dappco.re/go/miner"
-	minerapi "dappco.re/go/miner/pkg/api"
 	process "dappco.re/go/process"
 	proxy "dappco.re/go/proxy"
 	"dappco.re/go/scm/marketplace"
@@ -73,7 +70,7 @@ func (g processRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	core.Exit(run(core.Args()[1:], core.Stdout(), core.Stderr()))
 }
 
 func run(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -86,7 +83,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 	c := core.New()
 	defer c.ServiceShutdown(context.Background())
 
-	bind := core.Trim(os.Getenv(envGatewayBind))
+	bind := core.Trim(core.Getenv(envGatewayBind))
 	if bind == "" {
 		bind = defaultGatewayBind
 	}
@@ -106,7 +103,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 	defer runCleanup(deps, logger)
 
 	specs := gatewayProviderSpecs()
-	enabled := selectedProviders(os.Getenv(envGatewayEnable))
+	enabled := selectedProviders(core.Getenv(envGatewayEnable))
 	warnUnknownProviders(logger, specs, enabled)
 	for _, spec := range specs {
 		if !providerEnabled(spec, enabled) {
@@ -193,20 +190,6 @@ func gatewayProviderSpecs() []providerSpec {
 			New: func(deps *gatewayDeps) coreapi.RouteGroup {
 				_ = deps
 				return buildRouteGroup{projectDir: "."}
-			},
-		},
-		{
-			Name:        "miner",
-			BasePath:    "",
-			Description: "go-miner mining operations provider",
-			New: func(deps *gatewayDeps) coreapi.RouteGroup {
-				service := miner.NewServiceWithCore(deps.core)
-				deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
-					if r := service.OnShutdown(ctx); !r.OK {
-						slog.Default().Warn("miner service shutdown failed", "err", r.Error())
-					}
-				})
-				return minerRouteGroup{provider: minerapi.NewProvider(service)}
 			},
 		},
 		{
@@ -512,70 +495,6 @@ func (g buildRouteGroup) unavailable(c *gin.Context) {
 	})
 }
 
-type minerRouteGroup struct {
-	provider *minerapi.Provider
-}
-
-func (g minerRouteGroup) Name() string {
-	return "miner"
-}
-
-func (g minerRouteGroup) BasePath() string {
-	return ""
-}
-
-func (g minerRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
-	if g.provider == nil || rg == nil {
-		return
-	}
-	for _, route := range g.provider.RouteRegistrations() {
-		route := route
-		rg.Handle(core.Upper(route.Method), route.Path, func(c *gin.Context) {
-			params := make(map[string]string, len(c.Params))
-			for _, param := range c.Params {
-				params[param.Key] = param.Value
-			}
-
-			var body []byte
-			if c.Request != nil && c.Request.Body != nil {
-				var err error
-				body, err = io.ReadAll(c.Request.Body)
-				if err != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-					return
-				}
-			}
-
-			value, err := route.Handler(c.Request.Context(), params, body)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			if value == nil {
-				c.Status(http.StatusNoContent)
-				return
-			}
-			c.JSON(http.StatusOK, value)
-		})
-	}
-}
-
-func (g minerRouteGroup) Describe() []coreapi.RouteDescription {
-	if g.provider == nil {
-		return nil
-	}
-	registrations := g.provider.RouteRegistrations()
-	descriptions := make([]coreapi.RouteDescription, 0, len(registrations))
-	for _, registration := range registrations {
-		descriptions = append(descriptions, coreapi.RouteDescription{
-			Method: registration.Method,
-			Path:   registration.Path,
-			Tags:   []string{"miner"},
-		})
-	}
-	return descriptions
-}
-
 type proxyRouteHandler struct {
 	path    string
 	handler func(http.ResponseWriter, *http.Request)
@@ -615,16 +534,6 @@ func (g *proxyRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 		rg.GET(route.path, func(c *gin.Context) {
 			if g.proxy == nil || route.render == nil {
 				c.Status(http.StatusServiceUnavailable)
-				return
-			}
-			if status, ok := g.proxy.AllowMonitoringRequest(c.Request); !ok {
-				switch status {
-				case http.StatusMethodNotAllowed:
-					c.Header("Allow", http.MethodGet)
-				case http.StatusUnauthorized:
-					c.Header("WWW-Authenticate", "Bearer")
-				}
-				c.Status(status)
 				return
 			}
 			c.Header("Content-Type", "application/json")

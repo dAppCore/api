@@ -20,6 +20,8 @@ type responseMetaBodyBuffer interface {
 	Write([]byte) (int, error)
 	WriteString(string) (int, error)
 	Bytes() []byte
+	String() string
+	Len() int
 	Reset()
 }
 

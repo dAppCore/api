@@ -3,9 +3,6 @@
 package provider_test
 
 import (
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,15 +15,15 @@ import (
 func TestMain(m *testing.M) {
 	const env = "CORE_PROVIDER_UPSTREAM_ALLOW"
 
-	previous, hadPrevious := os.LookupEnv(env)
-	_ = os.Setenv(env, "127.0.0.0/8,::1/128")
+	previous, hadPrevious := LookupEnv(env)
+	_ = coreSetenv(env, "127.0.0.0/8,::1/128")
 	code := m.Run()
 	if hadPrevious {
-		_ = os.Setenv(env, previous)
+		_ = coreSetenv(env, previous)
 	} else {
-		_ = os.Unsetenv(env)
+		_ = coreUnsetenv(env)
 	}
-	os.Exit(code)
+	Exit(code)
 }
 
 // -- ProxyProvider tests ------------------------------------------------------
@@ -82,7 +79,7 @@ func TestProxyProviderProxyForwards(t *T) {
 			"method": r.Method,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		coreJSONEncode(w, resp)
 	}))
 	defer upstream.Close()
 
@@ -108,7 +105,7 @@ func TestProxyProviderProxyForwards(t *T) {
 	AssertEqual(t, http.StatusOK, w.Code)
 
 	var body map[string]string
-	err = json.Unmarshal(w.Body.Bytes(), &body)
+	err = coreJSONUnmarshal(w.Body.Bytes(), &body)
 	RequireNoError(t, err)
 
 	// The upstream should see the path with base path stripped.
@@ -120,7 +117,7 @@ func TestProxyProviderProxyRootForwards(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{`path`: r.URL.Path}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		coreJSONEncode(w, resp)
 	}))
 	defer upstream.Close()
 
@@ -144,7 +141,7 @@ func TestProxyProviderProxyRootForwards(t *T) {
 	AssertEqual(t, http.StatusOK, w.Code)
 
 	var body map[string]string
-	err = json.Unmarshal(w.Body.Bytes(), &body)
+	err = coreJSONUnmarshal(w.Body.Bytes(), &body)
 	RequireNoError(t, err)
 	AssertEqual(t, "/", body[`path`])
 }
@@ -220,7 +217,7 @@ func TestProxyProvider_Ugly_InvalidUpstream(t *T) {
 	AssertEqual(t, http.StatusInternalServerError, w.Code)
 
 	var body map[string]any
-	RequireNoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	RequireNoError(t, coreJSONUnmarshal(w.Body.Bytes(), &body))
 
 	AssertEqual(t, false, body["success"])
 	errObj, ok := body["error"].(map[string]any)
@@ -301,10 +298,10 @@ func assertProviderUpstreamBlocked(t *T, upstream string) error {
 	AssertNotNil(t, p)
 	err := p.Err()
 	AssertError(t, err)
-	AssertTrue(t, errors.Is(err, provider.ErrProviderUpstreamBlocked), "expected ErrProviderUpstreamBlocked")
+	AssertTrue(t, Is(err, provider.ErrProviderUpstreamBlocked), "expected ErrProviderUpstreamBlocked")
 
 	var blocked *provider.ProviderUpstreamBlockedError
-	RequireTrue(t, errors.As(err, &blocked), "expected ProviderUpstreamBlockedError")
+	RequireTrue(t, As(err, &blocked), "expected ProviderUpstreamBlockedError")
 	AssertEqual(t, upstream, blocked.Upstream)
 	AssertNotEmpty(t, blocked.Reason)
 	return err

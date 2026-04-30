@@ -3,8 +3,6 @@
 package provider
 
 import (
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"slices"
 
 	core "dappco.re/go"
@@ -109,7 +107,7 @@ func providerManifestFiles(dir string) (
 		return canonicalDir, nil, err
 	}
 
-	matches := append(core.PathGlob(filepath.Join(canonicalDir, "*.yaml")), core.PathGlob(filepath.Join(canonicalDir, "*.yml"))...)
+	matches := append(core.PathGlob(core.PathJoin(canonicalDir, "*.yaml")), core.PathGlob(core.PathJoin(canonicalDir, "*.yml"))...)
 	slices.Sort(matches)
 
 	files := make([]providerManifestFile, 0, len(matches))
@@ -130,30 +128,30 @@ func canonicalProviderDir(dir string) (
 ) {
 	const op = "provider.providerManifestFiles"
 
-	absolute, err := filepath.Abs(filepath.Clean(dir))
+	absolute, err := providerPathAbs(cleanProviderPath(dir))
 	if err != nil {
 		return "", false, core.E(op, "resolve provider directory path", err)
 	}
 
-	info, err := os.Lstat(absolute)
+	info, err := providerLstat(absolute)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if core.IsNotExist(err) {
 			return "", false, nil
 		}
 		return "", false, core.E(op, "stat provider directory", err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	if info.Mode()&core.ModeSymlink != 0 {
 		return "", false, core.E(op, "symlinked provider directory rejected: "+absolute, nil)
 	}
 	if !info.IsDir() {
 		return "", false, core.E(op, "provider path is not a directory: "+absolute, nil)
 	}
 
-	resolved, err := filepath.EvalSymlinks(absolute)
+	resolved, err := providerPathEvalSymlinks(absolute)
 	if err != nil {
 		return "", false, core.E(op, "resolve provider directory symlinks: "+absolute, err)
 	}
-	cleaned := filepath.Clean(resolved)
+	cleaned := cleanProviderPath(resolved)
 	return cleaned, true, nil
 }
 
@@ -163,39 +161,39 @@ func canonicalProviderManifestFile(canonicalDir, path string) (
 ) {
 	const op = "provider.providerManifestFiles"
 
-	absolute, err := filepath.Abs(filepath.Clean(path))
+	absolute, err := providerPathAbs(cleanProviderPath(path))
 	if err != nil {
 		return providerManifestFile{}, core.E(op, "resolve provider manifest path", err)
 	}
 
-	info, err := os.Lstat(absolute)
+	info, err := providerLstat(absolute)
 	if err != nil {
 		return providerManifestFile{}, core.E(op, "stat provider manifest", err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	if info.Mode()&core.ModeSymlink != 0 {
 		return providerManifestFile{}, core.E(op, "symlinked provider manifest rejected: "+absolute, nil)
 	}
 	if !info.Mode().IsRegular() {
 		return providerManifestFile{}, core.E(op, "provider manifest is not a regular file: "+absolute, nil)
 	}
 
-	resolved, err := filepath.EvalSymlinks(absolute)
+	resolved, err := providerPathEvalSymlinks(absolute)
 	if err != nil {
 		return providerManifestFile{}, core.E(op, "resolve provider manifest symlinks: "+absolute, err)
 	}
-	resolved = filepath.Clean(resolved)
+	resolved = cleanProviderPath(resolved)
 
-	relative, err := filepath.Rel(canonicalDir, resolved)
+	relative, err := providerPathRel(canonicalDir, resolved)
 	if err != nil {
 		return providerManifestFile{}, core.E(op, "compare provider manifest with provider directory", err)
 	}
-	parentPrefix := ".." + string(filepath.Separator)
-	if relative == ".." || core.HasPrefix(relative, parentPrefix) || filepath.IsAbs(relative) {
+	parentPrefix := ".." + string(core.PathSeparator)
+	if relative == ".." || core.HasPrefix(relative, parentPrefix) || core.PathIsAbs(relative) {
 		return providerManifestFile{}, core.E(op, "provider manifest escapes provider directory: "+absolute, nil)
 	}
 
 	readPath := relative
-	if canonicalDir == string(filepath.Separator) {
+	if canonicalDir == string(core.PathSeparator) {
 		readPath = resolved
 	}
 
@@ -203,6 +201,62 @@ func canonicalProviderManifestFile(canonicalDir, path string) (
 		path:     resolved,
 		readPath: readPath,
 	}, nil
+}
+
+func cleanProviderPath(path string) string {
+	return core.CleanPath(path, string(core.PathSeparator))
+}
+
+func providerPathAbs(path string) (
+	string,
+	error,
+) {
+	r := core.PathAbs(path)
+	if !r.OK {
+		err, _ := r.Value.(error)
+		return "", err
+	}
+	out, _ := r.Value.(string)
+	return out, nil
+}
+
+func providerPathEvalSymlinks(path string) (
+	string,
+	error,
+) {
+	r := core.PathEvalSymlinks(path)
+	if !r.OK {
+		err, _ := r.Value.(error)
+		return "", err
+	}
+	out, _ := r.Value.(string)
+	return out, nil
+}
+
+func providerPathRel(base, target string) (
+	string,
+	error,
+) {
+	r := core.PathRel(base, target)
+	if !r.OK {
+		err, _ := r.Value.(error)
+		return "", err
+	}
+	out, _ := r.Value.(string)
+	return out, nil
+}
+
+func providerLstat(path string) (
+	core.FsFileInfo,
+	error,
+) {
+	r := core.Lstat(path)
+	if !r.OK {
+		err, _ := r.Value.(error)
+		return nil, err
+	}
+	info, _ := r.Value.(core.FsFileInfo)
+	return info, nil
 }
 
 func loadProviderManifest(fs *core.Fs, file providerManifestFile) (

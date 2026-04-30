@@ -7,15 +7,16 @@ description: Gin-based REST framework with OpenAPI generation, middleware compos
 
 # go-api
 
-**Module path:** `forge.lthn.ai/core/go-api`
+**Module path:** `dappco.re/go/api`
 **Language:** Go 1.26
 **Licence:** EUPL-1.2
 
-go-api is a REST framework built on top of [Gin](https://github.com/gin-gonic/gin). It provides
-an `Engine` that subsystems plug into via the `RouteGroup` interface. Each ecosystem package
-(go-ai, go-ml, go-rag, and others) registers its own route group, and go-api handles the HTTP
-plumbing: middleware composition, response envelopes, WebSocket and SSE integration, GraphQL
-hosting, Authentik identity, OpenAPI 3.1 specification generation, and client SDK codegen.
+go-api is a REST framework and provider gateway built on top of
+[Gin](https://github.com/gin-gonic/gin). It provides an `Engine` that subsystems plug into via
+the `RouteGroup` interface, and the gateway binary wires provider packages into HTTP endpoints.
+go-api handles the HTTP plumbing: middleware composition, response envelopes, WebSocket and SSE
+integration, GraphQL hosting, Authentik identity, OpenAPI 3.1 specification generation, and
+client SDK codegen.
 
 go-api is a library. It has no `main` package and produces no binary on its own. Callers
 construct an `Engine`, register route groups, and call `Serve()`.
@@ -32,7 +33,7 @@ import (
     "os/signal"
     "syscall"
 
-    api "forge.lthn.ai/core/go-api"
+    api "dappco.re/go/api"
 )
 
 func main() {
@@ -147,13 +148,12 @@ engine.Register(&Routes{service: svc})
 | `go.opentelemetry.io/contrib/.../otelgin` | OpenTelemetry Gin instrumentation |
 | `golang.org/x/text` | BCP 47 language tag matching |
 | `gopkg.in/yaml.v3` | YAML export of OpenAPI specs |
-| `dappco.re/go/core/cli` | CLI command registration (for `cmd/api/` subcommands) |
+| `dappco.re/go/cli` | CLI command registration for the nested `cmd/api` module |
 
 ### Ecosystem position
 
-go-api sits at the base of the Lethean HTTP stack. It has no imports from other Lethean
-ecosystem modules (beyond `core/cli` for the CLI subcommands). Other packages import go-api
-to expose their functionality as REST endpoints:
+go-api is the Lethean HTTP gateway. The API module imports and wires provider modules into the
+gateway binary; provider modules implement their own route groups without importing go-api.
 
 ```
 Application main / Core CLI
@@ -162,8 +162,8 @@ Application main / Core CLI
   go-api Engine                 <-- this module
     |         |         |
     |         |         +-- OpenAPI spec --> SDKGenerator --> openapi-generator-cli
-    |         +-- ToolBridge --> go-ai / go-ml / go-rag route groups
-    +-- RouteGroups ----------> any package implementing RouteGroup
+    |         +-- ToolBridge --> tool-backed route groups
+    +-- Provider route groups --> process / scm / miner / proxy / ws
 ```
 
 ---

@@ -5,7 +5,6 @@ package api
 import (
 	"bufio" // Note: AX-6 — SSE stream line scanning
 	"context"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
 	"io"       // Note: AX-6 — io.Reader contract
 	"net/http" // Note: AX-6 — HTTP transport boundary
 	"net/url"
@@ -490,7 +489,7 @@ func doHTTPClientRequest(client *http.Client, req *http.Request) (
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			if closeErr := resp.Body.Close(); closeErr != nil {
-				return nil, errors.Join(err, closeErr)
+				return nil, core.ErrorJoin(err, closeErr)
 			}
 		}
 

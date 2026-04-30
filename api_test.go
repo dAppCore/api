@@ -4,7 +4,6 @@ package api_test
 
 import (
 	"context"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -133,7 +132,7 @@ func TestHandler_Good_HealthEndpoint(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -159,7 +158,7 @@ func TestHandler_Good_RegisteredRoutes(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data != "echo" {
@@ -196,7 +195,7 @@ func TestHandler_Bad_PanicReturnsEnvelope(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {

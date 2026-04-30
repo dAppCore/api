@@ -4,8 +4,7 @@ package api_test
 
 import (
 	"context"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -75,7 +74,7 @@ type failingTracingTestExporter struct {
 
 func (e *failingTracingTestExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnlySpan) error {
 	e.exports += len(spans)
-	return errors.New("tracing exporter failed")
+	return core.NewError("tracing exporter failed")
 }
 
 func (e *failingTracingTestExporter) Shutdown(context.Context) error { return nil }
@@ -386,7 +385,7 @@ func TestTracing_WithTracing_Good_AttachesDurationAndSizeAttributes(t *testing.T
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/trace/echo", strings.NewReader("abc"))
+	req, _ := http.NewRequest(http.MethodPost, "/trace/echo", core.NewReader("abc"))
 	req.Header.Set("Content-Type", "text/plain")
 	h.ServeHTTP(w, req)
 

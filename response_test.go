@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,13 +57,13 @@ func TestOK_Good_StructData(t *testing.T) {
 
 func TestOK_Good_JSONOmitsErrorAndMeta(t *testing.T) {
 	r := api.OK("data")
-	b, err := json.Marshal(r)
+	b, err := coreJSONMarshal(r)
 	if err != nil {
 		t.Fatalf("marshal error: %v", err)
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
+	if err := coreJSONUnmarshal(b, &raw); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
@@ -106,13 +105,13 @@ func TestFail_Good(t *testing.T) {
 
 func TestFail_Good_JSONOmitsData(t *testing.T) {
 	r := api.Fail("ERR", "something went wrong")
-	b, err := json.Marshal(r)
+	b, err := coreJSONMarshal(r)
 	if err != nil {
 		t.Fatalf("marshal error: %v", err)
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
+	if err := coreJSONUnmarshal(b, &raw); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
@@ -146,13 +145,13 @@ func TestFailWithDetails_Good(t *testing.T) {
 
 func TestFailWithDetails_Good_JSONIncludesDetails(t *testing.T) {
 	r := api.FailWithDetails("ERR", "bad", "extra info")
-	b, err := json.Marshal(r)
+	b, err := coreJSONMarshal(r)
 	if err != nil {
 		t.Fatalf("marshal error: %v", err)
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
+	if err := coreJSONUnmarshal(b, &raw); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
@@ -193,13 +192,13 @@ func TestPaginated_Good(t *testing.T) {
 
 func TestPaginated_Good_JSONIncludesMeta(t *testing.T) {
 	r := api.Paginated([]int{1}, 1, 10, 50)
-	b, err := json.Marshal(r)
+	b, err := coreJSONMarshal(r)
 	if err != nil {
 		t.Fatalf("marshal error: %v", err)
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
+	if err := coreJSONUnmarshal(b, &raw); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
@@ -242,7 +241,7 @@ func TestResponse_AttachRequestMeta_Good_FillsMetaFromRequestIDMiddleware(t *tes
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta == nil {
@@ -282,7 +281,7 @@ func TestResponse_AttachRequestMeta_Bad_ReturnsResponseUnchangedWithoutRequestMe
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta != nil {
@@ -315,7 +314,7 @@ func TestResponse_AttachRequestMeta_Ugly_PreservesExistingMetaFields(t *testing.
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta == nil {

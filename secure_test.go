@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,10 +32,10 @@ func TestWithSecure_Good_SetsHSTSHeader(t *testing.T) {
 	if sts == "" {
 		t.Fatal("expected Strict-Transport-Security header to be set")
 	}
-	if !strings.Contains(sts, "max-age=31536000") {
+	if !core.Contains(sts, "max-age=31536000") {
 		t.Fatalf("expected max-age=31536000 in STS header, got %q", sts)
 	}
-	if !strings.Contains(strings.ToLower(sts), "includesubdomains") {
+	if !core.Contains(core.Lower(sts), "includesubdomains") {
 		t.Fatalf("expected includeSubdomains in STS header, got %q", sts)
 	}
 }

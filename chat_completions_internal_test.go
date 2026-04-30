@@ -4,11 +4,7 @@ package api
 
 import (
 	"context"
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -273,7 +269,7 @@ func (m *chatModelStub) Close() error { return nil }
 
 func newChatLoopbackRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", core.NewReader(body))
 	req.RemoteAddr = "127.0.0.1:1234"
 	req.Header.Set("Content-Type", "application/json")
 	return req
@@ -288,7 +284,7 @@ func newChatHandlerWithModel(model inference.TextModel) *chatCompletionsHandler 
 func TestChatCompletions_ChatMessageDelta_MarshalJSON_Good_PreservesRoleAndContent(t *testing.T) {
 	delta := ChatMessageDelta{Role: "assistant", Content: ""}
 
-	data, err := json.Marshal(delta)
+	data, err := coreJSONMarshal(delta)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -301,7 +297,7 @@ func TestChatCompletions_ChatMessageDelta_MarshalJSON_Good_PreservesRoleAndConte
 func TestChatCompletions_ChatMessageDelta_MarshalJSON_Bad_EncodesContentOnly(t *testing.T) {
 	delta := ChatMessageDelta{Content: "token"}
 
-	data, err := json.Marshal(delta)
+	data, err := coreJSONMarshal(delta)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -312,7 +308,7 @@ func TestChatCompletions_ChatMessageDelta_MarshalJSON_Bad_EncodesContentOnly(t *
 }
 
 func TestChatCompletions_ChatMessageDelta_MarshalJSON_Ugly_EncodesEmptyObject(t *testing.T) {
-	data, err := json.Marshal(ChatMessageDelta{})
+	data, err := coreJSONMarshal(ChatMessageDelta{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -329,7 +325,7 @@ func TestChatCompletions_normalizedStopSequences_Good_TrimsAndPreservesOrder(t *
 	}
 
 	want := []string{"END", "STOP"}
-	if fmt.Sprint(got) != fmt.Sprint(want) {
+	if core.Sprint(got) != core.Sprint(want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
 }
@@ -424,7 +420,7 @@ func TestChatCompletions_mapResolverError_Good_MapsKnownCodes(t *testing.T) {
 }
 
 func TestChatCompletions_mapResolverError_Bad_FallsBackForUnknownErrors(t *testing.T) {
-	status, errType, code, param := mapResolverError(fmt.Errorf("boom"))
+	status, errType, code, param := mapResolverError(core.Errorf("boom"))
 	if status != http.StatusInternalServerError || errType != "inference_error" || code != "inference_error" || param != "model" {
 		t.Fatalf("unexpected fallback mapping: %d %q %q %q", status, errType, code, param)
 	}
@@ -466,7 +462,7 @@ func TestChatCompletions_modelResolutionError_Error_Ugly_NilReceiverReturnsEmpty
 }
 
 func TestChatCompletions_newChatCompletionID_Good_UsesExpectedPrefix(t *testing.T) {
-	if got := newChatCompletionID(); !strings.HasPrefix(got, "chatcmpl-") {
+	if got := newChatCompletionID(); !core.HasPrefix(got, "chatcmpl-") {
 		t.Fatalf("expected chat completion ID prefix, got %q", got)
 	}
 }
@@ -489,7 +485,7 @@ func TestChatCompletions_ResolveModel_Good_UsesCachePathAndDiscovery(t *testing.
 	t.Run("discovery", func(t *testing.T) {
 		model := &chatModelStub{}
 		resolver := NewModelResolver()
-		modelDir := filepath.Join(t.TempDir(), "gemma3")
+		modelDir := core.PathJoin(t.TempDir(), "gemma3")
 		resolver.discovery["gemma3"] = modelDir
 		resolver.loadedByPath[modelDir] = model
 
@@ -519,14 +515,14 @@ func TestChatCompletions_lookupModelPath_Bad_NeedsDirHomeSeam(t *testing.T) {
 
 func TestChatCompletions_discoveryModels_Good_FindsValidModels(t *testing.T) {
 	base := t.TempDir()
-	modelDir := filepath.Join(base, "gemma3")
-	if err := os.MkdirAll(modelDir, 0o755); err != nil {
+	modelDir := core.PathJoin(base, "gemma3")
+	if err := coreMkdirAll(modelDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(modelDir, "config.json"), []byte(`{"model_type":"gemma3"}`), 0o600); err != nil {
+	if err := coreWriteFile(core.PathJoin(modelDir, "config.json"), []byte(`{"model_type":"gemma3"}`), 0o600); err != nil {
 		t.Fatalf("write config.json: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(modelDir, "weights.safetensors"), []byte("stub"), 0o600); err != nil {
+	if err := coreWriteFile(core.PathJoin(modelDir, "weights.safetensors"), []byte("stub"), 0o600); err != nil {
 		t.Fatalf("write safetensors: %v", err)
 	}
 
@@ -601,7 +597,7 @@ func TestChatCompletions_ServeHTTP_Good_NonStreamingResponseIncludesThoughtAndSt
 	}
 
 	var resp ChatCompletionResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("invalid JSON response: %v", err)
 	}
 	if resp.Object != "chat.completion" {
@@ -610,7 +606,7 @@ func TestChatCompletions_ServeHTTP_Good_NonStreamingResponseIncludesThoughtAndSt
 	if resp.Model != "lemer" {
 		t.Fatalf("expected model lemer, got %q", resp.Model)
 	}
-	if !strings.HasPrefix(resp.ID, "chatcmpl-") {
+	if !core.HasPrefix(resp.ID, "chatcmpl-") {
 		t.Fatalf("expected chat completion ID prefix, got %q", resp.ID)
 	}
 	if len(resp.Choices) != 1 {
@@ -660,7 +656,7 @@ func TestChatCompletions_ServeHTTP_Good_StreamingResponseEmitsSSEChunks(t *testi
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+	if got := rec.Header().Get("Content-Type"); !core.HasPrefix(got, "text/event-stream") {
 		t.Fatalf("expected SSE content type, got %q", got)
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
@@ -671,16 +667,16 @@ func TestChatCompletions_ServeHTTP_Good_StreamingResponseEmitsSSEChunks(t *testi
 	}
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `data: {"id":"chatcmpl-`) {
+	if !core.Contains(body, `data: {"id":"chatcmpl-`) {
 		t.Fatalf("expected streamed completion ID, got %s", body)
 	}
-	if !strings.Contains(body, `"role":"assistant"`) {
+	if !core.Contains(body, `"role":"assistant"`) {
 		t.Fatalf("expected role priming chunk, got %s", body)
 	}
-	if !strings.Contains(body, `"thought":" planning... "`) {
+	if !core.Contains(body, `"thought":" planning... "`) {
 		t.Fatalf("expected thought chunk, got %s", body)
 	}
-	if !strings.Contains(body, `data: [DONE]`) {
+	if !core.Contains(body, `data: [DONE]`) {
 		t.Fatalf("expected stream terminator, got %s", body)
 	}
 }
@@ -689,7 +685,7 @@ func TestChatCompletions_ServeHTTP_Bad_StreamingModelLoadingReturnsErrorBeforeBy
 	gin.SetMode(gin.TestMode)
 
 	model := &chatModelStub{
-		err: fmt.Errorf("model is loading"),
+		err: core.Errorf("model is loading"),
 	}
 	handler := newChatHandlerWithModel(model)
 
@@ -714,7 +710,7 @@ func TestChatCompletions_ServeHTTP_Bad_StreamingModelLoadingReturnsErrorBeforeBy
 	}
 
 	var payload chatCompletionErrorResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+	if err := coreJSONUnmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("invalid JSON error response: %v", err)
 	}
 	if payload.Error.Code != "model_loading" {

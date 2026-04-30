@@ -5,7 +5,6 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
 	"net"
 	"net/http"
 
@@ -18,13 +17,13 @@ import (
 var (
 	// ErrHTTP3NotConfigured is returned when ServeH3 is called without
 	// enabling HTTP/3 via WithHTTP3.
-	ErrHTTP3NotConfigured = errors.New("api: HTTP/3 is not configured")
+	ErrHTTP3NotConfigured = core.NewError("api: HTTP/3 is not configured")
 
 	// ErrHTTP3TLSRequired is returned when ServeH3 is called without TLS.
-	ErrHTTP3TLSRequired = errors.New("api: HTTP/3 requires TLS configuration")
+	ErrHTTP3TLSRequired = core.NewError("api: HTTP/3 requires TLS configuration")
 
 	// ErrNilContext is returned when ServeH3 is called with a nil context.
-	ErrNilContext = errors.New("api: context is nil")
+	ErrNilContext = core.NewError("api: context is nil")
 )
 
 // ServeH3 starts the HTTP/3 QUIC server and blocks until the context is
@@ -55,7 +54,7 @@ func (e *Engine) ServeH3(ctx context.Context, tlsConfig *tls.Config) (
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.ListenAndServe(); err != nil && !core.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 		close(errCh)

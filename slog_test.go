@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
+	core "dappco.re/go"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,8 +19,8 @@ import (
 func TestWithSlog_Good_LogsRequestFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	buf := core.NewBuffer()
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	e, _ := api.New(api.WithSlog(logger))
 	e.Register(&stubGroup{})
@@ -41,7 +41,7 @@ func TestWithSlog_Good_LogsRequestFields(t *testing.T) {
 
 	// The structured log should contain request fields.
 	for _, field := range []string{"status", "method", `path`, "latency", "ip"} {
-		if !bytes.Contains(buf.Bytes(), []byte(field)) {
+		if !core.Contains(buf.String(), field) {
 			t.Errorf("expected log output to contain field %q, got: %s", field, output)
 		}
 	}
@@ -66,8 +66,8 @@ func TestWithSlog_Good_NilLoggerUsesDefault(t *testing.T) {
 func TestWithSlog_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	buf := core.NewBuffer()
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
 
 	e, _ := api.New(
 		api.WithSlog(logger),
@@ -95,8 +95,8 @@ func TestWithSlog_Good_CombinesWithOtherMiddleware(t *testing.T) {
 func TestWithSlog_Good_Logs404Status(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	buf := core.NewBuffer()
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
 
 	e, _ := api.New(api.WithSlog(logger))
 
@@ -115,7 +115,7 @@ func TestWithSlog_Good_Logs404Status(t *testing.T) {
 	}
 
 	// Should contain the 404 status.
-	if !bytes.Contains(buf.Bytes(), []byte("404")) {
+	if !core.Contains(buf.String(), "404") {
 		t.Errorf("expected log to contain status 404, got: %s", output)
 	}
 }
@@ -124,8 +124,8 @@ func TestWithSlog_Bad_LogsMethodAndPath(t *testing.T) {
 	// Verifies POST method and custom path appear in log output.
 	gin.SetMode(gin.TestMode)
 
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	buf := core.NewBuffer()
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
 
 	e, _ := api.New(api.WithSlog(logger))
 	e.Register(&stubGroup{})
@@ -136,10 +136,10 @@ func TestWithSlog_Bad_LogsMethodAndPath(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	output := buf.String()
-	if !bytes.Contains(buf.Bytes(), []byte("POST")) {
+	if !core.Contains(buf.String(), "POST") {
 		t.Errorf("expected log to contain method POST, got: %s", output)
 	}
-	if !bytes.Contains(buf.Bytes(), []byte("/stub/ping")) {
+	if !core.Contains(buf.String(), "/stub/ping") {
 		t.Errorf("expected log to contain path /stub/ping, got: %s", output)
 	}
 }
@@ -148,8 +148,8 @@ func TestWithSlog_Ugly_DoubleSlogDoesNotPanic(t *testing.T) {
 	// Applying WithSlog twice should not panic.
 	gin.SetMode(gin.TestMode)
 
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	buf := core.NewBuffer()
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
 
 	e, _ := api.New(
 		api.WithSlog(logger),

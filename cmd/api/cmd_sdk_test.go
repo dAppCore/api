@@ -3,9 +3,6 @@
 package api
 
 import (
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -68,26 +65,26 @@ func TestCmdSdk_SdkAction_Bad_EmptyLanguageList(t *testing.T) {
 func TestCmdSdk_SdkAction_Good_InvokesGeneratorForUniqueLanguages(t *testing.T) {
 	workDir := t.TempDir()
 
-	binDir := filepath.Join(workDir, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
+	binDir := core.PathJoin(workDir, "bin")
+	if err := coreMkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("failed to create fake bin dir: %v", err)
 	}
 
-	logFile := filepath.Join(workDir, "generator-args.log")
+	logFile := core.PathJoin(workDir, "generator-args.log")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$SDK_ACTION_LOG\"\nexit 0\n"
-	if err := os.WriteFile(filepath.Join(binDir, "openapi-generator-cli"), []byte(script), 0o755); err != nil {
+	if err := coreWriteFile(core.PathJoin(binDir, "openapi-generator-cli"), []byte(script), 0o755); err != nil {
 		t.Fatalf("failed to write fake generator: %v", err)
 	}
 
-	path := os.Getenv("PATH")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+path)
+	path := core.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+path)
 	t.Setenv("SDK_ACTION_LOG", logFile)
 
 	initSDKActionCLITest(t)
 
 	opts := core.NewOptions(
 		core.Option{Key: "lang", Value: " go , python , go "},
-		core.Option{Key: "output", Value: filepath.Join(workDir, "sdk")},
+		core.Option{Key: "output", Value: core.PathJoin(workDir, "sdk")},
 	)
 
 	r := sdkAction(opts)
@@ -96,24 +93,24 @@ func TestCmdSdk_SdkAction_Good_InvokesGeneratorForUniqueLanguages(t *testing.T) 
 	}
 
 	for _, lang := range []string{"go", "python"} {
-		if _, err := os.Stat(filepath.Join(workDir, "sdk", lang)); err != nil {
+		if _, err := coreStat(core.PathJoin(workDir, "sdk", lang)); err != nil {
 			t.Fatalf("expected output directory for %s: %v", lang, err)
 		}
 	}
 
-	data, err := os.ReadFile(logFile)
+	data, err := coreReadFile(logFile)
 	if err != nil {
 		t.Fatalf("expected generator log to exist: %v", err)
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	lines := core.Split(core.Trim(string(data)), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 generator invocations, got %d: %q", len(lines), string(data))
 	}
-	if !strings.Contains(lines[0], "-g go") || !strings.Contains(lines[0], "packageName=lethean") {
+	if !core.Contains(lines[0], "-g go") || !core.Contains(lines[0], "packageName=lethean") {
 		t.Fatalf("expected default package name and go generator in first invocation, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "-g python") || !strings.Contains(lines[1], "packageName=lethean") {
+	if !core.Contains(lines[1], "-g python") || !core.Contains(lines[1], "packageName=lethean") {
 		t.Fatalf("expected default package name and python generator in second invocation, got %q", lines[1])
 	}
 }
@@ -122,34 +119,34 @@ func TestCmdSdk_SdkAction_Good_InvokesGeneratorForUniqueLanguages(t *testing.T) 
 // exclusive temp-file creation instead of the legacy predictable core.ID path.
 func TestCmdSdk_TempFile_Bad_PreExistingSymlink(t *testing.T) {
 	workDir := t.TempDir()
-	tmpDir := filepath.Join(workDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+	tmpDir := core.PathJoin(workDir, "tmp")
+	if err := coreMkdirAll(tmpDir, 0o755); err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 
-	targetPath := filepath.Join(workDir, "do-not-delete.json")
-	if err := os.WriteFile(targetPath, []byte("sentinel"), 0o600); err != nil {
+	targetPath := core.PathJoin(workDir, "do-not-delete.json")
+	if err := coreWriteFile(targetPath, []byte("sentinel"), 0o600); err != nil {
 		t.Fatalf("failed to write symlink target: %v", err)
 	}
 
-	legacyPath := filepath.Join(tmpDir, "openapi-id-1-deadbe.json")
-	if err := os.Symlink(targetPath, legacyPath); err != nil {
+	legacyPath := core.PathJoin(tmpDir, "openapi-id-1-deadbe.json")
+	if err := coreSymlink(targetPath, legacyPath); err != nil {
 		t.Fatalf("failed to create pre-existing symlink: %v", err)
 	}
 
-	binDir := filepath.Join(workDir, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
+	binDir := core.PathJoin(workDir, "bin")
+	if err := coreMkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("failed to create fake bin dir: %v", err)
 	}
 
-	specLog := filepath.Join(workDir, "spec-path.log")
+	specLog := core.PathJoin(workDir, "spec-path.log")
 	script := "#!/bin/sh\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = \"-i\" ]; then\n    shift\n    if [ -L \"$1\" ]; then exit 2; fi\n    if [ ! -f \"$1\" ]; then exit 3; fi\n    printf '%s\\n' \"$1\" > \"$SDK_SPEC_LOG\"\n    exit 0\n  fi\n  shift\ndone\nexit 1\n"
-	if err := os.WriteFile(filepath.Join(binDir, "openapi-generator-cli"), []byte(script), 0o755); err != nil {
+	if err := coreWriteFile(core.PathJoin(binDir, "openapi-generator-cli"), []byte(script), 0o755); err != nil {
 		t.Fatalf("failed to write fake generator: %v", err)
 	}
 
-	path := os.Getenv("PATH")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+path)
+	path := core.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(core.PathListSeparator)+path)
 	t.Setenv("SDK_SPEC_LOG", specLog)
 	t.Setenv("TMPDIR", tmpDir)
 
@@ -157,7 +154,7 @@ func TestCmdSdk_TempFile_Bad_PreExistingSymlink(t *testing.T) {
 
 	opts := core.NewOptions(
 		core.Option{Key: "lang", Value: "go"},
-		core.Option{Key: "output", Value: filepath.Join(workDir, "sdk")},
+		core.Option{Key: "output", Value: core.PathJoin(workDir, "sdk")},
 	)
 
 	r := sdkAction(opts)
@@ -165,32 +162,32 @@ func TestCmdSdk_TempFile_Bad_PreExistingSymlink(t *testing.T) {
 		t.Fatalf("expected sdk action to succeed, got %v", r.Value)
 	}
 
-	data, err := os.ReadFile(specLog)
+	data, err := coreReadFile(specLog)
 	if err != nil {
 		t.Fatalf("expected generator spec log to exist: %v", err)
 	}
-	specPath := strings.TrimSpace(string(data))
+	specPath := core.Trim(string(data))
 	if specPath == legacyPath {
 		t.Fatal("expected generated spec path not to reuse pre-existing symlink")
 	}
-	if !strings.HasPrefix(specPath, tmpDir+string(os.PathSeparator)+"openapi-") {
+	if !core.HasPrefix(specPath, tmpDir+string(core.PathSeparator)+"openapi-") {
 		t.Fatalf("expected temp spec under %s, got %q", tmpDir, specPath)
 	}
-	if !strings.HasSuffix(specPath, ".json") {
+	if !core.HasSuffix(specPath, ".json") {
 		t.Fatalf("expected temp spec to keep .json suffix, got %q", specPath)
 	}
-	if _, err := os.Lstat(specPath); !os.IsNotExist(err) {
+	if _, err := coreLstat(specPath); !core.IsNotExist(err) {
 		t.Fatalf("expected temp spec to be deleted after sdk action, got %v", err)
 	}
 
-	info, err := os.Lstat(legacyPath)
+	info, err := coreLstat(legacyPath)
 	if err != nil {
 		t.Fatalf("expected pre-existing symlink to remain: %v", err)
 	}
-	if info.Mode()&os.ModeSymlink == 0 {
+	if info.Mode()&core.ModeSymlink == 0 {
 		t.Fatalf("expected %s to remain a symlink, got mode %s", legacyPath, info.Mode())
 	}
-	contents, err := os.ReadFile(targetPath)
+	contents, err := coreReadFile(targetPath)
 	if err != nil {
 		t.Fatalf("expected symlink target to remain readable: %v", err)
 	}
@@ -203,8 +200,8 @@ func initSDKActionCLITest(t *testing.T) {
 	t.Helper()
 	// Shutdown cancels the package-global context without clearing it, so these
 	// SDK action tests leave the test runtime initialized for the process.
-	if err := cli.Init(cli.Options{AppName: "core-api-test"}); err != nil {
-		t.Fatalf("failed to initialise CLI runtime: %v", err)
+	if result := cli.Init(cli.Options{AppName: "core-api-test"}); !result.OK {
+		t.Fatalf("failed to initialise CLI runtime: %v", result.Error())
 	}
 }
 

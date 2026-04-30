@@ -3,7 +3,6 @@
 package api
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -61,7 +60,7 @@ func TestSwaggerSpec_ReadDoc_Good_SnapshotsGroups(t *testing.T) {
 	groups[0] = replacement
 
 	var doc map[string]any
-	if err := json.Unmarshal([]byte(spec.ReadDoc()), &doc); err != nil {
+	if err := coreJSONUnmarshal([]byte(spec.ReadDoc()), &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 

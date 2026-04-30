@@ -3,8 +3,7 @@
 package api
 
 import (
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"net"
 	"net/http"
@@ -215,7 +214,7 @@ func TestWebhook_VerifyRequest_Good_AcceptsValidHeaders(t *testing.T) {
 	payload := []byte(`{"event":"link.clicked"}`)
 	headers := s.Headers(payload)
 
-	r := httptest.NewRequest(http.MethodPost, "/incoming", strings.NewReader(string(payload)))
+	r := httptest.NewRequest(http.MethodPost, "/incoming", core.NewReader(string(payload)))
 	for k, v := range headers {
 		r.Header.Set(k, v)
 	}
@@ -228,7 +227,7 @@ func TestWebhook_VerifyRequest_Good_AcceptsValidHeaders(t *testing.T) {
 // missing or malformed signature/timestamp headers.
 func TestWebhook_VerifyRequest_Bad_RejectsMissingHeaders(t *testing.T) {
 	s := NewWebhookSigner("secret")
-	r := httptest.NewRequest(http.MethodPost, "/incoming", strings.NewReader("body"))
+	r := httptest.NewRequest(http.MethodPost, "/incoming", core.NewReader("body"))
 	if s.VerifyRequest(r, []byte("body")) {
 		t.Fatal("expected VerifyRequest to fail with no headers")
 	}
@@ -437,10 +436,10 @@ func TestWebhook_DialPath_Bad_RevalidatesHostnameAtRequestTime(t *testing.T) {
 	client := &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			attempts++
-			return nil, errors.New("request should have been blocked before transport")
+			return nil, core.NewError("request should have been blocked before transport")
 		}),
 	}
-	req, err := http.NewRequest(http.MethodPost, raw, strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, raw, core.NewReader("{}"))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}
@@ -452,7 +451,7 @@ func TestWebhook_DialPath_Bad_RevalidatesHostnameAtRequestTime(t *testing.T) {
 		}
 		t.Fatal("expected dial-time SSRF guard to block rebound loopback resolution")
 	}
-	if !errors.Is(err, errOutboundURLBlocked) {
+	if !core.Is(err, errOutboundURLBlocked) {
 		t.Fatalf("expected errOutboundURLBlocked, got %v", err)
 	}
 	if attempts != 0 {
@@ -495,7 +494,7 @@ func TestWebhook_DialPath_Good_DialsPublicHostname(t *testing.T) {
 	defer srv.Close()
 
 	client := &http.Client{Transport: localServerTransport(t, srv)}
-	req, err := http.NewRequest(http.MethodPost, raw, strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, raw, core.NewReader("{}"))
 	if err != nil {
 		t.Fatalf("NewRequest failed: %v", err)
 	}

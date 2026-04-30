@@ -4,7 +4,7 @@ package api_test
 
 import (
 	"context"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -62,7 +62,7 @@ func TestWithGraphQL_Good_EndpointResponds(t *testing.T) {
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", strings.NewReader(body))
+	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestWithGraphQL_Good_EndpointResponds(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(respBody), `"name":"test"`) {
+	if !core.Contains(string(respBody), `"name":"test"`) {
 		t.Fatalf("expected response containing name:test, got %q", string(respBody))
 	}
 }
@@ -104,7 +104,7 @@ func TestWithGraphQL_Good_PlaygroundServesHTML(t *testing.T) {
 	}
 
 	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "text/html") {
+	if !core.Contains(ct, "text/html") {
 		t.Fatalf("expected Content-Type containing text/html, got %q", ct)
 	}
 
@@ -113,7 +113,7 @@ func TestWithGraphQL_Good_PlaygroundServesHTML(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(body), "GraphQL") {
+	if !core.Contains(string(body), "GraphQL") {
 		t.Fatalf("expected playground HTML containing 'GraphQL', got %q", string(body)[:200])
 	}
 }
@@ -150,7 +150,7 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 
 	// Query endpoint should be at /gql.
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/gql", "application/json", strings.NewReader(body))
+	resp, err := http.Post(srv.URL+"/gql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(respBody), `"name":"test"`) {
+	if !core.Contains(string(respBody), `"name":"test"`) {
 		t.Fatalf("expected response containing name:test, got %q", string(respBody))
 	}
 
@@ -181,7 +181,7 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 	}
 
 	// The default path should not exist.
-	defaultResp, err := http.Post(srv.URL+"/graphql", "application/json", strings.NewReader(body))
+	defaultResp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("default path request failed: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestWithGraphQL_Good_NormalisesCustomPath(t *testing.T) {
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/gql", "application/json", strings.NewReader(body))
+	resp, err := http.Post(srv.URL+"/gql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestWithGraphQL_Good_DefaultPathWhenEmptyCustomPath(t *testing.T) {
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", strings.NewReader(body))
+	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestWithGraphQL_Ugly_RootPathFallsBackToDefault(t *testing.T) {
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", strings.NewReader(body))
+	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestWithGraphQL_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", strings.NewReader(body))
+	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestWithGraphQL_Good_CombinesWithOtherMiddleware(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 
-	if !strings.Contains(string(respBody), `"name":"test"`) {
+	if !core.Contains(string(respBody), `"name":"test"`) {
 		t.Fatalf("expected response containing name:test, got %q", string(respBody))
 	}
 }

@@ -5,8 +5,6 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
 	"io"
 	"net"
 	"net/http"
@@ -278,11 +276,11 @@ func TestTransportClient_DialContext_Bad_BlocksSSRFWebSocketTargets(t *testing.T
 			dialer := &websocket.Dialer{
 				NetDialContext: func(context.Context, string, string) (net.Conn, error) {
 					dialCalls++
-					return nil, errors.New("dial should not be called")
+					return nil, core.NewError("dial should not be called")
 				},
 				NetDialTLSContext: func(context.Context, string, string) (net.Conn, error) {
 					dialCalls++
-					return nil, errors.New("dial should not be called")
+					return nil, core.NewError("dial should not be called")
 				},
 			}
 
@@ -296,7 +294,7 @@ func TestTransportClient_DialContext_Bad_BlocksSSRFWebSocketTargets(t *testing.T
 				}
 				t.Fatal("expected websocket target to be blocked")
 			}
-			if !errors.Is(err, errOutboundURLBlocked) {
+			if !core.Is(err, errOutboundURLBlocked) {
 				t.Fatalf("expected errOutboundURLBlocked, got %v", err)
 			}
 			if dialCalls != 0 {
@@ -345,7 +343,7 @@ func TestTransportClient_normaliseWebSocketClientURL_Bad_ReturnsErrorsForMalform
 				t.Fatalf("expected malformed URL to fail, got normalized URL %q", normalized)
 			}
 			var typed *core.Err
-			if !errors.As(err, &typed) {
+			if !core.As(err, &typed) {
 				t.Fatalf("expected typed core error, got %T: %v", err, err)
 			}
 		})
@@ -450,7 +448,7 @@ func TestTransportClient_Connect_Bad_ClosesResponseBodyOnRedirectError(t *testin
 			closed: &closed,
 		},
 		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("redirect blocked")
+			return core.NewError("redirect blocked")
 		},
 	}))
 
@@ -463,7 +461,7 @@ func TestTransportClient_Connect_Bad_ClosesResponseBodyOnRedirectError(t *testin
 }
 
 func TestTransportClient_Events_Good_ParsesStream(t *testing.T) {
-	payload := strings.Join([]string{
+	payload := core.Join("\n", []string{
 		": comment",
 		"id: 7",
 		"event: update",
@@ -473,7 +471,7 @@ func TestTransportClient_Events_Good_ParsesStream(t *testing.T) {
 		"",
 		"data: final",
 		"",
-	}, "\n")
+	}...)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -607,7 +605,7 @@ func TestTransportClient_DialContext_Ugly_CleansBlankURL(t *testing.T) {
 }
 
 func TestTransportClient_Events_Good_ClosesReaderOnEOF(t *testing.T) {
-	body := strings.NewReader("event: done\ndata: ok\n\n")
+	body := core.NewReader("event: done\ndata: ok\n\n")
 	events := make(chan SSEEvent, 1)
 	parseSSEStream(context.Background(), body, events)
 
@@ -657,7 +655,7 @@ func TestTransportClient_doHTTPClientRequest_Bad_BlocksRedirectToMetadata(t *tes
 				Header: http.Header{
 					"Location": {"http://169.254.169.254/latest/meta-data/iam/security-credentials/"},
 				},
-				Body:    io.NopCloser(strings.NewReader("redirecting")),
+				Body:    io.NopCloser(core.NewReader("redirecting")),
 				Request: req,
 			}, nil
 		}),
@@ -674,7 +672,7 @@ func TestTransportClient_doHTTPClientRequest_Bad_BlocksRedirectToMetadata(t *tes
 		}
 		t.Fatal("expected metadata redirect to be blocked")
 	}
-	if !errors.Is(err, errOutboundURLBlocked) {
+	if !core.Is(err, errOutboundURLBlocked) {
 		t.Fatalf("expected errOutboundURLBlocked, got %v", err)
 	}
 	if attempts != 1 {

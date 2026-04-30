@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -113,7 +112,7 @@ func TestBearerAuth_Bad_MissingToken(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Error == nil || resp.Error.Code != "unauthorised" {
@@ -137,7 +136,7 @@ func TestBearerAuth_Bad_WrongToken(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Error == nil || resp.Error.Code != "unauthorised" {
@@ -161,7 +160,7 @@ func TestBearerAuth_Good_CorrectToken(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data != "classified" {
@@ -294,7 +293,7 @@ func TestRequestID_Good_RequestMetaHelper(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta == nil {
@@ -330,7 +329,7 @@ func TestResponseMeta_Good_AttachesMetaAutomatically(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta == nil {
@@ -369,7 +368,7 @@ func TestResponseMeta_Good_AttachesMetaToErrorResponses(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta == nil {
@@ -409,7 +408,7 @@ func TestResponseMeta_Good_AttachesMetaToPlusJSONContentType(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Meta == nil {

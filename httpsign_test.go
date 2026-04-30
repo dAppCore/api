@@ -5,8 +5,7 @@ package api_test
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	fmt "dappco.re/go/api/internal/stdcompat/corefmt"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -51,15 +50,15 @@ func signRequest(req *http.Request, keyID httpsign.KeyID, secret string, headers
 		var val string
 		switch h {
 		case "(request-target)":
-			val = fmt.Sprintf("%s %s", strings.ToLower(req.Method), req.URL.RequestURI())
+			val = core.Sprintf("%s %s", core.Lower(req.Method), req.URL.RequestURI())
 		case "host":
 			val = req.Host
 		default:
 			val = req.Header.Get(h)
 		}
-		parts = append(parts, fmt.Sprintf("%s: %s", h, val))
+		parts = append(parts, core.Sprintf("%s: %s", h, val))
 	}
-	signingString := strings.Join(parts, "\n")
+	signingString := core.Join("\n", parts...)
 
 	// Sign with HMAC-SHA256.
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -67,10 +66,10 @@ func signRequest(req *http.Request, keyID httpsign.KeyID, secret string, headers
 	sig := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 	// Build the Authorization header.
-	authValue := fmt.Sprintf(
+	authValue := core.Sprintf(
 		"Signature keyId=\"%s\",algorithm=\"hmac-sha256\",headers=\"%s\",signature=\"%s\"",
 		keyID,
-		strings.Join(headers, " "),
+		core.Join(" ", headers...),
 		sig,
 	)
 	req.Header.Set("Authorization", authValue)

@@ -3,11 +3,7 @@
 package api_test
 
 import (
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"iter"
 	"net/http"
 	"testing"
@@ -23,13 +19,13 @@ import (
 func TestExportSpec_Good_JSON(t *testing.T) {
 	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
 
-	var buf bytes.Buffer
-	if err := api.ExportSpec(&buf, "json", builder, nil); err != nil {
+	buf := core.NewBuffer()
+	if err := api.ExportSpec(buf, "json", builder, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &spec); err != nil {
+	if err := coreJSONUnmarshal(buf.Bytes(), &spec); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
 
@@ -46,13 +42,13 @@ func TestExportSpec_Good_JSON(t *testing.T) {
 func TestExportSpec_Good_YAML(t *testing.T) {
 	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
 
-	var buf bytes.Buffer
-	if err := api.ExportSpec(&buf, "yaml", builder, nil); err != nil {
+	buf := core.NewBuffer()
+	if err := api.ExportSpec(buf, "yaml", builder, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "openapi:") {
+	if !core.Contains(output, "openapi:") {
 		t.Fatalf("expected YAML output to contain 'openapi:', got:\n%s", output)
 	}
 
@@ -69,8 +65,8 @@ func TestExportSpec_Good_YAML(t *testing.T) {
 func TestExportSpec_Good_NormalisesFormatInput(t *testing.T) {
 	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
 
-	var buf bytes.Buffer
-	if err := api.ExportSpec(&buf, " YAML ", builder, nil); err != nil {
+	buf := core.NewBuffer()
+	if err := api.ExportSpec(buf, " YAML ", builder, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -87,12 +83,12 @@ func TestExportSpec_Good_NormalisesFormatInput(t *testing.T) {
 func TestExportSpec_Bad_InvalidFormat(t *testing.T) {
 	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
 
-	var buf bytes.Buffer
-	err := api.ExportSpec(&buf, "xml", builder, nil)
+	buf := core.NewBuffer()
+	err := api.ExportSpec(buf, "xml", builder, nil)
 	if err == nil {
 		t.Fatal("expected error for unsupported format, got nil")
 	}
-	if !strings.Contains(err.Error(), "unsupported format") {
+	if !core.Contains(err.Error(), "unsupported format") {
 		t.Fatalf("expected error to contain 'unsupported format', got: %v", err)
 	}
 }
@@ -101,19 +97,19 @@ func TestExportSpecToFile_Good_CreatesFile(t *testing.T) {
 	builder := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "subdir", "spec.json")
+	path := core.PathJoin(dir, "subdir", "spec.json")
 
 	if err := api.ExportSpecToFile(path, "json", builder, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := coreReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read file: %v", err)
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("file content is not valid JSON: %v", err)
 	}
 
@@ -145,19 +141,19 @@ func TestExportSpecToFileIter_Good_CreatesFileFromIterator(t *testing.T) {
 	})
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "subdir", "spec.json")
+	path := core.PathJoin(dir, "subdir", "spec.json")
 
 	if err := api.ExportSpecToFileIter(path, "json", builder, groups); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := coreReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read file: %v", err)
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("file content is not valid JSON: %v", err)
 	}
 
@@ -199,22 +195,22 @@ func TestExportSpec_Good_WithToolBridge(t *testing.T) {
 		c.JSON(http.StatusOK, api.OK("ok"))
 	})
 
-	var buf bytes.Buffer
-	if err := api.ExportSpec(&buf, "json", builder, []api.RouteGroup{bridge}); err != nil {
+	buf := core.NewBuffer()
+	if err := api.ExportSpec(buf, "json", builder, []api.RouteGroup{bridge}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "/tools/file_read") {
+	if !core.Contains(output, "/tools/file_read") {
 		t.Fatalf("expected output to contain /tools/file_read, got:\n%s", output)
 	}
-	if !strings.Contains(output, "/tools/metrics_query") {
+	if !core.Contains(output, "/tools/metrics_query") {
 		t.Fatalf("expected output to contain /tools/metrics_query, got:\n%s", output)
 	}
 
 	// Verify it's valid JSON.
 	var spec map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &spec); err != nil {
+	if err := coreJSONUnmarshal(buf.Bytes(), &spec); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
 
@@ -250,13 +246,13 @@ func TestExportSpecIter_Good_WithGroupIterator(t *testing.T) {
 		_ = yield(group)
 	})
 
-	var buf bytes.Buffer
-	if err := api.ExportSpecIter(&buf, "json", builder, groups); err != nil {
+	buf := core.NewBuffer()
+	if err := api.ExportSpecIter(buf, "json", builder, groups); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &spec); err != nil {
+	if err := coreJSONUnmarshal(buf.Bytes(), &spec); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
 

@@ -33,7 +33,7 @@ import (
 // the request fires, the literal host has been re-resolved.
 
 // errOutboundURLBlocked is returned when validateOutboundURL rejects a URL.
-// Callers see a wrapped error from client.Do; tests assert on errors.Is.
+// Callers see a wrapped error from client.Do; tests assert on core.Is.
 var errOutboundURLBlocked = coreerr.E("", "outbound URL blocked by SSRF guard", nil)
 
 // allowedSchemes is the deny-by-default scheme allowlist for outbound HTTP.
@@ -144,7 +144,7 @@ func blockedIPReason(ip net.IP) string {
 }
 
 // wrapBlocked formats a rejection reason as an error wrapping errOutboundURLBlocked
-// so callers can errors.Is(err, errOutboundURLBlocked) on the rejection class.
+// so callers can core.Is(err, errOutboundURLBlocked) on the rejection class.
 func wrapBlocked(reason string) (
 	_ error,
 ) {
@@ -159,8 +159,12 @@ type blockedURLError struct{ reason string }
 //	_ = blockedURLError{reason: "metadata host"}.Error()
 func (e blockedURLError) Error() string { return errOutboundURLBlocked.Error() + ": " + e.reason }
 
-// Unwrap returns errOutboundURLBlocked so errors.Is works on the rejection
+// Unwrap returns errOutboundURLBlocked so core.Is works on the rejection
 // class regardless of the specific reason text.
 //
-//	errors.Is(err, errOutboundURLBlocked)
-func (e blockedURLError) Unwrap() error { return errOutboundURLBlocked }
+//	core.Is(err, errOutboundURLBlocked)
+func (e blockedURLError) Unwrap() (
+	_ error,
+) {
+	return errOutboundURLBlocked
+}

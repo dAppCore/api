@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"testing"
 	"time"
@@ -64,7 +63,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -409,7 +408,7 @@ func TestEngine_Good_SwaggerConfigTrimsRuntimeMetadata(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -653,7 +652,7 @@ func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -677,7 +676,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesExplicitSwaggerPathWithoutUI(t *te
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -701,7 +700,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredWSPathWithoutHandler(t *
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -725,7 +724,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredSSEPathWithoutBroker(t *
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -768,7 +767,7 @@ func TestEngine_Good_OpenAPISpecBuilderClonesSecuritySchemes(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -815,7 +814,7 @@ func TestEngine_Ugly_OpenAPISpecBuilderSkipsBlankSecuritySchemeEntries(t *testin
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 

@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"iter"
 	"net/http"
 	"testing"
@@ -155,7 +154,7 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -287,7 +286,7 @@ func TestSpecBuilder_Good_IncludesCacheControlResponseHeader(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -314,7 +313,7 @@ func TestSpecBuilder_Good_NilReceiverIsZeroValueSafe(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -350,7 +349,7 @@ func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -392,7 +391,7 @@ func TestSpecBuilder_Good_CommonResponseComponentsArePublished(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -436,7 +435,7 @@ func TestSpecBuilder_Good_NormalisesMetadataAtBuild(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -499,7 +498,7 @@ func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -527,7 +526,7 @@ func TestSpecBuilder_Good_CacheAndI18nExtensions(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -570,7 +569,7 @@ func TestSpecBuilder_Good_OmitsNonPositiveCacheTTLExtension(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -594,7 +593,7 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -675,7 +674,7 @@ func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -714,7 +713,7 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLPath(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -740,7 +739,7 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLTag(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -774,7 +773,7 @@ func TestSpecBuilder_Good_ChatCompletionsEndpointExtension(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -802,7 +801,7 @@ func TestSpecBuilder_Good_ChatCompletionsHonoursCustomPath(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -825,7 +824,7 @@ func TestSpecBuilder_Good_ChatCompletionsOmittedWhenDisabled(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -853,7 +852,7 @@ func TestSpecBuilder_Good_ChatCompletionsPathAppearsInPaths(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -884,7 +883,7 @@ func TestSpecBuilder_Bad_ChatCompletionsPathAbsentWhenDisabled(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -910,7 +909,7 @@ func TestSpecBuilder_Ugly_ChatCompletionsPathCustomOverrideHonoured(t *testing.T
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -939,7 +938,7 @@ func TestSpecBuilder_Good_OpenAPISpecEndpointAppearsInPaths(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -979,7 +978,7 @@ func TestSpecBuilder_Bad_OpenAPISpecEndpointAbsentWhenDisabled(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1008,7 +1007,7 @@ func TestSpecBuilder_Ugly_OpenAPISpecPathCustomOverrideHonoured(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1037,7 +1036,7 @@ func TestSpecBuilder_Good_EnabledTransportsUseDefaultPaths(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1094,7 +1093,7 @@ func TestSpecBuilder_Good_WebSocketEndpoint(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1147,7 +1146,7 @@ func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1213,7 +1212,7 @@ func TestSpecBuilder_Good_InfoIncludesLicenseMetadata(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1244,7 +1243,7 @@ func TestSpecBuilder_Good_InfoIncludesSummary(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1270,7 +1269,7 @@ func TestSpecBuilder_Good_InfoIncludesContactMetadata(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1304,7 +1303,7 @@ func TestSpecBuilder_Good_InfoIncludesTermsOfService(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1329,7 +1328,7 @@ func TestSpecBuilder_Good_InfoIncludesExternalDocs(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1402,7 +1401,7 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1484,7 +1483,7 @@ func TestSpecBuilder_Good_DescribeIterGroup(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1526,7 +1525,7 @@ func TestSpecBuilder_Good_DescribeIterSnapshotOnce(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1568,7 +1567,7 @@ func TestSpecBuilder_Good_DescribeIterNilFallsBackToDescribe(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1603,7 +1602,7 @@ func TestSpecBuilder_Good_GroupMetadataIsSnapshottedOnce(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1688,7 +1687,7 @@ func TestSpecBuilder_Good_DeepClonesRouteMetadata(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1746,7 +1745,7 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1829,7 +1828,7 @@ func TestSpecBuilder_Good_CustomSuccessStatusCode(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1878,7 +1877,7 @@ func TestSpecBuilder_Good_NoContentSuccessStatusCode(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -1936,7 +1935,7 @@ func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2005,7 +2004,7 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeMatchingOperationsPublic(t *te
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2047,7 +2046,7 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeBuiltInEndpointsPublic(t *test
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2104,7 +2103,7 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2210,7 +2209,7 @@ func TestSpecBuilder_Good_OperationIDPreservesPathParams(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2263,7 +2262,7 @@ func TestSpecBuilder_Good_RequestBodyOnDelete(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2308,7 +2307,7 @@ func TestSpecBuilder_Good_RequestBodyOnHead(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2350,7 +2349,7 @@ func TestSpecBuilder_Good_RequestExampleWithoutSchema(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2396,7 +2395,7 @@ func TestSpecBuilder_Good_ResponseExampleWithoutSchema(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2450,7 +2449,7 @@ func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2513,7 +2512,7 @@ func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2570,7 +2569,7 @@ func TestSpecBuilder_Good_PathNormalisation(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2615,7 +2614,7 @@ func TestSpecBuilder_Good_GinPathParameters(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2685,7 +2684,7 @@ func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2733,7 +2732,7 @@ func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2789,7 +2788,7 @@ func TestSpecBuilder_Good_EmptyDescribableGroupStillAddsTag(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2842,7 +2841,7 @@ func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2884,7 +2883,7 @@ func TestSpecBuilder_Good_TagsAreSortedDeterministically(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -2941,7 +2940,7 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3022,7 +3021,7 @@ func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3080,7 +3079,7 @@ func TestSpecBuilder_Good_BlankRouteTagsFallBackToGroupName(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3149,7 +3148,7 @@ func TestSpecBuilder_Good_HiddenRoutesAreOmitted(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3252,7 +3251,7 @@ func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3331,7 +3330,7 @@ func TestSpecBuilder_Bad_InfoFields(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3365,7 +3364,7 @@ func TestSpecBuilder_Good_Servers(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3405,7 +3404,7 @@ func TestSpecBuilder_Good_ServersCollapseTrailingSlashes(t *testing.T) {
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -3441,7 +3440,7 @@ func TestSpecBuilder_Good_RuntimeDebugEndpointsDocumentRateLimitHeaders(t *testi
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 

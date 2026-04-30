@@ -3,9 +3,6 @@
 package provider_test
 
 import (
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"net/http"
 	"net/http/httptest"
 
@@ -17,16 +14,16 @@ import (
 func TestDiscover_Good_LoadsYAMLProxyProvider(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{`path`: r.URL.Path})
+		coreJSONEncode(w, map[string]string{`path`: r.URL.Path})
 	}))
 	defer upstream.Close()
 
-	dir := filepath.Join(t.TempDir(), ".core", "providers")
-	RequireNoError(t, os.MkdirAll(dir, 0755))
-	specPath := filepath.Join(filepath.Dir(dir), "specs", "openapi.yaml")
-	RequireNoError(t, os.MkdirAll(filepath.Dir(specPath), 0755))
-	RequireNoError(t, os.WriteFile(specPath, []byte("openapi: 3.1.0\n"), 0644))
-	RequireNoError(t, os.WriteFile(filepath.Join(dir, "cool.yaml"), []byte(`
+	dir := PathJoin(t.TempDir(), ".core", "providers")
+	RequireNoError(t, coreMkdirAll(dir, 0755))
+	specPath := PathJoin(PathDir(dir), "specs", "openapi.yaml")
+	RequireNoError(t, coreMkdirAll(PathDir(specPath), 0755))
+	RequireNoError(t, coreWriteFile(specPath, []byte("openapi: 3.1.0\n"), 0644))
+	RequireNoError(t, coreWriteFile(PathJoin(dir, "cool.yaml"), []byte(`
 name: cool-widget
 runtime: php
 base_path: /api/v1/cool-widget/
@@ -47,7 +44,7 @@ element:
 
 	specProvider, ok := p.(interface{ SpecFile() string })
 	RequireTrue(t, ok)
-	canonicalSpecPath, err := filepath.EvalSymlinks(specPath)
+	canonicalSpecPath, err := corePathEvalSymlinks(specPath)
 	RequireNoError(t, err)
 	AssertEqual(t, canonicalSpecPath, specProvider.SpecFile())
 
@@ -65,19 +62,19 @@ element:
 
 	AssertEqual(t, http.StatusOK, w.Code)
 	var body map[string]string
-	RequireNoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	RequireNoError(t, coreJSONUnmarshal(w.Body.Bytes(), &body))
 	AssertEqual(t, "/ping", body[`path`])
 }
 
 func TestDiscover_Good_MissingDirIsEmpty(t *T) {
-	providers, err := provider.Discover(filepath.Join(t.TempDir(), ".core", "providers"))
+	providers, err := provider.Discover(PathJoin(t.TempDir(), ".core", "providers"))
 	RequireNoError(t, err)
 	AssertEmpty(t, providers)
 }
 
 func TestDiscover_Good_LoadsYAMLProvidersFromCleanDir(t *T) {
-	dir := filepath.Join(t.TempDir(), ".core", "providers")
-	RequireNoError(t, os.MkdirAll(dir, 0755))
+	dir := PathJoin(t.TempDir(), ".core", "providers")
+	RequireNoError(t, coreMkdirAll(dir, 0755))
 	upstream := newDiscoveryUpstream(t)
 
 	writeProviderManifest(t, dir, "alpha", upstream)
@@ -93,20 +90,20 @@ func TestDiscover_Good_LoadsYAMLProvidersFromCleanDir(t *T) {
 
 func TestDiscover_Good_DirWithDotDotSegmentResolves(t *T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "providers")
-	RequireNoError(t, os.MkdirAll(dir, 0755))
+	dir := PathJoin(root, "providers")
+	RequireNoError(t, coreMkdirAll(dir, 0755))
 	writeProviderManifest(t, dir, "dotdot", newDiscoveryUpstream(t))
 
-	providers, err := provider.Discover(filepath.Join(root, "other", "..", "providers"))
+	providers, err := provider.Discover(PathJoin(root, "other", "..", "providers"))
 	RequireNoError(t, err)
 	AssertLen(t, providers, 1)
 	AssertEqual(t, "dotdot", providers[0].Name())
 }
 
 func TestDiscover_Bad_InvalidManifest(t *T) {
-	dir := filepath.Join(t.TempDir(), ".core", "providers")
-	RequireNoError(t, os.MkdirAll(dir, 0755))
-	RequireNoError(t, os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte(`
+	dir := PathJoin(t.TempDir(), ".core", "providers")
+	RequireNoError(t, coreMkdirAll(dir, 0755))
+	RequireNoError(t, coreWriteFile(PathJoin(dir, "broken.yaml"), []byte(`
 name: broken
 basePath: /api/broken
 `), 0644))
@@ -119,10 +116,10 @@ basePath: /api/broken
 
 func TestDiscover_Bad_SymlinkedDirRefused(t *T) {
 	root := t.TempDir()
-	realDir := filepath.Join(root, "real-providers")
-	linkDir := filepath.Join(root, "providers")
-	RequireNoError(t, os.MkdirAll(realDir, 0755))
-	if err := os.Symlink(realDir, linkDir); err != nil {
+	realDir := PathJoin(root, "real-providers")
+	linkDir := PathJoin(root, "providers")
+	RequireNoError(t, coreMkdirAll(realDir, 0755))
+	if err := coreSymlink(realDir, linkDir); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
@@ -134,11 +131,11 @@ func TestDiscover_Bad_SymlinkedDirRefused(t *T) {
 
 func TestDiscover_Bad_SymlinkManifestOutsideDirRefused(t *T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "providers")
-	RequireNoError(t, os.MkdirAll(dir, 0755))
-	outside := filepath.Join(root, "outside.yaml")
-	RequireNoError(t, os.WriteFile(outside, []byte("not: loaded\n"), 0644))
-	if err := os.Symlink(outside, filepath.Join(dir, "leak.yaml")); err != nil {
+	dir := PathJoin(root, "providers")
+	RequireNoError(t, coreMkdirAll(dir, 0755))
+	outside := PathJoin(root, "outside.yaml")
+	RequireNoError(t, coreWriteFile(outside, []byte("not: loaded\n"), 0644))
+	if err := coreSymlink(outside, PathJoin(dir, "leak.yaml")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
@@ -149,10 +146,10 @@ func TestDiscover_Bad_SymlinkManifestOutsideDirRefused(t *T) {
 }
 
 func TestDiscover_Bad_SymlinkManifestWithinDirRefused(t *T) {
-	dir := filepath.Join(t.TempDir(), "providers")
-	RequireNoError(t, os.MkdirAll(dir, 0755))
+	dir := PathJoin(t.TempDir(), "providers")
+	RequireNoError(t, coreMkdirAll(dir, 0755))
 	realManifest := writeProviderManifest(t, dir, "real", newDiscoveryUpstream(t))
-	if err := os.Symlink(realManifest, filepath.Join(dir, "alias.yaml")); err != nil {
+	if err := coreSymlink(realManifest, PathJoin(dir, "alias.yaml")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
@@ -173,8 +170,8 @@ func newDiscoveryUpstream(t *T) string {
 
 func writeProviderManifest(t *T, dir, name, upstream string) string {
 	t.Helper()
-	path := filepath.Join(dir, name+".yaml")
-	RequireNoError(t, os.WriteFile(path, []byte(`
+	path := PathJoin(dir, name+".yaml")
+	RequireNoError(t, coreWriteFile(path, []byte(`
 name: `+name+`
 basePath: /api/`+name+`
 upstream: `+upstream+`

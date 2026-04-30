@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,7 +54,7 @@ func TestWithLocation_Good_DetectsForwardedHost(t *testing.T) {
 	}
 
 	var resp locationResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["host"] != "api.example.com" {
@@ -79,7 +78,7 @@ func TestWithLocation_Good_DetectsForwardedProto(t *testing.T) {
 	}
 
 	var resp locationResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["scheme"] != "https" {
@@ -103,7 +102,7 @@ func TestWithLocation_Good_FallsBackToRequestHost(t *testing.T) {
 	}
 
 	var resp locationResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
@@ -138,7 +137,7 @@ func TestWithLocation_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	// Location middleware should populate the detected host.
 	var resp locationResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["host"] != "proxy.example.com" {
@@ -168,7 +167,7 @@ func TestWithLocation_Good_BothHeadersCombined(t *testing.T) {
 	}
 
 	var resp locationResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data["scheme"] != "https" {

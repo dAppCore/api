@@ -3,8 +3,7 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -50,7 +49,7 @@ func TestSwaggerEndpoint_Good(t *testing.T) {
 
 	// Verify the body is valid JSON with expected fields.
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("expected valid JSON, got unmarshal error: %v", err)
 	}
 
@@ -99,7 +98,7 @@ func TestSwaggerEndpoint_Good_CustomPath(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("expected valid JSON, got unmarshal error: %v", err)
 	}
 
@@ -263,7 +262,7 @@ func TestSwagger_Good_SpecNotEmpty(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -321,7 +320,7 @@ func TestSwagger_Good_WithToolBridge(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -372,7 +371,7 @@ func TestSwagger_Good_IncludesSSEEndpoint(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -416,7 +415,7 @@ func TestSwagger_Good_UsesCustomSSEPath(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -471,7 +470,7 @@ func TestSwagger_Good_InfoFromOptions(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -514,7 +513,7 @@ func TestSwagger_Good_IncludesGraphQLEndpoint(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -553,7 +552,7 @@ func TestSwagger_Good_UsesLicenseMetadata(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -596,7 +595,7 @@ func TestSwagger_Good_UsesContactMetadata(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -642,7 +641,7 @@ func TestSwagger_Good_UsesTermsOfServiceMetadata(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -678,7 +677,7 @@ func TestSwagger_Good_UsesExternalDocsMetadata(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -727,7 +726,7 @@ func TestSwagger_Good_IgnoresBlankMetadataOverrides(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -799,7 +798,7 @@ func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -849,7 +848,7 @@ func TestSwagger_Good_AppendsServerMetadataAcrossCalls(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -893,7 +892,7 @@ func TestSwagger_Good_ValidOpenAPI(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
@@ -958,7 +957,7 @@ func TestOpenAPISpecEndpoint_Good(t *testing.T) {
 	}
 
 	contentType := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "application/json") {
+	if !core.HasPrefix(contentType, "application/json") {
 		t.Fatalf("expected application/json content type, got %q", contentType)
 	}
 
@@ -968,7 +967,7 @@ func TestOpenAPISpecEndpoint_Good(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	if doc["openapi"] != "3.1.0" {
@@ -1073,7 +1072,7 @@ func TestOpenAPISpecEndpoint_Ugly_WorksWithoutSwagger(t *testing.T) {
 		t.Fatalf("failed to read body: %v", err)
 	}
 	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := coreJSONUnmarshal(body, &doc); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	if doc["openapi"] != "3.1.0" {

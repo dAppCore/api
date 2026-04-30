@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -62,7 +62,7 @@ func TestWSEndpoint_Good(t *testing.T) {
 	defer srv.Close()
 
 	// Dial the WebSocket endpoint.
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	wsURL := "ws" + core.TrimPrefix(srv.URL, "http") + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial WebSocket: %v", err)
@@ -102,7 +102,7 @@ func TestWSEndpoint_Good_CustomPath(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/socket"
+	wsURL := "ws" + core.TrimPrefix(srv.URL, "http") + "/socket"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial custom WebSocket: %v", err)
@@ -142,7 +142,7 @@ func TestWSEndpoint_Ugly_RootPathFallsBackToDefault(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	wsURL := "ws" + core.TrimPrefix(srv.URL, "http") + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial normalised WebSocket path: %v", err)
@@ -182,7 +182,7 @@ func TestWSEndpoint_Ugly_NormalisesWhitespaceWrappedPath(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/trimmed"
+	wsURL := "ws" + core.TrimPrefix(srv.URL, "http") + "/trimmed"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial normalised WebSocket path: %v", err)
@@ -226,7 +226,7 @@ func TestWSEndpoint_Good_WithResponseMeta(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	wsURL := "ws" + core.TrimPrefix(srv.URL, "http") + "/ws"
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		if resp != nil {
@@ -271,7 +271,7 @@ func TestWithWebSocket_Good_GinHandlerReceivesUpgrade(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	wsURL := "ws" + core.TrimPrefix(srv.URL, "http") + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial WebSocket: %v", err)

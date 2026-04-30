@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
+	core "dappco.re/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -271,7 +271,7 @@ func (g *brotliLateWriteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 			close(g.ready)
 			<-g.start
 
-			payload := bytes.Repeat([]byte("late write from first request;"), 64)
+			payload := coreBytesRepeat([]byte("late write from first request;"), 64)
 			attempted := false
 			for {
 				select {
@@ -320,7 +320,7 @@ func (g *brotliLateWriteGroup) stopLateWrites() {
 func decodeBrotliResponse(t *testing.T, w *httptest.ResponseRecorder) []byte {
 	t.Helper()
 
-	decoded, err := io.ReadAll(brotli.NewReader(bytes.NewReader(w.Body.Bytes())))
+	decoded, err := io.ReadAll(brotli.NewReader(core.NewReader(string(w.Body.Bytes()))))
 	if err != nil {
 		t.Fatalf("failed to decode brotli response: %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	errors "dappco.re/go/api/internal/stdcompat/coreerrors"
+	core "dappco.re/go"
 	"math/big"
 	"net"
 	"net/http"
@@ -109,7 +109,7 @@ func TestServeH3_Bad_RequiresTLSConfig(t *testing.T) {
 	}
 
 	err = e.ServeH3(context.Background(), nil)
-	if !errors.Is(err, ErrHTTP3TLSRequired) {
+	if !core.Is(err, ErrHTTP3TLSRequired) {
 		t.Fatalf("expected ErrHTTP3TLSRequired, got %v", err)
 	}
 }

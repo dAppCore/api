@@ -7,16 +7,13 @@ import (
 	"io/fs"
 	"iter"
 	"maps"
-	// Note: AX-6 - retained for inheriting stdout/stderr when invoking the SDK generator; filesystem checks below use core.Fs.
-	os "dappco.re/go/api/internal/stdcompat/coreos"
-	// Note: AX-6 - retained for the subprocess boundary because SDKGenerator has no Core instance with registered process.run.
-	exec "dappco.re/go/api/internal/stdcompat/coreexec"
 	// Note: AX-6 - compiled regexp anchors PackageName validation for command-argument safety.
 	"regexp"
 	"slices"
 
 	core "dappco.re/go"
 	coreerr "dappco.re/go/log"
+	processexec "dappco.re/go/process/exec"
 )
 
 // packageNameRe constrains SDKGenerator.PackageName to identifier-shaped
@@ -126,11 +123,11 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) (
 	// flag-injection through --additional-properties. Cerberus mechanism review
 	// attached to Mantis #322.
 	//#nosec G204 -- command literal; args from closed allowlist + operator config + validated PackageName.
-	cmd := exec.CommandContext(ctx, "openapi-generator-cli", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	cmd := processexec.Command(ctx, "openapi-generator-cli", args...).
+		WithStdout(core.Stdout()).
+		WithStderr(core.Stderr())
+	if result := cmd.Run(); !result.OK {
+		err, _ := result.Value.(error)
 		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli failed for "+language, err)
 	}
 

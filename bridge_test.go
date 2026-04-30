@@ -3,9 +3,7 @@
 package api_test
 
 import (
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -49,7 +47,7 @@ func TestBridge_Good_RegisterAndServe(t *testing.T) {
 		t.Fatalf("expected 200 for file_read, got %d", w1.Code)
 	}
 	var resp1 api.Response[string]
-	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
+	if err := coreJSONUnmarshal(w1.Body.Bytes(), &resp1); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp1.Data != "result1" {
@@ -65,7 +63,7 @@ func TestBridge_Good_RegisterAndServe(t *testing.T) {
 		t.Fatalf("expected 200 for file_write, got %d", w2.Code)
 	}
 	var resp2 api.Response[string]
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp2.Data != "result2" {
@@ -206,7 +204,7 @@ func TestBridge_MCPServerID_Good_AcceptsSafeIDs(t *testing.T) {
 		"core-mcp",
 		"A1",
 		"server-01",
-		"a" + strings.Repeat("b", 63),
+		"a" + coreStringRepeat("b", 63),
 	}
 
 	for _, id := range cases {
@@ -233,7 +231,7 @@ func TestBridge_MCPServerID_Bad_RejectsMalformedIDs(t *testing.T) {
 		"/etc/passwd",
 		`C:\Windows`,
 		"core\x00mcp",
-		"a" + strings.Repeat("b", 64),
+		"a" + coreStringRepeat("b", 64),
 	}
 
 	for _, id := range cases {
@@ -361,7 +359,7 @@ func TestBridge_Good_ValidatesRequestBody(t *testing.T) {
 		},
 	}, func(c *gin.Context) {
 		var payload map[string]any
-		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+		if err := coreJSONDecode(c.Request.Body, &payload); err != nil {
 			t.Fatalf("handler could not read validated body: %v", err)
 		}
 		c.JSON(http.StatusOK, api.OK(payload[`path`]))
@@ -371,7 +369,7 @@ func TestBridge_Good_ValidatesRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("{\""+`path`+"\":\"/tmp/file.txt\"}"))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString("{\""+`path`+"\":\"/tmp/file.txt\"}"))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -379,7 +377,7 @@ func TestBridge_Good_ValidatesRequestBody(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Data != "/tmp/file.txt" {
@@ -411,7 +409,7 @@ func TestBridge_Good_ValidatesResponseBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString(""))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString(""))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -419,7 +417,7 @@ func TestBridge_Good_ValidatesResponseBody(t *testing.T) {
 	}
 
 	var resp api.Response[map[string]any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -462,7 +460,7 @@ func TestBridge_Bad_InvalidResponseBody(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -497,7 +495,7 @@ func TestBridge_Bad_InvalidRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("{\""+`path`+"\":123}"))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString("{\""+`path`+"\":123}"))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -505,7 +503,7 @@ func TestBridge_Bad_InvalidRequestBody(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -540,7 +538,7 @@ func TestBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("   "))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString("   "))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -548,7 +546,7 @@ func TestBridge_Bad_RejectsWhitespaceOnlyRequestBody(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
@@ -580,7 +578,7 @@ func TestBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBufferString("{\""+`path`+"\":"))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString("{\""+`path`+"\":"))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -588,7 +586,7 @@ func TestBridge_Ugly_RejectsMalformedJSONRequestBody(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
@@ -620,7 +618,7 @@ func TestBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", bytes.NewBuffer(bytes.Repeat([]byte("a"), 10<<20+1)))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBuffer(coreBytesRepeat([]byte("a"), 10<<20+1)))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusRequestEntityTooLarge {
@@ -628,7 +626,7 @@ func TestBridge_Ugly_RejectsOversizedRequestBody(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
@@ -663,7 +661,7 @@ func TestBridge_Good_ValidatesEnumValues(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"published"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", core.NewBufferString(`{"status":"published"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -698,7 +696,7 @@ func TestBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"archived"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", core.NewBufferString(`{"status":"archived"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -706,7 +704,7 @@ func TestBridge_Bad_RejectsInvalidEnumValues(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -755,7 +753,7 @@ func TestBridge_Good_ValidatesSchemaCombinators(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", bytes.NewBufferString(`{"choice":"BC"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", core.NewBufferString(`{"choice":"BC"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -801,7 +799,7 @@ func TestBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", bytes.NewBufferString(`{"choice":"A"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/route_choice", core.NewBufferString(`{"choice":"A"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -809,7 +807,7 @@ func TestBridge_Bad_RejectsAmbiguousOneOfMatches(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -845,7 +843,7 @@ func TestBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", bytes.NewBufferString(`{"status":"published","unexpected":true}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_item", core.NewBufferString(`{"status":"published","unexpected":true}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -853,7 +851,7 @@ func TestBridge_Bad_RejectsAdditionalProperties(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -893,7 +891,7 @@ func TestBridge_Good_EnforcesStringConstraints(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_code", bytes.NewBufferString(`{"code":"ABC"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/publish_code", core.NewBufferString(`{"code":"ABC"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -943,7 +941,7 @@ func TestBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/quota_check", bytes.NewBufferString(`{"count":0,"labels":["one"],"payload":{}}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/quota_check", core.NewBufferString(`{"count":0,"labels":["one"],"payload":{}}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -951,7 +949,7 @@ func TestBridge_Bad_RejectsNumericAndCollectionConstraints(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -1043,7 +1041,7 @@ func TestBridge_Good_ListsRegisteredTools(t *testing.T) {
 	}
 
 	var resp api.Response[[]api.ToolDescriptor]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -1079,7 +1077,7 @@ func TestBridge_Bad_ListingRoutesWhenEmpty(t *testing.T) {
 	}
 
 	var resp api.Response[[]api.ToolDescriptor]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -1141,7 +1139,7 @@ func TestBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
 		},
 	}, func(c *gin.Context) {
 		var payload []string
-		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+		if err := coreJSONDecode(c.Request.Body, &payload); err != nil {
 			t.Fatalf("handler could not read validated array body: %v", err)
 		}
 		c.JSON(http.StatusOK, api.OK(payload))
@@ -1151,7 +1149,7 @@ func TestBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", bytes.NewBufferString(`["alpha","beta"]`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", core.NewBufferString(`["alpha","beta"]`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -1159,7 +1157,7 @@ func TestBridge_Good_ValidatesArrayInputSchema(t *testing.T) {
 	}
 
 	var resp api.Response[[]string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -1191,7 +1189,7 @@ func TestBridge_Bad_RejectsTooSmallArrayInputSchema(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", bytes.NewBufferString(`["alpha"]`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", core.NewBufferString(`["alpha"]`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -1199,7 +1197,7 @@ func TestBridge_Bad_RejectsTooSmallArrayInputSchema(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -1230,7 +1228,7 @@ func TestBridge_Ugly_RejectsWrongArrayElementType(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", bytes.NewBufferString(`["alpha",123]`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/tags", core.NewBufferString(`["alpha",123]`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -1238,7 +1236,7 @@ func TestBridge_Ugly_RejectsWrongArrayElementType(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -1264,7 +1262,7 @@ func TestBridge_Good_ValidatesNumericBounds(t *testing.T) {
 		},
 	}, func(c *gin.Context) {
 		var payload float64
-		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+		if err := coreJSONDecode(c.Request.Body, &payload); err != nil {
 			t.Fatalf("handler could not read validated numeric body: %v", err)
 		}
 		c.JSON(http.StatusOK, api.OK(payload))
@@ -1274,7 +1272,7 @@ func TestBridge_Good_ValidatesNumericBounds(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/score", bytes.NewBufferString(`5.5`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/score", core.NewBufferString(`5.5`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -1282,7 +1280,7 @@ func TestBridge_Good_ValidatesNumericBounds(t *testing.T) {
 	}
 
 	var resp api.Response[float64]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {
@@ -1313,7 +1311,7 @@ func TestBridge_Bad_RejectsLargeIntegerAboveMaximum(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/quota", bytes.NewBufferString(`9007199254740993`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/quota", core.NewBufferString(`9007199254740993`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -1321,7 +1319,7 @@ func TestBridge_Bad_RejectsLargeIntegerAboveMaximum(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -1352,7 +1350,7 @@ func TestBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/score", bytes.NewBufferString(`0`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/score", core.NewBufferString(`0`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -1360,7 +1358,7 @@ func TestBridge_Bad_RejectsNumericInputBelowMinimum(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -1390,7 +1388,7 @@ func TestBridge_Ugly_RejectsNonNumericInput(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/score", bytes.NewBufferString(`"oops"`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/score", core.NewBufferString(`"oops"`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -1398,7 +1396,7 @@ func TestBridge_Ugly_RejectsNonNumericInput(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {
@@ -1437,7 +1435,7 @@ func TestBridge_Good_IntegrationWithEngine(t *testing.T) {
 	}
 
 	var resp api.Response[string]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !resp.Success {

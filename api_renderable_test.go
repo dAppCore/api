@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"testing"
 
@@ -48,7 +47,7 @@ func buildRenderableOperation(t *testing.T, group api.RouteGroup, path, method s
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 

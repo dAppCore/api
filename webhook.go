@@ -65,7 +65,7 @@ func WebhookEvents() []string {
 // canonical identifiers documented in RFC §6.
 //
 //	if !api.IsKnownWebhookEvent(evt) {
-//	    return errors.New("unknown webhook event")
+//	    return core.NewError("unknown webhook event")
 //	}
 func IsKnownWebhookEvent(name string) bool {
 	return slices.Contains(WebhookEvents(), core.Trim(name))
@@ -231,7 +231,7 @@ func (s *WebhookSigner) VerifySignatureOnly(payload []byte, signature string, ti
 // signer's configured tolerance window relative to the current time.
 //
 //	if !signer.IsTimestampValid(ts) {
-//	    return errors.New("webhook timestamp expired")
+//	    return core.NewError("webhook timestamp expired")
 //	}
 func (s *WebhookSigner) IsTimestampValid(timestamp int64) bool {
 	tol := s.Tolerance()

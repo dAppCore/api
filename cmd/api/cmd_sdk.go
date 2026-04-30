@@ -3,7 +3,6 @@
 package api
 
 import (
-	os "dappco.re/go/api/internal/stdcompat/coreos" // Note: AX-6 - os.CreateTemp provides O_CREATE|O_EXCL temp-file creation; no core primitive exists.
 	"iter"
 
 	core "dappco.re/go"
@@ -66,7 +65,7 @@ func sdkAction(opts core.Options) core.Result {
 		}
 		groups := sdkSpecGroupsIter()
 
-		tmpFile, err := os.CreateTemp("", "openapi-*.json")
+		tmpFile, err := createTempFile("", "openapi-*.json")
 		if err != nil {
 			return core.Fail(cli.Wrap(err, "create temp spec file"))
 		}

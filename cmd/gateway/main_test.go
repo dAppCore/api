@@ -3,8 +3,7 @@
 package main
 
 import (
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
-	strings "dappco.re/go/api/internal/stdcompat/corestrings"
+	core "dappco.re/go"
 	"io"
 	"log/slog"
 	"testing"
@@ -14,10 +13,10 @@ import (
 )
 
 func TestMain_Help(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	stdout := core.NewBuffer()
+	stderr := core.NewBuffer()
 
-	code := run([]string{"--help"}, &stdout, &stderr)
+	code := run([]string{"--help"}, stdout, stderr)
 	if code != 0 {
 		t.Fatalf("expected help exit code 0, got %d; stderr=%s", code, stderr.String())
 	}
@@ -31,10 +30,9 @@ func TestMain_Help(t *testing.T) {
 		"scm",
 		"process",
 		"build",
-		"miner",
 		"proxy",
 	} {
-		if !strings.Contains(output, expected) {
+		if !core.Contains(output, expected) {
 			t.Fatalf("expected help output to contain %q; output=%s", expected, output)
 		}
 	}
@@ -67,7 +65,7 @@ func TestMain_EnableFiltersSubset(t *testing.T) {
 			enabled = append(enabled, spec.Name)
 		}
 	}
-	if got, want := strings.Join(enabled, ","), "scm,process"; got != want {
+	if got, want := core.Join(",", enabled...), "scm,process"; got != want {
 		t.Fatalf("expected enabled providers %q, got %q", want, got)
 	}
 }

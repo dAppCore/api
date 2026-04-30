@@ -3,8 +3,7 @@
 package api_test
 
 import (
-	filepath "dappco.re/go/api/internal/stdcompat/corefilepath"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
+	core "dappco.re/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +19,7 @@ func TestWithStatic_Good_ServesFile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello world"), 0644); err != nil {
+	if err := coreWriteFile(core.PathJoin(dir, "hello.txt"), []byte("hello world"), 0644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
@@ -62,7 +61,7 @@ func TestWithStatic_Good_ServesIndex(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>Welcome</h1>"), 0644); err != nil {
+	if err := coreWriteFile(core.PathJoin(dir, "index.html"), []byte("<h1>Welcome</h1>"), 0644); err != nil {
 		t.Fatalf("failed to write index.html: %v", err)
 	}
 
@@ -87,7 +86,7 @@ func TestWithStatic_Good_CombinesWithRouteGroups(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log('ok')"), 0644); err != nil {
+	if err := coreWriteFile(core.PathJoin(dir, "app.js"), []byte("console.log('ok')"), 0644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
@@ -122,12 +121,12 @@ func TestWithStatic_Good_MultipleStaticDirs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	dir1 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir1, "sdk.zip"), []byte("sdk-data"), 0644); err != nil {
+	if err := coreWriteFile(core.PathJoin(dir1, "sdk.zip"), []byte("sdk-data"), 0644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
 	dir2 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir2, "style.css"), []byte("body{}"), 0644); err != nil {
+	if err := coreWriteFile(core.PathJoin(dir2, "style.css"), []byte("body{}"), 0644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 

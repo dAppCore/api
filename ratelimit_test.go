@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -80,7 +79,7 @@ func TestWithRateLimit_Good_AllowsBurstThenRejects(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w3.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w3.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if resp.Success {

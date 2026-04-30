@@ -3,8 +3,6 @@
 package api_test
 
 import (
-	bytes "dappco.re/go/api/internal/stdcompat/corebytes"
-	json "dappco.re/go/api/internal/stdcompat/corejson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -67,7 +65,7 @@ func TestTransformer_Good_ToolBridgeRemapsInboundAndOutboundDTOs(t *testing.T) {
 		TransformerOut: transformerBridgeOut{},
 	}, func(c *gin.Context) {
 		var payload transformerInternalUser
-		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+		if err := coreJSONDecode(c.Request.Body, &payload); err != nil {
 			t.Fatalf("handler could not decode transformed payload: %v", err)
 		}
 		if payload.Name != "Ada Lovelace" {
@@ -80,7 +78,7 @@ func TestTransformer_Good_ToolBridgeRemapsInboundAndOutboundDTOs(t *testing.T) {
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/create_user", bytes.NewBufferString(`{"full_name":"Ada Lovelace"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/create_user", core.NewBufferString(`{"full_name":"Ada Lovelace"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -88,7 +86,7 @@ func TestTransformer_Good_ToolBridgeRemapsInboundAndOutboundDTOs(t *testing.T) {
 	}
 
 	var resp api.Response[map[string]any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if !resp.Success {
@@ -127,7 +125,7 @@ func TestTransformer_Bad_ToolBridgeValidatesExternalPayloadBeforeTransform(t *te
 	bridge.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/create_user", bytes.NewBufferString(`{"name":"Ada Lovelace"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/create_user", core.NewBufferString(`{"name":"Ada Lovelace"}`))
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -135,7 +133,7 @@ func TestTransformer_Bad_ToolBridgeValidatesExternalPayloadBeforeTransform(t *te
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if resp.Success {
@@ -153,7 +151,7 @@ func (transformerRouteGroup) BasePath() string { return "/users" }
 func (transformerRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("", func(c *gin.Context) {
 		var payload transformerInternalUser
-		if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil {
+		if err := coreJSONDecode(c.Request.Body, &payload); err != nil {
 			c.JSON(http.StatusBadRequest, api.Fail("invalid_body", err.Error()))
 			return
 		}
@@ -198,7 +196,7 @@ func TestTransformer_Good_EngineRouteDescriptionRemapsDTOs(t *testing.T) {
 	engine.Register(transformerRouteGroup{})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(`{"full_name":"Grace Hopper"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/users", core.NewBufferString(`{"full_name":"Grace Hopper"}`))
 	engine.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -206,7 +204,7 @@ func TestTransformer_Good_EngineRouteDescriptionRemapsDTOs(t *testing.T) {
 	}
 
 	var resp api.Response[map[string]any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if !resp.Success {
@@ -230,7 +228,7 @@ func TestTransformer_Bad_EngineTransformerErrorReturnsBadRequest(t *testing.T) {
 	engine.Register(errorTransformerRouteGroup{})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/error-users", bytes.NewBufferString(`{"full_name":"Alan Turing"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/error-users", core.NewBufferString(`{"full_name":"Alan Turing"}`))
 	engine.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -238,7 +236,7 @@ func TestTransformer_Bad_EngineTransformerErrorReturnsBadRequest(t *testing.T) {
 	}
 
 	var resp api.Response[any]
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if resp.Success {

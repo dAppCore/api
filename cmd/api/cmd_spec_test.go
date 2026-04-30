@@ -3,8 +3,6 @@
 package api
 
 import (
-	json "dappco.re/go/api/internal/stdcompat/corejson"
-	os "dappco.re/go/api/internal/stdcompat/coreos"
 	"iter"
 	"testing"
 
@@ -79,13 +77,13 @@ func TestCmdSpec_SpecAction_Good_WritesJSONToFile(t *testing.T) {
 		t.Fatalf("expected OK result, got %v", r.Value)
 	}
 
-	data, err := os.ReadFile(outputFile)
+	data, err := coreReadFile(outputFile)
 	if err != nil {
 		t.Fatalf("expected spec file to be written: %v", err)
 	}
 
 	var spec map[string]any
-	if err := json.Unmarshal(data, &spec); err != nil {
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
 		t.Fatalf("expected valid JSON spec, got error: %v", err)
 	}
 	if spec["openapi"] == nil {
