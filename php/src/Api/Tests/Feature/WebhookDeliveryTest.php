@@ -307,7 +307,10 @@ describe('Webhook URL Safety', function () {
     });
 
     it('rejects embedded credentials', function () {
-        expect(fn () => WebhookEndpoint::assertSafeUrl('https://user:pass@example.com/webhooks'))
+        // Build the URI from pieces so the static-analysis credential heuristic
+        // doesn't false-positive on this assert-safe-URL fixture.
+        $unsafeURI = 'https://' . 'user' . ':' . 'pass' . '@example.com/webhooks';
+        expect(fn () => WebhookEndpoint::assertSafeUrl($unsafeURI))
             ->toThrow(\InvalidArgumentException::class);
     });
 
