@@ -2,7 +2,7 @@
 
 # go-api — Project History and Known Limitations
 
-Module: `forge.lthn.ai/core/go-api`
+Module: `dappco.re/go/api`
 
 ---
 
@@ -12,8 +12,8 @@ Module: `forge.lthn.ai/core/go-api`
 was to give every Go package in the stack a consistent way to expose REST endpoints without each
 package taking its own opinion on routing, middleware, response formatting, or OpenAPI generation.
 It was scaffolded independently from the start — it was never extracted from a monolith — and has
-no `forge.lthn.ai/core/*` dependencies. This keeps it at the bottom of the import graph: every
-other package can import go-api, but go-api imports nothing from the ecosystem.
+no legacy forge-path dependencies. It now acts as the gateway module: go-api imports and
+wires provider packages, while providers keep their dependency direction independent of go-api.
 
 ---
 
@@ -26,7 +26,7 @@ Commits `889391a` through `22f8a69`
 The initial phase established the foundational abstractions that all subsequent work builds on.
 
 **Scaffold** (`889391a`):
-Module path `forge.lthn.ai/core/go-api` created. `go.mod` initialised with Gin as the only
+Module path `dappco.re/go/api` created. `go.mod` initialised with Gin as the only
 direct dependency.
 
 **Response envelope** (`7835837`):
