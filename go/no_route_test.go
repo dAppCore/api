@@ -60,6 +60,34 @@ func TestWithNoRoute_Bad_DoesNotShadowExplicitRoutes(t *testing.T) {
 	}
 }
 
+// TestSetNoRoute_Good_AttachesAfterConstruction verifies late binding —
+// SetNoRoute mirrors WithNoRoute but is callable after New() returns.
+// Pattern: SPA host knows its frontend FS only after the asset embed
+// resolves, which can land later than the Engine's construction.
+func TestSetNoRoute_Good_AttachesAfterConstruction(t *testing.T) {
+	const payload = "LATE-BOUND-SPA"
+
+	e, err := New() // no WithNoRoute at construction time
+	if err != nil {
+		t.Fatalf("api.New: %v", err)
+	}
+
+	e.SetNoRoute(func(c *gin.Context) {
+		c.String(http.StatusOK, payload)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/some/spa/route", nil)
+	e.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if got := w.Body.String(); got != payload {
+		t.Fatalf("body = %q, want %q", got, payload)
+	}
+}
+
 // TestWithNoRoute_Ugly_NilStaysAsDefault404 verifies the degenerate path —
 // no NoRoute set means gin's default 404 surfaces unchanged. This protects
 // the contract that WithNoRoute is opt-in and unset Engines stay

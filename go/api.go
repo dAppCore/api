@@ -289,6 +289,22 @@ func (e *Engine) Serve(ctx context.Context) (
 	return <-errCh
 }
 
+// SetNoRoute attaches or replaces the fallback handler invoked when
+// no registered route matches the incoming request. Mirrors the
+// WithNoRoute Option but is callable after construction — useful
+// when the SPA handler is built later in the boot sequence than
+// the Engine (e.g. once the embedded frontend FS is resolved).
+// Pass nil to clear and restore gin's default 404.
+//
+// Example:
+//
+//	e, _ := api.New()
+//	// … later, once dist/ is mounted …
+//	e.SetNoRoute(spaHandler)
+func (e *Engine) SetNoRoute(h gin.HandlerFunc) {
+	e.noRouteHandler = h
+}
+
 // build creates a configured Gin engine with recovery middleware,
 // user-supplied middleware, the health endpoint, and all registered route groups.
 func (e *Engine) build() *gin.Engine {
