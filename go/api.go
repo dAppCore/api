@@ -83,6 +83,10 @@ type Engine struct {
 	i18nConfig                     I18nConfig
 	openAPISpecEnabled             bool
 	openAPISpecPath                string
+	// noRouteHandler is the SPA / fallback handler invoked when no
+	// registered route matches the request. Set via WithNoRoute; nil
+	// means gin returns 404 with its default body.
+	noRouteHandler                 gin.HandlerFunc
 }
 
 // New creates an Engine with the given options.
@@ -385,6 +389,13 @@ func (e *Engine) build() *gin.Engine {
 	// Mount expvar runtime metrics endpoint if enabled.
 	if e.expvarEnabled {
 		r.GET("/debug/vars", expvar.Handler())
+	}
+
+	// SPA / fallback handler. Registered last so all explicit routes
+	// take precedence — Gin invokes NoRoute only when no other handler
+	// matched the request path + method.
+	if e.noRouteHandler != nil {
+		r.NoRoute(e.noRouteHandler)
 	}
 
 	return r

@@ -62,6 +62,26 @@ func WithHTTP3(addr string) Option {
 	}
 }
 
+// WithNoRoute sets a fallback handler invoked when no registered
+// route matches the incoming request. The typical use is an SPA host
+// rewriting unknown GETs to index.html, but any gin.HandlerFunc is
+// valid — pass nil to clear and let Gin return its default 404.
+//
+// Registration order: NoRoute is mounted after every explicit route +
+// group + middleware, so it never shadows real handlers. Method
+// mismatches still surface as 405 when HandleMethodNotAllowed is on.
+//
+// Example:
+//
+//	api.New(api.WithNoRoute(func(c *gin.Context) {
+//	    c.File("dist/index.html")
+//	}))
+func WithNoRoute(h gin.HandlerFunc) Option {
+	return func(e *Engine) {
+		e.noRouteHandler = h
+	}
+}
+
 // WithBearerAuth adds bearer token authentication middleware.
 // Requests to /health and the Swagger UI path are exempt.
 //
