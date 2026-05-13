@@ -266,3 +266,4 @@ func TestSDKGenerator_Generate_PackageNameAccepted_Good(t *testing.T) {
 		})
 	}
 }
+
