@@ -45,6 +45,66 @@ func WithAddr(addr string) Option {
 	}
 }
 
+// WithStrictBind enables strict bind enforcement at Serve time. It is opt-in
+// and OFF by default, so existing consumers that bind non-loopback addresses
+// keep their historic behaviour. When strict mode is on, Serve:
+//
+//   - serves a loopback address unconditionally;
+//   - rejects a non-loopback address with ErrNonLoopbackBind unless
+//     WithPublicBind is also set;
+//   - rejects a public (non-loopback) bind with ErrPublicBindNoBearer unless a
+//     bearer credential was supplied via WithBearerAuth.
+//
+// The check runs before the listener opens, so a misconfigured strict engine
+// fails fast rather than exposing an unauthenticated public listener.
+//
+// Example:
+//
+//	engine, _ := api.New(
+//	    api.WithAddr("127.0.0.1:8787"),
+//	    api.WithStrictBind(),
+//	)
+func WithStrictBind() Option {
+	return func(e *Engine) {
+		e.strictBind = true
+	}
+}
+
+// WithLoopbackOnly is an alias for WithStrictBind without WithPublicBind: it
+// turns on strict mode so any non-loopback bind is rejected. Use it when a
+// consumer must never serve off the loopback interface.
+//
+// Example:
+//
+//	engine, _ := api.New(
+//	    api.WithAddr("127.0.0.1:8787"),
+//	    api.WithLoopbackOnly(),
+//	)
+func WithLoopbackOnly() Option {
+	return func(e *Engine) {
+		e.strictBind = true
+	}
+}
+
+// WithPublicBind is the explicit opt-in that allows a non-loopback bind under
+// strict mode. It has no effect unless WithStrictBind / WithLoopbackOnly is
+// also set. A public bind still requires a bearer credential via
+// WithBearerAuth — WithPublicBind alone does not relax that requirement.
+//
+// Example:
+//
+//	engine, _ := api.New(
+//	    api.WithAddr("0.0.0.0:8787"),
+//	    api.WithStrictBind(),
+//	    api.WithPublicBind(),
+//	    api.WithBearerAuth(token),
+//	)
+func WithPublicBind() Option {
+	return func(e *Engine) {
+		e.publicBind = true
+	}
+}
+
 // WithHTTP3 enables HTTP/3 advertisement and configures the QUIC listen
 // address used by ServeH3. Pass an empty address to reuse the main HTTP
 // address at serve time.
@@ -90,6 +150,9 @@ func WithNoRoute(h gin.HandlerFunc) Option {
 //	api.New(api.WithBearerAuth("secret"))
 func WithBearerAuth(token string) Option {
 	return func(e *Engine) {
+		if core.Trim(token) != "" {
+			e.bearerConfigured = true
+		}
 		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, func() []string {
 			skip := []string{"/health"}
 			if swaggerPath := resolveSwaggerPath(e.swaggerPath); swaggerPath != "" {
@@ -141,7 +204,7 @@ func WithCORS(allowOrigins ...string) Option {
 	return func(e *Engine) {
 		cfg := cors.Config{
 			AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-			AllowHeaders: []string{"Authorization", "Content-Type", "X-Request-ID"},
+			AllowHeaders: []string{"Authorization", hdrContentType, "X-Request-ID"},
 			MaxAge:       12 * time.Hour,
 		}
 
