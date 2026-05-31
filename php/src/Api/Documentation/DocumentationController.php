@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Core\Api\Documentation;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
 use Symfony\Component\Yaml\Yaml;
@@ -27,22 +26,22 @@ class DocumentationController
      *
      * Redirects to the configured default UI.
      */
-    public function index(Request $request): View
+    public function index(): View
     {
         $defaultUi = config('api-docs.ui.default', 'swagger');
 
         return match ($defaultUi) {
-            'swagger' => $this->swagger($request),
-            'redoc' => $this->redoc($request),
-            'stoplight' => $this->stoplight($request),
-            default => $this->scalar($request),
+            'swagger' => $this->swagger(),
+            'redoc' => $this->redoc(),
+            'stoplight' => $this->stoplight(),
+            default => $this->scalar(),
         };
     }
 
     /**
      * Show Swagger UI.
      */
-    public function swagger(Request $request): View
+    public function swagger(): View
     {
         $config = config('api-docs.ui.swagger', []);
 
@@ -55,7 +54,7 @@ class DocumentationController
     /**
      * Show Scalar API Reference.
      */
-    public function scalar(Request $request): View
+    public function scalar(): View
     {
         $config = config('api-docs.ui.scalar', []);
 
@@ -68,7 +67,7 @@ class DocumentationController
     /**
      * Show ReDoc documentation.
      */
-    public function redoc(Request $request): View
+    public function redoc(): View
     {
         return view('api-docs::redoc', [
             'specUrl' => route('api.docs.openapi.json'),
@@ -78,7 +77,7 @@ class DocumentationController
     /**
      * Show Stoplight Elements.
      */
-    public function stoplight(Request $request): View
+    public function stoplight(): View
     {
         $config = config('api-docs.ui.stoplight', []);
 
@@ -91,7 +90,7 @@ class DocumentationController
     /**
      * Get OpenAPI specification as JSON.
      */
-    public function openApiJson(Request $request): JsonResponse
+    public function openApiJson(): JsonResponse
     {
         $spec = $this->builder->build();
 
@@ -102,7 +101,7 @@ class DocumentationController
     /**
      * Get OpenAPI specification as YAML.
      */
-    public function openApiYaml(Request $request): Response
+    public function openApiYaml(): Response
     {
         $spec = $this->builder->build();
 
@@ -117,7 +116,7 @@ class DocumentationController
     /**
      * Clear the documentation cache.
      */
-    public function clearCache(Request $request): JsonResponse
+    public function clearCache(): JsonResponse
     {
         $this->builder->clearCache();
 

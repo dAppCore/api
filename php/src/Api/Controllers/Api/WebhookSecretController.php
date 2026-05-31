@@ -19,6 +19,8 @@ class WebhookSecretController extends Controller
 {
     use HasApiResponses;
 
+    private const RESOURCE_NAME = 'Webhook endpoint';
+
     public function __construct(
         protected WebhookSecretRotationService $rotationService
     ) {}
@@ -82,7 +84,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return $this->notFoundResponse('Webhook endpoint');
+            return $this->notFoundResponse(self::RESOURCE_NAME);
         }
 
         $validated = $request->validate([
@@ -149,7 +151,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return $this->notFoundResponse('Webhook endpoint');
+            return $this->notFoundResponse(self::RESOURCE_NAME);
         }
 
         return response()->json([
@@ -200,7 +202,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return $this->notFoundResponse('Webhook endpoint');
+            return $this->notFoundResponse(self::RESOURCE_NAME);
         }
 
         $this->rotationService->invalidatePreviousSecret($endpoint);
@@ -266,7 +268,7 @@ class WebhookSecretController extends Controller
             ->first();
 
         if (! $endpoint) {
-            return $this->notFoundResponse('Webhook endpoint');
+            return $this->notFoundResponse(self::RESOURCE_NAME);
         }
 
         $validated = $request->validate([

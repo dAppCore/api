@@ -15,6 +15,8 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 
+define('IP_LOCALHOST', '127.0.0.1');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -357,7 +359,7 @@ describe('Workspace-Scoped Rate Limits', function () {
         $workspace2 = Workspace::factory()->create();
 
         $apiKey1 = createApiKeyForWorkspace($workspace1);
-        $apiKey2 = createApiKeyForWorkspace($workspace2);
+        createApiKeyForWorkspace($workspace2);
 
         // Use same API key ID to test shared limit
         $request1 = createMockRequest([
@@ -643,7 +645,7 @@ describe('IP-Based Rate Limiting', function () {
 
         $this->middleware->handle($request, fn () => new Response('OK'));
 
-        $cacheKey = 'rate_limit:ip:127.0.0.1:route:test.route';
+        $cacheKey = 'rate_limit:ip:'.IP_LOCALHOST.':route:test.route';
         expect(Cache::has($cacheKey))->toBeTrue();
     });
 
@@ -703,8 +705,8 @@ describe('Per-Endpoint Rate Limits', function () {
             'burst' => 1.0,
         ]);
 
-        $request1 = createMockRequest([], '127.0.0.1', 'api.users.index');
-        $request2 = createMockRequest([], '127.0.0.1', 'api.posts.index');
+        $request1 = createMockRequest([], IP_LOCALHOST, 'api.users.index');
+        $request2 = createMockRequest([], IP_LOCALHOST, 'api.posts.index');
 
         // Exhaust rate limit for endpoint 1
         for ($i = 0; $i < 5; $i++) {
@@ -763,7 +765,7 @@ describe('Rate Limit Bypass', function () {
 // Helper Functions
 // -----------------------------------------------------------------------------
 
-function createMockRequest(array $attributes = [], string $ip = '127.0.0.1', string $routeName = 'test.route'): Request
+function createMockRequest(array $attributes = [], string $ip = IP_LOCALHOST, string $routeName = 'test.route'): Request
 {
     $request = Request::create('/api/test', 'GET');
     $request->server->set('REMOTE_ADDR', $ip);

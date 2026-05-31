@@ -9,6 +9,10 @@ use Core\Api\Services\ApiUsageService;
 use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 
+define('API_V1_WORKSPACES', '/api/v1/workspaces');
+define('API_V1_TEST', '/api/v1/test');
+define('API_V1_OLD', '/api/v1/old');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -34,7 +38,7 @@ describe('Recording API Usage', function () {
         $usage = $this->service->record(
             apiKeyId: $this->apiKey->id,
             workspaceId: $this->workspace->id,
-            endpoint: '/api/v1/workspaces',
+            endpoint: API_V1_WORKSPACES,
             method: 'GET',
             statusCode: 200,
             responseTimeMs: 150,
@@ -44,7 +48,7 @@ describe('Recording API Usage', function () {
 
         expect($usage)->toBeInstanceOf(ApiUsage::class);
         expect($usage->api_key_id)->toBe($this->apiKey->id);
-        expect($usage->endpoint)->toBe('/api/v1/workspaces');
+        expect($usage->endpoint)->toBe(API_V1_WORKSPACES);
         expect($usage->method)->toBe('GET');
         expect($usage->status_code)->toBe(200);
         expect($usage->response_time_ms)->toBe(150);
@@ -80,7 +84,7 @@ describe('Recording API Usage', function () {
         $this->service->record(
             apiKeyId: $this->apiKey->id,
             workspaceId: $this->workspace->id,
-            endpoint: '/api/v1/test',
+            endpoint: API_V1_TEST,
             method: 'GET',
             statusCode: 200,
             responseTimeMs: 100
@@ -101,7 +105,7 @@ describe('Recording API Usage', function () {
             $this->service->record(
                 apiKeyId: $this->apiKey->id,
                 workspaceId: $this->workspace->id,
-                endpoint: '/api/v1/test',
+                endpoint: API_V1_TEST,
                 method: 'GET',
                 statusCode: 200,
                 responseTimeMs: 100 + ($i * 10)
@@ -113,7 +117,7 @@ describe('Recording API Usage', function () {
             $this->service->record(
                 apiKeyId: $this->apiKey->id,
                 workspaceId: $this->workspace->id,
-                endpoint: '/api/v1/test',
+                endpoint: API_V1_TEST,
                 method: 'GET',
                 statusCode: 500,
                 responseTimeMs: 50
@@ -141,7 +145,7 @@ describe('Usage Summaries', function () {
             $this->service->record(
                 apiKeyId: $this->apiKey->id,
                 workspaceId: $this->workspace->id,
-                endpoint: '/api/v1/workspaces',
+                endpoint: API_V1_WORKSPACES,
                 method: 'GET',
                 statusCode: 200,
                 responseTimeMs: 100 + $i
@@ -152,7 +156,7 @@ describe('Usage Summaries', function () {
             $this->service->record(
                 apiKeyId: $this->apiKey->id,
                 workspaceId: $this->workspace->id,
-                endpoint: '/api/v1/workspaces',
+                endpoint: API_V1_WORKSPACES,
                 method: 'POST',
                 statusCode: 422,
                 responseTimeMs: 50
@@ -186,10 +190,10 @@ describe('Usage Summaries', function () {
     it('filters by date range', function () {
         // Create usage for 2 days ago with correct timestamp upfront
         $oldDate = now()->subDays(2);
-        $usage = ApiUsage::create([
+        ApiUsage::create([
             'api_key_id' => $this->apiKey->id,
             'workspace_id' => $this->workspace->id,
-            'endpoint' => '/api/v1/old',
+            'endpoint' => API_V1_OLD,
             'method' => 'GET',
             'status_code' => 200,
             'response_time_ms' => 100,
@@ -239,7 +243,7 @@ describe('Charts and Reports', function () {
                 $usage = ApiUsage::record(
                     $this->apiKey->id,
                     $this->workspace->id,
-                    '/api/v1/test',
+                    API_V1_TEST,
                     'GET',
                     200,
                     100
@@ -278,9 +282,9 @@ describe('Charts and Reports', function () {
 
     it('returns error breakdown', function () {
         // Add some errors
-        $this->service->record($this->apiKey->id, $this->workspace->id, '/api/v1/test', 'GET', 401, 50);
-        $this->service->record($this->apiKey->id, $this->workspace->id, '/api/v1/test', 'GET', 404, 50);
-        $this->service->record($this->apiKey->id, $this->workspace->id, '/api/v1/test', 'GET', 500, 50);
+        $this->service->record($this->apiKey->id, $this->workspace->id, API_V1_TEST, 'GET', 401, 50);
+        $this->service->record($this->apiKey->id, $this->workspace->id, API_V1_TEST, 'GET', 404, 50);
+        $this->service->record($this->apiKey->id, $this->workspace->id, API_V1_TEST, 'GET', 500, 50);
 
         $errors = $this->service->getErrorBreakdown($this->workspace->id);
 
@@ -292,7 +296,7 @@ describe('Charts and Reports', function () {
     it('returns key comparison', function () {
         // Create another key with usage
         $key2 = ApiKey::generate($this->workspace->id, $this->user->id, 'Second Key');
-        $this->service->record($key2['api_key']->id, $this->workspace->id, '/api/v1/test', 'GET', 200, 100);
+        $this->service->record($key2['api_key']->id, $this->workspace->id, API_V1_TEST, 'GET', 200, 100);
 
         $comparison = $this->service->getKeyComparison($this->workspace->id);
 
@@ -313,7 +317,7 @@ describe('Data Retention', function () {
             $usage = ApiUsage::record(
                 $this->apiKey->id,
                 $this->workspace->id,
-                '/api/v1/old',
+                API_V1_OLD,
                 'GET',
                 200,
                 100
@@ -344,7 +348,7 @@ describe('Data Retention', function () {
         $usage = ApiUsage::record(
             $this->apiKey->id,
             $this->workspace->id,
-            '/api/v1/old',
+            API_V1_OLD,
             'GET',
             200,
             100

@@ -30,6 +30,8 @@ use ReflectionClass;
  */
 class OpenApiBuilder
 {
+    private const TAG_BIO_LINKS = 'Bio Links';
+
     /**
      * Registered extensions.
      *
@@ -326,14 +328,14 @@ class OpenApiBuilder
         }
 
         // Add parameters
-        $parameters = $this->buildParameters($route, $controller, $action, $config);
+        $parameters = $this->buildParameters($route, $controller, $action);
         if (! empty($parameters)) {
             $operation['parameters'] = $parameters;
         }
 
         // Add request body for POST/PUT/PATCH
         if (in_array($method, ['post', 'put', 'patch'])) {
-            $operation['requestBody'] = $this->buildRequestBody($route, $controller, $action);
+            $operation['requestBody'] = $this->buildRequestBody($controller, $action);
         }
 
         // Add security requirements
@@ -449,14 +451,13 @@ class OpenApiBuilder
     protected function inferTag(Route $route): string
     {
         $uri = $route->uri();
-        $name = $route->getName() ?? '';
 
         // Common tag mappings by route prefix
         $tagMap = [
-            'api/bio' => 'Bio Links',
-            'api/blocks' => 'Bio Links',
-            'api/shortlinks' => 'Bio Links',
-            'api/qr' => 'Bio Links',
+            'api/bio' => self::TAG_BIO_LINKS,
+            'api/blocks' => self::TAG_BIO_LINKS,
+            'api/shortlinks' => self::TAG_BIO_LINKS,
+            'api/qr' => self::TAG_BIO_LINKS,
             'api/commerce' => 'Commerce',
             'api/provisioning' => 'Commerce',
             'api/workspaces' => 'Workspaces',
@@ -522,7 +523,7 @@ class OpenApiBuilder
     /**
      * Build parameters for operation.
      */
-    protected function buildParameters(Route $route, ?string $controller, string $action, array $config): array
+    protected function buildParameters(Route $route, ?string $controller, string $action): array
     {
         $parameters = [];
         $parameterIndex = [];
@@ -765,7 +766,7 @@ class OpenApiBuilder
         }
 
         if (is_string($value)) {
-            return $this->inferStringSchema($value, $key);
+            return $this->inferStringSchema($key);
         }
 
         if (is_array($value)) {
@@ -833,7 +834,7 @@ class OpenApiBuilder
     /**
      * Infer a schema for a string value using the field name as a hint.
      */
-    protected function inferStringSchema(string $value, ?string $key): array
+    protected function inferStringSchema(?string $key): array
     {
         if ($key !== null) {
             $nullable = $this->inferNullableSchema($key);
@@ -904,7 +905,7 @@ class OpenApiBuilder
     /**
      * Build request body schema.
      */
-    protected function buildRequestBody(Route $route, ?string $controller, string $action): array
+    protected function buildRequestBody(?string $controller, string $action): array
     {
         if ($controller === \Core\Api\Controllers\McpApiController::class && $action === 'callTool') {
             return [

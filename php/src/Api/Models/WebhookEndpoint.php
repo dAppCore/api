@@ -34,6 +34,8 @@ class WebhookEndpoint extends Model
     use HasFactory;
     use SoftDeletes;
 
+    private const URL_MUST_RESOLVE_TO_PUBLIC_IP = 'The webhook URL must resolve to a public IP address.';
+
     /**
      * Available webhook events.
      */
@@ -193,9 +195,13 @@ class WebhookEndpoint extends Model
         }
 
         $host = (string) $parsed['host'];
-        $port = isset($parsed['port'])
-            ? (int) $parsed['port']
-            : ($scheme === 'https' ? 443 : 80);
+        if (isset($parsed['port'])) {
+            $port = (int) $parsed['port'];
+        } elseif ($scheme === 'https') {
+            $port = 443;
+        } else {
+            $port = 80;
+        }
 
         $normalisedHost = ltrim(rtrim($host, ']'), '[');
         if (filter_var($normalisedHost, FILTER_VALIDATE_IP) !== false) {
@@ -224,7 +230,7 @@ class WebhookEndpoint extends Model
         );
 
         if ($resolveEntries === []) {
-            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+            throw new \InvalidArgumentException(self::URL_MUST_RESOLVE_TO_PUBLIC_IP);
         }
 
         return [
@@ -254,11 +260,11 @@ class WebhookEndpoint extends Model
         $normalisedHost = strtolower(rtrim($host, '.'));
 
         if ($normalisedHost === '' || isset($visitedHosts[$normalisedHost])) {
-            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+            throw new \InvalidArgumentException(self::URL_MUST_RESOLVE_TO_PUBLIC_IP);
         }
 
         if ($depth > 8) {
-            throw new \InvalidArgumentException('The webhook URL must resolve to a public IP address.');
+            throw new \InvalidArgumentException(self::URL_MUST_RESOLVE_TO_PUBLIC_IP);
         }
 
         $visitedHosts[$normalisedHost] = true;

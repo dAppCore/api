@@ -6,6 +6,8 @@ use Core\Api\Middleware\PublicApiCors;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
+define('EXAMPLE_COM_CORS', 'https://example.com');
+
 // ─────────────────────────────────────────────────────────────────────────────
 // OPTIONS Preflight Requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -45,7 +47,7 @@ describe('OPTIONS Preflight Requests', function () {
     });
 
     it('includes all required CORS headers on OPTIONS response', function () {
-        $request = createCorsRequest('OPTIONS', ['Origin' => 'https://example.com']);
+        $request = createCorsRequest('OPTIONS', ['Origin' => EXAMPLE_COM_CORS]);
 
         $response = $this->middleware->handle($request, fn () => new Response(''));
 
@@ -66,7 +68,7 @@ describe('CORS Headers on Regular Requests', function () {
     });
 
     it('adds CORS headers to GET response', function () {
-        $request = createCorsRequest('GET', ['Origin' => 'https://example.com']);
+        $request = createCorsRequest('GET', ['Origin' => EXAMPLE_COM_CORS]);
 
         $response = $this->middleware->handle($request, fn () => new Response('OK'));
 
@@ -75,7 +77,7 @@ describe('CORS Headers on Regular Requests', function () {
     });
 
     it('adds CORS headers to POST response', function () {
-        $request = createCorsRequest('POST', ['Origin' => 'https://example.com']);
+        $request = createCorsRequest('POST', ['Origin' => EXAMPLE_COM_CORS]);
 
         $response = $this->middleware->handle($request, fn () => new Response('Created', 201));
 
@@ -322,7 +324,7 @@ describe('Security Boundaries', function () {
     });
 
     it('does not set Access-Control-Allow-Credentials on regular requests', function () {
-        $request = createCorsRequest('GET', ['Origin' => 'https://example.com']);
+        $request = createCorsRequest('GET', ['Origin' => EXAMPLE_COM_CORS]);
 
         $response = $this->middleware->handle($request, fn () => new Response('OK'));
 
@@ -330,7 +332,7 @@ describe('Security Boundaries', function () {
     });
 
     it('does not set Access-Control-Allow-Credentials on OPTIONS preflight', function () {
-        $request = createCorsRequest('OPTIONS', ['Origin' => 'https://example.com']);
+        $request = createCorsRequest('OPTIONS', ['Origin' => EXAMPLE_COM_CORS]);
 
         $response = $this->middleware->handle($request, fn () => new Response(''));
 

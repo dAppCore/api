@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Core\Api\Models {
+    // Override built-in for test isolation
     function dns_get_record(string $hostname, int $type = DNS_A | DNS_AAAA, mixed ...$args): array|false
     {
         if ($hostname === 'webhook-cname.example.test') {

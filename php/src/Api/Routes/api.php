@@ -22,6 +22,9 @@ use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
 use Illuminate\Support\Facades\Route;
 
+define('API_ROUTE_WORKSPACE', '/{workspace}');
+define('API_ROUTE_ID', '/{id}');
+
 /*
 |--------------------------------------------------------------------------
 | Core API Routes
@@ -134,11 +137,11 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate', 'api.cache:ephem
                 Route::get('/', [WorkspaceController::class, 'index'])->name('index')->defaults('api_cache_control', 'cacheable');
                 Route::get('/current', [WorkspaceController::class, 'current'])->name('current')->defaults('api_cache_control', 'cacheable');
                 Route::post('/', [WorkspaceController::class, 'store'])->name('store');
-                Route::get('/{workspace}', [WorkspaceController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
-                Route::put('/{workspace}', [WorkspaceController::class, 'update'])->name('update');
-                Route::patch('/{workspace}', [WorkspaceController::class, 'update'])->name('patch');
-                Route::delete('/{workspace}', [WorkspaceController::class, 'destroy'])->name('destroy');
-                Route::post('/{workspace}/switch', [WorkspaceController::class, 'switch'])->name('switch');
+                Route::get(API_ROUTE_WORKSPACE, [WorkspaceController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
+                Route::put(API_ROUTE_WORKSPACE, [WorkspaceController::class, 'update'])->name('update');
+                Route::patch(API_ROUTE_WORKSPACE, [WorkspaceController::class, 'update'])->name('patch');
+                Route::delete(API_ROUTE_WORKSPACE, [WorkspaceController::class, 'destroy'])->name('destroy');
+                Route::post(API_ROUTE_WORKSPACE . '/switch', [WorkspaceController::class, 'switch'])->name('switch');
 
                 Route::prefix('{workspace}/members')
                     ->name('members.')
@@ -161,9 +164,9 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate', 'api.cache:ephem
                     ->group(function () {
                         Route::get('/', [BiolinkController::class, 'index'])->name('index')->defaults('api_cache_control', 'cacheable');
                         Route::post('/', [BiolinkController::class, 'store'])->name('store');
-                        Route::get('/{id}', [BiolinkController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
-                        Route::patch('/{id}', [BiolinkController::class, 'update'])->name('update');
-                        Route::delete('/{id}', [BiolinkController::class, 'destroy'])->name('destroy');
+                        Route::get(API_ROUTE_ID, [BiolinkController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
+                        Route::patch(API_ROUTE_ID, [BiolinkController::class, 'update'])->name('update');
+                        Route::delete(API_ROUTE_ID, [BiolinkController::class, 'destroy'])->name('destroy');
                     });
 
                 Route::prefix('{workspace}/links')
@@ -171,10 +174,10 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate', 'api.cache:ephem
                     ->group(function () {
                         Route::get('/', [LinkController::class, 'index'])->name('index')->defaults('api_cache_control', 'cacheable');
                         Route::post('/', [LinkController::class, 'store'])->name('store');
-                        Route::get('/{id}', [LinkController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
-                        Route::patch('/{id}', [LinkController::class, 'update'])->name('update');
-                        Route::delete('/{id}', [LinkController::class, 'destroy'])->name('destroy');
-                        Route::get('/{id}/stats', [LinkController::class, 'stats'])->name('stats')->defaults('api_cache_control', 'cacheable');
+                        Route::get(API_ROUTE_ID, [LinkController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
+                        Route::patch(API_ROUTE_ID, [LinkController::class, 'update'])->name('update');
+                        Route::delete(API_ROUTE_ID, [LinkController::class, 'destroy'])->name('destroy');
+                        Route::get(API_ROUTE_ID . '/stats', [LinkController::class, 'stats'])->name('stats')->defaults('api_cache_control', 'cacheable');
                     });
 
                 Route::prefix('{workspace}/qr-codes')
@@ -182,8 +185,8 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate', 'api.cache:ephem
                     ->group(function () {
                         Route::get('/', [QrCodeController::class, 'index'])->name('index')->defaults('api_cache_control', 'cacheable');
                         Route::post('/', [QrCodeController::class, 'store'])->name('store');
-                        Route::get('/{id}', [QrCodeController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
-                        Route::get('/{id}/download', [QrCodeController::class, 'download'])->name('download')->defaults('api_cache_control', 'cacheable');
+                        Route::get(API_ROUTE_ID, [QrCodeController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
+                        Route::get(API_ROUTE_ID . '/download', [QrCodeController::class, 'download'])->name('download')->defaults('api_cache_control', 'cacheable');
                     });
             });
 
@@ -219,7 +222,7 @@ Route::middleware(['auth.api', 'api.scope.enforce', 'api.rate', 'api.cache:ephem
             ->group(function () {
                 Route::get('/', [TicketController::class, 'index'])->name('index')->defaults('api_cache_control', 'cacheable');
                 Route::post('/', [TicketController::class, 'store'])->name('store');
-                Route::get('/{id}', [TicketController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
+                Route::get(API_ROUTE_ID, [TicketController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
                 Route::post('/{id}/reply', [TicketController::class, 'reply'])->name('reply');
             });
     });
@@ -233,7 +236,7 @@ Route::middleware(['web', 'auth:sanctum', 'api.rate', 'api.cache:ephemeral'])
             ->group(function () {
                 Route::get('/', [ApiKeyController::class, 'index'])->name('index');
                 Route::post('/', [ApiKeyController::class, 'store'])->name('store');
-                Route::delete('/{id}', [ApiKeyController::class, 'destroy'])->name('destroy');
+                Route::delete(API_ROUTE_ID, [ApiKeyController::class, 'destroy'])->name('destroy');
             });
 
         Route::prefix('webhooks')
@@ -241,9 +244,9 @@ Route::middleware(['web', 'auth:sanctum', 'api.rate', 'api.cache:ephemeral'])
             ->group(function () {
                 Route::get('/', [WebhookController::class, 'index'])->name('index')->defaults('api_cache_control', 'cacheable');
                 Route::post('/', [WebhookController::class, 'store'])->name('store');
-                Route::get('/{id}', [WebhookController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
-                Route::patch('/{id}', [WebhookController::class, 'update'])->name('update');
-                Route::delete('/{id}', [WebhookController::class, 'destroy'])->name('destroy');
+                Route::get(API_ROUTE_ID, [WebhookController::class, 'show'])->name('show')->defaults('api_cache_control', 'cacheable');
+                Route::patch(API_ROUTE_ID, [WebhookController::class, 'update'])->name('update');
+                Route::delete(API_ROUTE_ID, [WebhookController::class, 'destroy'])->name('destroy');
                 Route::get('/{id}/deliveries', [WebhookController::class, 'deliveries'])->name('deliveries')->defaults('api_cache_control', 'cacheable');
             });
     });

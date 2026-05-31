@@ -21,6 +21,8 @@ use Core\Tenant\Models\Workspace;
  */
 class ApiKeyFactory extends Factory
 {
+    private const API_KEY_SUFFIX = ' API Key';
+
     /**
      * The name of the factory's corresponding model.
      *
@@ -49,7 +51,7 @@ class ApiKeyFactory extends Factory
         return [
             'workspace_id' => Workspace::factory(),
             'user_id' => User::factory(),
-            'name' => fake()->words(2, true).' API Key',
+            'name' => fake()->words(2, true).self::API_KEY_SUFFIX,
             'key' => Hash::driver('bcrypt')->make($plainKey),
             'hash_algorithm' => ApiKey::HASH_BCRYPT,
             'prefix' => $prefix,
@@ -91,7 +93,7 @@ class ApiKeyFactory extends Factory
         return ApiKey::generate(
             $workspace->id,
             $user->id,
-            fake()->words(2, true).' API Key',
+            fake()->words(2, true).self::API_KEY_SUFFIX,
             $scopes,
             $expiresAt
         );
@@ -117,7 +119,7 @@ class ApiKeyFactory extends Factory
         $apiKey = ApiKey::create([
             'workspace_id' => $workspace->id,
             'user_id' => $user->id,
-            'name' => fake()->words(2, true).' API Key',
+            'name' => fake()->words(2, true).self::API_KEY_SUFFIX,
             'key' => hash('sha256', $plainKey),
             'hash_algorithm' => ApiKey::HASH_SHA256,
             'prefix' => $prefix,
@@ -136,7 +138,7 @@ class ApiKeyFactory extends Factory
      */
     public function legacyHash(): static
     {
-        return $this->state(function (array $attributes) {
+        return $this->state(function (array $_attributes) {
             // Extract the plain key from the stored state
             $parts = explode('_', $this->plainKey ?? '', 3);
             $plainKey = $parts[2] ?? Str::random(48);

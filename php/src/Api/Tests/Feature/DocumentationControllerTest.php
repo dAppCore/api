@@ -7,6 +7,8 @@ use Core\Api\Documentation\OpenApiBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+define('API_DOCS_PATH', '/api/docs');
+
 class StubDocumentationBuilder extends OpenApiBuilder
 {
     public bool $cleared = false;
@@ -99,7 +101,7 @@ it('DocumentationController_index_Good_selects_the_configured_documentation_ui',
     foreach ($cases as $ui => $expectedView) {
         config(['api-docs.ui.default' => $ui]);
 
-        $response = $controller->index(Request::create('/api/docs', 'GET'));
+        $response = $controller->index(Request::create(API_DOCS_PATH, 'GET'));
 
         expect($response->name())->toBe($expectedView);
     }
@@ -111,7 +113,7 @@ it('DocumentationController_index_Bad_falls_back_to_scalar_for_unknown_ui', func
 
     config(['api-docs.ui.default' => 'unsupported']);
 
-    $response = $controller->index(Request::create('/api/docs', 'GET'));
+    $response = $controller->index(Request::create(API_DOCS_PATH, 'GET'));
 
     expect($response->name())->toBe('api-docs::scalar');
 });
@@ -122,7 +124,7 @@ it('DocumentationController_index_Ugly_treats_blank_ui_as_scalar', function () {
 
     config(['api-docs.ui.default' => '   ']);
 
-    $response = $controller->index(Request::create('/api/docs', 'GET'));
+    $response = $controller->index(Request::create(API_DOCS_PATH, 'GET'));
 
     expect($response->name())->toBe('api-docs::scalar');
 });

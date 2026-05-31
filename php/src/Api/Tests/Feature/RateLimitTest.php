@@ -256,6 +256,7 @@ class RateLimitTest extends TestCase
 
                     public function release(): void
                     {
+                        // Stub — intentionally empty; lock is never acquired in this test
                     }
                 };
             }
@@ -603,7 +604,7 @@ class RateLimitTest extends TestCase
         $this->assertArrayHasKey('agency', $tiers);
         $this->assertArrayHasKey('enterprise', $tiers);
 
-        foreach ($tiers as $tier => $tierConfig) {
+        foreach ($tiers as $_tier => $tierConfig) {
             $this->assertArrayHasKey('limit', $tierConfig);
             $this->assertArrayHasKey('window', $tierConfig);
             $this->assertArrayHasKey('burst', $tierConfig);

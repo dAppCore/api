@@ -43,6 +43,9 @@ use Core\Tenant\Models\Workspace;
  */
 class Boot extends ServiceProvider
 {
+    private const ROUTES_API_PATH = '/Routes/api.php';
+    private const OAUTH_AUTHORIZE_PATH = '/authorize';
+
     /**
      * The module name.
      */
@@ -203,8 +206,8 @@ class Boot extends ServiceProvider
         $this->registerMiddlewareAliases();
 
         // Core API routes (SEO, Pixel, Entitlements, MCP)
-        if (file_exists(__DIR__.'/Routes/api.php') && ! $this->hasCoreApiRoutesRegistered()) {
-            $event->routes(fn () => Route::middleware('api')->group(__DIR__.'/Routes/api.php'));
+        if (file_exists(__DIR__.self::ROUTES_API_PATH) && ! $this->hasCoreApiRoutesRegistered()) {
+            $event->routes(fn () => Route::middleware('api')->group(__DIR__.self::ROUTES_API_PATH));
         }
 
         if (class_exists(Passport::class)) {
@@ -248,13 +251,13 @@ class Boot extends ServiceProvider
     {
         $this->registerMiddlewareAliases();
 
-        if (! file_exists(__DIR__.'/Routes/api.php') || $this->hasCoreApiRoutesRegistered()) {
+        if (! file_exists(__DIR__.self::ROUTES_API_PATH) || $this->hasCoreApiRoutesRegistered()) {
             return;
         }
 
         Route::prefix('api')
             ->middleware('api')
-            ->group(__DIR__.'/Routes/api.php');
+            ->group(__DIR__.self::ROUTES_API_PATH);
 
         if (class_exists(Passport::class) && ! Route::has('passport.token')) {
             $this->registerOAuthRoutes();
@@ -280,11 +283,11 @@ class Boot extends ServiceProvider
                 ->name('passport.token');
 
             Route::middleware(['web', 'auth'])->group(function () {
-                Route::get('/authorize', [AuthorizationController::class, 'authorize'])
+                Route::get(self::OAUTH_AUTHORIZE_PATH, [AuthorizationController::class, 'authorize'])
                     ->name('passport.authorizations.authorize');
-                Route::post('/authorize', [ApproveAuthorizationController::class, 'approve'])
+                Route::post(self::OAUTH_AUTHORIZE_PATH, [ApproveAuthorizationController::class, 'approve'])
                     ->name('passport.authorizations.approve');
-                Route::delete('/authorize', [DenyAuthorizationController::class, 'deny'])
+                Route::delete(self::OAUTH_AUTHORIZE_PATH, [DenyAuthorizationController::class, 'deny'])
                     ->name('passport.authorizations.deny');
             });
         });

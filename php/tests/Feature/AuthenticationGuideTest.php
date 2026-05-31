@@ -5,6 +5,8 @@ declare(strict_types=1);
 use Core\Api\Models\ApiKey;
 use Core\Website\Api\Controllers\DocsController;
 
+define('API_KEYS_PREFIXED_WITH', 'API keys are prefixed with');
+
 function renderAuthenticationGuide(): string
 {
     return (new DocsController)->authentication()->render();
@@ -18,7 +20,7 @@ it('AuthenticationGuide_renderedPrefix_Good_uses_the_configured_api_key_prefix',
 
         $html = renderAuthenticationGuide();
 
-        expect($html)->toContain('API keys are prefixed with');
+        expect($html)->toContain(API_KEYS_PREFIXED_WITH);
         expect($html)->toContain(ApiKey::keyPrefixRoot());
         expect($html)->toContain('Authorization: Bearer acme_your_api_key_here');
         expect($html)->not->toContain('hk_');
@@ -40,7 +42,7 @@ it('AuthenticationGuide_renderedPrefix_Bad_falls_back_to_the_default_prefix_when
         $html = renderAuthenticationGuide();
 
         expect(ApiKey::keyPrefixRoot())->toBe('hk_');
-        expect($html)->toContain('API keys are prefixed with');
+        expect($html)->toContain(API_KEYS_PREFIXED_WITH);
         expect($html)->toContain('hk_');
         expect($html)->toContain('Authorization: Bearer hk_your_api_key_here');
     } finally {
@@ -61,7 +63,7 @@ it('AuthenticationGuide_renderedPrefix_Ugly_trims_whitespace_before_rendering', 
         $html = renderAuthenticationGuide();
 
         expect(ApiKey::keyPrefixRoot())->toBe('acme_');
-        expect($html)->toContain('API keys are prefixed with');
+        expect($html)->toContain(API_KEYS_PREFIXED_WITH);
         expect($html)->toContain('acme_');
         expect($html)->toContain('Authorization: Bearer acme_your_api_key_here');
     } finally {

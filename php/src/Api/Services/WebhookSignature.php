@@ -50,11 +50,6 @@ use Illuminate\Support\Str;
 class WebhookSignature
 {
     /**
-     * Default secret length in bytes (64 characters when hex-encoded).
-     */
-    private const SECRET_LENGTH = 32;
-
-    /**
      * Default tolerance for timestamp verification in seconds.
      * 5 minutes allows for reasonable clock skew and network delays.
      */
