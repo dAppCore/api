@@ -31,7 +31,7 @@ func TestWithStatic_Good_ServesFile(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	body := w.Body.String()
@@ -73,7 +73,7 @@ func TestWithStatic_Good_ServesIndex(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	body := w.Body.String()
@@ -109,7 +109,7 @@ func TestWithStatic_Good_CombinesWithRouteGroups(t *testing.T) {
 
 	// API route should also work.
 	w2 := httptest.NewRecorder()
-	req2, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req2, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w2, req2)
 
 	if w2.Code != http.StatusOK {

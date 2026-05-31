@@ -47,7 +47,7 @@ func TestWithSessions_Good_SetsSessionCookie(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	cookies := w.Result().Cookies()
@@ -103,7 +103,7 @@ func TestWithSessions_Good_SessionPersistsAcrossRequests(t *testing.T) {
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	data, ok := resp.Data.(string)
@@ -123,12 +123,12 @@ func TestWithSessions_Good_EmptySessionReturnsNil(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	if resp.Data != nil {
@@ -150,7 +150,7 @@ func TestWithSessions_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Session cookie should be present.
@@ -166,7 +166,7 @@ func TestWithSessions_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	// Request ID should also be present.
-	rid := w.Header().Get("X-Request-ID")
+	rid := w.Header().Get(hdrXRequestID)
 	if rid == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
@@ -181,7 +181,7 @@ func TestWithSessions_Ugly_DoubleSessionsDoesNotPanic(t *testing.T) {
 		api.WithSessions("session", []byte("secret-two-here!")),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	e.Register(&sessionTestGroup{})
@@ -192,6 +192,6 @@ func TestWithSessions_Ugly_DoubleSessionsDoesNotPanic(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 }

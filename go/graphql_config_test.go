@@ -17,7 +17,7 @@ func TestEngine_GraphQLConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath(" /gql/ ")),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.GraphQLConfig()

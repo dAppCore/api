@@ -72,7 +72,7 @@ func TestWithAuthz_Good_AllowsPermittedRequest(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	setBasicAuth(req, "alice", "secret")
 
 	h.ServeHTTP(w, req)
@@ -95,7 +95,7 @@ func TestWithAuthz_Bad_DeniesUnpermittedRequest(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	setBasicAuth(req, "bob", "secret")
 
 	h.ServeHTTP(w, req)
@@ -120,7 +120,7 @@ func TestWithAuthz_Good_DifferentMethodsEvaluatedSeparately(t *testing.T) {
 
 	// GET should succeed.
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	setBasicAuth(req, "alice", "secret")
 	h.ServeHTTP(w, req)
 
@@ -130,7 +130,7 @@ func TestWithAuthz_Good_DifferentMethodsEvaluatedSeparately(t *testing.T) {
 
 	// DELETE should be denied (no policy for DELETE).
 	w = httptest.NewRecorder()
-	req, _ = http.NewRequest(http.MethodDelete, "/stub/ping", nil)
+	req, _ = http.NewRequest(http.MethodDelete, pathStubPing, nil)
 	setBasicAuth(req, "alice", "secret")
 	h.ServeHTTP(w, req)
 
@@ -154,17 +154,17 @@ func TestWithAuthz_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	setBasicAuth(req, "alice", "secret")
 
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Both authz (allowed) and request ID should be active.
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -211,7 +211,7 @@ func TestWithAuthz_Ugly_WildcardPolicyAllowsAll(t *testing.T) {
 	// Any user should be allowed by the wildcard policy.
 	for _, user := range []string{"alice", "bob", "charlie"} {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+		req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 		setBasicAuth(req, user, "secret")
 		h.ServeHTTP(w, req)
 

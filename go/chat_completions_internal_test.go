@@ -271,7 +271,7 @@ func newChatLoopbackRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", core.NewReader(body))
 	req.RemoteAddr = "127.0.0.1:1234"
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(hdrContentType, mimeJSON)
 	return req
 }
 
@@ -656,7 +656,7 @@ func TestChatCompletions_ServeHTTP_Good_StreamingResponseEmitsSSEChunks(t *testi
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if got := rec.Header().Get("Content-Type"); !core.HasPrefix(got, "text/event-stream") {
+	if got := rec.Header().Get(hdrContentType); !core.HasPrefix(got, "text/event-stream") {
 		t.Fatalf("expected SSE content type, got %q", got)
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
@@ -705,7 +705,7 @@ func TestChatCompletions_ServeHTTP_Bad_StreamingModelLoadingReturnsErrorBeforeBy
 	if got := rec.Header().Get("Retry-After"); got != "10" {
 		t.Fatalf("expected Retry-After=10, got %q", got)
 	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+	if got := rec.Header().Get(hdrContentType); got != mimeJSON {
 		t.Fatalf("expected JSON error content type, got %q", got)
 	}
 

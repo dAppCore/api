@@ -90,7 +90,7 @@ func TestTransformer_Good_ToolBridgeRemapsInboundAndOutboundDTOs(t *testing.T) {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if !resp.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if resp.Data["full_name"] != "Ada Lovelace" {
 		t.Fatalf("expected external full_name, got %v", resp.Data)
@@ -129,7 +129,7 @@ func TestTransformer_Bad_ToolBridgeValidatesExternalPayloadBeforeTransform(t *te
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", w.Code)
+		t.Fatalf(fmtTestExpected400, w.Code)
 	}
 
 	var resp api.Response[any]
@@ -137,7 +137,7 @@ func TestTransformer_Bad_ToolBridgeValidatesExternalPayloadBeforeTransform(t *te
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if resp.Success {
-		t.Fatal("expected Success=false")
+		t.Fatal(fmtTestExpectedFail)
 	}
 	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
 		t.Fatalf("expected invalid_request_body, got %#v", resp.Error)
@@ -208,7 +208,7 @@ func TestTransformer_Good_EngineRouteDescriptionRemapsDTOs(t *testing.T) {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if !resp.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if resp.Data["full_name"] != "Grace Hopper" {
 		t.Fatalf("expected outbound field rename, got %v", resp.Data)
@@ -232,7 +232,7 @@ func TestTransformer_Bad_EngineTransformerErrorReturnsBadRequest(t *testing.T) {
 	engine.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", w.Code)
+		t.Fatalf(fmtTestExpected400, w.Code)
 	}
 
 	var resp api.Response[any]
@@ -240,7 +240,7 @@ func TestTransformer_Bad_EngineTransformerErrorReturnsBadRequest(t *testing.T) {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if resp.Success {
-		t.Fatal("expected Success=false")
+		t.Fatal(fmtTestExpectedFail)
 	}
 	if resp.Error == nil || resp.Error.Code != "invalid_request_body" {
 		t.Fatalf("expected invalid_request_body, got %#v", resp.Error)

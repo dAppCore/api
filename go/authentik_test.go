@@ -33,7 +33,7 @@ func TestAuthentikUser_Good(t *testing.T) {
 		t.Fatalf("expected Email=%q, got %q", "alice@example.com", u.Email)
 	}
 	if u.Name != "Alice Smith" {
-		t.Fatalf("expected Name=%q, got %q", "Alice Smith", u.Name)
+		t.Fatalf(fmtTestExpectedName, "Alice Smith", u.Name)
 	}
 	if u.UID != "abc-123" {
 		t.Fatalf("expected UID=%q, got %q", "abc-123", u.UID)
@@ -75,7 +75,7 @@ func TestAuthentikConfig_Good(t *testing.T) {
 		Issuer:       "https://auth.example.com",
 		ClientID:     "my-client",
 		TrustedProxy: true,
-		PublicPaths:  []string{"/public", "/docs"},
+		PublicPaths:  []string{pathPublic, "/docs"},
 	}
 
 	if cfg.Issuer != "https://auth.example.com" {
@@ -98,7 +98,7 @@ func TestAuthentikConfig_Ugly_BlankPublicPathsCollapseToNil(t *testing.T) {
 		PublicPaths:  []string{" ", "\t", ""},
 	}))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.AuthentikConfig()
@@ -113,7 +113,7 @@ func TestAuthentikConfig_Ugly_RootPublicPathIsPreserved(t *testing.T) {
 		PublicPaths:  []string{" / ", "/docs/", "/docs"},
 	}))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.AuthentikConfig()
@@ -155,7 +155,7 @@ func TestForwardAuthHeaders_Good(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if gotUser == nil {
 		t.Fatal("expected GetUser to return a user, got nil")
@@ -167,7 +167,7 @@ func TestForwardAuthHeaders_Good(t *testing.T) {
 		t.Fatalf("expected Email=%q, got %q", "bob@example.com", gotUser.Email)
 	}
 	if gotUser.Name != "Bob Jones" {
-		t.Fatalf("expected Name=%q, got %q", "Bob Jones", gotUser.Name)
+		t.Fatalf(fmtTestExpectedName, "Bob Jones", gotUser.Name)
 	}
 	if gotUser.UID != "uid-456" {
 		t.Fatalf("expected UID=%q, got %q", "uid-456", gotUser.UID)
@@ -207,7 +207,7 @@ func TestForwardAuthHeaders_Good_NoHeaders(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if gotUser != nil {
 		t.Fatalf("expected GetUser to return nil without headers, got %+v", gotUser)
@@ -234,7 +234,7 @@ func TestForwardAuthHeaders_Bad_NotTrusted(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if gotUser != nil {
 		t.Fatalf("expected GetUser to return nil when TrustedProxy=false, got %+v", gotUser)
@@ -249,7 +249,7 @@ func TestHealthBypassesAuthentik_Good(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -262,7 +262,7 @@ func TestPublicPaths_Good_SimilarPrefixDoesNotBypassAuth(t *testing.T) {
 
 	cfg := api.AuthentikConfig{
 		TrustedProxy: true,
-		PublicPaths:  []string{"/public"},
+		PublicPaths:  []string{pathPublic},
 	}
 	e, _ := api.New(api.WithAuthentik(cfg))
 	e.Register(&publicPrefixGroup{})
@@ -296,7 +296,7 @@ func TestGetUser_Good_NilContext(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if gotUser != nil {
 		t.Fatalf("expected GetUser to return nil without middleware, got %+v", gotUser)
@@ -363,7 +363,7 @@ func TestBearerAndAuthentikCoexist_Good(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if gotUser == nil {
 		t.Fatal("expected GetUser to return a user, got nil")
@@ -389,7 +389,7 @@ func TestAuthentik_Good_CustomSwaggerPathBypassesAuth(t *testing.T) {
 		api.WithSwaggerPath("/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -397,7 +397,7 @@ func TestAuthentik_Good_CustomSwaggerPathBypassesAuth(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/docs/doc.json")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 

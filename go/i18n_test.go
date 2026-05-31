@@ -67,12 +67,12 @@ func TestWithI18n_Good_DetectsLocaleFromHeader(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nLocaleResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["locale"] != "fr" {
 		t.Fatalf("expected locale=%q, got %q", "fr", resp.Data["locale"])
@@ -94,12 +94,12 @@ func TestWithI18n_Good_FallsBackToDefault(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nLocaleResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["locale"] != "en" {
 		t.Fatalf("expected locale=%q, got %q", "en", resp.Data["locale"])
@@ -121,12 +121,12 @@ func TestWithI18n_Good_QualityWeighting(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nLocaleResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["locale"] != "fr" {
 		t.Fatalf("expected locale=%q, got %q", "fr", resp.Data["locale"])
@@ -148,12 +148,12 @@ func TestWithI18n_Good_PreservesMatchedLocaleTag(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nLocaleResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["locale"] != "fr-CA" {
 		t.Fatalf("expected locale=%q, got %q", "fr-CA", resp.Data["locale"])
@@ -177,20 +177,20 @@ func TestWithI18n_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// i18n middleware should detect French.
 	var resp i18nLocaleResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["locale"] != "fr" {
 		t.Fatalf("expected locale=%q, got %q", "fr", resp.Data["locale"])
 	}
 
 	// RequestID middleware should also have run.
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -216,12 +216,12 @@ func TestWithI18n_Good_LooksUpMessage(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nMessageResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data.Locale != "fr" {
 		t.Fatalf("expected locale=%q, got %q", "fr", resp.Data.Locale)
@@ -240,12 +240,12 @@ func TestWithI18n_Good_LooksUpMessage(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var respEn i18nMessageResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &respEn); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if respEn.Data.Message != "Hello" {
 		t.Fatalf("expected message=%q, got %q", "Hello", respEn.Data.Message)
@@ -271,12 +271,12 @@ func TestWithI18n_Good_FallsBackToParentLocaleMessage(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nMessageResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data.Locale != "fr-CA" {
 		t.Fatalf("expected locale=%q, got %q", "fr-CA", resp.Data.Locale)
@@ -359,12 +359,12 @@ func TestWithI18n_Good_SnapshotsMutableInputs(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp i18nMessageResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data.Message != "Bonjour" {
 		t.Fatalf("expected cloned greeting %q, got %q", "Bonjour", resp.Data.Message)

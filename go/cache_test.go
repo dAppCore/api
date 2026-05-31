@@ -71,7 +71,7 @@ func TestWithCache_Good_CachesGETResponse(t *testing.T) {
 	h.ServeHTTP(w1, req1)
 
 	if w1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w1.Code)
+		t.Fatalf(fmtTestExpected200, w1.Code)
 	}
 
 	body1 := w1.Body.String()
@@ -85,7 +85,7 @@ func TestWithCache_Good_CachesGETResponse(t *testing.T) {
 	h.ServeHTTP(w2, req2)
 
 	if w2.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w2.Code)
+		t.Fatalf(fmtTestExpected200, w2.Code)
 	}
 
 	body2 := w2.Body.String()
@@ -93,7 +93,7 @@ func TestWithCache_Good_CachesGETResponse(t *testing.T) {
 		t.Fatalf("expected cached body %q, got %q", body1, body2)
 	}
 
-	cacheHeader := w2.Header().Get("X-Cache")
+	cacheHeader := w2.Header().Get(hdrXCache)
 	if cacheHeader != "HIT" {
 		t.Fatalf("expected X-Cache=HIT, got %q", cacheHeader)
 	}
@@ -116,17 +116,17 @@ func TestWithCacheLimits_Good_CachesGETResponse(t *testing.T) {
 	req1, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w1.Code)
+		t.Fatalf(fmtTestExpected200, w1.Code)
 	}
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
 	h.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w2.Code)
+		t.Fatalf(fmtTestExpected200, w2.Code)
 	}
 
-	if got := w2.Header().Get("X-Cache"); got != "HIT" {
+	if got := w2.Header().Get(hdrXCache); got != "HIT" {
 		t.Fatalf("expected X-Cache=HIT, got %q", got)
 	}
 	if grp.counter.Load() != 1 {
@@ -148,15 +148,15 @@ func TestWithCache_Good_POSTNotCached(t *testing.T) {
 	h.ServeHTTP(w1, req1)
 
 	if w1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w1.Code)
+		t.Fatalf(fmtTestExpected200, w1.Code)
 	}
 
 	var resp1 api.Response[string]
 	if err := coreJSONUnmarshal(w1.Body.Bytes(), &resp1); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp1.Data != "post-1" {
-		t.Fatalf("expected Data=%q, got %q", "post-1", resp1.Data)
+		t.Fatalf(fmtTestExpectedData, "post-1", resp1.Data)
 	}
 
 	// Second POST request — should NOT be cached, counter increments.
@@ -166,10 +166,10 @@ func TestWithCache_Good_POSTNotCached(t *testing.T) {
 
 	var resp2 api.Response[string]
 	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp2.Data != "post-2" {
-		t.Fatalf("expected Data=%q, got %q", "post-2", resp2.Data)
+		t.Fatalf(fmtTestExpectedData, "post-2", resp2.Data)
 	}
 
 	// Counter should be 2 — both POST requests hit the handler.
@@ -243,11 +243,11 @@ func TestWithCache_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// RequestID middleware should still set X-Request-ID.
-	rid := w.Header().Get("X-Request-ID")
+	rid := w.Header().Get(hdrXRequestID)
 	if rid == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
@@ -272,33 +272,33 @@ func TestWithCache_Good_PreservesCurrentRequestIDOnHit(t *testing.T) {
 
 	w1 := httptest.NewRecorder()
 	req1, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
-	req1.Header.Set("X-Request-ID", "first-request-id")
+	req1.Header.Set(hdrXRequestID, "first-request-id")
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w1.Code)
+		t.Fatalf(fmtTestExpected200, w1.Code)
 	}
-	if got := w1.Header().Get("X-Request-ID"); got != "first-request-id" {
+	if got := w1.Header().Get(hdrXRequestID); got != "first-request-id" {
 		t.Fatalf("expected first response request ID %q, got %q", "first-request-id", got)
 	}
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
-	req2.Header.Set("X-Request-ID", "second-request-id")
+	req2.Header.Set(hdrXRequestID, "second-request-id")
 	h.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w2.Code)
+		t.Fatalf(fmtTestExpected200, w2.Code)
 	}
 
-	if got := w2.Header().Get("X-Request-ID"); got != "second-request-id" {
+	if got := w2.Header().Get(hdrXRequestID); got != "second-request-id" {
 		t.Fatalf("expected cached response to preserve current request ID %q, got %q", "second-request-id", got)
 	}
-	if got := w2.Header().Get("X-Cache"); got != "HIT" {
+	if got := w2.Header().Get(hdrXCache); got != "HIT" {
 		t.Fatalf("expected X-Cache=HIT, got %q", got)
 	}
 
 	var resp2 api.Response[string]
 	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp2.Data != "call-1" {
 		t.Fatalf("expected cached response data %q, got %q", "call-1", resp2.Data)
@@ -326,15 +326,15 @@ func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
 
 	w1 := httptest.NewRecorder()
 	req1, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
-	req1.Header.Set("X-Request-ID", "first-request-id")
+	req1.Header.Set(hdrXRequestID, "first-request-id")
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w1.Code)
+		t.Fatalf(fmtTestExpected200, w1.Code)
 	}
 
 	var resp1 api.Response[string]
 	if err := coreJSONUnmarshal(w1.Body.Bytes(), &resp1); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp1.Meta == nil {
 		t.Fatal("expected meta on first response")
@@ -345,15 +345,15 @@ func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
-	req2.Header.Set("X-Request-ID", "second-request-id")
+	req2.Header.Set(hdrXRequestID, "second-request-id")
 	h.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w2.Code)
+		t.Fatalf(fmtTestExpected200, w2.Code)
 	}
 
 	var resp2 api.Response[string]
 	if err := coreJSONUnmarshal(w2.Body.Bytes(), &resp2); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp2.Meta == nil {
 		t.Fatal("expected meta on cached response")
@@ -367,7 +367,7 @@ func TestWithCache_Good_PreservesCurrentRequestMetaOnHit(t *testing.T) {
 	if resp2.Meta.Page != 1 || resp2.Meta.PerPage != 25 || resp2.Meta.Total != 100 {
 		t.Fatalf("expected pagination metadata to remain intact, got %+v", resp2.Meta)
 	}
-	if got := w2.Header().Get("X-Request-ID"); got != "second-request-id" {
+	if got := w2.Header().Get(hdrXRequestID); got != "second-request-id" {
 		t.Fatalf("expected response header X-Request-ID=%q, got %q", "second-request-id", got)
 	}
 }
@@ -395,7 +395,7 @@ func TestWithCache_Good_PreservesMultiValueHeadersOnHit(t *testing.T) {
 	req1, _ := http.NewRequest(http.MethodGet, "/cache/multi", nil)
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w1.Code)
+		t.Fatalf(fmtTestExpected200, w1.Code)
 	}
 
 	w2 := httptest.NewRecorder()
@@ -432,7 +432,7 @@ func TestWithCache_Ugly_NonPositiveTTLDisablesMiddleware(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected request %d to succeed with disabled cache, got %d", i+1, w.Code)
 		}
-		if got := w.Header().Get("X-Cache"); got != "" {
+		if got := w.Header().Get(hdrXCache); got != "" {
 			t.Fatalf("expected no X-Cache header with disabled cache, got %q", got)
 		}
 	}
@@ -460,7 +460,7 @@ func TestWithCache_Ugly_ExplicitZeroLimitsDisableMiddleware(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected request %d to succeed with disabled cache, got %d", i+1, w.Code)
 		}
-		if got := w.Header().Get("X-Cache"); got != "" {
+		if got := w.Header().Get(hdrXCache); got != "" {
 			t.Fatalf("expected no X-Cache header with disabled cache, got %q", got)
 		}
 	}
@@ -570,7 +570,7 @@ func TestWithCache_Good_EvictsWhenSizeLimitReached(t *testing.T) {
 		t.Fatalf("expected size-limited cache to evict the oldest entry, got %q", w3.Body.String())
 	}
 
-	if got := w3.Header().Get("X-Cache"); got != "" {
+	if got := w3.Header().Get(hdrXCache); got != "" {
 		t.Fatalf("expected re-executed response to miss the cache, got X-Cache=%q", got)
 	}
 

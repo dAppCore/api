@@ -48,7 +48,9 @@ func specToolBridge(basePath string) *goapi.ToolBridge {
 	return bridge
 }
 
-func noopToolHandler(*gin.Context) {}
+func noopToolHandler(*gin.Context) {
+	// Placeholder handler for spec-only tools that contribute OpenAPI descriptions without runtime logic.
+}
 
 func isNilRouteGroup(group goapi.RouteGroup) bool {
 	if group == nil {

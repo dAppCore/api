@@ -12,6 +12,11 @@ import (
 	api "dappco.re/go/api"
 )
 
+const (
+	testOpenAPISpecPath     = "/api/v1/openapi.json"
+	testChatCompletionsPath = "/api/v1/chat/completions"
+)
+
 type specCmdStubGroup struct{}
 
 func (specCmdStubGroup) Name() string                       { return "registered" }
@@ -140,9 +145,9 @@ func TestCmdSpec_SpecConfigFromOptions_Good_FlagsArePreserved(t *testing.T) {
 func TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved(t *testing.T) {
 	opts := core.NewOptions(
 		core.Option{Key: "openapi-spec", Value: true},
-		core.Option{Key: "openapi-spec-path", Value: "/api/v1/openapi.json"},
+		core.Option{Key: "openapi-spec-path", Value: testOpenAPISpecPath},
 		core.Option{Key: "chat-completions", Value: true},
-		core.Option{Key: "chat-completions-path", Value: "/api/v1/chat/completions"},
+		core.Option{Key: "chat-completions-path", Value: testChatCompletionsPath},
 	)
 
 	cfg := specConfigFromOptions(opts)
@@ -150,14 +155,14 @@ func TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved(t *test
 	if !cfg.openAPISpecEnabled {
 		t.Fatal("expected openAPISpecEnabled=true")
 	}
-	if cfg.openAPISpecPath != "/api/v1/openapi.json" {
-		t.Fatalf("expected openAPISpecPath=%q, got %q", "/api/v1/openapi.json", cfg.openAPISpecPath)
+	if cfg.openAPISpecPath != testOpenAPISpecPath {
+		t.Fatalf("expected openAPISpecPath=%q, got %q", testOpenAPISpecPath, cfg.openAPISpecPath)
 	}
 	if !cfg.chatCompletionsEnabled {
 		t.Fatal("expected chatCompletionsEnabled=true")
 	}
-	if cfg.chatCompletionsPath != "/api/v1/chat/completions" {
-		t.Fatalf("expected chatCompletionsPath=%q, got %q", "/api/v1/chat/completions", cfg.chatCompletionsPath)
+	if cfg.chatCompletionsPath != testChatCompletionsPath {
+		t.Fatalf("expected chatCompletionsPath=%q, got %q", testChatCompletionsPath, cfg.chatCompletionsPath)
 	}
 }
 
@@ -168,9 +173,9 @@ func TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags(t *testing.T) {
 		title:                  "Test",
 		version:                "1.0.0",
 		openAPISpecEnabled:     true,
-		openAPISpecPath:        "/api/v1/openapi.json",
+		openAPISpecPath:        testOpenAPISpecPath,
 		chatCompletionsEnabled: true,
-		chatCompletionsPath:    "/api/v1/chat/completions",
+		chatCompletionsPath:    testChatCompletionsPath,
 	}
 
 	builder, err := newSpecBuilder(cfg)
@@ -181,14 +186,14 @@ func TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags(t *testing.T) {
 	if !builder.OpenAPISpecEnabled {
 		t.Fatal("expected OpenAPISpecEnabled=true on builder")
 	}
-	if builder.OpenAPISpecPath != "/api/v1/openapi.json" {
-		t.Fatalf("expected OpenAPISpecPath=%q, got %q", "/api/v1/openapi.json", builder.OpenAPISpecPath)
+	if builder.OpenAPISpecPath != testOpenAPISpecPath {
+		t.Fatalf("expected OpenAPISpecPath=%q, got %q", testOpenAPISpecPath, builder.OpenAPISpecPath)
 	}
 	if !builder.ChatCompletionsEnabled {
 		t.Fatal("expected ChatCompletionsEnabled=true on builder")
 	}
-	if builder.ChatCompletionsPath != "/api/v1/chat/completions" {
-		t.Fatalf("expected ChatCompletionsPath=%q, got %q", "/api/v1/chat/completions", builder.ChatCompletionsPath)
+	if builder.ChatCompletionsPath != testChatCompletionsPath {
+		t.Fatalf("expected ChatCompletionsPath=%q, got %q", testChatCompletionsPath, builder.ChatCompletionsPath)
 	}
 }
 
@@ -199,8 +204,8 @@ func TestCmdSpec_NewSpecBuilder_Ugly_PathImpliesEnabled(t *testing.T) {
 	cfg := specBuilderConfig{
 		title:               "Test",
 		version:             "1.0.0",
-		openAPISpecPath:     "/api/v1/openapi.json",
-		chatCompletionsPath: "/api/v1/chat/completions",
+		openAPISpecPath:     testOpenAPISpecPath,
+		chatCompletionsPath: testChatCompletionsPath,
 	}
 
 	builder, err := newSpecBuilder(cfg)

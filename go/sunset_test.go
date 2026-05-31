@@ -17,7 +17,7 @@ type sunsetStubGroup struct{}
 func (sunsetStubGroup) Name() string     { return "legacy" }
 func (sunsetStubGroup) BasePath() string { return "/legacy" }
 func (sunsetStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/status", func(c *gin.Context) {
+	rg.GET(pathStatus, func(c *gin.Context) {
 		c.JSON(http.StatusOK, api.OK("ok"))
 	})
 }
@@ -27,7 +27,7 @@ type sunsetLinkStubGroup struct{}
 func (sunsetLinkStubGroup) Name() string     { return "legacy-link" }
 func (sunsetLinkStubGroup) BasePath() string { return "/legacy-link" }
 func (sunsetLinkStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/status", func(c *gin.Context) {
+	rg.GET(pathStatus, func(c *gin.Context) {
 		c.Header("Link", "<https://example.com/docs>; rel=\"help\"")
 		c.JSON(http.StatusOK, api.OK("ok"))
 	})
@@ -38,7 +38,7 @@ type sunsetHeaderStubGroup struct{}
 func (sunsetHeaderStubGroup) Name() string     { return "legacy-headers" }
 func (sunsetHeaderStubGroup) BasePath() string { return "/legacy-headers" }
 func (sunsetHeaderStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/status", func(c *gin.Context) {
+	rg.GET(pathStatus, func(c *gin.Context) {
 		c.Header("Deprecation", "false")
 		c.Header("Sunset", "Wed, 01 Jan 2025 00:00:00 GMT")
 		c.Header("X-API-Warn", "Existing warning")
@@ -52,7 +52,7 @@ func TestWithSunset_Good_AddsDeprecationHeaders(t *testing.T) {
 
 	e, err := api.New(api.WithSunset("2025-06-01", "/api/v2/status"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(sunsetStubGroup{})
 
@@ -61,7 +61,7 @@ func TestWithSunset_Good_AddsDeprecationHeaders(t *testing.T) {
 	e.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if got := w.Header().Get("Deprecation"); got != "true" {
 		t.Fatalf("expected Deprecation=true, got %q", got)
@@ -273,7 +273,7 @@ func TestWithSunset_Good_PreservesExistingLinkHeaders(t *testing.T) {
 
 	e, err := api.New(api.WithSunset("2025-06-01", "/api/v2/status"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(sunsetLinkStubGroup{})
 
@@ -282,7 +282,7 @@ func TestWithSunset_Good_PreservesExistingLinkHeaders(t *testing.T) {
 	e.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	links := w.Header().Values("Link")
@@ -302,7 +302,7 @@ func TestWithSunset_Good_PreservesExistingDeprecationHeaders(t *testing.T) {
 
 	e, err := api.New(api.WithSunset("2025-06-01", "/api/v2/status"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(sunsetHeaderStubGroup{})
 
@@ -311,7 +311,7 @@ func TestWithSunset_Good_PreservesExistingDeprecationHeaders(t *testing.T) {
 	e.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	if got := w.Header().Values("Deprecation"); len(got) != 2 {

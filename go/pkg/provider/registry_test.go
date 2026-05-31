@@ -9,30 +9,38 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	stubName         = "stub"
+	stubEventChannel = "stub.event"
+	stubElementTag   = "core-stub-panel"
+	fullName         = "full"
+	fullElementTag   = "core-full-panel"
+)
+
 // -- Test helpers (minimal providers) -----------------------------------------
 
 type stubProvider struct{}
 
-func (s *stubProvider) Name() string                       { return "stub" }
+func (s *stubProvider) Name() string                       { return stubName }
 func (s *stubProvider) BasePath() string                   { return "/api/stub" }
 func (s *stubProvider) RegisterRoutes(rg *gin.RouterGroup) {}
 
 type streamableProvider struct{ stubProvider }
 
-func (s *streamableProvider) Channels() []string { return []string{"stub.event"} }
+func (s *streamableProvider) Channels() []string { return []string{stubEventChannel} }
 
 type describableProvider struct{ stubProvider }
 
 func (d *describableProvider) Describe() []api.RouteDescription {
 	return []api.RouteDescription{
-		{Method: "GET", Path: "/items", Summary: "List items", Tags: []string{"stub"}},
+		{Method: "GET", Path: "/items", Summary: "List items", Tags: []string{stubName}},
 	}
 }
 
 type renderableProvider struct{ stubProvider }
 
 func (r *renderableProvider) Element() provider.ElementSpec {
-	return provider.ElementSpec{Tag: "core-stub-panel", Source: "/assets/stub.js"}
+	return provider.ElementSpec{Tag: stubElementTag, Source: "/assets/stub.js"}
 }
 
 type specFileProvider struct {
@@ -46,15 +54,15 @@ type fullProvider struct {
 	streamableProvider
 }
 
-func (f *fullProvider) Name() string     { return "full" }
+func (f *fullProvider) Name() string     { return fullName }
 func (f *fullProvider) BasePath() string { return "/api/full" }
 func (f *fullProvider) Describe() []api.RouteDescription {
 	return []api.RouteDescription{
-		{Method: "GET", Path: "/status", Summary: "Status", Tags: []string{"full"}},
+		{Method: "GET", Path: "/status", Summary: "Status", Tags: []string{fullName}},
 	}
 }
 func (f *fullProvider) Element() provider.ElementSpec {
-	return provider.ElementSpec{Tag: "core-full-panel", Source: "/assets/full.js"}
+	return provider.ElementSpec{Tag: fullElementTag, Source: "/assets/full.js"}
 }
 
 // -- Tests --------------------------------------------------------------------
@@ -74,9 +82,9 @@ func TestRegistry_Get_Good(t *T) {
 	reg := provider.NewRegistry()
 	reg.Add(&stubProvider{})
 
-	p := reg.Get("stub")
+	p := reg.Get(stubName)
 	AssertNotNil(t, p)
-	AssertEqual(t, "stub", p.Name())
+	AssertEqual(t, stubName, p.Name())
 }
 
 func TestRegistry_Get_Bad(t *T) {
@@ -113,7 +121,7 @@ func TestRegistry_Streamable_Good(t *T) {
 
 	s := reg.Streamable()
 	AssertLen(t, s, 1)
-	AssertEqual(t, []string{"stub.event"}, s[0].Channels())
+	AssertEqual(t, []string{stubEventChannel}, s[0].Channels())
 }
 
 func TestRegistry_StreamableIter_Good(t *T) {
@@ -193,7 +201,7 @@ func TestRegistry_Renderable_Good(t *T) {
 
 	r := reg.Renderable()
 	AssertLen(t, r, 1)
-	AssertEqual(t, "core-stub-panel", r[0].Element().Tag)
+	AssertEqual(t, stubElementTag, r[0].Element().Tag)
 }
 
 func TestRegistry_RenderableIter_Good(t *T) {
@@ -207,7 +215,7 @@ func TestRegistry_RenderableIter_Good(t *T) {
 	}
 
 	AssertLen(t, renderables, 1)
-	AssertEqual(t, "core-stub-panel", renderables[0].Element().Tag)
+	AssertEqual(t, stubElementTag, renderables[0].Element().Tag)
 }
 
 func TestRegistry_RenderableIter_Good_SnapshotCurrentProviders(t *T) {
@@ -223,7 +231,7 @@ func TestRegistry_RenderableIter_Good_SnapshotCurrentProviders(t *T) {
 	}
 
 	AssertLen(t, renderables, 1)
-	AssertEqual(t, "core-stub-panel", renderables[0].Element().Tag)
+	AssertEqual(t, stubElementTag, renderables[0].Element().Tag)
 }
 
 func TestRegistry_Info_Good(t *T) {
@@ -234,11 +242,11 @@ func TestRegistry_Info_Good(t *T) {
 	AssertLen(t, infos, 1)
 
 	info := infos[0]
-	AssertEqual(t, "full", info.Name)
+	AssertEqual(t, fullName, info.Name)
 	AssertEqual(t, "/api/full", info.BasePath)
-	AssertEqual(t, []string{"stub.event"}, info.Channels)
+	AssertEqual(t, []string{stubEventChannel}, info.Channels)
 	AssertNotNil(t, info.Element)
-	AssertEqual(t, "core-full-panel", info.Element.Tag)
+	AssertEqual(t, fullElementTag, info.Element.Tag)
 }
 
 func TestRegistry_Info_Good_ProxyMetadata(t *T) {
@@ -271,11 +279,11 @@ func TestRegistry_InfoIter_Good(t *T) {
 
 	AssertLen(t, infos, 1)
 	info := infos[0]
-	AssertEqual(t, "full", info.Name)
+	AssertEqual(t, fullName, info.Name)
 	AssertEqual(t, "/api/full", info.BasePath)
-	AssertEqual(t, []string{"stub.event"}, info.Channels)
+	AssertEqual(t, []string{stubEventChannel}, info.Channels)
 	AssertNotNil(t, info.Element)
-	AssertEqual(t, "core-full-panel", info.Element.Tag)
+	AssertEqual(t, fullElementTag, info.Element.Tag)
 }
 
 func TestRegistry_InfoIter_Good_SnapshotCurrentProviders(t *T) {
@@ -291,7 +299,7 @@ func TestRegistry_InfoIter_Good_SnapshotCurrentProviders(t *T) {
 	}
 
 	AssertLen(t, infos, 1)
-	AssertEqual(t, "full", infos[0].Name)
+	AssertEqual(t, fullName, infos[0].Name)
 }
 
 func TestRegistry_Iter_Good(t *T) {

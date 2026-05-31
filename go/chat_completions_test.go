@@ -28,14 +28,14 @@ func TestChatCompletions_WithChatCompletions_Good(t *testing.T) {
 	resolver := api.NewModelResolver()
 	engine, err := api.New(api.WithChatCompletions(resolver))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
-	req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", `{
+	req := newLoopbackRequest(http.MethodPost, pathChatComplet, `{
 		"model": "missing-model",
 		"messages": [{"role":"user","content":"hi"}]
 	}`)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(hdrContentType, mimeJSON)
 
 	rec := httptest.NewRecorder()
 	engine.Handler().ServeHTTP(rec, req)
@@ -74,14 +74,14 @@ func TestChatCompletions_RejectsNonLoopback(t *testing.T) {
 	resolver := api.NewModelResolver()
 	engine, err := api.New(api.WithChatCompletions(resolver))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
-	req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", `{
+	req := newLoopbackRequest(http.MethodPost, pathChatComplet, `{
 		"model": "missing-model",
 		"messages": [{"role":"user","content":"hi"}]
 	}`)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(hdrContentType, mimeJSON)
 	req.RemoteAddr = "8.8.8.8:1234"
 
 	rec := httptest.NewRecorder()
@@ -102,14 +102,14 @@ func TestChatCompletions_WithChatCompletionsPath_Good(t *testing.T) {
 		api.WithChatCompletionsPath("/chat"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	req := newLoopbackRequest(http.MethodPost, "/chat", `{
 		"model": "missing-model",
 		"messages": [{"role":"user","content":"hi"}]
 	}`)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(hdrContentType, mimeJSON)
 
 	rec := httptest.NewRecorder()
 	engine.Handler().ServeHTTP(rec, req)
@@ -145,8 +145,8 @@ func TestChatCompletionsValidateRequestBadPayload(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", tc.body)
-			req.Header.Set("Content-Type", "application/json")
+			req := newLoopbackRequest(http.MethodPost, pathChatComplet, tc.body)
+			req.Header.Set(hdrContentType, mimeJSON)
 
 			rec := httptest.NewRecorder()
 			engine.Handler().ServeHTTP(rec, req)
@@ -178,7 +178,7 @@ func TestChatCompletionsNoResolverNotMounted(t *testing.T) {
 
 	engine, _ := api.New()
 
-	req := newLoopbackRequest(http.MethodPost, "/v1/chat/completions", `{}`)
+	req := newLoopbackRequest(http.MethodPost, pathChatComplet, `{}`)
 	rec := httptest.NewRecorder()
 	engine.Handler().ServeHTTP(rec, req)
 

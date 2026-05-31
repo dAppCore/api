@@ -16,9 +16,11 @@ type specRegistryStubGroup struct {
 	basePath string
 }
 
-func (g *specRegistryStubGroup) Name() string                       { return g.name }
-func (g *specRegistryStubGroup) BasePath() string                   { return g.basePath }
-func (g *specRegistryStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (g *specRegistryStubGroup) Name() string     { return g.name }
+func (g *specRegistryStubGroup) BasePath() string { return g.basePath }
+func (g *specRegistryStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; used to test registry deduplication.
+}
 
 func TestRegisterSpecGroups_Good_DeduplicatesByIdentity(t *testing.T) {
 	snapshot := api.RegisteredSpecGroups()

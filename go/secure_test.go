@@ -21,11 +21,11 @@ func TestWithSecure_Good_SetsHSTSHeader(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	sts := w.Header().Get("Strict-Transport-Security")
@@ -46,10 +46,10 @@ func TestWithSecure_Good_SetsFrameOptionsDeny(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
-	xfo := w.Header().Get("X-Frame-Options")
+	xfo := w.Header().Get(hdrXFrameOptions)
 	if xfo != "DENY" {
 		t.Fatalf("expected X-Frame-Options=%q, got %q", "DENY", xfo)
 	}
@@ -61,7 +61,7 @@ func TestWithSecure_Good_SetsContentTypeNosniff(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	cto := w.Header().Get("X-Content-Type-Options")
@@ -76,7 +76,7 @@ func TestWithSecure_Good_SetsReferrerPolicy(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	rp := w.Header().Get("Referrer-Policy")
@@ -92,16 +92,16 @@ func TestWithSecure_Good_AllHeadersPresent(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Verify all security headers are present on a regular route.
 	checks := map[string]string{
-		"X-Frame-Options":        "DENY",
+		hdrXFrameOptions:         "DENY",
 		"X-Content-Type-Options": "nosniff",
 		"Referrer-Policy":        "strict-origin-when-cross-origin",
 	}
@@ -128,18 +128,18 @@ func TestWithSecure_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Both secure headers and request ID should be present.
-	if w.Header().Get("X-Frame-Options") != "DENY" {
+	if w.Header().Get(hdrXFrameOptions) != "DENY" {
 		t.Fatal("expected X-Frame-Options header from WithSecure")
 	}
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -152,7 +152,7 @@ func TestWithSecure_Bad_NoSSLRedirect(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	// Should get 200, not a 301/302 redirect.
@@ -171,15 +171,15 @@ func TestWithSecure_Ugly_DoubleSecureDoesNotPanic(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Headers should still be correctly set.
-	if w.Header().Get("X-Frame-Options") != "DENY" {
+	if w.Header().Get(hdrXFrameOptions) != "DENY" {
 		t.Fatal("expected X-Frame-Options=DENY after double WithSecure")
 	}
 }

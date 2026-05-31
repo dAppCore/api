@@ -22,17 +22,21 @@ type specStubGroup struct {
 	descs    []api.RouteDescription
 }
 
-func (s *specStubGroup) Name() string                       { return s.name }
-func (s *specStubGroup) BasePath() string                   { return s.basePath }
-func (s *specStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (s *specStubGroup) Describe() []api.RouteDescription   { return s.descs }
-func (s *specStubGroup) Hidden() bool                       { return s.hidden }
+func (s *specStubGroup) Name() string     { return s.name }
+func (s *specStubGroup) BasePath() string { return s.basePath }
+func (s *specStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; routes are described through the Describe path.
+}
+func (s *specStubGroup) Describe() []api.RouteDescription { return s.descs }
+func (s *specStubGroup) Hidden() bool                     { return s.hidden }
 
 type plainStubGroup struct{}
 
-func (plainStubGroup) Name() string                       { return "plain" }
-func (plainStubGroup) BasePath() string                   { return "/plain" }
-func (plainStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
+func (plainStubGroup) Name() string     { return "plain" }
+func (plainStubGroup) BasePath() string { return "/plain" }
+func (plainStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; minimal stub for spec builder tests.
+}
 
 type iterStubGroup struct {
 	name     string
@@ -40,10 +44,12 @@ type iterStubGroup struct {
 	descs    []api.RouteDescription
 }
 
-func (s *iterStubGroup) Name() string                       { return s.name }
-func (s *iterStubGroup) BasePath() string                   { return s.basePath }
-func (s *iterStubGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (s *iterStubGroup) Describe() []api.RouteDescription   { return nil }
+func (s *iterStubGroup) Name() string     { return s.name }
+func (s *iterStubGroup) BasePath() string { return s.basePath }
+func (s *iterStubGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; routes are described through the DescribeIter path.
+}
+func (s *iterStubGroup) Describe() []api.RouteDescription { return nil }
 func (s *iterStubGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	return func(yield func(api.RouteDescription) bool) {
 		for _, rd := range s.descs {
@@ -60,10 +66,12 @@ type iterNilFallbackGroup struct {
 	descs    []api.RouteDescription
 }
 
-func (s *iterNilFallbackGroup) Name() string                       { return s.name }
-func (s *iterNilFallbackGroup) BasePath() string                   { return s.basePath }
-func (s *iterNilFallbackGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (s *iterNilFallbackGroup) Describe() []api.RouteDescription   { return s.descs }
+func (s *iterNilFallbackGroup) Name() string     { return s.name }
+func (s *iterNilFallbackGroup) BasePath() string { return s.basePath }
+func (s *iterNilFallbackGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; spec builder tests the nil-iterator fallback path.
+}
+func (s *iterNilFallbackGroup) Describe() []api.RouteDescription { return s.descs }
 func (s *iterNilFallbackGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	return nil
 }
@@ -75,10 +83,12 @@ type countingIterGroup struct {
 	describeCalls int
 }
 
-func (s *countingIterGroup) Name() string                       { return s.name }
-func (s *countingIterGroup) BasePath() string                   { return s.basePath }
-func (s *countingIterGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (s *countingIterGroup) Describe() []api.RouteDescription   { return nil }
+func (s *countingIterGroup) Name() string     { return s.name }
+func (s *countingIterGroup) BasePath() string { return s.basePath }
+func (s *countingIterGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; routes are described through the DescribeIter path.
+}
+func (s *countingIterGroup) Describe() []api.RouteDescription { return nil }
 func (s *countingIterGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	s.describeCalls++
 	return func(yield func(api.RouteDescription) bool) {
@@ -96,10 +106,12 @@ type mutatingIterGroup struct {
 	descs    []api.RouteDescription
 }
 
-func (s *mutatingIterGroup) Name() string                       { return s.name }
-func (s *mutatingIterGroup) BasePath() string                   { return s.basePath }
-func (s *mutatingIterGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (s *mutatingIterGroup) Describe() []api.RouteDescription   { return nil }
+func (s *mutatingIterGroup) Name() string     { return s.name }
+func (s *mutatingIterGroup) BasePath() string { return s.basePath }
+func (s *mutatingIterGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; routes are described through the DescribeIter path.
+}
+func (s *mutatingIterGroup) Describe() []api.RouteDescription { return nil }
 func (s *mutatingIterGroup) DescribeIter() iter.Seq[api.RouteDescription] {
 	return func(yield func(api.RouteDescription) bool) {
 		for i, rd := range s.descs {
@@ -136,8 +148,10 @@ func (s *snapshottingGroup) BasePath() string {
 	return "/beta"
 }
 
-func (s *snapshottingGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (s *snapshottingGroup) Describe() []api.RouteDescription   { return s.descs }
+func (s *snapshottingGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; tests the snapshotting/identity semantics.
+}
+func (s *snapshottingGroup) Describe() []api.RouteDescription { return s.descs }
 
 // ── SpecBuilder tests ─────────────────────────────────────────────────────
 
@@ -150,12 +164,12 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	// Verify OpenAPI version.
@@ -168,10 +182,10 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 
 	// Verify /health path exists.
 	paths := spec["paths"].(map[string]any)
-	if _, ok := paths["/health"]; !ok {
+	if _, ok := paths[pathHealth]; !ok {
 		t.Fatal("expected /health path in spec")
 	}
-	health := paths["/health"].(map[string]any)["get"].(map[string]any)
+	health := paths[pathHealth].(map[string]any)["get"].(map[string]any)
 	healthResponses := health["responses"].(map[string]any)
 	if _, ok := healthResponses["429"]; !ok {
 		t.Fatal("expected 429 response on /health")
@@ -187,35 +201,35 @@ func TestSpecBuilder_Good_EmptyGroups(t *testing.T) {
 	if _, ok := headers["Retry-After"]; !ok {
 		t.Fatal("expected Retry-After header on /health 429 response")
 	}
-	if _, ok := headers["X-Request-ID"]; !ok {
+	if _, ok := headers[hdrXRequestID]; !ok {
 		t.Fatal("expected X-Request-ID header on /health 429 response")
 	}
-	if _, ok := headers["X-RateLimit-Limit"]; !ok {
+	if _, ok := headers[hdrRateLimit]; !ok {
 		t.Fatal("expected X-RateLimit-Limit header on /health 429 response")
 	}
-	if _, ok := headers["X-RateLimit-Remaining"]; !ok {
+	if _, ok := headers[hdrRateRemaining]; !ok {
 		t.Fatal("expected X-RateLimit-Remaining header on /health 429 response")
 	}
-	if _, ok := headers["X-RateLimit-Reset"]; !ok {
+	if _, ok := headers[hdrRateReset]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header on /health 429 response")
 	}
 	health504 := healthResponses["504"].(map[string]any)
 	health504Headers := health504["headers"].(map[string]any)
-	if _, ok := health504Headers["X-Request-ID"]; !ok {
+	if _, ok := health504Headers[hdrXRequestID]; !ok {
 		t.Fatal("expected X-Request-ID header on /health 504 response")
 	}
-	if _, ok := health504Headers["X-RateLimit-Limit"]; !ok {
+	if _, ok := health504Headers[hdrRateLimit]; !ok {
 		t.Fatal("expected X-RateLimit-Limit header on /health 504 response")
 	}
-	if _, ok := health504Headers["X-RateLimit-Remaining"]; !ok {
+	if _, ok := health504Headers[hdrRateRemaining]; !ok {
 		t.Fatal("expected X-RateLimit-Remaining header on /health 504 response")
 	}
-	if _, ok := health504Headers["X-RateLimit-Reset"]; !ok {
+	if _, ok := health504Headers[hdrRateReset]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header on /health 504 response")
 	}
 	health200 := health["responses"].(map[string]any)["200"].(map[string]any)
 	health200Headers := health200["headers"].(map[string]any)
-	if _, ok := health200Headers["X-Cache"]; ok {
+	if _, ok := health200Headers[hdrXCache]; ok {
 		t.Fatal("expected /health 200 response to omit X-Cache when cache is disabled")
 	}
 
@@ -282,19 +296,19 @@ func TestSpecBuilder_Good_IncludesCacheControlResponseHeader(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
 	getOp := paths["/cache/items/{id}"].(map[string]any)["get"].(map[string]any)
 	success := getOp["responses"].(map[string]any)["200"].(map[string]any)
 	headers := success["headers"].(map[string]any)
-	header, ok := headers["Cache-Control"].(map[string]any)
+	header, ok := headers[hdrCacheControl].(map[string]any)
 	if !ok {
 		t.Fatal("expected Cache-Control response header in OpenAPI spec")
 	}
@@ -309,12 +323,12 @@ func TestSpecBuilder_Good_NilReceiverIsZeroValueSafe(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if spec["openapi"] != "3.1.0" {
@@ -325,7 +339,7 @@ func TestSpecBuilder_Good_NilReceiverIsZeroValueSafe(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected paths object, got %T", spec["paths"])
 	}
-	if _, ok := paths["/health"]; !ok {
+	if _, ok := paths[pathHealth]; !ok {
 		t.Fatal("expected /health path to be present")
 	}
 }
@@ -338,19 +352,19 @@ func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {
 			"apiKeyAuth": map[string]any{
 				"type": "apiKey",
 				"in":   "header",
-				"name": "X-API-Key",
+				"name": apiKeyHeader,
 			},
 		},
 	}
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	components := spec["components"].(map[string]any)
@@ -374,7 +388,7 @@ func TestSpecBuilder_Good_CustomSecuritySchemesAreMerged(t *testing.T) {
 	if apiKeyAuth["in"] != "header" {
 		t.Fatalf("expected apiKeyAuth.in=header, got %v", apiKeyAuth["in"])
 	}
-	if apiKeyAuth["name"] != "X-API-Key" {
+	if apiKeyAuth["name"] != apiKeyHeader {
 		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
 	}
 }
@@ -387,12 +401,12 @@ func TestSpecBuilder_Good_CommonResponseComponentsArePublished(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	components := spec["components"].(map[string]any)
@@ -431,12 +445,12 @@ func TestSpecBuilder_Good_NormalisesMetadataAtBuild(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := spec["info"].(map[string]any)
@@ -494,12 +508,12 @@ func TestSpecBuilder_Good_SwaggerUIPathExtension(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-swagger-ui-path"]; got != "/docs" {
@@ -522,12 +536,12 @@ func TestSpecBuilder_Good_CacheAndI18nExtensions(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-cache-enabled"]; got != true {
@@ -565,12 +579,12 @@ func TestSpecBuilder_Good_OmitsNonPositiveCacheTTLExtension(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if _, ok := spec["x-cache-ttl"]; ok {
@@ -583,18 +597,18 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 		Title:        "Test",
 		Description:  "GraphQL test",
 		Version:      "1.0.0",
-		GraphQLPath:  "/graphql",
+		GraphQLPath:  pathGraphQL,
 		CacheEnabled: true,
 	}
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags := spec["tags"].([]any)
@@ -614,7 +628,7 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 	}
 
 	paths := spec["paths"].(map[string]any)
-	pathItem, ok := paths["/graphql"].(map[string]any)
+	pathItem, ok := paths[pathGraphQL].(map[string]any)
 	if !ok {
 		t.Fatal("expected /graphql path in spec")
 	}
@@ -641,12 +655,12 @@ func TestSpecBuilder_Good_GraphQLEndpoint(t *testing.T) {
 
 	responses := postOp["responses"].(map[string]any)
 	successHeaders := responses["200"].(map[string]any)["headers"].(map[string]any)
-	if _, ok := successHeaders["X-Cache"]; !ok {
+	if _, ok := successHeaders[hdrXCache]; !ok {
 		t.Fatal("expected X-Cache header on GraphQL 200 response")
 	}
 
 	requestBody := postOp["requestBody"].(map[string]any)
-	schema := requestBody["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	schema := requestBody["content"].(map[string]any)[mimeJSON].(map[string]any)["schema"].(map[string]any)
 	properties := schema["properties"].(map[string]any)
 	if _, ok := properties["query"]; !ok {
 		t.Fatal("expected GraphQL request schema to include query field")
@@ -663,23 +677,23 @@ func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:                 "Test",
 		Version:               "1.0.0",
-		GraphQLPath:           "/graphql",
+		GraphQLPath:           pathGraphQL,
 		GraphQLPlayground:     true,
-		GraphQLPlaygroundPath: "/graphql/playground",
+		GraphQLPlaygroundPath: pathGraphQLPlay,
 	}
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	pathItem, ok := paths["/graphql/playground"].(map[string]any)
+	pathItem, ok := paths[pathGraphQLPlay].(map[string]any)
 	if !ok {
 		t.Fatal("expected /graphql/playground path in spec")
 	}
@@ -688,7 +702,7 @@ func TestSpecBuilder_Good_GraphQLPlaygroundEndpoint(t *testing.T) {
 	if getOp["operationId"] != "get_graphql_playground" {
 		t.Fatalf("expected playground operationId to be get_graphql_playground, got %v", getOp["operationId"])
 	}
-	if got := spec["x-graphql-playground-path"]; got != "/graphql/playground" {
+	if got := spec["x-graphql-playground-path"]; got != pathGraphQLPlay {
 		t.Fatalf("expected x-graphql-playground-path=/graphql/playground, got %v", got)
 	}
 
@@ -709,19 +723,19 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLPath(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	if _, ok := paths["/graphql"].(map[string]any); !ok {
+	if _, ok := paths[pathGraphQL].(map[string]any); !ok {
 		t.Fatal("expected default /graphql path when playground is enabled")
 	}
-	if _, ok := paths["/graphql/playground"].(map[string]any); !ok {
+	if _, ok := paths[pathGraphQLPlay].(map[string]any); !ok {
 		t.Fatal("expected default /graphql/playground path when playground is enabled")
 	}
 }
@@ -735,12 +749,12 @@ func TestSpecBuilder_Good_GraphQLPlaygroundDefaultsToGraphQLTag(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags := spec["tags"].([]any)
@@ -769,18 +783,18 @@ func TestSpecBuilder_Good_ChatCompletionsEndpointExtension(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-chat-completions-enabled"]; got != true {
 		t.Fatalf("expected x-chat-completions-enabled=true, got %v", got)
 	}
-	if got := spec["x-chat-completions-path"]; got != "/v1/chat/completions" {
+	if got := spec["x-chat-completions-path"]; got != pathChatComplet {
 		t.Fatalf("expected default chat completions path, got %v", got)
 	}
 }
@@ -797,12 +811,12 @@ func TestSpecBuilder_Good_ChatCompletionsHonoursCustomPath(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-chat-completions-path"]; got != "/chat" {
@@ -820,12 +834,12 @@ func TestSpecBuilder_Good_ChatCompletionsOmittedWhenDisabled(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if _, ok := spec["x-chat-completions-enabled"]; ok {
@@ -848,21 +862,21 @@ func TestSpecBuilder_Good_ChatCompletionsPathAppearsInPaths(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths, ok := spec["paths"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected paths object, got %T", spec["paths"])
 	}
-	item, ok := paths["/v1/chat/completions"].(map[string]any)
+	item, ok := paths[pathChatComplet].(map[string]any)
 	if !ok {
-		t.Fatalf("expected /v1/chat/completions path item, got %T", paths["/v1/chat/completions"])
+		t.Fatalf("expected /v1/chat/completions path item, got %T", paths[pathChatComplet])
 	}
 	if _, ok := item["post"]; !ok {
 		t.Fatal("expected POST operation on /v1/chat/completions")
@@ -879,16 +893,16 @@ func TestSpecBuilder_Bad_ChatCompletionsPathAbsentWhenDisabled(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	if _, ok := paths["/v1/chat/completions"]; ok {
+	if _, ok := paths[pathChatComplet]; ok {
 		t.Fatal("expected /v1/chat/completions path item to be absent when disabled")
 	}
 }
@@ -905,19 +919,19 @@ func TestSpecBuilder_Ugly_ChatCompletionsPathCustomOverrideHonoured(t *testing.T
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
 	if _, ok := paths["/api/v1/chat"].(map[string]any); !ok {
 		t.Fatalf("expected custom chat completions path in paths object, got %v", paths)
 	}
-	if _, ok := paths["/v1/chat/completions"]; ok {
+	if _, ok := paths[pathChatComplet]; ok {
 		t.Fatal("expected default chat completions path to be absent when overridden")
 	}
 }
@@ -934,25 +948,25 @@ func TestSpecBuilder_Good_OpenAPISpecEndpointAppearsInPaths(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-openapi-spec-enabled"]; got != true {
 		t.Fatalf("expected x-openapi-spec-enabled=true, got %v", got)
 	}
-	if got := spec["x-openapi-spec-path"]; got != "/v1/openapi.json" {
+	if got := spec["x-openapi-spec-path"]; got != pathOpenAPIJSON {
 		t.Fatalf("expected default openapi spec path, got %v", got)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	item, ok := paths["/v1/openapi.json"].(map[string]any)
+	item, ok := paths[pathOpenAPIJSON].(map[string]any)
 	if !ok {
-		t.Fatalf("expected /v1/openapi.json path item, got %T", paths["/v1/openapi.json"])
+		t.Fatalf("expected /v1/openapi.json path item, got %T", paths[pathOpenAPIJSON])
 	}
 	get, ok := item["get"].(map[string]any)
 	if !ok {
@@ -974,16 +988,16 @@ func TestSpecBuilder_Bad_OpenAPISpecEndpointAbsentWhenDisabled(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	if _, ok := paths["/v1/openapi.json"]; ok {
+	if _, ok := paths[pathOpenAPIJSON]; ok {
 		t.Fatal("expected /v1/openapi.json path item to be absent when disabled")
 	}
 	if _, ok := spec["x-openapi-spec-enabled"]; ok {
@@ -1003,19 +1017,19 @@ func TestSpecBuilder_Ugly_OpenAPISpecPathCustomOverrideHonoured(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
 	if _, ok := paths["/api/v1/openapi.json"].(map[string]any); !ok {
 		t.Fatalf("expected custom openapi spec path in paths object, got %v", paths)
 	}
-	if _, ok := paths["/v1/openapi.json"]; ok {
+	if _, ok := paths[pathOpenAPIJSON]; ok {
 		t.Fatal("expected default openapi spec path to be absent when overridden")
 	}
 }
@@ -1032,29 +1046,29 @@ func TestSpecBuilder_Good_EnabledTransportsUseDefaultPaths(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-swagger-ui-path"]; got != "/swagger" {
 		t.Fatalf("expected default swagger path, got %v", got)
 	}
-	if got := spec["x-graphql-path"]; got != "/graphql" {
+	if got := spec["x-graphql-path"]; got != pathGraphQL {
 		t.Fatalf("expected default graphql path, got %v", got)
 	}
 	if got := spec["x-ws-path"]; got != "/ws" {
 		t.Fatalf("expected default websocket path, got %v", got)
 	}
-	if got := spec["x-sse-path"]; got != "/events" {
+	if got := spec["x-sse-path"]; got != pathEvents {
 		t.Fatalf("expected default sse path, got %v", got)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	for _, path := range []string{"/graphql", "/ws", "/events"} {
+	for _, path := range []string{pathGraphQL, "/ws", pathEvents} {
 		if _, ok := paths[path].(map[string]any); !ok {
 			t.Fatalf("expected %s path in spec", path)
 		}
@@ -1089,12 +1103,12 @@ func TestSpecBuilder_Good_WebSocketEndpoint(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags := spec["tags"].([]any)
@@ -1137,17 +1151,17 @@ func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
 	sb := &api.SpecBuilder{
 		Title:   "Test",
 		Version: "1.0.0",
-		SSEPath: "/events",
+		SSEPath: pathEvents,
 	}
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags := spec["tags"].([]any)
@@ -1164,7 +1178,7 @@ func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
 	}
 
 	paths := spec["paths"].(map[string]any)
-	pathItem, ok := paths["/events"].(map[string]any)
+	pathItem, ok := paths[pathEvents].(map[string]any)
 	if !ok {
 		t.Fatal("expected /events path in spec")
 	}
@@ -1186,11 +1200,11 @@ func TestSpecBuilder_Good_ServerSentEventsEndpoint(t *testing.T) {
 	responses := getOp["responses"].(map[string]any)
 	success := responses["200"].(map[string]any)
 	content := success["content"].(map[string]any)
-	if _, ok := content["text/event-stream"]; !ok {
+	if _, ok := content[mimeEventStream]; !ok {
 		t.Fatal("expected text/event-stream content type for SSE response")
 	}
 	headers := success["headers"].(map[string]any)
-	for _, name := range []string{"Cache-Control", "Connection", "X-Accel-Buffering"} {
+	for _, name := range []string{hdrCacheControl, "Connection", "X-Accel-Buffering"} {
 		if _, ok := headers[name]; !ok {
 			t.Fatalf("expected %s header in SSE response", name)
 		}
@@ -1208,12 +1222,12 @@ func TestSpecBuilder_Good_InfoIncludesLicenseMetadata(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := spec["info"].(map[string]any)
@@ -1239,12 +1253,12 @@ func TestSpecBuilder_Good_InfoIncludesSummary(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := spec["info"].(map[string]any)
@@ -1265,12 +1279,12 @@ func TestSpecBuilder_Good_InfoIncludesContactMetadata(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := spec["info"].(map[string]any)
@@ -1299,12 +1313,12 @@ func TestSpecBuilder_Good_InfoIncludesTermsOfService(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := spec["info"].(map[string]any)
@@ -1324,12 +1338,12 @@ func TestSpecBuilder_Good_InfoIncludesExternalDocs(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	externalDocs, ok := spec["externalDocs"].(map[string]any)
@@ -1397,12 +1411,12 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -1442,14 +1456,14 @@ func TestSpecBuilder_Good_WithDescribableGroup(t *testing.T) {
 		t.Fatal("expected requestBody on POST /api/items/create")
 	}
 	requestBody := postOp.(map[string]any)["requestBody"].(map[string]any)
-	appJSON := requestBody["content"].(map[string]any)["application/json"].(map[string]any)
+	appJSON := requestBody["content"].(map[string]any)[mimeJSON].(map[string]any)
 	if appJSON["example"].(map[string]any)["name"] != "Widget" {
 		t.Fatalf("expected request example to be preserved, got %v", appJSON["example"])
 	}
 
 	responses := postOp.(map[string]any)["responses"].(map[string]any)
 	created := responses["200"].(map[string]any)
-	createdJSON := created["content"].(map[string]any)["application/json"].(map[string]any)
+	createdJSON := created["content"].(map[string]any)[mimeJSON].(map[string]any)
 	if createdJSON["example"].(map[string]any)["id"] != float64(42) {
 		t.Fatalf("expected response example to be preserved, got %v", createdJSON["example"])
 	}
@@ -1467,7 +1481,7 @@ func TestSpecBuilder_Good_DescribeIterGroup(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Iter status",
 				Tags:    []string{"iter"},
 				Response: map[string]any{
@@ -1479,12 +1493,12 @@ func TestSpecBuilder_Good_DescribeIterGroup(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/iter/status"].(map[string]any)["get"].(map[string]any)
@@ -1509,7 +1523,7 @@ func TestSpecBuilder_Good_DescribeIterSnapshotOnce(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Counted status",
 				Tags:    []string{"counted"},
 				Response: map[string]any{
@@ -1521,12 +1535,12 @@ func TestSpecBuilder_Good_DescribeIterSnapshotOnce(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if group.describeCalls != 1 {
@@ -1551,7 +1565,7 @@ func TestSpecBuilder_Good_DescribeIterNilFallsBackToDescribe(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Fallback status",
 				Tags:    []string{"fallback-iter"},
 				Response: map[string]any{
@@ -1563,12 +1577,12 @@ func TestSpecBuilder_Good_DescribeIterNilFallsBackToDescribe(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/fallback-iter/status"].(map[string]any)["get"].(map[string]any)
@@ -1587,7 +1601,7 @@ func TestSpecBuilder_Good_GroupMetadataIsSnapshottedOnce(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Snapshot status",
 				Response: map[string]any{
 					"type": "object",
@@ -1598,12 +1612,12 @@ func TestSpecBuilder_Good_GroupMetadataIsSnapshottedOnce(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -1683,23 +1697,23 @@ func TestSpecBuilder_Good_DeepClonesRouteMetadata(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/items"].(map[string]any)["post"].(map[string]any)
-	requestSchema := op["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	requestSchema := op["requestBody"].(map[string]any)["content"].(map[string]any)[mimeJSON].(map[string]any)["schema"].(map[string]any)
 	if _, ok := requestSchema["mutated"]; ok {
 		t.Fatal("did not expect request body mutation to leak into the spec")
 	}
 
 	responses := op["responses"].(map[string]any)
 	resp201 := responses["200"].(map[string]any)
-	appJSON := resp201["content"].(map[string]any)["application/json"].(map[string]any)
+	appJSON := resp201["content"].(map[string]any)[mimeJSON].(map[string]any)
 	responseSchema := appJSON["schema"].(map[string]any)["properties"].(map[string]any)["data"].(map[string]any)
 	if _, ok := responseSchema["mutated"]; ok {
 		t.Fatal("did not expect response mutation to leak into the spec")
@@ -1741,12 +1755,12 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	responses := spec["paths"].(map[string]any)["/api/private"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
@@ -1770,31 +1784,31 @@ func TestSpecBuilder_Good_SecuredResponses(t *testing.T) {
 	if _, ok := headers["Retry-After"]; !ok {
 		t.Fatal("expected Retry-After header in secured operation 429 response")
 	}
-	if _, ok := headers["X-Request-ID"]; !ok {
+	if _, ok := headers[hdrXRequestID]; !ok {
 		t.Fatal("expected X-Request-ID header in secured operation 429 response")
 	}
-	if _, ok := headers["X-RateLimit-Limit"]; !ok {
+	if _, ok := headers[hdrRateLimit]; !ok {
 		t.Fatal("expected X-RateLimit-Limit header in secured operation 429 response")
 	}
-	if _, ok := headers["X-RateLimit-Remaining"]; !ok {
+	if _, ok := headers[hdrRateRemaining]; !ok {
 		t.Fatal("expected X-RateLimit-Remaining header in secured operation 429 response")
 	}
-	if _, ok := headers["X-RateLimit-Reset"]; !ok {
+	if _, ok := headers[hdrRateReset]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header in secured operation 429 response")
 	}
 	for _, code := range []string{"400", "401", "403", "504", "500"} {
 		resp := responses[code].(map[string]any)
 		respHeaders := resp["headers"].(map[string]any)
-		if _, ok := respHeaders["X-Request-ID"]; !ok {
+		if _, ok := respHeaders[hdrXRequestID]; !ok {
 			t.Fatalf("expected X-Request-ID header in secured operation %s response", code)
 		}
-		if _, ok := respHeaders["X-RateLimit-Limit"]; !ok {
+		if _, ok := respHeaders[hdrRateLimit]; !ok {
 			t.Fatalf("expected X-RateLimit-Limit header in secured operation %s response", code)
 		}
-		if _, ok := respHeaders["X-RateLimit-Remaining"]; !ok {
+		if _, ok := respHeaders[hdrRateRemaining]; !ok {
 			t.Fatalf("expected X-RateLimit-Remaining header in secured operation %s response", code)
 		}
-		if _, ok := respHeaders["X-RateLimit-Reset"]; !ok {
+		if _, ok := respHeaders[hdrRateReset]; !ok {
 			t.Fatalf("expected X-RateLimit-Reset header in secured operation %s response", code)
 		}
 	}
@@ -1824,12 +1838,12 @@ func TestSpecBuilder_Good_CustomSuccessStatusCode(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	responses := spec["paths"].(map[string]any)["/api/items"].(map[string]any)["post"].(map[string]any)["responses"].(map[string]any)
@@ -1873,12 +1887,12 @@ func TestSpecBuilder_Good_NoContentSuccessStatusCode(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	responses := spec["paths"].(map[string]any)["/api/items/{id}"].(map[string]any)["delete"].(map[string]any)["responses"].(map[string]any)
@@ -1903,7 +1917,7 @@ func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:   "GET",
-				Path:     "/public",
+				Path:     pathPublic,
 				Summary:  "Public endpoint",
 				Security: []map[string][]string{},
 				Response: map[string]any{
@@ -1931,12 +1945,12 @@ func TestSpecBuilder_Good_RouteSecurityOverrides(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -1988,7 +2002,7 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeMatchingOperationsPublic(t *te
 		descs: []api.RouteDescription{
 			{
 				Method:   "GET",
-				Path:     "/public",
+				Path:     pathPublic,
 				Summary:  "Public endpoint",
 				Security: []map[string][]string{{"bearerAuth": []string{}}},
 				Response: map[string]any{
@@ -2000,12 +2014,12 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeMatchingOperationsPublic(t *te
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/public"].(map[string]any)["get"].(map[string]any)
@@ -2026,7 +2040,7 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeMatchingOperationsPublic(t *te
 	}
 
 	paths := spec["x-authentik-public-paths"].([]any)
-	if len(paths) == 0 || paths[0] != "/health" {
+	if len(paths) == 0 || paths[0] != pathHealth {
 		t.Fatalf("expected public path extension to include /health first, got %v", paths)
 	}
 }
@@ -2036,21 +2050,21 @@ func TestSpecBuilder_Good_AuthentikPublicPathsMakeBuiltInEndpointsPublic(t *test
 		Title:                "Test",
 		Version:              "1.0.0",
 		GraphQLEnabled:       true,
-		GraphQLPath:          "/graphql",
-		AuthentikPublicPaths: []string{"/graphql"},
+		GraphQLPath:          pathGraphQL,
+		AuthentikPublicPaths: []string{pathGraphQL},
 	}
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
-	pathItem := spec["paths"].(map[string]any)["/graphql"].(map[string]any)
+	pathItem := spec["paths"].(map[string]any)[pathGraphQL].(map[string]any)
 	for _, method := range []string{"get", "post"} {
 		op := pathItem[method].(map[string]any)
 		security, ok := op["security"].([]any)
@@ -2099,12 +2113,12 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -2113,23 +2127,23 @@ func TestSpecBuilder_Good_EnvelopeWrapping(t *testing.T) {
 	responses := getOp["responses"].(map[string]any)
 	resp200 := responses["200"].(map[string]any)
 	headers := resp200["headers"].(map[string]any)
-	if _, ok := headers["X-Request-ID"]; !ok {
+	if _, ok := headers[hdrXRequestID]; !ok {
 		t.Fatal("expected X-Request-ID header on 200 response")
 	}
-	if _, ok := headers["X-RateLimit-Limit"]; !ok {
+	if _, ok := headers[hdrRateLimit]; !ok {
 		t.Fatal("expected X-RateLimit-Limit header on 200 response")
 	}
-	if _, ok := headers["X-RateLimit-Remaining"]; !ok {
+	if _, ok := headers[hdrRateRemaining]; !ok {
 		t.Fatal("expected X-RateLimit-Remaining header on 200 response")
 	}
-	if _, ok := headers["X-RateLimit-Reset"]; !ok {
+	if _, ok := headers[hdrRateReset]; !ok {
 		t.Fatal("expected X-RateLimit-Reset header on 200 response")
 	}
-	if _, ok := headers["X-Cache"]; !ok {
+	if _, ok := headers[hdrXCache]; !ok {
 		t.Fatal("expected X-Cache header on 200 response")
 	}
 	content := resp200["content"].(map[string]any)
-	appJSON := content["application/json"].(map[string]any)
+	appJSON := content[mimeJSON].(map[string]any)
 	schema := appJSON["schema"].(map[string]any)
 	if getOp["operationId"] != "get_data_fetch" {
 		t.Fatalf("expected operationId='get_data_fetch', got %v", getOp["operationId"])
@@ -2205,12 +2219,12 @@ func TestSpecBuilder_Good_OperationIDPreservesPathParams(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -2258,12 +2272,12 @@ func TestSpecBuilder_Good_RequestBodyOnDelete(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -2303,12 +2317,12 @@ func TestSpecBuilder_Good_RequestBodyOnHead(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -2345,17 +2359,17 @@ func TestSpecBuilder_Good_RequestExampleWithoutSchema(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	postOp := spec["paths"].(map[string]any)["/api/resources"].(map[string]any)["post"].(map[string]any)
 	requestBody := postOp["requestBody"].(map[string]any)
-	appJSON := requestBody["content"].(map[string]any)["application/json"].(map[string]any)
+	appJSON := requestBody["content"].(map[string]any)[mimeJSON].(map[string]any)
 
 	if appJSON["example"].(map[string]any)["name"] != "Example resource" {
 		t.Fatalf("expected request example to be preserved, got %v", appJSON["example"])
@@ -2391,18 +2405,18 @@ func TestSpecBuilder_Good_ResponseExampleWithoutSchema(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	getOp := spec["paths"].(map[string]any)["/api/resources/{id}"].(map[string]any)["get"].(map[string]any)
 	responses := getOp["responses"].(map[string]any)
 	resp200 := responses["200"].(map[string]any)
-	appJSON := resp200["content"].(map[string]any)["application/json"].(map[string]any)
+	appJSON := resp200["content"].(map[string]any)[mimeJSON].(map[string]any)
 
 	if appJSON["example"].(map[string]any)["name"] != "Example resource" {
 		t.Fatalf("expected response example to be preserved, got %v", appJSON["example"])
@@ -2433,8 +2447,8 @@ func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 				Path:    "/exports/{id}",
 				Summary: "Download export",
 				ResponseHeaders: map[string]string{
-					"Content-Disposition": "Download filename suggested by the server",
-					"X-Export-ID":         "Identifier for the generated export",
+					hdrContentDisp: "Download filename suggested by the server",
+					"X-Export-ID":  "Identifier for the generated export",
 				},
 				Response: map[string]any{
 					"type": "object",
@@ -2445,12 +2459,12 @@ func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	responses := spec["paths"].(map[string]any)["/api/exports/{id}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
@@ -2460,7 +2474,7 @@ func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 		t.Fatalf("expected headers map, got %T", resp200["headers"])
 	}
 
-	header, ok := headers["Content-Disposition"].(map[string]any)
+	header, ok := headers[hdrContentDisp].(map[string]any)
 	if !ok {
 		t.Fatal("expected Content-Disposition response header to be documented")
 	}
@@ -2477,7 +2491,7 @@ func TestSpecBuilder_Good_ResponseHeaders(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 500 headers map, got %T", errorResp["headers"])
 	}
-	if _, ok := errorHeaders["Content-Disposition"]; !ok {
+	if _, ok := errorHeaders[hdrContentDisp]; !ok {
 		t.Fatal("expected route-specific headers on error responses too")
 	}
 	if _, ok := errorHeaders["X-Export-ID"]; !ok {
@@ -2508,12 +2522,12 @@ func TestSpecBuilder_Good_PathParameters(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/users/{id}/{slug}"].(map[string]any)["get"].(map[string]any)
@@ -2565,12 +2579,12 @@ func TestSpecBuilder_Good_PathNormalisation(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -2610,12 +2624,12 @@ func TestSpecBuilder_Good_GinPathParameters(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -2680,12 +2694,12 @@ func TestSpecBuilder_Good_ExplicitParameters(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/users/{id}"].(map[string]any)["get"].(map[string]any)
@@ -2728,12 +2742,12 @@ func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{plainStubGroup{}})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	// Verify plainStubGroup appears in tags.
@@ -2755,10 +2769,10 @@ func TestSpecBuilder_Good_NonDescribableGroup(t *testing.T) {
 	if len(paths) != 1 {
 		t.Fatalf("expected 1 path (/health only), got %d", len(paths))
 	}
-	if _, ok := paths["/health"]; !ok {
+	if _, ok := paths[pathHealth]; !ok {
 		t.Fatal("expected /health path in spec")
 	}
-	health := paths["/health"].(map[string]any)["get"].(map[string]any)
+	health := paths[pathHealth].(map[string]any)["get"].(map[string]any)
 	if health["operationId"] != "get_health" {
 		t.Fatalf("expected operationId='get_health', got %v", health["operationId"])
 	}
@@ -2784,12 +2798,12 @@ func TestSpecBuilder_Good_EmptyDescribableGroupStillAddsTag(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags := spec["tags"].([]any)
@@ -2809,7 +2823,7 @@ func TestSpecBuilder_Good_EmptyDescribableGroupStillAddsTag(t *testing.T) {
 	if len(paths) != 1 {
 		t.Fatalf("expected only /health path, got %d paths", len(paths))
 	}
-	if _, ok := paths["/health"]; !ok {
+	if _, ok := paths[pathHealth]; !ok {
 		t.Fatal("expected /health path in spec")
 	}
 }
@@ -2826,7 +2840,7 @@ func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Check status",
 				Response: map[string]any{
 					"type": "object",
@@ -2837,18 +2851,18 @@ func TestSpecBuilder_Good_DefaultTagsFromGroupName(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	operation := spec["paths"].(map[string]any)["/api/fallback/status"].(map[string]any)["get"].(map[string]any)
 	tags, ok := operation["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", operation["tags"])
+		t.Fatalf(fmtTestExpectedTags, operation["tags"])
 	}
 	if len(tags) != 1 || tags[0] != "fallback" {
 		t.Fatalf("expected fallback tag from group name, got %v", operation["tags"])
@@ -2867,7 +2881,7 @@ func TestSpecBuilder_Good_TagsAreSortedDeterministically(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Check status",
 				Tags:    []string{"zeta", "alpha", "beta"},
 				Response: map[string]any{
@@ -2879,17 +2893,17 @@ func TestSpecBuilder_Good_TagsAreSortedDeterministically(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags, ok := spec["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", spec["tags"])
+		t.Fatalf(fmtTestExpectedTags, spec["tags"])
 	}
 
 	names := make([]string, 0, len(tags))
@@ -2922,7 +2936,7 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:      "GET",
-				Path:        "/status",
+				Path:        pathStatus,
 				Summary:     "Check legacy status",
 				Deprecated:  true,
 				SunsetDate:  "2025-06-01",
@@ -2936,12 +2950,12 @@ func TestSpecBuilder_Good_DeprecatedOperation(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/legacy/status"].(map[string]any)["get"].(map[string]any)
@@ -3005,7 +3019,7 @@ func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Check status",
 				Tags:    []string{"", "  ", "data", "data"},
 				Response: map[string]any{
@@ -3017,12 +3031,12 @@ func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags := spec["tags"].([]any)
@@ -3044,7 +3058,7 @@ func TestSpecBuilder_Good_BlankTagsAreIgnored(t *testing.T) {
 	op := spec["paths"].(map[string]any)["/api/blank/status"].(map[string]any)["get"].(map[string]any)
 	opTags, ok := op["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", op["tags"])
+		t.Fatalf(fmtTestExpectedTags, op["tags"])
 	}
 	if len(opTags) != 1 || opTags[0] != "data" {
 		t.Fatalf("expected operation tags to be cleaned to [data], got %v", opTags)
@@ -3063,7 +3077,7 @@ func TestSpecBuilder_Good_BlankRouteTagsFallBackToGroupName(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Check status",
 				Tags:    []string{"", "  "},
 				Response: map[string]any{
@@ -3075,18 +3089,18 @@ func TestSpecBuilder_Good_BlankRouteTagsFallBackToGroupName(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	op := spec["paths"].(map[string]any)["/api/fallback/status"].(map[string]any)["get"].(map[string]any)
 	tags, ok := op["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", op["tags"])
+		t.Fatalf(fmtTestExpectedTags, op["tags"])
 	}
 	if len(tags) != 1 || tags[0] != "fallback" {
 		t.Fatalf("expected blank route tags to fall back to group name, got %v", tags)
@@ -3105,7 +3119,7 @@ func TestSpecBuilder_Good_HiddenRoutesAreOmitted(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/public",
+				Path:    pathPublic,
 				Summary: "Public endpoint",
 				Tags:    []string{"public"},
 				Response: map[string]any{
@@ -3132,7 +3146,7 @@ func TestSpecBuilder_Good_HiddenRoutesAreOmitted(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  "GET",
-				Path:    "/status",
+				Path:    pathStatus,
 				Summary: "Hidden group endpoint",
 				Tags:    []string{"hidden"},
 				Response: map[string]any{
@@ -3144,12 +3158,12 @@ func TestSpecBuilder_Good_HiddenRoutesAreOmitted(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{visible, hidden})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -3247,17 +3261,17 @@ func TestSpecBuilder_Good_ToolBridgeIntegration(t *testing.T) {
 
 	data, err := sb.Build([]api.RouteGroup{bridge})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	tags, ok := spec["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", spec["tags"])
+		t.Fatalf(fmtTestExpectedTags, spec["tags"])
 	}
 	expectedTags := map[string]bool{
 		"system":  true,
@@ -3326,12 +3340,12 @@ func TestSpecBuilder_Bad_InfoFields(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := spec["info"].(map[string]any)
@@ -3354,18 +3368,18 @@ func TestSpecBuilder_Good_Servers(t *testing.T) {
 			" https://api.example.com ",
 			"/",
 			"",
-			"https://api.example.com",
+			apiBaseURL,
 		},
 	}
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	servers, ok := spec["servers"].([]any)
@@ -3377,8 +3391,8 @@ func TestSpecBuilder_Good_Servers(t *testing.T) {
 	}
 
 	first := servers[0].(map[string]any)
-	if first["url"] != "https://api.example.com" {
-		t.Fatalf("expected first server url=%q, got %v", "https://api.example.com", first["url"])
+	if first["url"] != apiBaseURL {
+		t.Fatalf("expected first server url=%q, got %v", apiBaseURL, first["url"])
 	}
 	second := servers[1].(map[string]any)
 	if second["url"] != "/" {
@@ -3392,7 +3406,7 @@ func TestSpecBuilder_Good_ServersCollapseTrailingSlashes(t *testing.T) {
 		Version: "1.0.0",
 		Servers: []string{
 			"https://api.example.com/",
-			"https://api.example.com",
+			apiBaseURL,
 			"/api/",
 			"/api",
 		},
@@ -3400,12 +3414,12 @@ func TestSpecBuilder_Good_ServersCollapseTrailingSlashes(t *testing.T) {
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	servers, ok := spec["servers"].([]any)
@@ -3417,8 +3431,8 @@ func TestSpecBuilder_Good_ServersCollapseTrailingSlashes(t *testing.T) {
 	}
 
 	first := servers[0].(map[string]any)
-	if first["url"] != "https://api.example.com" {
-		t.Fatalf("expected first server url=%q, got %v", "https://api.example.com", first["url"])
+	if first["url"] != apiBaseURL {
+		t.Fatalf("expected first server url=%q, got %v", apiBaseURL, first["url"])
 	}
 	second := servers[1].(map[string]any)
 	if second["url"] != "/api" {
@@ -3436,22 +3450,22 @@ func TestSpecBuilder_Good_RuntimeDebugEndpointsDocumentRateLimitHeaders(t *testi
 
 	data, err := sb.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
-	for _, path := range []string{"/debug/pprof", "/debug/vars"} {
+	for _, path := range []string{pathDebugPprof, pathDebugVars} {
 		item := paths[path].(map[string]any)
 		op := item["get"].(map[string]any)
 		for _, code := range []string{"200", "401", "403"} {
 			resp := op["responses"].(map[string]any)[code].(map[string]any)
 			headers := resp["headers"].(map[string]any)
-			for _, name := range []string{"X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
+			for _, name := range []string{hdrXRequestID, hdrRateLimit, hdrRateRemaining, hdrRateReset} {
 				if _, ok := headers[name]; !ok {
 					t.Fatalf("expected %s header on %s %s response", name, path, code)
 				}

@@ -89,7 +89,7 @@ func (g plusJSONResponseMetaTestGroup) Name() string     { return "plus-json-res
 func (g plusJSONResponseMetaTestGroup) BasePath() string { return "/v1" }
 func (g plusJSONResponseMetaTestGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/plus-json", func(c *gin.Context) {
-		c.Header("Content-Type", "application/problem+json")
+		c.Header(hdrContentType, "application/problem+json")
 		c.Status(http.StatusOK)
 		_, _ = c.Writer.Write([]byte(`{"success":true,"data":"ok"}`))
 	})
@@ -113,7 +113,7 @@ func TestBearerAuth_Bad_MissingToken(t *testing.T) {
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Error == nil || resp.Error.Code != "unauthorised" {
 		t.Fatalf("expected error code=%q, got %+v", "unauthorised", resp.Error)
@@ -137,7 +137,7 @@ func TestBearerAuth_Bad_WrongToken(t *testing.T) {
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Error == nil || resp.Error.Code != "unauthorised" {
 		t.Fatalf("expected error code=%q, got %+v", "unauthorised", resp.Error)
@@ -156,15 +156,15 @@ func TestBearerAuth_Good_CorrectToken(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data != "classified" {
-		t.Fatalf("expected Data=%q, got %q", "classified", resp.Data)
+		t.Fatalf(fmtTestExpectedData, "classified", resp.Data)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestBearerAuth_Good_HealthBypassesAuth(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	// No Authorization header.
 	h.ServeHTTP(w, req)
 
@@ -192,7 +192,7 @@ func TestBearerAuth_Good_OpenAPISpecBypassesAuth(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/v1/openapi.json", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathOpenAPIJSON, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -223,10 +223,10 @@ func TestRequestID_Good_GeneratedWhenMissing(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
-	id := w.Header().Get("X-Request-ID")
+	id := w.Header().Get(hdrXRequestID)
 	if id == "" {
 		t.Fatal("expected X-Request-ID header to be set")
 	}
@@ -242,11 +242,11 @@ func TestRequestID_Good_PreservesClientID(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
-	req.Header.Set("X-Request-ID", "client-id-abc")
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
+	req.Header.Set(hdrXRequestID, "client-id-abc")
 	h.ServeHTTP(w, req)
 
-	id := w.Header().Get("X-Request-ID")
+	id := w.Header().Get(hdrXRequestID)
 	if id != "client-id-abc" {
 		t.Fatalf("expected X-Request-ID=%q, got %q", "client-id-abc", id)
 	}
@@ -262,11 +262,11 @@ func TestRequestID_Good_ContextAccessor(t *testing.T) {
 	h := e.Handler()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/secret", nil)
-	req.Header.Set("X-Request-ID", "client-id-xyz")
+	req.Header.Set(hdrXRequestID, "client-id-xyz")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	if gotID == "" {
@@ -285,16 +285,16 @@ func TestRequestID_Good_RequestMetaHelper(t *testing.T) {
 	h := e.Handler()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
-	req.Header.Set("X-Request-ID", "client-id-meta")
+	req.Header.Set(hdrXRequestID, "client-id-meta")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta == nil {
 		t.Fatal("expected Meta to be present")
@@ -321,16 +321,16 @@ func TestResponseMeta_Good_AttachesMetaAutomatically(t *testing.T) {
 	h := e.Handler()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
-	req.Header.Set("X-Request-ID", "client-id-auto-meta")
+	req.Header.Set(hdrXRequestID, "client-id-auto-meta")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta == nil {
 		t.Fatal("expected Meta to be present")
@@ -344,7 +344,7 @@ func TestResponseMeta_Good_AttachesMetaAutomatically(t *testing.T) {
 	if resp.Meta.Page != 1 || resp.Meta.PerPage != 25 || resp.Meta.Total != 100 {
 		t.Fatalf("expected pagination metadata to be preserved, got %+v", resp.Meta)
 	}
-	if got := w.Header().Get("X-Request-ID"); got != "client-id-auto-meta" {
+	if got := w.Header().Get(hdrXRequestID); got != "client-id-auto-meta" {
 		t.Fatalf("expected response header X-Request-ID=%q, got %q", "client-id-auto-meta", got)
 	}
 }
@@ -360,16 +360,16 @@ func TestResponseMeta_Good_AttachesMetaToErrorResponses(t *testing.T) {
 	h := e.Handler()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/error", nil)
-	req.Header.Set("X-Request-ID", "client-id-auto-error-meta")
+	req.Header.Set(hdrXRequestID, "client-id-auto-error-meta")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", w.Code)
+		t.Fatalf(fmtTestExpected400, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta == nil {
 		t.Fatal("expected Meta to be present")
@@ -396,20 +396,20 @@ func TestResponseMeta_Good_AttachesMetaToPlusJSONContentType(t *testing.T) {
 	h := e.Handler()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/plus-json", nil)
-	req.Header.Set("X-Request-ID", "client-id-plus-json-meta")
+	req.Header.Set(hdrXRequestID, "client-id-plus-json-meta")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	if got := w.Header().Get("Content-Type"); got != "application/problem+json" {
+	if got := w.Header().Get(hdrContentType); got != "application/problem+json" {
 		t.Fatalf("expected Content-Type to be preserved, got %q", got)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta == nil {
 		t.Fatal("expected Meta to be present")
@@ -430,7 +430,7 @@ func TestCORS_Good_PreflightAllOrigins(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodOptions, "/health", nil)
+	req, _ := http.NewRequest(http.MethodOptions, pathHealth, nil)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	req.Header.Set("Access-Control-Request-Headers", "Authorization")
@@ -462,7 +462,7 @@ func TestCORS_Good_SpecificOrigin(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodOptions, "/health", nil)
+	req, _ := http.NewRequest(http.MethodOptions, pathHealth, nil)
 	req.Header.Set("Origin", "https://app.example.com")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	h.ServeHTTP(w, req)
@@ -479,7 +479,7 @@ func TestCORS_Bad_DisallowedOrigin(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodOptions, "/health", nil)
+	req, _ := http.NewRequest(http.MethodOptions, pathHealth, nil)
 	req.Header.Set("Origin", "https://evil.example.com")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	h.ServeHTTP(w, req)

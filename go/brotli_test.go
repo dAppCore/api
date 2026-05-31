@@ -27,15 +27,15 @@ func TestWithBrotli_Good_CompressesResponse(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "br")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "br")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "br" {
 		t.Fatalf("expected Content-Encoding=%q, got %q", "br", ce)
 	}
@@ -48,15 +48,15 @@ func TestWithBrotli_Good_NoCompressionWithoutAcceptHeader(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	// Deliberately not setting Accept-Encoding header.
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce == "br" {
 		t.Fatal("expected no br Content-Encoding when client does not request it")
 	}
@@ -90,15 +90,15 @@ func TestWithBrotli_Good_AcceptEncodingTokenParsing(t *testing.T) {
 
 			h := e.Handler()
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-			req.Header.Set("Accept-Encoding", tt.acceptEncoding)
+			req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+			req.Header.Set(hdrAcceptEnc, tt.acceptEncoding)
 			h.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
-				t.Fatalf("expected 200, got %d", w.Code)
+				t.Fatalf(fmtTestExpected200, w.Code)
 			}
 
-			gotBrotli := w.Header().Get("Content-Encoding") == "br"
+			gotBrotli := w.Header().Get(hdrContentEnc) == "br"
 			if gotBrotli != tt.wantBrotli {
 				t.Fatalf("expected brotli=%v for Accept-Encoding %q, got %v", tt.wantBrotli, tt.acceptEncoding, gotBrotli)
 			}
@@ -115,15 +115,15 @@ func TestWithBrotli_Good_DefaultLevel(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "br")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "br")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "br" {
 		t.Fatalf("expected Content-Encoding=%q with default level, got %q", "br", ce)
 	}
@@ -137,15 +137,15 @@ func TestWithBrotli_Good_CustomLevel(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "br")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "br")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "br" {
 		t.Fatalf("expected Content-Encoding=%q with BestSpeed, got %q", "br", ce)
 	}
@@ -161,21 +161,21 @@ func TestWithBrotli_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "br")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "br")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Both brotli compression and request ID should be present.
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "br" {
 		t.Fatalf("expected Content-Encoding=%q, got %q", "br", ce)
 	}
 
-	rid := w.Header().Get("X-Request-ID")
+	rid := w.Header().Get(hdrXRequestID)
 	if rid == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
@@ -207,7 +207,7 @@ func TestWithBrotli_Good_DropsLateWritesAfterHandlerReturn(t *testing.T) {
 
 	w1 := httptest.NewRecorder()
 	req1 := httptest.NewRequest(http.MethodGet, "/brotli-late/leaky", nil)
-	req1.Header.Set("Accept-Encoding", "br")
+	req1.Header.Set(hdrAcceptEnc, "br")
 	h.ServeHTTP(w1, req1)
 
 	select {
@@ -222,13 +222,13 @@ func TestWithBrotli_Good_DropsLateWritesAfterHandlerReturn(t *testing.T) {
 
 	w2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodGet, "/brotli-late/target", nil)
-	req2.Header.Set("Accept-Encoding", "br")
+	req2.Header.Set(hdrAcceptEnc, "br")
 	h.ServeHTTP(w2, req2)
 
 	if w2.Code != http.StatusOK {
 		t.Fatalf("expected second request status 200, got %d", w2.Code)
 	}
-	if ce := w2.Header().Get("Content-Encoding"); ce != "br" {
+	if ce := w2.Header().Get(hdrContentEnc); ce != "br" {
 		t.Fatalf("expected second response Content-Encoding=%q, got %q", "br", ce)
 	}
 

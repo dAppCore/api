@@ -46,22 +46,22 @@ func TestWithTimeout_Good_FastRequestSucceeds(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if !resp.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if resp.Data != "pong" {
-		t.Fatalf("expected Data=%q, got %q", "pong", resp.Data)
+		t.Fatalf(fmtTestExpectedData, "pong", resp.Data)
 	}
 }
 
@@ -98,10 +98,10 @@ func TestWithTimeout_Good_TimeoutResponseEnvelope(t *testing.T) {
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Success {
-		t.Fatal("expected Success=false")
+		t.Fatal(fmtTestExpectedFail)
 	}
 	if resp.Error == nil {
 		t.Fatal("expected Error to be non-nil")
@@ -124,25 +124,25 @@ func TestWithTimeout_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// WithRequestID should still set the header.
-	id := w.Header().Get("X-Request-ID")
+	id := w.Header().Get(hdrXRequestID)
 	if id == "" {
 		t.Fatal("expected X-Request-ID header to be set")
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data != "pong" {
-		t.Fatalf("expected Data=%q, got %q", "pong", resp.Data)
+		t.Fatalf(fmtTestExpectedData, "pong", resp.Data)
 	}
 }
 
@@ -151,13 +151,13 @@ func TestWithTimeout_Ugly_ZeroDurationDoesNotPanic(t *testing.T) {
 
 	e, err := api.New(api.WithTimeout(0))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(&stubGroup{})
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -166,9 +166,9 @@ func TestWithTimeout_Ugly_ZeroDurationDoesNotPanic(t *testing.T) {
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data != "pong" {
-		t.Fatalf("expected Data=%q, got %q", "pong", resp.Data)
+		t.Fatalf(fmtTestExpectedData, "pong", resp.Data)
 	}
 }

@@ -812,7 +812,7 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 			return
 		}
 
-		c.Header("Content-Type", "text/event-stream")
+		c.Header(hdrContentType, "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
 		c.Header("Connection", "keep-alive")
 		c.Status(200)
@@ -1233,7 +1233,7 @@ func writeChatCompletionError(c *gin.Context, status int, errType, param, messag
 			Code:    codeOrDefault(code, errType),
 		},
 	}
-	c.Header("Content-Type", "application/json")
+	c.Header(hdrContentType, mimeJSON)
 	if status == http.StatusServiceUnavailable {
 		// Retry-After must be set BEFORE c.JSON commits headers to the
 		// wire. RFC 9110 §10.2.3 allows either seconds or an HTTP-date;

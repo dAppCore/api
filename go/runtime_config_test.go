@@ -25,16 +25,16 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 		}),
 		api.WithWSPath("/socket"),
 		api.WithSSE(broker),
-		api.WithSSEPath("/events"),
+		api.WithSSEPath(pathEvents),
 		api.WithAuthentik(api.AuthentikConfig{
 			Issuer:       "https://auth.example.com",
 			ClientID:     "runtime-client",
 			TrustedProxy: true,
-			PublicPaths:  []string{"/public", "/docs"},
+			PublicPaths:  []string{pathPublic, "/docs"},
 		}),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.RuntimeConfig()
@@ -48,7 +48,7 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if cfg.Transport.SwaggerPath != "/docs" {
 		t.Fatalf("expected transport swagger path /docs, got %q", cfg.Transport.SwaggerPath)
 	}
-	if cfg.Transport.GraphQLPlaygroundPath != "/graphql/playground" {
+	if cfg.Transport.GraphQLPlaygroundPath != pathGraphQLPlay {
 		t.Fatalf("expected transport graphql playground path /graphql/playground, got %q", cfg.Transport.GraphQLPlaygroundPath)
 	}
 	if !cfg.Cache.Enabled || cfg.Cache.TTL != 5*time.Minute {
@@ -57,13 +57,13 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if !cfg.GraphQL.Enabled {
 		t.Fatal("expected GraphQL snapshot to be enabled")
 	}
-	if cfg.GraphQL.Path != "/graphql" {
+	if cfg.GraphQL.Path != pathGraphQL {
 		t.Fatalf("expected GraphQL path /graphql, got %q", cfg.GraphQL.Path)
 	}
 	if !cfg.GraphQL.Playground {
 		t.Fatal("expected GraphQL playground snapshot to be enabled")
 	}
-	if cfg.GraphQL.PlaygroundPath != "/graphql/playground" {
+	if cfg.GraphQL.PlaygroundPath != pathGraphQLPlay {
 		t.Fatalf("expected GraphQL playground path /graphql/playground, got %q", cfg.GraphQL.PlaygroundPath)
 	}
 	if cfg.I18n.DefaultLocale != "en-GB" {
@@ -81,7 +81,7 @@ func TestEngine_RuntimeConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if !cfg.Authentik.TrustedProxy {
 		t.Fatal("expected Authentik trusted proxy to be enabled")
 	}
-	if !slices.Equal(cfg.Authentik.PublicPaths, []string{"/public", "/docs"}) {
+	if !slices.Equal(cfg.Authentik.PublicPaths, []string{pathPublic, "/docs"}) {
 		t.Fatalf("expected Authentik public paths [/public /docs], got %v", cfg.Authentik.PublicPaths)
 	}
 }
