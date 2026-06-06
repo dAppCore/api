@@ -50,7 +50,7 @@ func (e *Engine) TransportConfig() TransportConfig {
 		SSEEnabled:             e.sseBroker != nil,
 		PprofEnabled:           e.pprofEnabled,
 		ExpvarEnabled:          e.expvarEnabled,
-		ChatCompletionsEnabled: e.chatCompletionsResolver != nil,
+		ChatCompletionsEnabled: e.chatCompletionsResolver != nil || e.chatRemote != nil,
 		OpenAPISpecEnabled:     e.openAPISpecEnabled,
 	}
 	gql := e.GraphQLConfig()
