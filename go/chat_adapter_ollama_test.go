@@ -68,3 +68,90 @@ func TestOllamaAdapter_Transcode_Good(t *testing.T) {
 		t.Errorf("missing terminal/[DONE]: %s", got)
 	}
 }
+
+func TestOllamaAdapter_Transcode_EmptyStream_Good(t *testing.T) {
+	a := api.OllamaAdapter()
+	stream := `{"done":true,"done_reason":"stop"}`
+	var buf bytes.Buffer
+	err := a.Transcoder().Transcode(&buf, func() {}, strings.NewReader(stream), api.ChatStreamMeta{ID: "id", Model: "llama3", Created: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, `"role":"assistant"`) {
+		t.Errorf("missing role-priming chunk: %s", got)
+	}
+	if !strings.Contains(got, `"finish_reason":"stop"`) || !strings.Contains(got, "data: [DONE]") {
+		t.Errorf("missing finish/[DONE]: %s", got)
+	}
+}
+
+func TestOllamaAdapter_Transcode_MalformedLineSkipped_Ugly(t *testing.T) {
+	a := api.OllamaAdapter()
+	stream := strings.Join([]string{
+		`{"message":{"role":"assistant","content":"He"},"done":false}`,
+		`{not json`,
+		`{"message":{"role":"assistant","content":"llo"},"done":false}`,
+		`{"message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}`,
+	}, "\n")
+	var buf bytes.Buffer
+	err := a.Transcoder().Transcode(&buf, func() {}, strings.NewReader(stream), api.ChatStreamMeta{ID: "id", Model: "llama3", Created: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, `"content":"He"`) || !strings.Contains(got, `"content":"llo"`) {
+		t.Errorf("malformed line aborted stream, deltas missing: %s", got)
+	}
+	if !strings.Contains(got, "data: [DONE]") {
+		t.Errorf("missing [DONE] after malformed line skip: %s", got)
+	}
+}
+
+func TestOllamaAdapter_Transcode_DoneWithContent_Good(t *testing.T) {
+	a := api.OllamaAdapter()
+	stream := strings.Join([]string{
+		`{"message":{"role":"assistant","content":"Hi"},"done":false}`,
+		`{"message":{"role":"assistant","content":"!"},"done":true,"done_reason":"stop"}`,
+	}, "\n")
+	var buf bytes.Buffer
+	err := a.Transcoder().Transcode(&buf, func() {}, strings.NewReader(stream), api.ChatStreamMeta{ID: "id", Model: "llama3", Created: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, `"content":"!"`) {
+		t.Errorf("trailing content on done line dropped: %s", got)
+	}
+	finishIdx := strings.Index(got, `"finish_reason":"stop"`)
+	contentIdx := strings.Index(got, `"content":"!"`)
+	if finishIdx < 0 || contentIdx < 0 || contentIdx > finishIdx {
+		t.Errorf("trailing content must precede finish chunk: %s", got)
+	}
+}
+
+func TestOllamaAdapter_DecodeResponse_Length_Good(t *testing.T) {
+	a := api.OllamaAdapter()
+	out, err := a.DecodeResponse("llama3", []byte(`{"message":{"role":"assistant","content":"x"},"done":true,"done_reason":"length"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Choices[0].FinishReason != "length" {
+		t.Errorf("done_reason length not mapped: %s", out.Choices[0].FinishReason)
+	}
+}
+
+func TestOllamaAdapter_BuildRequest_NoOptions_Good(t *testing.T) {
+	a := api.OllamaAdapter()
+	body, _, err := a.BuildRequest(api.ChatCompletionRequest{
+		Model: "llama3", Messages: []api.ChatMessage{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(body, &got)
+	if _, ok := got["options"]; ok {
+		t.Errorf("options key present when no sampling params set: %s", body)
+	}
+}

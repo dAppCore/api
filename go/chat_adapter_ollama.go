@@ -105,6 +105,17 @@ func (ollamaTranscoder) Transcode(w io.Writer, flush func(), upstream io.Reader,
 			continue // skip malformed line
 		}
 		if or.Done {
+			if or.Message.Content != "" || first {
+				delta := ChatMessageDelta{Content: or.Message.Content}
+				if first {
+					delta.Role = "assistant"
+					first = false
+				}
+				writeChatChunk(w, flush, ChatCompletionChunk{
+					ID: meta.ID, Object: "chat.completion.chunk", Created: meta.Created, Model: meta.Model,
+					Choices: []ChatChunkChoice{{Index: 0, Delta: delta, FinishReason: nil}},
+				})
+			}
 			fr := ollamaFinish(or.DoneReason)
 			writeChatChunk(w, flush, ChatCompletionChunk{
 				ID: meta.ID, Object: "chat.completion.chunk", Created: meta.Created, Model: meta.Model,
@@ -122,6 +133,9 @@ func (ollamaTranscoder) Transcode(w io.Writer, flush func(), upstream io.Reader,
 			Choices: []ChatChunkChoice{{Index: 0, Delta: delta, FinishReason: nil}},
 		})
 	}
+	if err := scanner.Err(); err != nil {
+		return err // truncated stream signals incomplete; do NOT emit [DONE]
+	}
 	writeSSEDone(w, flush)
-	return scanner.Err()
+	return nil
 }
