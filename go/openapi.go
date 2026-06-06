@@ -52,6 +52,7 @@ type SpecBuilder struct {
 	ChatCompletionsPath     string
 	OpenAPISpecEnabled      bool
 	OpenAPISpecPath         string
+	UpstreamRouterPaths     []string
 	CacheEnabled            bool
 	CacheTTL                string
 	CacheMaxEntries         int
@@ -496,6 +497,21 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				}
 			}
 		}
+	}
+
+	for _, rawPath := range sb.UpstreamRouterPaths {
+		routerPath := normaliseOpenAPIPath(rawPath)
+		if routerPath == "" {
+			continue
+		}
+		if _, exists := paths[routerPath]; exists {
+			continue // a real item (chat, spec, swagger, or a group) already documents this path
+		}
+		item := upstreamRouterPathItem(routerPath, operationIDs)
+		if isPublicPathForList(routerPath, publicPaths) {
+			makePathItemPublic(item)
+		}
+		paths[routerPath] = item
 	}
 
 	// The built-in health check remains public, so override the inherited
@@ -1010,6 +1026,14 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		seen["inference"] = true
 	}
 
+	if len(sb.UpstreamRouterPaths) > 0 && !seen["proxy"] {
+		tags = append(tags, map[string]any{
+			"name":        "proxy",
+			"description": "Selector-routed upstream proxy endpoints",
+		})
+		seen["proxy"] = true
+	}
+
 	for _, g := range groups {
 		name := core.Trim(g.name)
 		if name != "" && !seen[name] {
@@ -1419,6 +1443,58 @@ func openAPISpecPathItem(path string, operationIDs map[string]int) map[string]an
 						},
 					},
 					"headers": errorHeaders,
+				},
+			},
+		},
+	}
+}
+
+// upstreamRouterPathItem documents a WithUpstreamRouter mounted path as a
+// minimal, honest POST proxy operation. The router proxies arbitrary shapes by
+// selector key, so request/response schemas are generic by design; the path is
+// tagged "proxy" to distinguish it from the typed "inference" chat endpoint.
+func upstreamRouterPathItem(path string, operationIDs map[string]int) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	genericObject := func() map[string]any {
+		return map[string]any{"type": "object", "additionalProperties": true}
+	}
+
+	return map[string]any{
+		"post": map[string]any{
+			"summary":     "Upstream router (selector-routed proxy)",
+			"description": "Selector-routed reverse proxy. The request body must carry the selector field (default \"model\"); the concrete request and response schemas depend on the target upstream/model. Streams Server-Sent Events when the upstream does.",
+			"tags":        []string{"proxy"},
+			"operationId": operationID("post", path, operationIDs),
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					mimeJSON: map[string]any{"schema": genericObject()},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Proxied upstream response",
+					"content": map[string]any{
+						mimeJSON:            map[string]any{"schema": genericObject()},
+						"text/event-stream": map[string]any{"schema": map[string]any{"type": "string"}},
+					},
+					"headers": successHeaders,
+				},
+				"404": map[string]any{
+					"description": "No upstream registered for the selector key",
+					"content":     map[string]any{mimeJSON: map[string]any{"schema": genericObject()}},
+					"headers":     errorHeaders,
+				},
+				"503": map[string]any{
+					"description": "All upstreams unavailable",
+					"content":     map[string]any{mimeJSON: map[string]any{"schema": genericObject()}},
+					"headers": mergeHeaders(errorHeaders, map[string]any{
+						"Retry-After": map[string]any{
+							"description": "Seconds to wait before retrying.",
+							"schema":      map[string]any{"type": "integer"},
+						},
+					}),
 				},
 			},
 		},

@@ -2,7 +2,10 @@
 
 package api
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestTransport_normaliseChatCompletionsPath_Good_TrimsAndKeepsCustomPath(t *testing.T) {
 	if got := normaliseChatCompletionsPath(" /chat/ "); got != "/chat" {
@@ -28,7 +31,7 @@ func TestTransport_normaliseChatCompletionsPath_Ugly_FallsBackToDefaultWhenRoot(
 func TestTransport_TransportConfig_Ugly_NilEngineReturnsZeroValue(t *testing.T) {
 	var e *Engine
 
-	if got := e.TransportConfig(); got != (TransportConfig{}) {
+	if got := e.TransportConfig(); !reflect.DeepEqual(got, TransportConfig{}) {
 		t.Fatalf("expected zero-value transport config for nil engine, got %+v", got)
 	}
 }

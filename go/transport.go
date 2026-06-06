@@ -29,6 +29,7 @@ type TransportConfig struct {
 	ChatCompletionsPath    string
 	OpenAPISpecEnabled     bool
 	OpenAPISpecPath        string
+	UpstreamRouterPaths    []string
 }
 
 // TransportConfig returns the currently configured transport metadata for the engine.
@@ -75,6 +76,9 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 	if e.openAPISpecEnabled || core.Trim(e.openAPISpecPath) != "" {
 		cfg.OpenAPISpecPath = resolveOpenAPISpecPath(e.openAPISpecPath)
+	}
+	if e.upstreamRouter != nil {
+		cfg.UpstreamRouterPaths = append([]string(nil), e.upstreamRouter.paths...)
 	}
 
 	return cfg

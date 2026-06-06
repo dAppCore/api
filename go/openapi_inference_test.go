@@ -108,3 +108,51 @@ func keysOf(m map[string]any) []string {
 	}
 	return out
 }
+
+func TestOpenAPISpec_RouterPaths_Good(t *testing.T) {
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	if err := reg.SetDefault(api.Upstream{URL: "http://127.0.0.1:11434"}); err != nil {
+		t.Fatal(err)
+	}
+	e, err := api.New(api.WithUpstreamRouter(reg, api.WithRouterPaths("/v1/embeddings", "/v1/score")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := specPaths(t, e)
+	for _, p := range []string{"/v1/embeddings", "/v1/score"} {
+		if !hasTag(postTags(paths, p), "proxy") {
+			t.Fatalf("router path %s missing/untagged in spec; paths: %v", p, keysOf(paths))
+		}
+		item := paths[p].(map[string]any)
+		post := item["post"].(map[string]any)
+		responses := post["responses"].(map[string]any)
+		for _, code := range []string{"404", "503"} {
+			if _, ok := responses[code]; !ok {
+				t.Errorf("router path %s missing %s response", p, code)
+			}
+		}
+	}
+}
+
+func TestOpenAPISpec_RouterDedupChat_Ugly(t *testing.T) {
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	if err := reg.SetDefault(api.Upstream{URL: "http://127.0.0.1:11434"}); err != nil {
+		t.Fatal(err)
+	}
+	// Router mounted at the default chat path AND chat enabled (remote).
+	e, err := api.New(
+		api.WithChatCompletionsRemote(reg),
+		api.WithUpstreamRouter(reg), // default WithRouterPaths == /v1/chat/completions
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := specPaths(t, e)
+	tags := postTags(paths, "/v1/chat/completions")
+	if !hasTag(tags, "inference") {
+		t.Fatalf("chat path lost its inference item to the proxy dedup; tags=%v", tags)
+	}
+	if hasTag(tags, "proxy") {
+		t.Fatalf("chat path was clobbered by the proxy item; tags=%v", tags)
+	}
+}
