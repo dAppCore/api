@@ -131,6 +131,14 @@ func TestOpenAPISpec_RouterPaths_Good(t *testing.T) {
 				t.Errorf("router path %s missing %s response", p, code)
 			}
 		}
+		// Not public and no special-cased auth: the proxy POST is a network
+		// gateway under engine auth, so SDK gen must emit an authenticated
+		// client. Assert the operation carries a non-empty security
+		// requirement (bearerAuth, mirroring the GraphQL/group-loop items).
+		security, ok := post["security"].([]any)
+		if !ok || len(security) == 0 {
+			t.Errorf("router path %s proxy POST missing/empty security; got %v", p, post["security"])
+		}
 	}
 }
 
@@ -154,5 +162,59 @@ func TestOpenAPISpec_RouterDedupChat_Ugly(t *testing.T) {
 	}
 	if hasTag(tags, "proxy") {
 		t.Fatalf("chat path was clobbered by the proxy item; tags=%v", tags)
+	}
+}
+
+func TestOpenAPISpec_RouterDedupSpecPath_Good(t *testing.T) {
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	if err := reg.SetDefault(api.Upstream{URL: "http://127.0.0.1:11434"}); err != nil {
+		t.Fatal(err)
+	}
+	// Router mounted at the OpenAPI spec path: the real spec GET item must win,
+	// and the proxy POST must be skipped by the dedup.
+	e, err := api.New(
+		api.WithOpenAPISpecPath("/v1/openapi.json"),
+		api.WithUpstreamRouter(reg, api.WithRouterPaths("/v1/openapi.json")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := specPaths(t, e)
+	item, ok := paths["/v1/openapi.json"].(map[string]any)
+	if !ok {
+		t.Fatalf("spec path missing from paths; paths: %v", keysOf(paths))
+	}
+	if _, ok := item["get"].(map[string]any); !ok {
+		t.Errorf("spec path lost its real GET item to the proxy dedup; item: %v", keysOf(item))
+	}
+	if _, ok := item["post"]; ok {
+		t.Errorf("spec path was clobbered by the proxy POST item; item: %v", keysOf(item))
+	}
+}
+
+func TestOpenAPISpec_ChatCompletions_Hybrid_Good(t *testing.T) {
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	if err := reg.SetDefault(api.Upstream{URL: "http://127.0.0.1:11434"}); err != nil {
+		t.Fatal(err)
+	}
+	// Both a local resolver AND a remote backend configured.
+	e, err := api.New(
+		api.WithChatCompletions(api.NewModelResolver()),
+		api.WithChatCompletionsRemote(reg),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := specObject(t, e)
+
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("spec has no paths object")
+	}
+	if !hasTag(postTags(paths, "/v1/chat/completions"), "inference") {
+		t.Fatalf("hybrid chat endpoint missing/untagged in spec; paths present: %v", keysOf(paths))
+	}
+	if enabled, _ := spec["x-chat-completions-enabled"].(bool); !enabled {
+		t.Fatalf("x-chat-completions-enabled missing/false for a hybrid (local+remote) chat engine")
 	}
 }

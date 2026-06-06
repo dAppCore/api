@@ -1466,6 +1466,14 @@ func upstreamRouterPathItem(path string, operationIDs map[string]int) map[string
 			"description": "Selector-routed reverse proxy. The request body must carry the selector field (default \"model\"); the concrete request and response schemas depend on the target upstream/model. Streams Server-Sent Events when the upstream does.",
 			"tags":        []string{"proxy"},
 			"operationId": operationID("post", path, operationIDs),
+			// The router is a network gateway under engine auth. Default to
+			// bearerAuth (mirroring graphqlPathItem and the group-loop items);
+			// makePathItemPublic overrides this to [] for configured public paths.
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{
