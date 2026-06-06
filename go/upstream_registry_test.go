@@ -56,6 +56,29 @@ func TestUpstreamRegistry_AllowPrivate_Good(t *testing.T) {
 	}
 }
 
+func TestUpstreamRegistry_Remove_Good(t *testing.T) {
+	reg := api.NewUpstreamRegistry()
+	if err := reg.Set("k", api.Upstream{URL: "https://a.example.com"}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	reg.Remove("k")
+	if keys := reg.Keys(); len(keys) != 0 {
+		t.Fatalf("Keys after Remove = %v, want []", keys)
+	}
+}
+
+func TestUpstreamRegistry_BadCIDR_Bad(t *testing.T) {
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("not-a-cidr"))
+	// The recorded cidrErr must surface on every subsequent write, even for an
+	// otherwise-valid public upstream.
+	if err := reg.Set("k", api.Upstream{URL: "https://a.example.com"}); err == nil {
+		t.Fatal("Set with recorded bad-CIDR error = nil, want rejection")
+	}
+	if err := reg.Add("k", api.Upstream{URL: "https://b.example.com"}); err == nil {
+		t.Fatal("Add with recorded bad-CIDR error = nil, want rejection")
+	}
+}
+
 func TestUpstreamRegistry_Ugly_ConcurrentWriteSnapshot(t *testing.T) {
 	reg := api.NewUpstreamRegistry()
 	_ = reg.Set("k", api.Upstream{URL: "https://a.example.com"})

@@ -126,7 +126,10 @@ func (r *UpstreamRegistry) Remove(key string) {
 
 // SetDefault sets the fallback pool used when a key has no explicit pool.
 func (r *UpstreamRegistry) SetDefault(ups ...Upstream) error {
-	if err := r.validateAll(ups); err != nil {
+	if len(ups) == 0 {
+		return core.E("UpstreamRegistry", "SetDefault requires at least one upstream", nil)
+	}
+	if err := r.validateEach(ups); err != nil {
 		return err
 	}
 	r.mu.Lock()
@@ -149,6 +152,8 @@ func (r *UpstreamRegistry) Keys() []string {
 }
 
 // resolve returns the pool for key (or the default pool) and whether one exists.
+// The returned slice is the snapshot's own backing slice — callers must treat it
+// as read-only and never mutate its elements or append to it in place.
 func (r *UpstreamRegistry) resolve(key string) ([]Upstream, bool) {
 	snap := r.snap.Load()
 	if pool, ok := snap.pools[key]; ok && len(pool) > 0 {
@@ -164,7 +169,7 @@ func (r *UpstreamRegistry) clone() *registrySnapshot {
 	cur := r.snap.Load()
 	next := &registrySnapshot{
 		pools: make(map[string][]Upstream, len(cur.pools)),
-		deflt: cur.deflt,
+		deflt: cloneUpstreams(cur.deflt),
 	}
 	for k, v := range cur.pools {
 		next.pools[k] = v
@@ -176,6 +181,12 @@ func (r *UpstreamRegistry) validateAll(ups []Upstream) error {
 	if len(ups) == 0 {
 		return core.E("UpstreamRegistry", "pool must contain at least one upstream", nil)
 	}
+	return r.validateEach(ups)
+}
+
+// validateEach validates every upstream in ups without the non-empty check, so
+// callers can supply their own empty-pool message.
+func (r *UpstreamRegistry) validateEach(ups []Upstream) error {
 	for _, up := range ups {
 		if err := r.validate(up); err != nil {
 			return err
@@ -240,11 +251,25 @@ func ipAllowed(ip net.IP, allow []*net.IPNet) bool {
 	return false
 }
 
+// cloneUpstreams returns a deep copy of ups. The Headers map on each upstream is
+// copied into a fresh map so a caller mutating their original map after a write
+// — or the transport iterating it concurrently — cannot race the stored snapshot.
 func cloneUpstreams(ups []Upstream) []Upstream {
 	if len(ups) == 0 {
 		return nil
 	}
 	out := make([]Upstream, len(ups))
 	copy(out, ups)
+	for i := range out {
+		if len(out[i].Headers) == 0 {
+			out[i].Headers = nil
+			continue
+		}
+		headers := make(map[string]string, len(out[i].Headers))
+		for k, v := range out[i].Headers {
+			headers[k] = v
+		}
+		out[i].Headers = headers
+	}
 	return out
 }
