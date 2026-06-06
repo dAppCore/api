@@ -65,7 +65,7 @@ translate the response back.
 | LB strategy | **Weighted round-robin + passive failover** (cooldown on failure) |
 | Routing seam | **Decision hook + runtime-mutable pool registry** |
 | Proxy core | stdlib `net/http/httputil.ReverseProxy` + custom `RoundTripper` that owns selection/failover |
-| SSRF | Upstreams are operator-configured trusted infra → request-time SSRF guard **bypassed**; URLs validated **once at registration** |
+| SSRF | **Block-by-default at registration** — reject loopback/private/link-local/reserved IP literals + metadata hosts via `ssrf_guard.go` primitives; opt-in `AllowPrivateUpstreams(cidrs...)` registry option widens acceptance for local Ollama / LAN. No request-time guard (validation is one-shot at registration). |
 
 ## 4. Public Surface
 
@@ -92,12 +92,21 @@ type Upstream struct {
 // lock-free via atomic load.
 type UpstreamRegistry struct { /* atomic.Pointer[registrySnapshot] + write mutex */ }
 
-func NewUpstreamRegistry() *UpstreamRegistry
-func (r *UpstreamRegistry) Set(key string, ups ...Upstream) error // replace pool; validates URLs
-func (r *UpstreamRegistry) Add(key string, up Upstream) error     // append one; validates URL
+func NewUpstreamRegistry(opts ...RegistryOption) *UpstreamRegistry
+func (r *UpstreamRegistry) Set(key string, ups ...Upstream) error // replace pool; validates URL + IP policy
+func (r *UpstreamRegistry) Add(key string, up Upstream) error     // append one; validates URL + IP policy
 func (r *UpstreamRegistry) Remove(key string)                     // drop a pool
 func (r *UpstreamRegistry) SetDefault(ups ...Upstream) error      // fallback for unmatched keys
 func (r *UpstreamRegistry) Keys() []string                        // introspection (sorted)
+
+// RegistryOption configures registration-time validation policy.
+type RegistryOption func(*UpstreamRegistry)
+
+// AllowPrivateUpstreams permits the given private/loopback/reserved CIDRs to pass
+// registration validation (default-deny otherwise). Metadata hosts stay hard-blocked.
+//
+//   reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8", "10.0.0.0/8"))
+func AllowPrivateUpstreams(cidrs ...string) RegistryOption
 
 // Selector resolves the routing key from the request. body may be nil if unread.
 type Selector func(c *gin.Context, body []byte) (key string, err error)
@@ -120,8 +129,11 @@ func WithUpstreamTransport(rt http.RoundTripper) UpstreamRouterOption // custom 
 **Contract rules**
 - The **registry is the single source of truth** for endpoints; the hook returns a
   *key*, the registry resolves it → all LB stays in one place.
-- `Set`/`Add`/`SetDefault` **return `error`** — URL validation (well-formed http(s),
-  host present, sane port) happens here, once, never per request.
+- `Set`/`Add`/`SetDefault` **return `error`** — validation happens here, once, never
+  per request: URL shape (http(s) scheme, host present, port in range) **and** IP
+  policy. Loopback/private/link-local/reserved IP literals and metadata hosts are
+  **rejected by default**; `AllowPrivateUpstreams(cidrs...)` widens acceptance.
+  Non-metadata hostnames are accepted as trusted config without registration-time DNS.
 - Transformers reuse `compileTransformerPipeline`/`runTransformerPipeline`, so
   `FieldRenamer` and any `TransformerIn[I,O]`/`TransformerOut[I,O]` work unchanged —
   but on the router they operate on the **raw upstream JSON body**, *not* the
@@ -207,12 +219,16 @@ through verbatim. Dividing line is client-error vs infra-error.
 
 ## 8. Security Notes
 
-- **SSRF split (deliberate, opposite of the webhook path).** Configured upstreams are
-  trusted operator infra and routinely loopback/private (local Ollama `127.0.0.1`,
-  LAN GPU boxes `10.x`). The request-time `validateOutboundURL` guard is therefore
-  **not** applied to dispatch. Instead, URLs are validated **once at registration**
-  (scheme http(s), host present, port in range). The intentional bypass on dispatch
-  carries a **scoped `#nosec` with justification**, mirroring `transport_client.go:493`.
+- **SSRF posture — block-by-default + explicit opt-in** (aligned with
+  `pkg/provider/proxy.go`, not bypassed). At registration, `Set`/`Add`/`SetDefault`
+  reject loopback/private/link-local/reserved IP literals and metadata hosts using the
+  root `ssrf_guard.go` primitives (`blockedIPReason`). Local Ollama / LAN boxes are
+  enabled by an explicit `AllowPrivateUpstreams(cidrs...)` registry option (code-level
+  intent — no env reliance). Non-metadata hostnames are accepted without
+  registration-time DNS (trusted config). There is **no request-time guard** —
+  validation is one-shot at registration, so the hot path stays allocation-free. The
+  dispatch `RoundTrip` carries a **scoped `#nosec` with justification** (upstreams are
+  registration-validated operator config), mirroring `transport_client.go:493`.
 - **No URL leakage** to clients (see §7).
 - **Bounded request bodies** via `MaxBytesReader(maxToolRequestBodyBytes)`, reusing
   the transformer constant.
@@ -244,8 +260,11 @@ Convention: `_Good` / `_Bad` / `_Ugly` suffixes, example tests, `-race`, `GOWORK
   `FieldRenamer` in → upstream sees renamed body.
 - Selector default routes by `model`; missing `model` → 400. Hook overrides key →
   different pool; hook reject → 403.
-- **SSRF split proof**: a `127.0.0.1` httptest upstream works (positive proof the
-  request-time guard is bypassed); `ftp://` rejected at config time.
+- **SSRF posture**: `127.0.0.1` upstream **rejected at config time by default**;
+  accepted after `AllowPrivateUpstreams("127.0.0.0/8")`; non-metadata hostname accepted;
+  metadata host `169.254.169.254` rejected even with a broad allow-list; `ftp://` and
+  missing-host rejected. Integration: an allowed `127.0.0.1` httptest upstream serves
+  end-to-end (proves no request-time guard blocks it).
 - All-down → 503 + `Retry-After`; assert upstream URL absent from client body.
 - Multiple mounted paths each forward their own path.
 - Composition: `WithBearerAuth` in front → 401 without token.
