@@ -301,6 +301,30 @@ func (r *ModelResolver) ResolveModel(name string) (
 	}
 }
 
+// Knows reports whether the resolver can serve name WITHOUT loading it — a hit
+// in the loaded-model cache, the models.yaml mapping, or the discovery set. It
+// mirrors ResolveModel's three resolution sources so a false result means
+// ResolveModel could not have served the model either. Used by the chat handler
+// to route local-vs-remote without triggering a model load (see chat_remote.go).
+func (r *ModelResolver) Knows(name string) bool {
+	if r == nil || core.Trim(name) == "" {
+		return false
+	}
+	r.mu.RLock()
+	_, cached := r.loadedByName[name]
+	r.mu.RUnlock()
+	if cached {
+		return true
+	}
+	if _, ok := r.lookupModelPath(name); ok {
+		return true
+	}
+	if _, ok := r.resolveDiscoveredPath(name); ok {
+		return true
+	}
+	return false
+}
+
 func (r *ModelResolver) loadByPath(name, path string) (
 	inference.TextModel,
 	error,
