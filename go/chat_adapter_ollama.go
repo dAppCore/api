@@ -37,6 +37,11 @@ func (ollamaAdapter) BuildRequest(req ChatCompletionRequest) ([]byte, map[string
 	if req.MaxTokens != nil {
 		options["num_predict"] = *req.MaxTokens
 	}
+	// Ollama's native /api/chat reads stop sequences inside the options block; a
+	// top-level "stop" is silently ignored.
+	if len(req.Stop) > 0 {
+		options["stop"] = []string(req.Stop)
+	}
 	body := map[string]any{
 		"model":    req.Model,
 		"messages": msgs,
@@ -44,9 +49,6 @@ func (ollamaAdapter) BuildRequest(req ChatCompletionRequest) ([]byte, map[string
 	}
 	if len(options) > 0 {
 		body["options"] = options
-	}
-	if len(req.Stop) > 0 {
-		body["stop"] = []string(req.Stop)
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {

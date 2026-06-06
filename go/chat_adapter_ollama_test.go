@@ -34,6 +34,27 @@ func TestOllamaAdapter_BuildRequest_Good(t *testing.T) {
 	}
 }
 
+func TestOllamaAdapter_BuildRequest_Stop_Good(t *testing.T) {
+	a := api.OllamaAdapter()
+	body, _, err := a.BuildRequest(api.ChatCompletionRequest{
+		Model: "llama3", Messages: []api.ChatMessage{{Role: "user", Content: "hi"}}, Stop: []string{"\n\n", "END"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(body, &got)
+	// Ollama reads stop INSIDE options; a top-level "stop" is silently ignored.
+	if _, ok := got["stop"]; ok {
+		t.Errorf("top-level stop key present (Ollama ignores it): %s", body)
+	}
+	opts, _ := got["options"].(map[string]any)
+	stop, ok := opts["stop"].([]any)
+	if !ok || len(stop) != 2 || stop[0] != "\n\n" || stop[1] != "END" {
+		t.Errorf("stop not placed inside options: %s", body)
+	}
+}
+
 func TestOllamaAdapter_DecodeResponse_Good(t *testing.T) {
 	a := api.OllamaAdapter()
 	out, err := a.DecodeResponse("llama3", []byte(`{"message":{"role":"assistant","content":"4"},"done":true,"done_reason":"stop","prompt_eval_count":3,"eval_count":1}`))
