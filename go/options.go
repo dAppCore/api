@@ -848,6 +848,36 @@ func WithChatCompletionsPath(path string) Option {
 	}
 }
 
+// WithUpstreamRouter mounts a selector-keyed reverse proxy that load-balances
+// each request across a runtime-mutable pool of HTTP upstreams (weighted
+// round-robin + passive failover, hybrid streaming, decision hook, transformer
+// composition). The registry is the source of truth for upstreams.
+//
+// Example:
+//
+//	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+//	_ = reg.Set("lemma", api.Upstream{URL: "http://127.0.0.1:11434"})
+//	engine, _ := api.New(api.WithUpstreamRouter(reg))
+func WithUpstreamRouter(reg *UpstreamRegistry, opts ...UpstreamRouterOption) Option {
+	return func(e *Engine) {
+		if reg == nil {
+			return
+		}
+		cfg := &upstreamRouterConfig{registry: reg}
+		for _, opt := range opts {
+			if opt != nil {
+				opt(cfg)
+			}
+		}
+		if err := cfg.finalise(); err != nil {
+			// Transformer compile errors mirror the panic contract used by
+			// transformerRouteConfigForDescription (transformer_in.go:78).
+			panic(err)
+		}
+		e.upstreamRouter = cfg
+	}
+}
+
 // WithSDKGen mounts POST /v1/sdk/generate. The endpoint exposes the RFC SDK
 // generation contract and currently returns 501 until an artifact backend is
 // configured around SDKGenerator.

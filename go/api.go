@@ -113,6 +113,9 @@ type Engine struct {
 	// registered route matches the request. Set via WithNoRoute; nil
 	// means gin returns 404 with its default body.
 	noRouteHandler gin.HandlerFunc
+	// upstreamRouter, when set via WithUpstreamRouter, mounts a selector-keyed
+	// reverse proxy over a pool of HTTP upstreams at the configured paths.
+	upstreamRouter *upstreamRouterConfig
 }
 
 // New creates an Engine with the given options.
@@ -440,6 +443,15 @@ func (e *Engine) build() *gin.Engine {
 	if e.chatCompletionsResolver != nil {
 		h := newChatCompletionsHandler(e.chatCompletionsResolver)
 		r.POST(e.chatCompletionsPath, h.ServeHTTP)
+	}
+
+	// Mount the selector-keyed upstream router when configured.
+	if e.upstreamRouter != nil {
+		proxy := e.upstreamRouter.buildProxy()
+		h := e.upstreamRouter.handler(proxy)
+		for _, p := range e.upstreamRouter.paths {
+			r.Any(p, h)
+		}
 	}
 
 	if e.sdkGenEnabled {
