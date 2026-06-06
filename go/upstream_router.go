@@ -32,6 +32,13 @@ const (
 	errCodeInvalidUpstreamResp = "invalid_upstream_response"
 )
 
+// maxUpstreamResponseBytes caps the buffered read in modifyResponse so a
+// non-streaming upstream response with out-transformers cannot allocate without
+// bound (the request path is already capped by maxToolRequestBodyBytes). It is a
+// var so tests can lower it without minting a real 10 MiB body, mirroring the
+// resolveHost override idiom in ssrf_guard.go.
+var maxUpstreamResponseBytes = int64(maxToolRequestBodyBytes) // 10 MiB; buffered only for non-stream responses with out-transformers
+
 type ctxKey int
 
 const (
@@ -242,10 +249,13 @@ func (cfg *upstreamRouterConfig) modifyResponse(resp *http.Response) error {
 	if isEventStream(resp.Header.Get("Content-Type")) {
 		return nil // streaming: pass through untransformed
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxUpstreamResponseBytes+1))
 	_ = resp.Body.Close()
 	if err != nil {
 		return &routerError{status: http.StatusBadGateway, code: errCodeInvalidUpstreamResp, message: "could not read upstream response", cause: err}
+	}
+	if int64(len(body)) > maxUpstreamResponseBytes {
+		return &routerError{status: http.StatusBadGateway, code: errCodeInvalidUpstreamResp, message: "upstream response exceeds maximum buffered size"}
 	}
 	c, _ := resp.Request.Context().Value(ginCtxKey).(*gin.Context)
 	transformed, err := runTransformerPipeline(c, body, cfg.out)
