@@ -117,6 +117,52 @@ func TestChatRemote_StreamingPassthrough_Good(t *testing.T) {
 	}
 }
 
+func TestChatRemote_OllamaAdapter_E2E_Good(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/chat" {
+			t.Errorf("upstream path = %s, want /api/chat", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"message":{"role":"assistant","content":"pong"},"done":true,"done_reason":"stop","prompt_eval_count":2,"eval_count":1}`)
+	}))
+	defer up.Close()
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	_ = reg.Set("llama3", api.Upstream{URL: up.URL})
+	e, _ := api.New(api.WithChatCompletionsRemote(reg, api.WithChatModelAdapter("llama3", api.OllamaAdapter())))
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp := chatPost(t, srv.URL, `{"model":"llama3","messages":[{"role":"user","content":"ping"}]}`)
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(out), `"content":"pong"`) || !strings.Contains(string(out), `"object":"chat.completion"`) {
+		t.Errorf("ollama not adapted to OpenAI shape: %s", out)
+	}
+}
+
+func TestChatRemote_AnthropicAdapter_E2E_Good(t *testing.T) {
+	var gotVersion string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotVersion = r.Header.Get("anthropic-version")
+		_, _ = io.WriteString(w, `{"content":[{"type":"text","text":"pong"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":1}}`)
+	}))
+	defer up.Close()
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	_ = reg.Set("claude-3", api.Upstream{URL: up.URL})
+	e, _ := api.New(api.WithChatCompletionsRemote(reg, api.WithChatModelAdapter("claude-3", api.AnthropicAdapter())))
+	srv := httptest.NewServer(e.Handler())
+	defer srv.Close()
+
+	resp := chatPost(t, srv.URL, `{"model":"claude-3","messages":[{"role":"user","content":"ping"}]}`)
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	if gotVersion != "2023-06-01" {
+		t.Errorf("anthropic-version header not sent: %q", gotVersion)
+	}
+	if !strings.Contains(string(out), `"content":"pong"`) {
+		t.Errorf("anthropic not adapted: %s", out)
+	}
+}
+
 func TestChatRemote_BindOptIn_Bad(t *testing.T) {
 	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
 	_ = reg.SetDefault(api.Upstream{URL: "http://127.0.0.1:1"})
