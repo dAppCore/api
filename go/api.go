@@ -116,6 +116,11 @@ type Engine struct {
 	// upstreamRouter, when set via WithUpstreamRouter, mounts a selector-keyed
 	// reverse proxy over a pool of HTTP upstreams at the configured paths.
 	upstreamRouter *upstreamRouterConfig
+	// chatRemote, when set via WithChatCompletionsRemote, adds a remote backend
+	// to the chat completions endpoint (local-first dispatch).
+	chatRemote *chatRemoteConfig
+	// chatAllowRemote permits non-loopback chat clients when a bearer is set.
+	chatAllowRemote bool
 }
 
 // New creates an Engine with the given options.
@@ -138,7 +143,7 @@ func New(opts ...Option) (
 		opt(e)
 	}
 	// Apply calibrated defaults for optional subsystems.
-	if e.chatCompletionsResolver != nil && core.Trim(e.chatCompletionsPath) == "" {
+	if (e.chatCompletionsResolver != nil || e.chatRemote != nil) && core.Trim(e.chatCompletionsPath) == "" {
 		e.chatCompletionsPath = defaultChatCompletionsPath
 	}
 	return e, nil
@@ -439,10 +444,15 @@ func (e *Engine) build() *gin.Engine {
 		c.JSON(http.StatusOK, OK("healthy"))
 	})
 
-	// Mount the local OpenAI-compatible chat completion endpoint when configured.
-	if e.chatCompletionsResolver != nil {
-		h := newChatCompletionsHandler(e.chatCompletionsResolver)
-		r.POST(e.chatCompletionsPath, h.ServeHTTP)
+	// Mount the OpenAI-compatible chat completion endpoint when a local resolver
+	// and/or a remote backend is configured.
+	if e.chatCompletionsResolver != nil || e.chatRemote != nil {
+		path := e.chatCompletionsPath
+		if core.Trim(path) == "" {
+			path = defaultChatCompletionsPath
+		}
+		h := newChatCompletionsHandler(e.chatCompletionsResolver, e.chatRemote, e.chatAllowRemote, e.bearerConfigured)
+		r.POST(path, h.ServeHTTP)
 	}
 
 	// Mount the selector-keyed upstream router when configured.

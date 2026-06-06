@@ -3,6 +3,8 @@
 package api
 
 import (
+	"bytes"
+	"io"
 	"math/rand" // Note: AX-6 — non-security display/correlation ID suffix; core.RandIntN unavailable
 	"net"       // Note: AX-6 — structural IP parsing for loopback-only HTTP boundary
 	"net/http"  // Note: AX-6 — structural HTTP server boundary for request/status handling
@@ -709,35 +711,58 @@ func parseChannelName(s string) (string, int) {
 }
 
 type chatCompletionsHandler struct {
-	resolver *ModelResolver
+	resolver         *ModelResolver
+	remote           *chatRemoteConfig
+	allowRemote      bool
+	bearerConfigured bool
 }
 
-func newChatCompletionsHandler(resolver *ModelResolver) *chatCompletionsHandler {
+func newChatCompletionsHandler(resolver *ModelResolver, remote *chatRemoteConfig, allowRemote, bearerConfigured bool) *chatCompletionsHandler {
 	return &chatCompletionsHandler{
-		resolver: resolver,
+		resolver:         resolver,
+		remote:           remote,
+		allowRemote:      allowRemote,
+		bearerConfigured: bearerConfigured,
 	}
 }
 
 func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
-	if h == nil || h.resolver == nil {
-		writeChatCompletionError(c, http.StatusServiceUnavailable, "invalid_request_error", "model", "chat handler is not configured", "model")
+	if h == nil || (h.resolver == nil && h.remote == nil) {
+		writeChatCompletionError(c, http.StatusServiceUnavailable, "invalid_request_error", "model", "chat handler is not configured", "service_unavailable")
 		return
 	}
 
-	if !isLoopbackRequest(c.Request) {
+	if !isLoopbackRequest(c.Request) && !(h.allowRemote && h.bearerConfigured) {
 		writeChatCompletionError(c, http.StatusForbidden, "invalid_request_error", "request", "chat completions is only available on loopback interfaces", "")
 		return
 	}
 
-	var req ChatCompletionRequest
-	if err := decodeJSONBody(c.Request.Body, &req); err != nil {
-		writeChatCompletionError(c, 400, "invalid_request_error", "body", "invalid request body", "")
+	raw, ok := readChatBody(c)
+	if !ok {
 		return
 	}
 
+	// For the remote path we need a lenient decode (upstream may send unknown
+	// fields such as "tools"). decodeJSONBody applies strict field rejection for
+	// *ChatCompletionRequest, so use it only for the local path; for routing
+	// purposes we do a plain unmarshal here.
+	var req ChatCompletionRequest
+	if h.remote != nil {
+		result := core.JSONUnmarshalString(string(raw), &req)
+		if !result.OK {
+			writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "body", "invalid request body", "")
+			return
+		}
+	} else {
+		if err := decodeJSONBody(bytes.NewReader(raw), &req); err != nil {
+			writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "body", "invalid request body", "")
+			return
+		}
+	}
+
 	if err := validateChatRequest(&req); err != nil {
-		chatErr, ok := err.(*chatCompletionRequestError)
-		if !ok {
+		chatErr, isChatErr := err.(*chatCompletionRequestError)
+		if !isChatErr {
 			writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "body", err.Error(), "")
 			return
 		}
@@ -745,34 +770,67 @@ func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
 		return
 	}
 
+	// PURE-LOCAL: unchanged current behaviour (no Knows gate).
+	if h.remote == nil {
+		h.serveLocal(c, req)
+		return
+	}
+	// HYBRID: local-first if the resolver knows the model; else remote.
+	if h.resolver != nil && h.resolver.Knows(req.Model) {
+		h.serveLocal(c, req)
+		return
+	}
+	pool, found := h.remote.reg.resolve(req.Model)
+	if !found {
+		writeChatCompletionError(c, http.StatusNotFound, "invalid_request_error", "model", "model not found: "+req.Model, "model_not_found")
+		return
+	}
+	h.dispatchRemote(c, req, raw, pool, h.remote.adapters[req.Model])
+}
+
+// readChatBody reads the bounded request body once (so it can drive both the
+// selector and a verbatim upstream forward).
+func readChatBody(c *gin.Context) ([]byte, bool) {
+	limited := http.MaxBytesReader(c.Writer, c.Request.Body, maxToolRequestBodyBytes)
+	body, err := io.ReadAll(limited)
+	if err != nil {
+		if err.Error() == "http: request body too large" {
+			writeChatCompletionError(c, http.StatusRequestEntityTooLarge, "invalid_request_error", "body", "request body too large", "")
+			return nil, false
+		}
+		writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "body", "unable to read request body", "")
+		return nil, false
+	}
+	return body, true
+}
+
+func (h *chatCompletionsHandler) serveLocal(c *gin.Context, req ChatCompletionRequest) {
+	if h.resolver == nil {
+		writeChatCompletionError(c, http.StatusNotFound, "invalid_request_error", "model", "model not found: "+req.Model, "model_not_found")
+		return
+	}
 	model, err := h.resolver.ResolveModel(req.Model)
 	if err != nil {
 		status, errType, errCode, errParam := mapResolverError(err)
 		writeChatCompletionError(c, status, errType, errParam, err.Error(), errCode)
 		return
 	}
-
 	reqForOptions := req
 	reqForOptions.Stop = nil
 	options, err := chatRequestOptions(&reqForOptions)
 	if err != nil {
-		writeChatCompletionError(c, 400, "invalid_request_error", "stop", err.Error(), "")
+		writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "stop", err.Error(), "")
 		return
 	}
 	stopSequences, err := normalizedStopSequences(req.Stop)
 	if err != nil {
-		writeChatCompletionError(c, 400, "invalid_request_error", "stop", err.Error(), "")
+		writeChatCompletionError(c, http.StatusBadRequest, "invalid_request_error", "stop", err.Error(), "")
 		return
 	}
-
 	messages := make([]inference.Message, 0, len(req.Messages))
 	for _, msg := range req.Messages {
-		messages = append(messages, inference.Message{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
+		messages = append(messages, inference.Message{Role: msg.Role, Content: msg.Content})
 	}
-
 	if req.Stream {
 		h.serveStreaming(c, model, req, messages, stopSequences, options...)
 		return

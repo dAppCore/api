@@ -898,6 +898,66 @@ func WithSDKGen() Option {
 	}
 }
 
+// WithChatCompletionsRemote attaches a remote backend to /v1/chat/completions.
+// Compose with WithChatCompletions for hybrid (local-first); use alone for
+// remote-only. Models with no WithChatModelAdapter are forwarded verbatim
+// (OpenAI passthrough); adapters map non-OpenAI upstreams (see chat_adapter.go).
+//
+//	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("10.0.0.0/8"))
+//	_ = reg.SetDefault(api.Upstream{URL: "https://llm.lthn.sh"})
+//	api.New(api.WithChatCompletions(local), api.WithChatCompletionsRemote(reg))
+func WithChatCompletionsRemote(reg *UpstreamRegistry, opts ...ChatRemoteOption) Option {
+	return func(e *Engine) {
+		if reg == nil {
+			return
+		}
+		cfg := &chatRemoteConfig{reg: reg, adapters: map[string]ChatFormatAdapter{}}
+		for _, opt := range opts {
+			if opt != nil {
+				opt(cfg)
+			}
+		}
+		cfg.finalise()
+		e.chatRemote = cfg
+	}
+}
+
+// ChatRemoteOption configures the chat remote backend.
+type ChatRemoteOption func(*chatRemoteConfig)
+
+// WithChatModelAdapter maps a model name to a non-OpenAI format adapter.
+func WithChatModelAdapter(model string, a ChatFormatAdapter) ChatRemoteOption {
+	return func(cfg *chatRemoteConfig) {
+		if core.Trim(model) != "" && a != nil {
+			cfg.adapters[model] = a
+		}
+	}
+}
+
+// WithChatRemoteFailover sets max upstream attempts + per-upstream cooldown for
+// the remote backend (default: len(pool), 10s).
+func WithChatRemoteFailover(maxAttempts int, cooldown time.Duration) ChatRemoteOption {
+	return func(cfg *chatRemoteConfig) {
+		cfg.maxAttempts = maxAttempts
+		if cooldown > 0 {
+			cfg.cooldown = cooldown
+		}
+	}
+}
+
+// WithChatRemoteTransport sets the base RoundTripper for remote dispatch.
+func WithChatRemoteTransport(rt http.RoundTripper) ChatRemoteOption {
+	return func(cfg *chatRemoteConfig) { cfg.transport = rt }
+}
+
+// WithChatCompletionsAllowRemoteClients permits non-loopback clients on the chat
+// endpoint, but ONLY when a bearer is configured (WithBearerAuth) — mirrors the
+// engine's ErrPublicBindNoBearer invariant. Without it, the endpoint stays
+// loopback-only. Pair with an auth-guarded route for real enforcement.
+func WithChatCompletionsAllowRemoteClients() Option {
+	return func(e *Engine) { e.chatAllowRemote = true }
+}
+
 // WithOpenAPISpec mounts a standalone JSON document endpoint at
 // "/v1/openapi.json" (RFC.endpoints.md — "GET /v1/openapi.json"). The generated
 // spec mirrors the document surfaced by the Swagger UI but is served

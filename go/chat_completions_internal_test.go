@@ -278,7 +278,7 @@ func newChatLoopbackRequest(t *testing.T, body string) *http.Request {
 func newChatHandlerWithModel(model inference.TextModel) *chatCompletionsHandler {
 	resolver := NewModelResolver()
 	resolver.loadedByName["lemer"] = model
-	return newChatCompletionsHandler(resolver)
+	return newChatCompletionsHandler(resolver, nil, false, false)
 }
 
 func TestChatCompletions_ChatMessageDelta_MarshalJSON_Good_PreservesRoleAndContent(t *testing.T) {
