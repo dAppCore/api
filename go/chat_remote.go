@@ -7,7 +7,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	core "dappco.re/go"
@@ -75,7 +74,7 @@ func (h *chatCompletionsHandler) dispatchRemote(c *gin.Context, req ChatCompleti
 	bound := body
 	outReq.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(bound)), nil }
 	outReq.ContentLength = int64(len(bound))
-	outReq.Header.Set("Content-Type", "application/json")
+	outReq.Header.Set(hdrContentType, mimeJSON)
 	for k, v := range hdrs {
 		outReq.Header.Set(k, v)
 	}
@@ -90,9 +89,7 @@ func (h *chatCompletionsHandler) dispatchRemote(c *gin.Context, req ChatCompleti
 		if core.As(err, &re) {
 			status, code = re.status, re.code
 		}
-		if status == http.StatusServiceUnavailable {
-			c.Header("Retry-After", strconv.Itoa(int(h.remote.cooldown.Seconds())))
-		}
+		// writeChatCompletionError owns the 503 Retry-After header.
 		writeChatCompletionError(c, status, "invalid_request_error", "model", "upstream request failed", code)
 		return
 	}
@@ -106,7 +103,7 @@ func (h *chatCompletionsHandler) deliverRemote(c *gin.Context, req ChatCompletio
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxUpstreamResponseBytes))
 		if adapter == nil {
-			c.Header("Content-Type", "application/json")
+			c.Header(hdrContentType, mimeJSON)
 			c.Status(resp.StatusCode)
 			_, _ = c.Writer.Write(body)
 			return
@@ -133,7 +130,7 @@ func (h *chatCompletionsHandler) deliverRemote(c *gin.Context, req ChatCompletio
 	// Non-streaming.
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxUpstreamResponseBytes))
 	if adapter == nil {
-		c.Header("Content-Type", "application/json")
+		c.Header(hdrContentType, mimeJSON)
 		c.Status(http.StatusOK)
 		_, _ = c.Writer.Write(body)
 		return
