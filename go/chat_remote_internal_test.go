@@ -13,6 +13,16 @@ func TestModelResolver_Knows_Good(t *testing.T) {
 	}
 }
 
+func TestModelResolver_Knows_CaseInsensitive_Good(t *testing.T) {
+	r := NewModelResolver()
+	// Cache stores the lowercased name; Knows must mirror ResolveModel's
+	// normalisation so a mixed-case request still hits the known model.
+	r.loadedByName["gpt-4"] = nil
+	if !r.Knows("GPT-4") {
+		t.Fatal("Knows(GPT-4) = false, want true (case-insensitive cache hit)")
+	}
+}
+
 func TestModelResolver_Knows_Bad(t *testing.T) {
 	r := NewModelResolver()
 	if r.Knows("does-not-exist") {

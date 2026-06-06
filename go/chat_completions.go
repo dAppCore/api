@@ -307,19 +307,29 @@ func (r *ModelResolver) ResolveModel(name string) (
 // ResolveModel could not have served the model either. Used by the chat handler
 // to route local-vs-remote without triggering a model load (see chat_remote.go).
 func (r *ModelResolver) Knows(name string) bool {
-	if r == nil || core.Trim(name) == "" {
+	if r == nil {
+		return false
+	}
+	requested := core.Trim(name)
+	if requested == "" {
 		return false
 	}
 	r.mu.RLock()
-	_, cached := r.loadedByName[name]
+	_, cached := r.loadedByName[requested]
+	if !cached {
+		if norm := core.Lower(requested); norm != requested {
+			_, cached = r.loadedByName[norm]
+		}
+	}
 	r.mu.RUnlock()
 	if cached {
 		return true
 	}
-	if _, ok := r.lookupModelPath(name); ok {
+	normalized := core.Lower(requested)
+	if _, ok := r.lookupModelPath(normalized); ok {
 		return true
 	}
-	if _, ok := r.resolveDiscoveredPath(name); ok {
+	if _, ok := r.resolveDiscoveredPath(normalized); ok {
 		return true
 	}
 	return false
