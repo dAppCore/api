@@ -853,6 +853,10 @@ func WithChatCompletionsPath(path string) Option {
 // round-robin + passive failover, hybrid streaming, decision hook, transformer
 // composition). The registry is the source of truth for upstreams.
 //
+// v1 caveat: the balancer retains one small state entry per distinct routing key
+// it sees, so with a default pool set (SetDefault) attacker-chosen keys can grow
+// that map unbounded; a bounded/LRU keyspace is a future hardening.
+//
 // Example:
 //
 //	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))

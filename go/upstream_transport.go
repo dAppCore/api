@@ -3,6 +3,7 @@
 package api
 
 import (
+	"io"
 	"net/http"
 	"net/url" // Note: AX-6 — url.URL fields are structural for per-attempt upstream rewriting.
 
@@ -53,9 +54,14 @@ func (t *upstreamTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 		out := req.Clone(req.Context())
 		if out.GetBody != nil {
-			if body, berr := out.GetBody(); berr == nil {
-				out.Body = body
+			body, berr := out.GetBody()
+			if berr != nil {
+				// A failed body replay would dispatch a consumed/empty body to the
+				// upstream; bail to the exhausted-path 503 (which logs the cause).
+				lastErr = berr
+				break
 			}
+			out.Body = body
 		}
 		applyUpstream(out, target)
 		for k, v := range up.Headers {
@@ -102,8 +108,9 @@ func applyUpstream(out *http.Request, target *url.URL) {
 	}
 }
 
-func drainAndClose(body interface{ Close() error }) {
+func drainAndClose(body io.ReadCloser) {
 	if body != nil {
+		_, _ = io.CopyN(io.Discard, body, 4<<10) // bounded drain so the conn is reusable; cap guards a hostile error body
 		_ = body.Close()
 	}
 }

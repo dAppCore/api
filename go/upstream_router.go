@@ -125,6 +125,8 @@ func WithFailover(maxAttempts int, cooldown time.Duration) UpstreamRouterOption 
 
 // WithFailoverStatuses overrides which response statuses trigger failover
 // (default: all >= 500). Pass e.g. 429 to also fail over on rate-limit responses.
+// Passing zero statuses disables status-based failover (transport errors still
+// fail over).
 func WithFailoverStatuses(statuses ...int) UpstreamRouterOption {
 	return func(cfg *upstreamRouterConfig) {
 		cfg.failover = map[int]bool{}
@@ -189,7 +191,9 @@ func (cfg *upstreamRouterConfig) finalise() error {
 		cfg.failover = defaultFailoverStatuses()
 	}
 	if cfg.transport == nil {
-		cfg.transport = http.DefaultTransport
+		// Clone so the router owns an isolated connection pool rather than
+		// mutating/sharing the process-wide http.DefaultTransport.
+		cfg.transport = http.DefaultTransport.(*http.Transport).Clone()
 	}
 	in, err := compileTransformerPipeline(transformerDirectionIn, cfg.inRaw)
 	if err != nil {
