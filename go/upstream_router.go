@@ -322,10 +322,10 @@ func (cfg *upstreamRouterConfig) handler(proxy *httputil.ReverseProxy) gin.Handl
 		c.Request = c.Request.WithContext(ctx)
 
 		// Write through gin's ResponseWriter (not the unwrapped raw writer):
-		// gin.ResponseWriter implements http.Flusher/Hijacker/CloseNotifier — all
-		// httputil.ReverseProxy needs for streaming — and routing the response
-		// through it keeps gin's Written() tracking correct, avoiding the
-		// "superfluous response.WriteHeader" warning and a split header map.
+		// gin.ResponseWriter implements http.Flusher and http.Hijacker, which is
+		// all httputil.ReverseProxy needs to stream on the Rewrite path. Routing
+		// the response through it keeps gin's Written() tracking correct, avoiding
+		// the "superfluous response.WriteHeader" warning and a split header map.
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

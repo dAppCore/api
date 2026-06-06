@@ -203,6 +203,30 @@ func TestUpstreamRouter_RouteHookOverride_Good(t *testing.T) {
 	}
 }
 
+func TestUpstreamRouter_MultiPath_Good(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"path":"`+r.URL.Path+`"}`)
+	}))
+	defer up.Close()
+
+	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+	_ = reg.Set("m", api.Upstream{URL: up.URL})
+	srv := serve(t, reg, api.WithRouterPaths("/v1/chat/completions", "/v1/embeddings"))
+	defer srv.Close()
+
+	for _, path := range []string{"/v1/chat/completions", "/v1/embeddings"} {
+		resp := post(t, srv.URL, path, `{"model":"m"}`)
+		got, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("path %s: status = %d, want 200", path, resp.StatusCode)
+		}
+		if !strings.Contains(string(got), path) {
+			t.Fatalf("path %s: upstream did not receive correct path, body = %s", path, got)
+		}
+	}
+}
+
 func TestUpstreamRouter_SSRFPosture_Bad(t *testing.T) {
 	reg := api.NewUpstreamRegistry() // no allow-list
 	if err := reg.Set("m", api.Upstream{URL: "http://127.0.0.1:11434"}); err == nil {
