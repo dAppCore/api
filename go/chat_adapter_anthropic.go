@@ -158,15 +158,26 @@ func (anthropicTranscoder) Transcode(w io.Writer, flush func(), upstream io.Read
 			}
 		case "message_stop":
 			fr := anthropicFinish(stopReason)
+			delta := ChatMessageDelta{}
+			if first { // empty/no-text stream — still prime the assistant role
+				delta.Role = "assistant"
+				first = false
+			}
 			writeChatChunk(w, flush, ChatCompletionChunk{
 				ID: meta.ID, Object: "chat.completion.chunk", Created: meta.Created, Model: meta.Model,
-				Choices: []ChatChunkChoice{{Index: 0, Delta: ChatMessageDelta{}, FinishReason: &fr}},
+				Choices: []ChatChunkChoice{{Index: 0, Delta: delta, FinishReason: &fr}},
 			})
+			if err := scanner.Err(); err != nil {
+				return err // truncated stream signals incomplete; do NOT emit [DONE]
+			}
 			writeSSEDone(w, flush)
-			return scanner.Err()
+			return nil
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err // truncated stream signals incomplete; do NOT emit [DONE]
 	}
 	// Stream ended without an explicit message_stop — still terminate cleanly.
 	writeSSEDone(w, flush)
-	return scanner.Err()
+	return nil
 }
