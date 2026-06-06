@@ -173,7 +173,7 @@ Streaming and buffered responses are written through gin's `c.Writer` (it implem
 
 | Direction | Mapping |
 |---|---|
-| Request | `{model, messages:[{role,content}], stream, options:{temperature, top_p, top_k, num_predict←max_tokens}, stop←stop}`; headers `Content-Type: application/json` |
+| Request | `{model, messages:[{role,content}], stream, options:{temperature, top_p, top_k, num_predict←max_tokens, stop←stop}}`; headers `Content-Type: application/json`. NOTE: Ollama reads `stop` **inside `options`**, not at the top level. |
 | Non-stream resp | Ollama `{message:{role,content}, done, done_reason, prompt_eval_count, eval_count}` → content=`message.content`; `usage{prompt_tokens←prompt_eval_count, completion_tokens←eval_count}`; finish_reason=`length` if `done_reason=="length"` else `stop` |
 | Stream (NDJSON) | each line `{message:{content:<delta>}, done:false}` → OpenAI chunk `delta.content`; first chunk adds `delta.role:"assistant"`; final line `{done:true, done_reason, eval_count}` → final chunk `finish_reason`, then `data: [DONE]`. Flush per line. |
 
