@@ -4,6 +4,7 @@ package api
 
 import (
 	"bytes"
+	"crypto/subtle" // Note: AX-6 — constant-time bearer comparison for the off-loopback gate
 	"io"
 	"math/rand" // Note: AX-6 — non-security display/correlation ID suffix; core.RandIntN unavailable
 	"net"       // Note: AX-6 — structural IP parsing for loopback-only HTTP boundary
@@ -710,19 +711,37 @@ func parseChannelName(s string) (string, int) {
 	return core.Lower(s[:count]), count
 }
 
-type chatCompletionsHandler struct {
-	resolver         *ModelResolver
-	remote           *chatRemoteConfig
-	allowRemote      bool
-	bearerConfigured bool
+// bearerValidator returns a request validator for a static bearer token, or nil
+// when no token is configured. It checks the Authorization: Bearer header in
+// constant time so the chat endpoint's off-loopback gate fails closed
+// independently of any auth middleware.
+func bearerValidator(token string) func(*http.Request) bool {
+	if core.Trim(token) == "" {
+		return nil
+	}
+	want := []byte(token)
+	return func(r *http.Request) bool {
+		parts := core.SplitN(r.Header.Get("Authorization"), " ", 2)
+		if len(parts) != 2 || core.Lower(parts[0]) != "bearer" {
+			return false
+		}
+		return subtle.ConstantTimeCompare([]byte(parts[1]), want) == 1
+	}
 }
 
-func newChatCompletionsHandler(resolver *ModelResolver, remote *chatRemoteConfig, allowRemote, bearerConfigured bool) *chatCompletionsHandler {
+type chatCompletionsHandler struct {
+	resolver       *ModelResolver
+	remote         *chatRemoteConfig
+	allowRemote    bool
+	validateBearer func(*http.Request) bool
+}
+
+func newChatCompletionsHandler(resolver *ModelResolver, remote *chatRemoteConfig, allowRemote bool, validateBearer func(*http.Request) bool) *chatCompletionsHandler {
 	return &chatCompletionsHandler{
-		resolver:         resolver,
-		remote:           remote,
-		allowRemote:      allowRemote,
-		bearerConfigured: bearerConfigured,
+		resolver:       resolver,
+		remote:         remote,
+		allowRemote:    allowRemote,
+		validateBearer: validateBearer,
 	}
 }
 
@@ -732,9 +751,11 @@ func (h *chatCompletionsHandler) ServeHTTP(c *gin.Context) {
 		return
 	}
 
-	if !isLoopbackRequest(c.Request) && !(h.allowRemote && h.bearerConfigured) {
-		writeChatCompletionError(c, http.StatusForbidden, "invalid_request_error", "request", "chat completions is only available on loopback interfaces", "")
-		return
+	if !isLoopbackRequest(c.Request) {
+		if !h.allowRemote || h.validateBearer == nil || !h.validateBearer(c.Request) {
+			writeChatCompletionError(c, http.StatusForbidden, "invalid_request_error", "request", "chat completions is only available on loopback interfaces", "")
+			return
+		}
 	}
 
 	raw, ok := readChatBody(c)

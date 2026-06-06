@@ -152,6 +152,7 @@ func WithBearerAuth(token string) Option {
 	return func(e *Engine) {
 		if core.Trim(token) != "" {
 			e.bearerConfigured = true
+			e.bearerToken = token
 		}
 		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, func() []string {
 			skip := []string{"/health"}

@@ -109,6 +109,11 @@ type Engine struct {
 	// WithBearerAuth. Strict mode refuses to serve a public listener
 	// without one.
 	bearerConfigured bool
+	// bearerToken is the static bearer credential supplied via WithBearerAuth.
+	// The chat endpoint's off-loopback gate validates the inbound request
+	// against this token directly so it fails closed independently of the
+	// bearer middleware's path coverage.
+	bearerToken string
 	// noRouteHandler is the SPA / fallback handler invoked when no
 	// registered route matches the request. Set via WithNoRoute; nil
 	// means gin returns 404 with its default body.
@@ -451,7 +456,7 @@ func (e *Engine) build() *gin.Engine {
 		if core.Trim(path) == "" {
 			path = defaultChatCompletionsPath
 		}
-		h := newChatCompletionsHandler(e.chatCompletionsResolver, e.chatRemote, e.chatAllowRemote, e.bearerConfigured)
+		h := newChatCompletionsHandler(e.chatCompletionsResolver, e.chatRemote, e.chatAllowRemote, bearerValidator(e.bearerToken))
 		r.POST(path, h.ServeHTTP)
 	}
 
