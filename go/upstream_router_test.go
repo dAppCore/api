@@ -210,7 +210,7 @@ func TestUpstreamRouter_SSRFPosture_Bad(t *testing.T) {
 	}
 }
 
-func TestUpstreamRouter_Composition_Middleware_Good(t *testing.T) {
+func TestUpstreamRouter_Composition_PreNextMiddleware_Good(t *testing.T) {
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"ok":true}`)
 	}))
@@ -218,14 +218,26 @@ func TestUpstreamRouter_Composition_Middleware_Good(t *testing.T) {
 
 	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
 	_ = reg.SetDefault(api.Upstream{URL: up.URL})
-	// WithSunset adds a Sunset header to every response via engine middleware.
-	e, _ := api.New(api.WithSunset("2026-12-31", "https://api.example.com/v2"), api.WithUpstreamRouter(reg))
+	// WithRateLimit runs BEFORE the handler (pre-c.Next()), annotating passing
+	// requests with X-RateLimit-Limit. A response written by the proxy during the
+	// handler therefore still carries this header — proving engine middleware
+	// wraps (gates) the mounted router. Post-Next response-header middleware (e.g.
+	// ApiSunset) cannot apply here because the proxy commits the response during
+	// the handler; see the WithUpstreamRouter docs.
+	e, _ := api.New(api.WithRateLimit(100), api.WithUpstreamRouter(reg))
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	resp := post(t, srv.URL, "/v1/chat/completions", `{"model":"m"}`)
 	defer resp.Body.Close()
-	if resp.Header.Get("Sunset") == "" {
-		t.Fatal("Sunset header absent — engine middleware did not wrap the mounted router")
+	got, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (request proxied through)", resp.StatusCode)
+	}
+	if !strings.Contains(string(got), `"ok":true`) {
+		t.Fatalf("body = %s, want proxied upstream body", got)
+	}
+	if resp.Header.Get("X-RateLimit-Limit") == "" {
+		t.Fatal("X-RateLimit-Limit absent — engine middleware did not wrap the mounted router")
 	}
 }

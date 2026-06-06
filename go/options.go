@@ -857,6 +857,13 @@ func WithChatCompletionsPath(path string) Option {
 // it sees, so with a default pool set (SetDefault) attacker-chosen keys can grow
 // that map unbounded; a bounded/LRU keyspace is a future hardening.
 //
+// Middleware composition: engine middleware that runs BEFORE the handler
+// (authentication, rate limiting, CORS, request validation) composes normally —
+// it gates the request before the proxy dispatches. Middleware that mutates
+// RESPONSE headers AFTER the handler (post-c.Next(), e.g. ApiSunset / WithSunset)
+// does NOT apply to proxied responses, because the reverse proxy writes the full
+// response during the handler, before the post-Next phase runs.
+//
 // Example:
 //
 //	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))

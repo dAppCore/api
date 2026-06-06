@@ -321,18 +321,13 @@ func (cfg *upstreamRouterConfig) handler(proxy *httputil.ReverseProxy) gin.Handl
 		ctx = context.WithValue(ctx, ginCtxKey, c)
 		c.Request = c.Request.WithContext(ctx)
 
-		proxy.ServeHTTP(upstreamResponseWriter(c), c.Request)
+		// Write through gin's ResponseWriter (not the unwrapped raw writer):
+		// gin.ResponseWriter implements http.Flusher/Hijacker/CloseNotifier — all
+		// httputil.ReverseProxy needs for streaming — and routing the response
+		// through it keeps gin's Written() tracking correct, avoiding the
+		// "superfluous response.WriteHeader" warning and a split header map.
+		proxy.ServeHTTP(c.Writer, c.Request)
 	}
-}
-
-// upstreamResponseWriter unwraps gin's ResponseWriter to the underlying
-// http.ResponseWriter, which httputil.ReverseProxy requires for flush/cancel.
-func upstreamResponseWriter(c *gin.Context) http.ResponseWriter {
-	var w http.ResponseWriter = c.Writer
-	if uw, ok := w.(interface{ Unwrap() http.ResponseWriter }); ok {
-		w = uw.Unwrap()
-	}
-	return w
 }
 
 func readUpstreamBody(c *gin.Context) ([]byte, bool) {
