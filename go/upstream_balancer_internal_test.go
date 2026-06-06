@@ -3,6 +3,7 @@
 package api
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -25,7 +26,7 @@ func TestUpstreamBalancer_WeightedSpread_Good(t *testing.T) {
 
 func TestUpstreamBalancer_CooldownSkip_Good(t *testing.T) {
 	now := time.Unix(1000, 0)
-	clock := func() time.Time { return now }
+	clock := func() time.Time { return now } // now is mutated below; clock() reads it live by closure
 	b := newUpstreamBalancer(10*time.Second, clock)
 	pool := []Upstream{{URL: "a", Weight: 1}, {URL: "b", Weight: 1}}
 
@@ -55,4 +56,19 @@ func TestUpstreamBalancer_AllCooling_Bad(t *testing.T) {
 	if _, ok := b.pick("k", pool); ok {
 		t.Fatal("pick returned ok with all upstreams cooling")
 	}
+}
+
+// TestUpstreamBalancer_ConcurrentPickMark_Ugly hammers the shared mutex from
+// many goroutines (Task 3 drives this balancer concurrently). It asserts
+// nothing beyond running clean under -race: no data race, no panic.
+func TestUpstreamBalancer_ConcurrentPickMark_Ugly(t *testing.T) {
+	b := newUpstreamBalancer(time.Minute, time.Now)
+	pool := []Upstream{{URL: "a", Weight: 2}, {URL: "b", Weight: 1}}
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); _, _ = b.pick("k", pool) }()
+		go func() { defer wg.Done(); b.markFailed("a") }()
+	}
+	wg.Wait()
 }
