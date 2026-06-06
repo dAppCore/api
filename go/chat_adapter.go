@@ -2,7 +2,11 @@
 
 package api
 
-import "io" // Note: AX-6 — io.Writer/Reader are the transcoder stream boundary.
+import (
+	"io" // Note: AX-6 — io.Writer/Reader are the transcoder stream boundary.
+
+	core "dappco.re/go"
+)
 
 // ChatFormatAdapter maps between the OpenAI chat shape and a non-OpenAI upstream.
 // OpenAI-compatible upstreams need NO adapter — passthrough is the default.
@@ -35,4 +39,27 @@ type ChatStreamMeta struct {
 	ID      string
 	Model   string
 	Created int64
+}
+
+// writeChatChunk marshals a chunk as one SSE "data:" event and flushes.
+func writeChatChunk(w io.Writer, flush func(), chunk ChatCompletionChunk) {
+	data := core.JSONMarshal(chunk)
+	raw, ok := data.Value.([]byte)
+	if !data.OK || !ok {
+		return
+	}
+	_, _ = io.WriteString(w, "data: ")
+	_, _ = w.Write(raw)
+	_, _ = io.WriteString(w, "\n\n")
+	if flush != nil {
+		flush()
+	}
+}
+
+// writeSSEDone emits the terminating sentinel.
+func writeSSEDone(w io.Writer, flush func()) {
+	_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	if flush != nil {
+		flush()
+	}
 }
