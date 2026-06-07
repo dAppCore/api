@@ -7,6 +7,7 @@ package api
 import (
 	"context"
 	"iter"
+	"net"      // Note: AX-6 — net.SplitHostPort/ParseIP are structural for loopback bind classification; no core primitive
 	"net/http" // Note: AX-6 — structural HTTP boundary for Handler/WebSocket contracts; no core primitive
 	"reflect"  // Note: AX-6 — reflect is structural for runtime nil-pointer detection in handler binding; no core primitive
 	"slices"
@@ -21,6 +22,17 @@ import (
 )
 
 const defaultAddr = ":8080"
+
+var (
+	// ErrNonLoopbackBind is returned by Serve under strict bind mode when the
+	// configured listen address is not loopback and WithPublicBind was not
+	// set. Strict mode is opt-in via WithStrictBind / WithLoopbackOnly.
+	ErrNonLoopbackBind = core.NewError("api: strict bind rejects non-loopback address without WithPublicBind")
+	// ErrPublicBindNoBearer is returned by Serve under strict bind mode when a
+	// public (non-loopback) bind is requested without a bearer credential
+	// supplied via WithBearerAuth.
+	ErrPublicBindNoBearer = core.NewError("api: strict bind rejects public address without WithBearerAuth")
+)
 
 // shutdownTimeout is the maximum duration to wait for in-flight requests
 // to complete during graceful shutdown.
@@ -83,10 +95,37 @@ type Engine struct {
 	i18nConfig                     I18nConfig
 	openAPISpecEnabled             bool
 	openAPISpecPath                string
+	// strictBind, when set via WithStrictBind / WithLoopbackOnly, makes
+	// Serve refuse a non-loopback listen address unless publicBind is also
+	// set, and refuse to serve a public bind without a bearer credential.
+	// Default false preserves the historic permissive behaviour so existing
+	// consumers (go-ml, go-ai, desktop, core-agent) are not broken.
+	strictBind bool
+	// publicBind, when set via WithPublicBind, is the explicit opt-in that
+	// allows a non-loopback bind under strict mode. It carries no effect
+	// when strictBind is false. A public bind still requires a bearer.
+	publicBind bool
+	// bearerConfigured records that a bearer credential was supplied via
+	// WithBearerAuth. Strict mode refuses to serve a public listener
+	// without one.
+	bearerConfigured bool
+	// bearerToken is the static bearer credential supplied via WithBearerAuth.
+	// The chat endpoint's off-loopback gate validates the inbound request
+	// against this token directly so it fails closed independently of the
+	// bearer middleware's path coverage.
+	bearerToken string
 	// noRouteHandler is the SPA / fallback handler invoked when no
 	// registered route matches the request. Set via WithNoRoute; nil
 	// means gin returns 404 with its default body.
-	noRouteHandler                 gin.HandlerFunc
+	noRouteHandler gin.HandlerFunc
+	// upstreamRouter, when set via WithUpstreamRouter, mounts a selector-keyed
+	// reverse proxy over a pool of HTTP upstreams at the configured paths.
+	upstreamRouter *upstreamRouterConfig
+	// chatRemote, when set via WithChatCompletionsRemote, adds a remote backend
+	// to the chat completions endpoint (local-first dispatch).
+	chatRemote *chatRemoteConfig
+	// chatAllowRemote permits non-loopback chat clients when a bearer is set.
+	chatAllowRemote bool
 }
 
 // New creates an Engine with the given options.
@@ -109,7 +148,7 @@ func New(opts ...Option) (
 		opt(e)
 	}
 	// Apply calibrated defaults for optional subsystems.
-	if e.chatCompletionsResolver != nil && core.Trim(e.chatCompletionsPath) == "" {
+	if (e.chatCompletionsResolver != nil || e.chatRemote != nil) && core.Trim(e.chatCompletionsPath) == "" {
 		e.chatCompletionsPath = defaultChatCompletionsPath
 	}
 	return e, nil
@@ -247,6 +286,10 @@ func (e *Engine) Handler() http.Handler {
 func (e *Engine) Serve(ctx context.Context) (
 	_ error,
 ) {
+	if err := e.validateBind(); err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr:              e.addr,
 		Handler:           e.build(),
@@ -289,6 +332,83 @@ func (e *Engine) Serve(ctx context.Context) (
 	return <-errCh
 }
 
+// validateBind enforces the strict bind invariants before Serve binds a
+// listener. It is a no-op unless WithStrictBind / WithLoopbackOnly was set, so
+// existing consumers that bind non-loopback addresses are unaffected.
+//
+// Under strict mode:
+//   - a loopback address always serves;
+//   - a non-loopback address is rejected unless WithPublicBind is set;
+//   - a non-loopback address with WithPublicBind set still requires a bearer
+//     credential (WithBearerAuth), and is otherwise rejected.
+//
+// Example:
+//
+//	e, _ := api.New(api.WithAddr("0.0.0.0:8787"), api.WithStrictBind())
+//	err := e.Serve(ctx) // err == api.ErrNonLoopbackBind
+func (e *Engine) validateBind() (
+	_ error,
+) {
+	if !e.strictBind {
+		return nil
+	}
+	if addrIsLoopback(e.addr) {
+		return nil
+	}
+	if !e.publicBind {
+		return core.E("api.bind", e.addr, ErrNonLoopbackBind)
+	}
+	if !e.bearerConfigured {
+		return core.E("api.bind", e.addr, ErrPublicBindNoBearer)
+	}
+	return nil
+}
+
+// addrIsLoopback reports whether a listen address binds only the loopback
+// interface. The host portion is parsed from "host:port"; a bare ":port" or an
+// unspecified host ("0.0.0.0", "::", empty) is treated as non-loopback because
+// it binds all interfaces. The textual host "localhost" is treated as loopback.
+//
+// Example:
+//
+//	addrIsLoopback("127.0.0.1:8787") // true
+//	addrIsLoopback("[::1]:8787")     // true
+//	addrIsLoopback("localhost:8787") // true
+//	addrIsLoopback("0.0.0.0:8787")   // false
+//	addrIsLoopback(":8787")          // false
+func addrIsLoopback(addr string) bool {
+	addr = core.Trim(addr)
+	if addr == "" {
+		return false
+	}
+
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port separator (or malformed); treat the whole string as the host.
+		host = addr
+	}
+
+	host = core.Trim(host)
+	if host == "" {
+		// Bare ":port" — binds every interface, not loopback.
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// A named host other than localhost is not a loopback guarantee.
+		return false
+	}
+	if ip.IsUnspecified() {
+		// 0.0.0.0 / :: bind all interfaces.
+		return false
+	}
+	return ip.IsLoopback()
+}
+
 // SetNoRoute attaches or replaces the fallback handler invoked when
 // no registered route matches the incoming request. Mirrors the
 // WithNoRoute Option but is callable after construction — useful
@@ -329,10 +449,24 @@ func (e *Engine) build() *gin.Engine {
 		c.JSON(http.StatusOK, OK("healthy"))
 	})
 
-	// Mount the local OpenAI-compatible chat completion endpoint when configured.
-	if e.chatCompletionsResolver != nil {
-		h := newChatCompletionsHandler(e.chatCompletionsResolver)
-		r.POST(e.chatCompletionsPath, h.ServeHTTP)
+	// Mount the OpenAI-compatible chat completion endpoint when a local resolver
+	// and/or a remote backend is configured.
+	if e.chatCompletionsResolver != nil || e.chatRemote != nil {
+		path := e.chatCompletionsPath
+		if core.Trim(path) == "" {
+			path = defaultChatCompletionsPath
+		}
+		h := newChatCompletionsHandler(e.chatCompletionsResolver, e.chatRemote, e.chatAllowRemote, bearerValidator(e.bearerToken))
+		r.POST(path, h.ServeHTTP)
+	}
+
+	// Mount the selector-keyed upstream router when configured.
+	if e.upstreamRouter != nil {
+		proxy := e.upstreamRouter.buildProxy()
+		h := e.upstreamRouter.handler(proxy)
+		for _, p := range e.upstreamRouter.paths {
+			r.Any(p, h)
+		}
 	}
 
 	if e.sdkGenEnabled {

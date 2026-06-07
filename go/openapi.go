@@ -52,6 +52,7 @@ type SpecBuilder struct {
 	ChatCompletionsPath     string
 	OpenAPISpecEnabled      bool
 	OpenAPISpecPath         string
+	UpstreamRouterPaths     []string
 	CacheEnabled            bool
 	CacheTTL                string
 	CacheMaxEntries         int
@@ -420,7 +421,20 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				"summary":     rd.Summary,
 				"description": rd.Description,
 				"operationId": resolvedOperationID(rd, method, fullPath, operationIDs),
-				"responses":   operationResponses(method, rd.StatusCode, rd.Response, rd.ResponseExample, rd.ResponseHeaders, security, deprecated, rd.SunsetDate, replacement, deprecationHeaders, sb.CacheEnabled, rd.CacheControl),
+				"responses": operationResponses(operationRespParams{
+					method:             method,
+					statusCode:         rd.StatusCode,
+					dataSchema:         rd.Response,
+					example:            rd.ResponseExample,
+					responseHeaders:    rd.ResponseHeaders,
+					security:           security,
+					deprecated:         deprecated,
+					sunsetDate:         rd.SunsetDate,
+					replacement:        replacement,
+					deprecationHeaders: deprecationHeaders,
+					cacheEnabled:       sb.CacheEnabled,
+					cacheControl:       rd.CacheControl,
+				}),
 			}
 			if deprecated {
 				operation["deprecated"] = true
@@ -466,7 +480,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				operation["requestBody"] = map[string]any{
 					"required": true,
 					"content": map[string]any{
-						"application/json": requestMediaType,
+						mimeJSON: requestMediaType,
 					},
 				}
 			}
@@ -483,6 +497,21 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 				}
 			}
 		}
+	}
+
+	for _, rawPath := range sb.UpstreamRouterPaths {
+		routerPath := normaliseOpenAPIPath(rawPath)
+		if routerPath == "" {
+			continue
+		}
+		if _, exists := paths[routerPath]; exists {
+			continue // a real item (chat, spec, swagger, or a group) already documents this path
+		}
+		item := upstreamRouterPathItem(routerPath, operationIDs)
+		if isPublicPathForList(routerPath, publicPaths) {
+			makePathItemPublic(item)
+		}
+		paths[routerPath] = item
 	}
 
 	// The built-in health check remains public, so override the inherited
@@ -551,25 +580,41 @@ func normaliseOpenAPIPath(path string) string {
 	return "/" + core.Join("/", cleaned...)
 }
 
+// operationRespParams bundles the parameters for operationResponses.
+type operationRespParams struct {
+	method             string
+	statusCode         int
+	dataSchema         map[string]any
+	example            any
+	responseHeaders    map[string]string
+	security           []map[string][]string
+	deprecated         bool
+	sunsetDate         string
+	replacement        string
+	deprecationHeaders map[string]any
+	cacheEnabled       bool
+	cacheControl       string
+}
+
 // operationResponses builds the standard response set for a documented API
 // operation. The framework always exposes the common envelope responses, plus
 // middleware-driven 429 and 504 errors.
-func operationResponses(method string, statusCode int, dataSchema map[string]any, example any, responseHeaders map[string]string, security []map[string][]string, deprecated bool, sunsetDate, replacement string, deprecationHeaders map[string]any, cacheEnabled bool, cacheControl string) map[string]any {
-	documentedHeaders := documentedResponseHeaders(responseHeaders)
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
-	if method == "get" && cacheEnabled {
+func operationResponses(p operationRespParams) map[string]any {
+	documentedHeaders := documentedResponseHeaders(p.responseHeaders)
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), p.deprecationHeaders, documentedHeaders)
+	if p.method == "get" && p.cacheEnabled {
 		successHeaders = mergeHeaders(successHeaders, cacheSuccessHeaders())
 	}
-	if cacheControl = core.Trim(cacheControl); cacheControl != "" {
-		successHeaders = mergeHeaders(successHeaders, cacheControlHeaders(cacheControl))
+	if p.cacheControl = core.Trim(p.cacheControl); p.cacheControl != "" {
+		successHeaders = mergeHeaders(successHeaders, cacheControlHeaders(p.cacheControl))
 	}
 
-	isPublic := security != nil && len(security) == 0
-	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), deprecationHeaders, documentedHeaders)
+	isPublic := p.security != nil && len(p.security) == 0
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders(), p.deprecationHeaders, documentedHeaders)
 
-	code := successStatusCode(statusCode)
-	if dataSchema == nil && example != nil {
-		dataSchema = map[string]any{}
+	code := successStatusCode(p.statusCode)
+	if p.dataSchema == nil && p.example != nil {
+		p.dataSchema = map[string]any{}
 	}
 	successResponse := map[string]any{
 		"description": successResponseDescription(code),
@@ -577,52 +622,52 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 	}
 	if !isNoContentStatus(code) {
 		content := map[string]any{
-			"schema": envelopeSchema(dataSchema),
+			"schema": envelopeSchema(p.dataSchema),
 		}
-		if example != nil {
+		if p.example != nil {
 			// Example payloads are optional, but when a route provides one we
 			// expose it alongside the schema so generated docs stay useful.
-			content["example"] = example
+			content["example"] = p.example
 		}
 
 		successResponse["content"] = map[string]any{
-			"application/json": content,
+			mimeJSON: content,
 		}
 	}
 
 	responses := map[string]any{
 		core.Itoa(code): successResponse,
 		"400": map[string]any{
-			"description": "Bad request",
+			"description": msgBadRequest,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": errorHeaders,
 		},
 		"429": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
-			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders(), deprecationHeaders, documentedHeaders),
+			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders(), p.deprecationHeaders, documentedHeaders),
 		},
 		"504": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": errorHeaders,
 		},
 		"500": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -630,11 +675,11 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		},
 	}
 
-	if deprecated && (core.Trim(sunsetDate) != "" || core.Trim(replacement) != "") {
+	if p.deprecated && (core.Trim(p.sunsetDate) != "" || core.Trim(p.replacement) != "") {
 		responses["410"] = map[string]any{
 			"description": "Gone",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -646,7 +691,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		responses["401"] = map[string]any{
 			"description": "Unauthorised",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -655,7 +700,7 @@ func operationResponses(method string, statusCode int, dataSchema map[string]any
 		responses["403"] = map[string]any{
 			"description": "Forbidden",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -724,34 +769,34 @@ func healthResponses(cacheEnabled bool) map[string]any {
 		"200": map[string]any{
 			"description": "Server is healthy",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(map[string]any{"type": "string"}),
 				},
 			},
 			"headers": successHeaders,
 		},
 		"429": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
 		},
 		"504": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders()),
 		},
 		"500": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -854,9 +899,9 @@ func deprecationHeaderComponents() map[string]any {
 func responseComponents() map[string]any {
 	return map[string]any{
 		"BadRequest": map[string]any{
-			"description": "Bad request",
+			"description": msgBadRequest,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -865,7 +910,7 @@ func responseComponents() map[string]any {
 		"Unauthorized": map[string]any{
 			"description": "Unauthorised",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -874,34 +919,34 @@ func responseComponents() map[string]any {
 		"Forbidden": map[string]any{
 			"description": "Forbidden",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": standardResponseHeaders(),
 		},
 		"RateLimitExceeded": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
 		},
 		"GatewayTimeout": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
 			"headers": standardResponseHeaders(),
 		},
 		"InternalServerError": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -910,7 +955,7 @@ func responseComponents() map[string]any {
 		"Gone": map[string]any{
 			"description": "Gone",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": envelopeSchema(nil),
 				},
 			},
@@ -979,6 +1024,14 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 			"description": "Local inference endpoints (OpenAI-compatible)",
 		})
 		seen["inference"] = true
+	}
+
+	if len(sb.UpstreamRouterPaths) > 0 && !seen["proxy"] {
+		tags = append(tags, map[string]any{
+			"name":        "proxy",
+			"description": "Selector-routed upstream proxy endpoints",
+		})
+		seen["proxy"] = true
 	}
 
 	for _, g := range groups {
@@ -1065,7 +1118,7 @@ func graphqlPathItem(path string, operationIDs map[string]int, cacheEnabled bool
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{
-					"application/json": map[string]any{
+					mimeJSON: map[string]any{
 						"schema": graphqlRequestSchema(),
 					},
 				},
@@ -1153,7 +1206,7 @@ func wsResponses() map[string]any {
 		"401": map[string]any{
 			"description": "Unauthorised",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1165,7 +1218,7 @@ func wsResponses() map[string]any {
 		"403": map[string]any{
 			"description": "Forbidden",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1175,9 +1228,9 @@ func wsResponses() map[string]any {
 			"headers": errorHeaders,
 		},
 		"429": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1187,9 +1240,9 @@ func wsResponses() map[string]any {
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
 		},
 		"500": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1199,9 +1252,9 @@ func wsResponses() map[string]any {
 			"headers": errorHeaders,
 		},
 		"504": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1266,7 +1319,7 @@ func pprofPathItem(operationIDs map[string]int) map[string]any {
 				"401": map[string]any{
 					"description": "Unauthorised",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1278,7 +1331,7 @@ func pprofPathItem(operationIDs map[string]int) map[string]any {
 				"403": map[string]any{
 					"description": "Forbidden",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1311,7 +1364,7 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 				"200": map[string]any{
 					"description": "Runtime metrics",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1323,7 +1376,7 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 				"401": map[string]any{
 					"description": "Unauthorised",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1335,7 +1388,7 @@ func expvarPathItem(operationIDs map[string]int) map[string]any {
 				"403": map[string]any{
 					"description": "Forbidden",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1370,7 +1423,7 @@ func openAPISpecPathItem(path string, operationIDs map[string]int) map[string]an
 				"200": map[string]any{
 					"description": "OpenAPI 3.1 JSON document",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1382,7 +1435,7 @@ func openAPISpecPathItem(path string, operationIDs map[string]int) map[string]an
 				"500": map[string]any{
 					"description": "Failed to render specification",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": map[string]any{
 								"type":                 "object",
 								"additionalProperties": true,
@@ -1390,6 +1443,66 @@ func openAPISpecPathItem(path string, operationIDs map[string]int) map[string]an
 						},
 					},
 					"headers": errorHeaders,
+				},
+			},
+		},
+	}
+}
+
+// upstreamRouterPathItem documents a WithUpstreamRouter mounted path as a
+// minimal, honest POST proxy operation. The router proxies arbitrary shapes by
+// selector key, so request/response schemas are generic by design; the path is
+// tagged "proxy" to distinguish it from the typed "inference" chat endpoint.
+func upstreamRouterPathItem(path string, operationIDs map[string]int) map[string]any {
+	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
+	genericObject := func() map[string]any {
+		return map[string]any{"type": "object", "additionalProperties": true}
+	}
+
+	return map[string]any{
+		"post": map[string]any{
+			"summary":     "Upstream router (selector-routed proxy)",
+			"description": "Selector-routed reverse proxy. The request body must carry the selector field (default \"model\"); the concrete request and response schemas depend on the target upstream/model. Streams Server-Sent Events when the upstream does.",
+			"tags":        []string{"proxy"},
+			"operationId": operationID("post", path, operationIDs),
+			// The router is a network gateway under engine auth. Default to
+			// bearerAuth (mirroring graphqlPathItem and the group-loop items);
+			// makePathItemPublic overrides this to [] for configured public paths.
+			"security": []any{
+				map[string]any{
+					"bearerAuth": []any{},
+				},
+			},
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					mimeJSON: map[string]any{"schema": genericObject()},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Proxied upstream response",
+					"content": map[string]any{
+						mimeJSON:            map[string]any{"schema": genericObject()},
+						"text/event-stream": map[string]any{"schema": map[string]any{"type": "string"}},
+					},
+					"headers": successHeaders,
+				},
+				"404": map[string]any{
+					"description": "No upstream registered for the selector key",
+					"content":     map[string]any{mimeJSON: map[string]any{"schema": genericObject()}},
+					"headers":     errorHeaders,
+				},
+				"503": map[string]any{
+					"description": "All upstreams unavailable",
+					"content":     map[string]any{mimeJSON: map[string]any{"schema": genericObject()}},
+					"headers": mergeHeaders(errorHeaders, map[string]any{
+						"Retry-After": map[string]any{
+							"description": "Seconds to wait before retrying.",
+							"schema":      map[string]any{"type": "integer"},
+						},
+					}),
 				},
 			},
 		},
@@ -1417,7 +1530,7 @@ func chatCompletionsPathItem(path string, operationIDs map[string]int) map[strin
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{
-					"application/json": map[string]any{
+					mimeJSON: map[string]any{
 						"schema": chatCompletionsRequestSchema(),
 					},
 				},
@@ -1426,7 +1539,7 @@ func chatCompletionsPathItem(path string, operationIDs map[string]int) map[strin
 				"200": map[string]any{
 					"description": "Chat completion response",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": chatCompletionsResponseSchema(),
 						},
 						"text/event-stream": map[string]any{
@@ -1438,7 +1551,7 @@ func chatCompletionsPathItem(path string, operationIDs map[string]int) map[strin
 				"400": map[string]any{
 					"description": "Invalid request",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": chatCompletionsErrorSchema(),
 						},
 					},
@@ -1447,7 +1560,7 @@ func chatCompletionsPathItem(path string, operationIDs map[string]int) map[strin
 				"404": map[string]any{
 					"description": "Model not found",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": chatCompletionsErrorSchema(),
 						},
 					},
@@ -1456,7 +1569,7 @@ func chatCompletionsPathItem(path string, operationIDs map[string]int) map[strin
 				"503": map[string]any{
 					"description": "Model loading or unavailable",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": chatCompletionsErrorSchema(),
 						},
 					},
@@ -1465,7 +1578,7 @@ func chatCompletionsPathItem(path string, operationIDs map[string]int) map[strin
 				"500": map[string]any{
 					"description": "Inference error",
 					"content": map[string]any{
-						"application/json": map[string]any{
+						mimeJSON: map[string]any{
 							"schema": chatCompletionsErrorSchema(),
 						},
 					},
@@ -1650,7 +1763,7 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 		"200": map[string]any{
 			"description": "GraphQL response",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1660,9 +1773,9 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 			"headers": successHeaders,
 		},
 		"400": map[string]any{
-			"description": "Bad request",
+			"description": msgBadRequest,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1674,7 +1787,7 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 		"401": map[string]any{
 			"description": "Unauthorised",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1686,7 +1799,7 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 		"403": map[string]any{
 			"description": "Forbidden",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1696,9 +1809,9 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 			"headers": errorHeaders,
 		},
 		"429": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1708,9 +1821,9 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
 		},
 		"500": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1720,9 +1833,9 @@ func graphqlResponses(cacheEnabled bool) map[string]any {
 			"headers": errorHeaders,
 		},
 		"504": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1753,7 +1866,7 @@ func graphqlPlaygroundResponses() map[string]any {
 		"401": map[string]any{
 			"description": "Unauthorised",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1765,7 +1878,7 @@ func graphqlPlaygroundResponses() map[string]any {
 		"403": map[string]any{
 			"description": "Forbidden",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1775,9 +1888,9 @@ func graphqlPlaygroundResponses() map[string]any {
 			"headers": errorHeaders,
 		},
 		"429": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1787,9 +1900,9 @@ func graphqlPlaygroundResponses() map[string]any {
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
 		},
 		"500": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1799,9 +1912,9 @@ func graphqlPlaygroundResponses() map[string]any {
 			"headers": errorHeaders,
 		},
 		"504": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1836,7 +1949,7 @@ func sseResponses() map[string]any {
 		"401": map[string]any{
 			"description": "Unauthorised",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1848,7 +1961,7 @@ func sseResponses() map[string]any {
 		"403": map[string]any{
 			"description": "Forbidden",
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1858,9 +1971,9 @@ func sseResponses() map[string]any {
 			"headers": errorHeaders,
 		},
 		"429": map[string]any{
-			"description": "Too many requests",
+			"description": msgTooManyRequests,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1870,9 +1983,9 @@ func sseResponses() map[string]any {
 			"headers": mergeHeaders(standardResponseHeaders(), rateLimitHeaders()),
 		},
 		"500": map[string]any{
-			"description": "Internal server error",
+			"description": msgInternalSrvErr,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,
@@ -1882,9 +1995,9 @@ func sseResponses() map[string]any {
 			"headers": errorHeaders,
 		},
 		"504": map[string]any{
-			"description": "Gateway timeout",
+			"description": msgGatewayTimeout,
 			"content": map[string]any{
-				"application/json": map[string]any{
+				mimeJSON: map[string]any{
 					"schema": map[string]any{
 						"type":                 "object",
 						"additionalProperties": true,

@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 
+define('API_TEST_AUTH_SCOPED', '/api/test-auth/scoped');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -43,7 +45,7 @@ it('AuthenticateApiKey_handle_Good authenticates scoped api keys', function () {
         [ApiKey::SCOPE_READ]
     );
 
-    $response = $this->getJson('/api/test-auth/scoped', [
+    $response = $this->getJson(API_TEST_AUTH_SCOPED, [
         'Authorization' => "Bearer {$result['plain_key']}",
     ]);
 
@@ -72,7 +74,7 @@ it('AuthenticateApiKey_handle_Good authenticates unscoped bearer tokens', functi
 it('AuthenticateApiKey_handle_Bad rejects scoped bearer tokens without api-key scopes', function () {
     $result = $this->user->createToken('Dashboard Token');
 
-    $response = $this->getJson('/api/test-auth/scoped', [
+    $response = $this->getJson(API_TEST_AUTH_SCOPED, [
         'Authorization' => "Bearer {$result['token']}",
     ]);
 
@@ -83,7 +85,7 @@ it('AuthenticateApiKey_handle_Bad rejects scoped bearer tokens without api-key s
 });
 
 it('AuthenticateApiKey_handle_Ugly rejects malformed bearer tokens and unauthenticated requests', function () {
-    $response = $this->getJson('/api/test-auth/scoped', [
+    $response = $this->getJson(API_TEST_AUTH_SCOPED, [
         'Authorization' => 'Bearer hk_invalid_'.str_repeat('x', 48),
     ]);
 
@@ -107,7 +109,7 @@ it('AuthenticateApiKey_handle_Bad returns service unavailable when api key looku
         }
     };
 
-    $request = Request::create('/api/test-auth/scoped', 'GET', server: [
+    $request = Request::create(API_TEST_AUTH_SCOPED, 'GET', server: [
         'HTTP_AUTHORIZATION' => 'Bearer hk_lookup_failure_'.str_repeat('x', 48),
     ]);
 

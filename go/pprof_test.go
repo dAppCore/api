@@ -19,15 +19,15 @@ func TestWithPprof_Good_IndexAccessible(t *testing.T) {
 
 	e, err := api.New(api.WithPprof())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/debug/pprof/")
+	resp, err := http.Get(srv.URL + pathDebugPprof + "/")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -41,7 +41,7 @@ func TestWithPprof_Good_ProfileEndpointExists(t *testing.T) {
 
 	e, err := api.New(api.WithPprof())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -49,7 +49,7 @@ func TestWithPprof_Good_ProfileEndpointExists(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/debug/pprof/heap")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -63,15 +63,15 @@ func TestWithPprof_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	e, err := api.New(api.WithRequestID(), api.WithPprof())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/debug/pprof/")
+	resp, err := http.Get(srv.URL + pathDebugPprof + "/")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -80,7 +80,7 @@ func TestWithPprof_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	// Verify the request ID middleware is still active.
-	rid := resp.Header.Get("X-Request-ID")
+	rid := resp.Header.Get(hdrXRequestID)
 	if rid == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID middleware")
 	}
@@ -93,7 +93,7 @@ func TestWithPprof_Bad_NotMountedWithoutOption(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathDebugPprof+"/", nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -106,7 +106,7 @@ func TestWithPprof_Good_CmdlineEndpointExists(t *testing.T) {
 
 	e, err := api.New(api.WithPprof())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -114,7 +114,7 @@ func TestWithPprof_Good_CmdlineEndpointExists(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/debug/pprof/cmdline")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 

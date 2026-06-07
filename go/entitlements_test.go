@@ -25,7 +25,7 @@ func TestEntitlementBridge_Good_CallbackChecksWorkspaceEndpoint(t *testing.T) {
 		if got := r.Header.Get("X-Workspace-Id"); got != "42" {
 			t.Fatalf("expected workspace header 42, got %q", got)
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		w.Write([]byte(`{"workspace_id":42,"feature":"premium.feature","entitlement":{"allowed":true}}`))
 	}))
 	defer srv.Close()
@@ -49,7 +49,7 @@ func TestEntitlementBridge_Good_CallbackForRequestUsesCurrentWorkspaceEndpoint(t
 		if got := r.Header.Get("Cookie"); got != "session=abc" {
 			t.Fatalf("expected forwarded cookie, got %q", got)
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		w.Write([]byte(`{"entitlement":{"can":true}}`))
 	}))
 	defer srv.Close()

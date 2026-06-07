@@ -94,7 +94,7 @@ func (b *EntitlementBridge) Check(ctx context.Context, workspaceID, feature stri
 	if err != nil {
 		return false, core.E(op, "build entitlement request", err)
 	}
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", mimeJSON)
 	applyEntitlementHeaders(req.Header, headers, b.token, workspaceID)
 
 	resp, err := b.client.Do(req)

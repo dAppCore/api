@@ -38,7 +38,7 @@ func TestRouteGroup_Good_InterfaceSatisfaction(t *testing.T) {
 	var g api.RouteGroup = &stubGroup{}
 
 	if g.Name() != "stub" {
-		t.Fatalf("expected Name=%q, got %q", "stub", g.Name())
+		t.Fatalf(fmtTestExpectedName, "stub", g.Name())
 	}
 	if g.BasePath() != "/stub" {
 		t.Fatalf("expected BasePath=%q, got %q", "/stub", g.BasePath())
@@ -54,7 +54,7 @@ func TestRouteGroup_Good_RegisterRoutes(t *testing.T) {
 	g.RegisterRoutes(rg)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	engine.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -85,7 +85,7 @@ func TestStreamGroup_Good_AlsoSatisfiesRouteGroup(t *testing.T) {
 	// A StreamGroup's embedded stubGroup should also satisfy RouteGroup.
 	var rg api.RouteGroup = sg
 	if rg.Name() != "stub" {
-		t.Fatalf("expected Name=%q, got %q", "stub", rg.Name())
+		t.Fatalf(fmtTestExpectedName, "stub", rg.Name())
 	}
 }
 
@@ -107,7 +107,7 @@ func TestDescribableGroup_Good_ImplementsRouteGroup(t *testing.T) {
 	// Must satisfy DescribableGroup.
 	var dg api.DescribableGroup = stub
 	if dg.Name() != "stub" {
-		t.Fatalf("expected Name=%q, got %q", "stub", dg.Name())
+		t.Fatalf(fmtTestExpectedName, "stub", dg.Name())
 	}
 
 	// Must also satisfy RouteGroup since DescribableGroup embeds it.
@@ -203,7 +203,7 @@ func TestDescribableGroup_Bad_NilSchemas(t *testing.T) {
 		descriptions: []api.RouteDescription{
 			{
 				Method:      "GET",
-				Path:        "/health",
+				Path:        pathHealth,
 				Summary:     "Health check",
 				RequestBody: nil,
 				Response:    nil,

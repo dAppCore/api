@@ -56,7 +56,7 @@ func (h *brotliHandler) Handle(c *gin.Context) {
 	w := h.pool.Get().(*brotli.Writer)
 	w.Reset(c.Writer)
 
-	c.Header("Content-Encoding", "br")
+	c.Header(hdrContentEncoding, "br")
 	c.Writer.Header().Add("Vary", "Accept-Encoding")
 
 	bw := &brotliWriter{ResponseWriter: c.Writer, writer: w}
@@ -130,7 +130,7 @@ func (b *brotliWriter) Write(data []byte) (
 	}
 
 	if b.status >= http.StatusBadRequest {
-		b.Header().Del("Content-Encoding")
+		b.Header().Del(hdrContentEncoding)
 		b.Header().Del("Vary")
 		return b.ResponseWriter.Write(data)
 	}
@@ -157,7 +157,7 @@ func (b *brotliWriter) WriteHeader(code int) {
 	b.statusWritten = true
 	b.Header().Del("Content-Length")
 	if code >= http.StatusBadRequest {
-		b.Header().Del("Content-Encoding")
+		b.Header().Del(hdrContentEncoding)
 		b.Header().Del("Vary")
 	}
 	b.ResponseWriter.WriteHeader(code)
@@ -177,7 +177,7 @@ func (b *brotliWriter) WriteHeaderNow() {
 	}
 	b.Header().Del("Content-Length")
 	if b.status >= http.StatusBadRequest {
-		b.Header().Del("Content-Encoding")
+		b.Header().Del(hdrContentEncoding)
 		b.Header().Del("Vary")
 	}
 	b.ResponseWriter.WriteHeaderNow()
@@ -207,7 +207,7 @@ func (b *brotliWriter) release(pool *sync.Pool) {
 	b.released = true
 
 	if b.status >= http.StatusBadRequest {
-		b.Header().Del("Content-Encoding")
+		b.Header().Del(hdrContentEncoding)
 		b.Header().Del("Vary")
 		b.writer.Reset(io.Discard)
 	} else if b.Size() < 0 {

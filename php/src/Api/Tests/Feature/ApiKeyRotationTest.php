@@ -215,7 +215,7 @@ describe('API Key Service Limits', function () {
     });
 
     it('returns workspace key statistics', function () {
-        $key1 = $this->service->create($this->workspace->id, $this->user->id, 'Active Key');
+        $this->service->create($this->workspace->id, $this->user->id, 'Active Key');
         $key2 = $this->service->create($this->workspace->id, $this->user->id, 'Expired Key');
         $key2['api_key']->update(['expires_at' => now()->subDay()]);
 

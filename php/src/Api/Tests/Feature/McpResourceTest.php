@@ -9,6 +9,8 @@ use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 use Illuminate\Http\Request;
 
+define('TEST_RESOURCE_URI', 'test-resource-server://documents/welcome');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -75,7 +77,7 @@ afterEach(function () {
 });
 
 it('reads a resource from the server definition', function () {
-    $encodedUri = rawurlencode('test-resource-server://documents/welcome');
+    $encodedUri = rawurlencode(TEST_RESOURCE_URI);
 
     $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
         'Authorization' => "Bearer {$this->plainKey}",
@@ -83,7 +85,7 @@ it('reads a resource from the server definition', function () {
 
     $response->assertOk();
     $response->assertJson([
-        'uri' => 'test-resource-server://documents/welcome',
+        'uri' => TEST_RESOURCE_URI,
         'server' => 'test-resource-server',
         'resource' => 'documents/welcome',
     ]);
@@ -99,7 +101,7 @@ it('McpResourceTest_resource_Bad_denies_access_to_servers_outside_the_api_key_sc
         'server_scopes' => ['another-server'],
     ]);
 
-    $encodedUri = rawurlencode('test-resource-server://documents/welcome');
+    $encodedUri = rawurlencode(TEST_RESOURCE_URI);
 
     $response = $this->getJson("/api/mcp/resources/{$encodedUri}", [
         'Authorization' => "Bearer {$this->plainKey}",
@@ -139,7 +141,7 @@ it('lists resources for a server', function () {
     $response->assertOk();
     $response->assertJsonPath('server', 'test-resource-server');
     $response->assertJsonPath('count', 1);
-    $response->assertJsonPath('resources.0.uri', 'test-resource-server://documents/welcome');
+    $response->assertJsonPath('resources.0.uri', TEST_RESOURCE_URI);
     $response->assertJsonPath('resources.0.path', 'documents/welcome');
     $response->assertJsonPath('resources.0.name', 'welcome');
     $response->assertJsonMissingPath('resources.0.content');

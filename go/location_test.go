@@ -50,12 +50,12 @@ func TestWithLocation_Good_DetectsForwardedHost(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp locationResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["host"] != "api.example.com" {
 		t.Fatalf("expected host=%q, got %q", "api.example.com", resp.Data["host"])
@@ -74,12 +74,12 @@ func TestWithLocation_Good_DetectsForwardedProto(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp locationResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["scheme"] != "https" {
 		t.Fatalf("expected scheme=%q, got %q", "https", resp.Data["scheme"])
@@ -98,12 +98,12 @@ func TestWithLocation_Good_FallsBackToRequestHost(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp locationResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	// Without forwarded headers the middleware falls back to its default
@@ -132,20 +132,20 @@ func TestWithLocation_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Location middleware should populate the detected host.
 	var resp locationResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["host"] != "proxy.example.com" {
 		t.Fatalf("expected host=%q, got %q", "proxy.example.com", resp.Data["host"])
 	}
 
 	// RequestID middleware should also have run.
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -163,12 +163,12 @@ func TestWithLocation_Good_BothHeadersCombined(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp locationResponse
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data["scheme"] != "https" {
 		t.Fatalf("expected scheme=%q, got %q", "https", resp.Data["scheme"])

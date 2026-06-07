@@ -12,16 +12,25 @@ import (
 	"dappco.re/go/api/pkg/provider"
 )
 
-func TestMain(m *testing.M) {
-	const env = "CORE_PROVIDER_UPSTREAM_ALLOW"
+const (
+	proxyCoolWidgetName  = "cool-widget"
+	proxyCoolWidgetPath  = "/api/v1/cool-widget"
+	proxyLoopbackURL     = "http://127.0.0.1:9999"
+	proxyTestName        = "test-proxy"
+	proxyTestPath        = "/api/v1/test-proxy"
+	proxyBlockedName     = "blocked"
+	proxyJSONContentType = "application/json"
+	envUpstreamAllow     = "CORE_PROVIDER_UPSTREAM_ALLOW"
+)
 
-	previous, hadPrevious := LookupEnv(env)
-	_ = coreSetenv(env, "127.0.0.0/8,::1/128")
+func TestMain(m *testing.M) {
+	previous, hadPrevious := LookupEnv(envUpstreamAllow)
+	_ = coreSetenv(envUpstreamAllow, "127.0.0.0/8,::1/128")
 	code := m.Run()
 	if hadPrevious {
-		_ = coreSetenv(env, previous)
+		_ = coreSetenv(envUpstreamAllow, previous)
 	} else {
-		_ = coreUnsetenv(env)
+		_ = coreUnsetenv(envUpstreamAllow)
 	}
 	Exit(code)
 }
@@ -30,20 +39,20 @@ func TestMain(m *testing.M) {
 
 func TestProxyProvider_Name_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
-		Name:     "cool-widget",
-		BasePath: "/api/v1/cool-widget",
-		Upstream: "http://127.0.0.1:9999",
+		Name:     proxyCoolWidgetName,
+		BasePath: proxyCoolWidgetPath,
+		Upstream: proxyLoopbackURL,
 	})
-	AssertEqual(t, "cool-widget", p.Name())
+	AssertEqual(t, proxyCoolWidgetName, p.Name())
 }
 
 func TestProxyProvider_BasePath_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
-		Name:     "cool-widget",
-		BasePath: "/api/v1/cool-widget",
-		Upstream: "http://127.0.0.1:9999",
+		Name:     proxyCoolWidgetName,
+		BasePath: proxyCoolWidgetPath,
+		Upstream: proxyLoopbackURL,
 	})
-	AssertEqual(t, "/api/v1/cool-widget", p.BasePath())
+	AssertEqual(t, proxyCoolWidgetPath, p.BasePath())
 }
 
 func TestProxyProvider_Element_Good(t *T) {
@@ -52,9 +61,9 @@ func TestProxyProvider_Element_Good(t *T) {
 		Source: "/assets/cool-widget.js",
 	}
 	p := provider.NewProxy(provider.ProxyConfig{
-		Name:     "cool-widget",
-		BasePath: "/api/v1/cool-widget",
-		Upstream: "http://127.0.0.1:9999",
+		Name:     proxyCoolWidgetName,
+		BasePath: proxyCoolWidgetPath,
+		Upstream: proxyLoopbackURL,
 		Element:  elem,
 	})
 	AssertEqual(t, "core-cool-widget", p.Element().Tag)
@@ -63,9 +72,9 @@ func TestProxyProvider_Element_Good(t *T) {
 
 func TestProxyProvider_SpecFile_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
-		Name:     "cool-widget",
-		BasePath: "/api/v1/cool-widget",
-		Upstream: "http://127.0.0.1:9999",
+		Name:     proxyCoolWidgetName,
+		BasePath: proxyCoolWidgetPath,
+		Upstream: proxyLoopbackURL,
 		SpecFile: "/tmp/openapi.json",
 	})
 	AssertEqual(t, "/tmp/openapi.json", p.SpecFile())
@@ -78,7 +87,7 @@ func TestProxyProviderProxyForwards(t *T) {
 			`path`:   r.URL.Path,
 			"method": r.Method,
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", proxyJSONContentType)
 		coreJSONEncode(w, resp)
 	}))
 	defer upstream.Close()
@@ -116,7 +125,7 @@ func TestProxyProviderProxyForwards(t *T) {
 func TestProxyProviderProxyRootForwards(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{`path`: r.URL.Path}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", proxyJSONContentType)
 		coreJSONEncode(w, resp)
 	}))
 	defer upstream.Close()
@@ -149,7 +158,7 @@ func TestProxyProviderProxyRootForwards(t *T) {
 func TestProxyProviderHealthPassthrough(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
-			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Type", proxyJSONContentType)
 			w.Write([]byte(`{"status":"ok"}`))
 			return
 		}
@@ -182,7 +191,7 @@ func TestProxyProvider_Renderable_Good(t *T) {
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "renderable-proxy",
 		BasePath: "/api/v1/renderable",
-		Upstream: "http://127.0.0.1:9999",
+		Upstream: proxyLoopbackURL,
 		Element:  provider.ElementSpec{Tag: "core-test-panel", Source: "/assets/test.js"},
 	})
 
@@ -226,7 +235,7 @@ func TestProxyProvider_Ugly_InvalidUpstream(t *T) {
 }
 
 func TestProxyProvider_NewProxy_Good_PublicUpstream(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+	t.Setenv(envUpstreamAllow, "")
 
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "public",
@@ -239,28 +248,28 @@ func TestProxyProvider_NewProxy_Good_PublicUpstream(t *T) {
 }
 
 func TestProxyProvider_NewProxy_Bad_BlocksMetadataIP(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+	t.Setenv(envUpstreamAllow, "")
 
 	err := assertProviderUpstreamBlocked(t, "http://169.254.169.254/x")
-	AssertContains(t, err.Error(), "blocked")
+	AssertContains(t, err.Error(), proxyBlockedName)
 }
 
 func TestProxyProvider_NewProxy_Bad_BlocksLoopback(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+	t.Setenv(envUpstreamAllow, "")
 
 	err := assertProviderUpstreamBlocked(t, "http://127.0.0.1:5432/")
-	AssertContains(t, err.Error(), "blocked")
+	AssertContains(t, err.Error(), proxyBlockedName)
 }
 
 func TestProxyProvider_NewProxy_Bad_BlocksRFC1918(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+	t.Setenv(envUpstreamAllow, "")
 
 	err := assertProviderUpstreamBlocked(t, "http://10.0.0.1/x")
-	AssertContains(t, err.Error(), "blocked")
+	AssertContains(t, err.Error(), proxyBlockedName)
 }
 
 func TestProxyProvider_NewProxy_Good_AllowListPermitsLoopback(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "127.0.0.0/8")
+	t.Setenv(envUpstreamAllow, "127.0.0.0/8")
 
 	p := provider.NewProxy(provider.ProxyConfig{
 		Name:     "allowed-loopback",
@@ -273,24 +282,24 @@ func TestProxyProvider_NewProxy_Good_AllowListPermitsLoopback(t *T) {
 }
 
 func TestProxyProvider_NewProxy_Bad_AllowListDoesNotPermitOtherPrivateCIDRs(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "127.0.0.0/8")
+	t.Setenv(envUpstreamAllow, "127.0.0.0/8")
 
 	err := assertProviderUpstreamBlocked(t, "http://10.0.0.1/")
-	AssertContains(t, err.Error(), "blocked")
+	AssertContains(t, err.Error(), proxyBlockedName)
 }
 
 func TestProxyProvider_NewProxy_Bad_BlocksHostnameResolvingToLoopback(t *T) {
-	t.Setenv("CORE_PROVIDER_UPSTREAM_ALLOW", "")
+	t.Setenv(envUpstreamAllow, "")
 
 	err := assertProviderUpstreamBlocked(t, "http://localhost:5432/")
-	AssertContains(t, err.Error(), "blocked")
+	AssertContains(t, err.Error(), proxyBlockedName)
 }
 
 func assertProviderUpstreamBlocked(t *T, upstream string) error {
 	t.Helper()
 
 	p := provider.NewProxy(provider.ProxyConfig{
-		Name:     "blocked",
+		Name:     proxyBlockedName,
 		BasePath: "/api/v1/blocked",
 		Upstream: upstream,
 	})

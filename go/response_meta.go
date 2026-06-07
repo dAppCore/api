@@ -213,7 +213,7 @@ func responseMetaMiddleware() gin.HandlerFunc {
 		}
 
 		body := recorder.body.Bytes()
-		if meta := GetRequestMeta(c); meta != nil && shouldAttachResponseMeta(recorder.Header().Get("Content-Type"), body) {
+		if meta := GetRequestMeta(c); meta != nil && shouldAttachResponseMeta(recorder.Header().Get(hdrContentType), body) {
 			if refreshed := refreshResponseMetaBody(body, meta); refreshed != nil {
 				body = refreshed
 			}
@@ -302,7 +302,7 @@ func isJSONContentType(contentType string) bool {
 	}
 	mediaType = core.Lower(mediaType)
 
-	return mediaType == "application/json" ||
+	return mediaType == mimeJSON ||
 		core.HasSuffix(mediaType, "+json") ||
 		core.HasSuffix(mediaType, "/json")
 }

@@ -89,7 +89,7 @@ func TestOpenAPIClient_Good_CallOperationByID(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"message":"hello"}}`))
 	})
 	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +103,7 @@ func TestOpenAPIClient_Good_CallOperationByID(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"id":"123","name":"Ada"}}`))
 	})
 
@@ -139,7 +139,7 @@ paths:
 		"name": "Ada",
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -167,7 +167,7 @@ paths:
 		},
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -196,7 +196,7 @@ func TestOpenAPIClient_Good_LoadsSpecFromReader(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"message":"pong"}}`))
 	})
 
@@ -219,7 +219,7 @@ paths:
 
 	result, err := client.Call("ping", nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -310,7 +310,7 @@ paths:
 
 	operations, err := client.Operations()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	if len(operations) != 1 {
 		t.Fatalf("expected 1 operation, got %d", len(operations))
@@ -361,9 +361,9 @@ paths: {}
 
 	servers, err := client.Servers()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
-	if !slices.Equal(servers, []string{"https://api.example.com", "/relative"}) {
+	if !slices.Equal(servers, []string{apiBaseURL, "/relative"}) {
 		t.Fatalf("expected server snapshot to preserve order, got %v", servers)
 	}
 
@@ -372,7 +372,7 @@ paths: {}
 	if err != nil {
 		t.Fatalf("unexpected error on re-read: %v", err)
 	}
-	if !slices.Equal(again, []string{"https://api.example.com", "/relative"}) {
+	if !slices.Equal(again, []string{apiBaseURL, "/relative"}) {
 		t.Fatalf("expected server snapshot to be cloned, got %v", again)
 	}
 }
@@ -404,7 +404,7 @@ paths:
 
 	operations, err := client.OperationsIter()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var operationIDs []string
@@ -417,14 +417,14 @@ paths:
 
 	servers, err := client.ServersIter()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var serverURLs []string
 	for server := range servers {
 		serverURLs = append(serverURLs, server)
 	}
-	if !slices.Equal(serverURLs, []string{"https://api.example.com"}) {
+	if !slices.Equal(serverURLs, []string{apiBaseURL}) {
 		t.Fatalf("expected iterator to preserve server snapshots, got %v", serverURLs)
 	}
 }
@@ -454,7 +454,7 @@ func TestOpenAPIClient_Good_CallHeadOperationWithRequestBody(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -487,7 +487,7 @@ paths:
 		"name": "Ada",
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -518,7 +518,7 @@ func TestOpenAPIClient_Good_CallOperationWithRepeatedQueryValues(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
 	})
 
@@ -546,7 +546,7 @@ paths:
 		"page": 2,
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -588,7 +588,7 @@ func TestOpenAPIClient_Good_UsesTopLevelQueryParametersOnPost(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
 	})
 
@@ -625,7 +625,7 @@ paths:
 		"name":    "Ada",
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -647,7 +647,7 @@ func TestOpenAPIClient_Bad_MissingRequiredQueryParameter(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		called <- struct{}{}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
 	})
 
@@ -692,7 +692,7 @@ func TestOpenAPIClient_Bad_ValidatesQueryParameterAgainstSchema(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		called <- struct{}{}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
 	})
 
@@ -738,7 +738,7 @@ func TestOpenAPIClient_Bad_ValidatesPathParameterAgainstSchema(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/123", func(w http.ResponseWriter, r *http.Request) {
 		called <- struct{}{}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
 	})
 
@@ -823,7 +823,7 @@ func TestOpenAPIClient_Good_UsesHeaderAndCookieParameters(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"ok":true}}`))
 	})
 
@@ -862,7 +862,7 @@ paths:
 		},
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	select {
@@ -889,7 +889,7 @@ func TestOpenAPIClient_Good_UsesFirstAbsoluteServer(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"message":"hello"}}`))
 	})
 
@@ -917,7 +917,7 @@ paths:
 
 	result, err := client.Call("get_hello", nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	select {
 	case err := <-errCh:
@@ -939,7 +939,7 @@ func TestOpenAPIClient_Bad_ValidatesRequestBodyAgainstSchema(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		called <- struct{}{}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"id":"123"}}`))
 	})
 
@@ -1003,7 +1003,7 @@ paths:
 func TestOpenAPIClient_Bad_ValidatesResponseAgainstSchema(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(hdrContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"id":123}}`))
 	})
 

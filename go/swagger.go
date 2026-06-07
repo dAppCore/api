@@ -105,7 +105,7 @@ func registerOpenAPISpec(g *gin.Engine, e *Engine) {
 	spec := newSwaggerSpec(e.OpenAPISpecBuilder(), e.Groups())
 	g.GET(path, func(c *gin.Context) {
 		doc := spec.ReadDoc()
-		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.Header(hdrContentType, "application/json; charset=utf-8")
 		c.String(http.StatusOK, doc)
 	})
 }

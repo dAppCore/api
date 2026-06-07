@@ -26,24 +26,24 @@ func TestWithSSE_Good_EndpointExists(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !core.HasPrefix(ct, "text/event-stream") {
+	ct := resp.Header.Get(hdrContentType)
+	if !core.HasPrefix(ct, mimeEventStream) {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 }
@@ -54,7 +54,7 @@ func TestWithSSE_Good_LegacyVersionedPathExistsByDefault(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -62,7 +62,7 @@ func TestWithSSE_Good_LegacyVersionedPathExistsByDefault(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/v1/events")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -70,8 +70,8 @@ func TestWithSSE_Good_LegacyVersionedPathExistsByDefault(t *testing.T) {
 		t.Fatalf("expected 200 from legacy /v1/events alias, got %d", resp.StatusCode)
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !core.HasPrefix(ct, "text/event-stream") {
+	ct := resp.Header.Get(hdrContentType)
+	if !core.HasPrefix(ct, mimeEventStream) {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 }
@@ -82,7 +82,7 @@ func TestWithSSE_Good_CustomPath(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker), api.WithSSEPath("/stream"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -90,20 +90,20 @@ func TestWithSSE_Good_CustomPath(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/stream")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !core.HasPrefix(ct, "text/event-stream") {
+	ct := resp.Header.Get(hdrContentType)
+	if !core.HasPrefix(ct, mimeEventStream) {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 
-	notFoundResp, err := http.Get(srv.URL + "/events")
+	notFoundResp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
 		t.Fatalf("request to default SSE path failed: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestWithSSE_Bad_CustomPathDoesNotExposeLegacyAlias(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker), api.WithSSEPath(" /stream/ "))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -128,7 +128,7 @@ func TestWithSSE_Bad_CustomPathDoesNotExposeLegacyAlias(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/v1/events")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -143,15 +143,15 @@ func TestWithSSE_Ugly_RootPathFallsBackToDefault(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker), api.WithSSEPath(" / "))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -176,15 +176,15 @@ func TestWithSSE_Good_ReceivesPublishedEvent(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -235,7 +235,7 @@ func TestWithSSE_Good_ChannelFiltering(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -244,7 +244,7 @@ func TestWithSSE_Good_ChannelFiltering(t *testing.T) {
 	// Subscribe to channel "foo" only.
 	resp, err := http.Get(srv.URL + "/events?channel=foo")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -298,30 +298,30 @@ func TestWithSSE_Good_CombinesWithOtherMiddleware(t *testing.T) {
 		api.WithSSE(broker),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	// RequestID middleware should have injected the header.
-	reqID := resp.Header.Get("X-Request-ID")
+	reqID := resp.Header.Get(hdrXRequestID)
 	if reqID == "" {
 		t.Fatal("expected X-Request-ID header from RequestID middleware")
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !core.HasPrefix(ct, "text/event-stream") {
+	ct := resp.Header.Get(hdrContentType)
+	if !core.HasPrefix(ct, mimeEventStream) {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
 }
@@ -336,22 +336,22 @@ func TestWithSSE_Good_WithResponseMetaStillStreamsEvents(t *testing.T) {
 		api.WithSSE(broker),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
-	if ct := resp.Header.Get("Content-Type"); !core.HasPrefix(ct, "text/event-stream") {
+	if ct := resp.Header.Get(hdrContentType); !core.HasPrefix(ct, mimeEventStream) {
 		t.Fatalf("expected Content-Type starting with text/event-stream, got %q", ct)
 	}
-	if reqID := resp.Header.Get("X-Request-ID"); reqID == "" {
+	if reqID := resp.Header.Get(hdrXRequestID); reqID == "" {
 		t.Fatal("expected X-Request-ID header from RequestID middleware")
 	}
 
@@ -393,20 +393,20 @@ func TestWithSSE_Good_MultipleClients(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	// Connect two clients.
-	resp1, err := http.Get(srv.URL + "/events")
+	resp1, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
 		t.Fatalf("client 1 request failed: %v", err)
 	}
 	defer resp1.Body.Close()
 
-	resp2, err := http.Get(srv.URL + "/events")
+	resp2, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
 		t.Fatalf("client 2 request failed: %v", err)
 	}
@@ -460,15 +460,15 @@ func TestWithSSE_Good_DrainDisconnectsClients(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 
 	waitForClients(t, broker, 1)
@@ -516,7 +516,7 @@ func TestNoSSEBroker_Good(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathEvents, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -538,7 +538,7 @@ func TestWithSSE_Good_EngineShutdownDrainsClients(t *testing.T) {
 
 	e, err := api.New(api.WithAddr(addr), api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -557,9 +557,9 @@ func TestWithSSE_Good_EngineShutdownDrainsClients(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	resp, err := http.Get("http://" + addr + "/events")
+	resp, err := http.Get("http://" + addr + pathEvents)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 

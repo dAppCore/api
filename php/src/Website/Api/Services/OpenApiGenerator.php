@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 
 class OpenApiGenerator
 {
+    private const TAG_CHAT_WIDGET = 'Chat Widget';
+
     /**
      * Cache duration in seconds (1 hour in production, 0 in local).
      */
@@ -85,7 +87,7 @@ class OpenApiGenerator
         return [
             ['name' => 'Analytics', 'description' => 'Website analytics and tracking'],
             ['name' => 'Bio', 'description' => 'Bio link pages, blocks, and QR codes'],
-            ['name' => 'Chat Widget', 'description' => 'Public chat widget API'],
+            ['name' => self::TAG_CHAT_WIDGET, 'description' => 'Public chat widget API'],
             ['name' => 'Commerce', 'description' => 'Billing, orders, invoices, subscriptions, and provisioning'],
             ['name' => 'Content', 'description' => 'AI content generation and briefs'],
             ['name' => 'Entitlements', 'description' => 'Feature entitlements and usage'],
@@ -208,7 +210,7 @@ class OpenApiGenerator
             'api.pixel' => 'Pixel',
             'api.commerce' => 'Commerce',
             'api.entitlements' => 'Entitlements',
-            'api.support.chat' => 'Chat Widget',
+            'api.support.chat' => self::TAG_CHAT_WIDGET,
             'api.support' => 'Support',
             'api.mcp' => 'MCP',
             'api.social' => 'Social',
@@ -243,7 +245,7 @@ class OpenApiGenerator
             'provisioning' => 'Commerce',
             'commerce' => 'Commerce',
             'entitlements' => 'Entitlements',
-            'support/chat' => 'Chat Widget',
+            'support/chat' => self::TAG_CHAT_WIDGET,
             'support' => 'Support',
             'mcp' => 'MCP',
             'bio' => 'Bio',

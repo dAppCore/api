@@ -96,7 +96,7 @@ func TestResponseMetaRecorder_Good_BuffersAndCommits(t *testing.T) {
 		t.Fatalf("expected header snapshot to be isolated, got %q", got)
 	}
 
-	rec.Header().Set("Content-Type", "application/json")
+	rec.Header().Set(hdrContentType, mimeJSON)
 	rec.WriteHeader(http.StatusCreated)
 	rec.WriteHeaderNow()
 	if !rec.Written() {
@@ -144,7 +144,7 @@ func TestResponseMetaRecorder_Bad_RejectsNonJSONPayloads(t *testing.T) {
 	if got := shouldAttachResponseMeta("text/plain", []byte(`{"success":true}`)); got {
 		t.Fatal("expected text/plain to be rejected")
 	}
-	if got := shouldAttachResponseMeta("application/json", []byte(`[]`)); got {
+	if got := shouldAttachResponseMeta(mimeJSON, []byte(`[]`)); got {
 		t.Fatal("expected array body to be rejected")
 	}
 
@@ -173,7 +173,7 @@ func TestResponseMetaRecorder_Bad_RejectsNonJSONPayloads(t *testing.T) {
 func TestResponseMetaRecorder_Ugly_HandlesMalformedBodiesAndHijack(t *testing.T) {
 	base := newResponseMetaWriterStub()
 	rec := newResponseMetaRecorder(base)
-	rec.Header().Set("Content-Type", "application/json")
+	rec.Header().Set(hdrContentType, mimeJSON)
 
 	if got := refreshResponseMetaBody([]byte(`not-json`), &Meta{RequestID: "x"}); string(got) != "not-json" {
 		t.Fatalf("expected malformed JSON to be returned unchanged, got %q", got)

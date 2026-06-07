@@ -108,6 +108,7 @@ func (g *traceEmptyGroup) Name() string     { return "trace-empty" }
 func (g *traceEmptyGroup) BasePath() string { return "/trace" }
 func (g *traceEmptyGroup) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/empty", func(c *gin.Context) {
+		// No-op endpoint; only used to verify that tracing creates a span for empty routes.
 	})
 }
 
@@ -124,11 +125,11 @@ func TestWithTracing_Good_CreatesSpan(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	spans := exporter.GetSpans()
@@ -154,11 +155,11 @@ func TestWithTracing_Good_SpanHasHTTPAttributes(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	spans := exporter.GetSpans()
@@ -200,7 +201,7 @@ func TestWithTracing_Good_PropagatesTraceContext(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 
 	// Inject a W3C traceparent header to simulate an upstream service.
 	// Format: version-traceID-spanID-flags
@@ -208,7 +209,7 @@ func TestWithTracing_Good_PropagatesTraceContext(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	spans := exporter.GetSpans()
@@ -253,11 +254,11 @@ func TestWithTracing_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Tracing should produce spans.
@@ -267,7 +268,7 @@ func TestWithTracing_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	// WithRequestID should set the X-Request-ID header.
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -284,11 +285,11 @@ func TestWithTracing_Good_ServiceNameInSpan(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	spans := exporter.GetSpans()
@@ -386,11 +387,11 @@ func TestTracing_WithTracing_Good_AttachesDurationAndSizeAttributes(t *testing.T
 	h := e.Handler()
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/trace/echo", core.NewReader("abc"))
-	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set(hdrContentType, "text/plain")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	spans := exporter.GetSpans()
@@ -436,7 +437,7 @@ func TestTracing_WithTracing_Bad_SkipsAttributesWhenSpanIsNotRecording(t *testin
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 	if group.sawRecording {
 		t.Fatal("expected no-op tracer provider to expose a non-recording span")
@@ -458,7 +459,7 @@ func TestTracing_WithTracing_Ugly_OmitsResponseSizeForEmptyResponses(t *testing.
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	spans := exporter.GetSpans()

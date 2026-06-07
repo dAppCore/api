@@ -21,7 +21,7 @@ func (r *testAuthRoutes) Name() string     { return "authtest" }
 func (r *testAuthRoutes) BasePath() string { return "/v1" }
 
 func (r *testAuthRoutes) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/public", func(c *gin.Context) {
+	rg.GET(pathPublic, func(c *gin.Context) {
 		c.JSON(200, api.OK("public"))
 	})
 	rg.GET("/whoami", api.RequireAuth(), func(c *gin.Context) {
@@ -129,7 +129,7 @@ func TestAuthentikIntegration(t *testing.T) {
 	accessToken, _ := getClientCredentialsToken(t, issuer, clientID, clientSecret)
 
 	t.Run("Health_NoAuth", func(t *testing.T) {
-		resp := get(t, ts.URL+"/health", "")
+		resp := get(t, ts.URL+pathHealth, "")
 		assertStatus(t, resp, 200)
 		body := readBody(t, resp)
 		t.Logf("health: %s", body)

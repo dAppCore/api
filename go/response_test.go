@@ -28,10 +28,10 @@ func TestOK_Good(t *testing.T) {
 	r := api.OK("hello")
 
 	if !r.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if r.Data != "hello" {
-		t.Fatalf("expected Data=%q, got %q", "hello", r.Data)
+		t.Fatalf(fmtTestExpectedData, "hello", r.Data)
 	}
 	if r.Error != nil {
 		t.Fatal("expected Error to be nil")
@@ -48,7 +48,7 @@ func TestOK_Good_StructData(t *testing.T) {
 	r := api.OK(user{Name: "Ada"})
 
 	if !r.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if r.Data.Name != "Ada" {
 		t.Fatalf("expected Data.Name=%q, got %q", "Ada", r.Data.Name)
@@ -64,7 +64,7 @@ func TestOK_Good_JSONOmitsErrorAndMeta(t *testing.T) {
 
 	var raw map[string]any
 	if err := coreJSONUnmarshal(b, &raw); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	if _, ok := raw["error"]; ok {
@@ -87,7 +87,7 @@ func TestFail_Good(t *testing.T) {
 	r := api.Fail("NOT_FOUND", "resource not found")
 
 	if r.Success {
-		t.Fatal("expected Success=false")
+		t.Fatal(fmtTestExpectedFail)
 	}
 	if r.Error == nil {
 		t.Fatal("expected Error to be non-nil")
@@ -112,7 +112,7 @@ func TestFail_Good_JSONOmitsData(t *testing.T) {
 
 	var raw map[string]any
 	if err := coreJSONUnmarshal(b, &raw); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	if _, ok := raw["data"]; ok {
@@ -130,7 +130,7 @@ func TestFailWithDetails_Good(t *testing.T) {
 	r := api.FailWithDetails("VALIDATION", "validation failed", details)
 
 	if r.Success {
-		t.Fatal("expected Success=false")
+		t.Fatal(fmtTestExpectedFail)
 	}
 	if r.Error == nil {
 		t.Fatal("expected Error to be non-nil")
@@ -152,7 +152,7 @@ func TestFailWithDetails_Good_JSONIncludesDetails(t *testing.T) {
 
 	var raw map[string]any
 	if err := coreJSONUnmarshal(b, &raw); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	errObj, ok := raw["error"].(map[string]any)
@@ -171,7 +171,7 @@ func TestPaginated_Good(t *testing.T) {
 	r := api.Paginated(items, 2, 25, 100)
 
 	if !r.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if len(r.Data) != 3 {
 		t.Fatalf("expected 3 items, got %d", len(r.Data))
@@ -199,7 +199,7 @@ func TestPaginated_Good_JSONIncludesMeta(t *testing.T) {
 
 	var raw map[string]any
 	if err := coreJSONUnmarshal(b, &raw); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 
 	if _, ok := raw["meta"]; !ok {
@@ -222,7 +222,7 @@ func TestResponse_AttachRequestMeta_Good_FillsMetaFromRequestIDMiddleware(t *tes
 
 	e, err := api.New(api.WithRequestID())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(attachRequestMetaTestGroup{
 		handler: func(c *gin.Context) {
@@ -233,16 +233,16 @@ func TestResponse_AttachRequestMeta_Good_FillsMetaFromRequestIDMiddleware(t *tes
 
 	rec := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
-	req.Header.Set("X-Request-ID", "client-id-meta")
+	req.Header.Set(hdrXRequestID, "client-id-meta")
 	e.Handler().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		t.Fatalf(fmtTestExpected200, rec.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta == nil {
 		t.Fatal("expected Meta to be present")
@@ -263,7 +263,7 @@ func TestResponse_AttachRequestMeta_Bad_ReturnsResponseUnchangedWithoutRequestMe
 
 	e, err := api.New()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(attachRequestMetaTestGroup{
 		handler: func(c *gin.Context) {
@@ -277,12 +277,12 @@ func TestResponse_AttachRequestMeta_Bad_ReturnsResponseUnchangedWithoutRequestMe
 	e.Handler().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		t.Fatalf(fmtTestExpected200, rec.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta != nil {
 		t.Fatalf("expected Meta to remain nil, got %+v", resp.Meta)
@@ -294,7 +294,7 @@ func TestResponse_AttachRequestMeta_Ugly_PreservesExistingMetaFields(t *testing.
 
 	e, err := api.New(api.WithRequestID())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	e.Register(attachRequestMetaTestGroup{
 		handler: func(c *gin.Context) {
@@ -306,16 +306,16 @@ func TestResponse_AttachRequestMeta_Ugly_PreservesExistingMetaFields(t *testing.
 
 	rec := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/v1/meta", nil)
-	req.Header.Set("X-Request-ID", "client-id-meta")
+	req.Header.Set(hdrXRequestID, "client-id-meta")
 	e.Handler().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		t.Fatalf(fmtTestExpected200, rec.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Meta == nil {
 		t.Fatal("expected Meta to be present")

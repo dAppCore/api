@@ -39,13 +39,13 @@ func TestWithRateLimit_Good_AllowsBurstThenRejects(t *testing.T) {
 	if w1.Code != http.StatusOK {
 		t.Fatalf("expected first request to succeed, got %d", w1.Code)
 	}
-	if got := w1.Header().Get("X-RateLimit-Limit"); got != "2" {
+	if got := w1.Header().Get(hdrRateLimit); got != "2" {
 		t.Fatalf("expected X-RateLimit-Limit=2, got %q", got)
 	}
-	if got := w1.Header().Get("X-RateLimit-Remaining"); got != "1" {
+	if got := w1.Header().Get(hdrRateRemaining); got != "1" {
 		t.Fatalf("expected X-RateLimit-Remaining=1, got %q", got)
 	}
-	if got := w1.Header().Get("X-RateLimit-Reset"); got == "" {
+	if got := w1.Header().Get(hdrRateReset); got == "" {
 		t.Fatal("expected X-RateLimit-Reset on successful response")
 	}
 
@@ -68,19 +68,19 @@ func TestWithRateLimit_Good_AllowsBurstThenRejects(t *testing.T) {
 	if got := w3.Header().Get("Retry-After"); got == "" {
 		t.Fatal("expected Retry-After header on 429 response")
 	}
-	if got := w3.Header().Get("X-RateLimit-Limit"); got != "2" {
+	if got := w3.Header().Get(hdrRateLimit); got != "2" {
 		t.Fatalf("expected X-RateLimit-Limit=2 on 429, got %q", got)
 	}
-	if got := w3.Header().Get("X-RateLimit-Remaining"); got != "0" {
+	if got := w3.Header().Get(hdrRateRemaining); got != "0" {
 		t.Fatalf("expected X-RateLimit-Remaining=0 on 429, got %q", got)
 	}
-	if got := w3.Header().Get("X-RateLimit-Reset"); got == "" {
+	if got := w3.Header().Get(hdrRateReset); got == "" {
 		t.Fatal("expected X-RateLimit-Reset on 429 response")
 	}
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w3.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Success {
 		t.Fatal("expected Success=false for rate limited response")
@@ -104,7 +104,7 @@ func TestWithRateLimit_Good_IsolatesPerIP(t *testing.T) {
 	if w1.Code != http.StatusOK {
 		t.Fatalf("expected first IP to succeed, got %d", w1.Code)
 	}
-	if got := w1.Header().Get("X-RateLimit-Limit"); got != "1" {
+	if got := w1.Header().Get(hdrRateLimit); got != "1" {
 		t.Fatalf("expected X-RateLimit-Limit=1, got %q", got)
 	}
 
@@ -127,7 +127,7 @@ func TestWithRateLimit_Good_IsolatesPerAPIKey(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
 	req1.RemoteAddr = "203.0.113.20:1234"
-	req1.Header.Set("X-API-Key", "key-a")
+	req1.Header.Set(apiKeyHeader, "key-a")
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
 		t.Fatalf("expected first API key request to succeed, got %d", w1.Code)
@@ -136,7 +136,7 @@ func TestWithRateLimit_Good_IsolatesPerAPIKey(t *testing.T) {
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
 	req2.RemoteAddr = "203.0.113.20:1234"
-	req2.Header.Set("X-API-Key", "key-b")
+	req2.Header.Set(apiKeyHeader, "key-b")
 	h.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusOK {
 		t.Fatalf("expected second API key to have its own bucket, got %d", w2.Code)
@@ -145,7 +145,7 @@ func TestWithRateLimit_Good_IsolatesPerAPIKey(t *testing.T) {
 	w3 := httptest.NewRecorder()
 	req3, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
 	req3.RemoteAddr = "203.0.113.20:1234"
-	req3.Header.Set("X-API-Key", "key-a")
+	req3.Header.Set(apiKeyHeader, "key-a")
 	h.ServeHTTP(w3, req3)
 	if w3.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected repeated API key to be rate limited, got %d", w3.Code)
@@ -206,7 +206,7 @@ func TestWithRateLimit_Good_PrioritisesPrincipalOverCredentialHeaders(t *testing
 	req1, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
 	req1.RemoteAddr = "203.0.113.40:1234"
 	req1.Header.Set("X-Principal", "workspace-1")
-	req1.Header.Set("X-API-Key", "key-a")
+	req1.Header.Set(apiKeyHeader, "key-a")
 	req1.Header.Set("Authorization", "Bearer token-a")
 	h.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
@@ -217,7 +217,7 @@ func TestWithRateLimit_Good_PrioritisesPrincipalOverCredentialHeaders(t *testing
 	req2, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
 	req2.RemoteAddr = "203.0.113.41:1234"
 	req2.Header.Set("X-Principal", "workspace-1")
-	req2.Header.Set("X-API-Key", "key-b")
+	req2.Header.Set(apiKeyHeader, "key-b")
 	req2.Header.Set("Authorization", "Bearer token-b")
 	h.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusTooManyRequests {

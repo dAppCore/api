@@ -21,15 +21,15 @@ func TestWithExpvar_Good_EndpointReturnsJSON(t *testing.T) {
 
 	e, err := api.New(api.WithExpvar())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/debug/vars")
+	resp, err := http.Get(srv.URL + pathDebugVars)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -37,8 +37,8 @@ func TestWithExpvar_Good_EndpointReturnsJSON(t *testing.T) {
 		t.Fatalf("expected 200 for /debug/vars, got %d", resp.StatusCode)
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !core.Contains(ct, "application/json") {
+	ct := resp.Header.Get(hdrContentType)
+	if !core.Contains(ct, mimeJSON) {
 		t.Fatalf("expected application/json content type, got %q", ct)
 	}
 }
@@ -48,21 +48,21 @@ func TestWithExpvar_Good_ContainsMemstats(t *testing.T) {
 
 	e, err := api.New(api.WithExpvar())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/debug/vars")
+	resp, err := http.Get(srv.URL + pathDebugVars)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	if !core.Contains(string(body), "memstats") {
@@ -75,21 +75,21 @@ func TestWithExpvar_Good_ContainsCmdline(t *testing.T) {
 
 	e, err := api.New(api.WithExpvar())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/debug/vars")
+	resp, err := http.Get(srv.URL + pathDebugVars)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	if !core.Contains(string(body), "cmdline") {
@@ -102,15 +102,15 @@ func TestWithExpvar_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	e, err := api.New(api.WithRequestID(), api.WithExpvar())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/debug/vars")
+	resp, err := http.Get(srv.URL + pathDebugVars)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -119,7 +119,7 @@ func TestWithExpvar_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	// Verify the request ID middleware is still active.
-	rid := resp.Header.Get("X-Request-ID")
+	rid := resp.Header.Get(hdrXRequestID)
 	if rid == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID middleware")
 	}
@@ -132,7 +132,7 @@ func TestWithExpvar_Bad_NotMountedWithoutOption(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/debug/vars", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathDebugVars, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {

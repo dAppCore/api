@@ -49,7 +49,7 @@ type Service struct {
 	// registration and Serve calls stay on this handle since neither
 	// crosses an IPC boundary.
 	// Usage example: `svc.Engine.Register(myProvider)`
-	Engine *Engine
+	Engine        *Engine
 	registrations core.Once
 }
 

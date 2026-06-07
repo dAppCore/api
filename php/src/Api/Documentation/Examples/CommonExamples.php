@@ -118,7 +118,7 @@ class CommonExamples
     /**
      * Get example error response.
      */
-    public static function errorResponse(int $status, string $message, ?array $errors = null): array
+    public static function errorResponse(string $message, ?array $errors = null): array
     {
         $response = ['message' => $message];
 
@@ -166,7 +166,7 @@ class CommonExamples
     {
         return match ($type) {
             'api_key' => [
-                'X-API-Key' => 'YOUR_API_KEY_HERE',
+                'X-API-Key' => 'YOUR_API_KEY_HERE', // NOSONAR — documentation placeholder, not a real credential
             ],
             'bearer' => [
                 'Authorization' => 'Bearer YOUR_JWT_TOKEN_HERE',

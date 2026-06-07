@@ -55,26 +55,26 @@ func TestWithGraphQL_Good_EndpointResponds(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
+	resp, err := http.Post(srv.URL+pathGraphQL, mimeJSON, core.NewReader(body))
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	if !core.Contains(string(respBody), `"name":"test"`) {
@@ -87,30 +87,30 @@ func TestWithGraphQL_Good_PlaygroundServesHTML(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema(), api.WithPlayground()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/graphql/playground")
+	resp, err := http.Get(srv.URL + pathGraphQLPlay)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
-	ct := resp.Header.Get("Content-Type")
+	ct := resp.Header.Get(hdrContentType)
 	if !core.Contains(ct, "text/html") {
 		t.Fatalf("expected Content-Type containing text/html, got %q", ct)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	if !core.Contains(string(body), "GraphQL") {
@@ -124,12 +124,12 @@ func TestWithGraphQL_Good_NoPlaygroundByDefault(t *testing.T) {
 	// Without WithPlayground(), /graphql/playground should return 404.
 	e, err := api.New(api.WithGraphQL(newTestSchema()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/graphql/playground", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathGraphQLPlay, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -142,7 +142,7 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema(), api.WithGraphQLPath("/gql"), api.WithPlayground()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -150,9 +150,9 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 
 	// Query endpoint should be at /gql.
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/gql", "application/json", core.NewReader(body))
+	resp, err := http.Post(srv.URL+"/gql", mimeJSON, core.NewReader(body))
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -162,7 +162,7 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	if !core.Contains(string(respBody), `"name":"test"`) {
@@ -181,7 +181,7 @@ func TestWithGraphQL_Good_CustomPath(t *testing.T) {
 	}
 
 	// The default path should not exist.
-	defaultResp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
+	defaultResp, err := http.Post(srv.URL+pathGraphQL, mimeJSON, core.NewReader(body))
 	if err != nil {
 		t.Fatalf("default path request failed: %v", err)
 	}
@@ -197,16 +197,16 @@ func TestWithGraphQL_Good_NormalisesCustomPath(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema(), api.WithGraphQLPath(" /gql/ "), api.WithPlayground()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/gql", "application/json", core.NewReader(body))
+	resp, err := http.Post(srv.URL+"/gql", mimeJSON, core.NewReader(body))
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -230,16 +230,16 @@ func TestWithGraphQL_Good_DefaultPathWhenEmptyCustomPath(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema(), api.WithGraphQLPath(""), api.WithPlayground()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
+	resp, err := http.Post(srv.URL+pathGraphQL, mimeJSON, core.NewReader(body))
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -247,7 +247,7 @@ func TestWithGraphQL_Good_DefaultPathWhenEmptyCustomPath(t *testing.T) {
 		t.Fatalf("expected 200 at default /graphql, got %d", resp.StatusCode)
 	}
 
-	pgResp, err := http.Get(srv.URL + "/graphql/playground")
+	pgResp, err := http.Get(srv.URL + pathGraphQLPlay)
 	if err != nil {
 		t.Fatalf("playground request failed: %v", err)
 	}
@@ -263,16 +263,16 @@ func TestWithGraphQL_Ugly_RootPathFallsBackToDefault(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema(), api.WithGraphQLPath(" / "), api.WithPlayground()))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
+	resp, err := http.Post(srv.URL+pathGraphQL, mimeJSON, core.NewReader(body))
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -280,7 +280,7 @@ func TestWithGraphQL_Ugly_RootPathFallsBackToDefault(t *testing.T) {
 		t.Fatalf("expected 200 at default /graphql after root path normalisation, got %d", resp.StatusCode)
 	}
 
-	pgResp, err := http.Get(srv.URL + "/graphql/playground")
+	pgResp, err := http.Get(srv.URL + pathGraphQLPlay)
 	if err != nil {
 		t.Fatalf("playground request failed: %v", err)
 	}
@@ -299,32 +299,32 @@ func TestWithGraphQL_Good_CombinesWithOtherMiddleware(t *testing.T) {
 		api.WithGraphQL(newTestSchema()),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
 	body := `{"query":"{ name }"}`
-	resp, err := http.Post(srv.URL+"/graphql", "application/json", core.NewReader(body))
+	resp, err := http.Post(srv.URL+pathGraphQL, mimeJSON, core.NewReader(body))
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	// RequestID middleware should have injected the header.
-	reqID := resp.Header.Get("X-Request-ID")
+	reqID := resp.Header.Get(hdrXRequestID)
 	if reqID == "" {
 		t.Fatal("expected X-Request-ID header from RequestID middleware")
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	if !core.Contains(string(respBody), `"name":"test"`) {

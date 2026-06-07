@@ -15,6 +15,7 @@ use Illuminate\Support\ServiceProvider;
  */
 class DocumentationServiceProvider extends ServiceProvider
 {
+    private const CONFIG_FILE = '/config.php';
     /**
      * Register any application services.
      */
@@ -23,10 +24,10 @@ class DocumentationServiceProvider extends ServiceProvider
         // Merge documentation configuration under both the package-local
         // `api-docs` namespace and the RFC-facing `scramble` namespace so
         // either config file shape can drive the same documentation surface.
-        $this->mergeConfigFrom(__DIR__.'/config.php', 'api-docs');
-        $this->mergeConfigFrom(__DIR__.'/config.php', 'scramble');
+        $this->mergeConfigFrom(__DIR__.self::CONFIG_FILE, 'api-docs');
+        $this->mergeConfigFrom(__DIR__.self::CONFIG_FILE, 'scramble');
 
-        $baseConfig = require __DIR__.'/config.php';
+        $baseConfig = require __DIR__.self::CONFIG_FILE;
         $scrambleConfig = config('scramble', []);
         $apiDocsConfig = config('api-docs', []);
         $effectiveConfig = array_replace_recursive($baseConfig, $scrambleConfig, $apiDocsConfig);
@@ -37,7 +38,7 @@ class DocumentationServiceProvider extends ServiceProvider
         ]);
 
         // Register OpenApiBuilder as singleton
-        $this->app->singleton(OpenApiBuilder::class, function ($app) {
+        $this->app->singleton(OpenApiBuilder::class, function ($_app) {
             return new OpenApiBuilder;
         });
     }
@@ -58,11 +59,11 @@ class DocumentationServiceProvider extends ServiceProvider
         // Publish configuration
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__.'/config.php' => config_path('api-docs.php'),
+                __DIR__.self::CONFIG_FILE => config_path('api-docs.php'),
             ], 'api-docs-config');
 
             $this->publishes([
-                __DIR__.'/config.php' => config_path('scramble.php'),
+                __DIR__.self::CONFIG_FILE => config_path('scramble.php'),
             ], 'scramble-config');
 
             $this->publishes([

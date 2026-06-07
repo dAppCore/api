@@ -8,6 +8,9 @@ use Core\Api\Models\ApiKey;
 use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 
+define('KEY_NAME_ACTIVE', 'Active Key');
+define('API_MCP_SERVERS_PATH', '/api/mcp/servers');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -383,7 +386,7 @@ describe('Expiry Handling', function () {
         ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Active Key',
+            KEY_NAME_ACTIVE,
             [ApiKey::SCOPE_READ],
             now()->addDays(30)
         );
@@ -509,7 +512,7 @@ describe('Key Revocation', function () {
         ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Active Key'
+            KEY_NAME_ACTIVE
         );
 
         // Create and revoke a key
@@ -523,7 +526,7 @@ describe('Key Revocation', function () {
         $keys = ApiKey::forWorkspace($this->workspace->id)->get();
 
         expect($keys)->toHaveCount(1);
-        expect($keys->first()->name)->toBe('Active Key');
+        expect($keys->first()->name)->toBe(KEY_NAME_ACTIVE);
     });
 });
 
@@ -716,14 +719,14 @@ describe('Rate Limiting Configuration', function () {
 
 describe('HTTP Authentication', function () {
     it('requires authorization header', function () {
-        $response = $this->getJson('/api/mcp/servers');
+        $response = $this->getJson(API_MCP_SERVERS_PATH);
 
         expect($response->status())->toBe(401);
         expect($response->json('error'))->toBe('unauthorized');
     });
 
     it('rejects invalid API key', function () {
-        $response = $this->getJson('/api/mcp/servers', [
+        $response = $this->getJson(API_MCP_SERVERS_PATH, [
             'Authorization' => 'Bearer hk_invalid_'.str_repeat('x', 48),
         ]);
 
@@ -739,7 +742,7 @@ describe('HTTP Authentication', function () {
             now()->subDay()
         );
 
-        $response = $this->getJson('/api/mcp/servers', [
+        $response = $this->getJson(API_MCP_SERVERS_PATH, [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 

@@ -6,6 +6,8 @@ use Core\Front\Api\ApiVersionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 
+define('API_USERS_PATH', '/api/users');
+
 beforeEach(function () {
     Config::set('api.versioning.default', 1);
     Config::set('api.versioning.current', 2);
@@ -44,7 +46,7 @@ it('ApiVersionService_current_Good_reads_request_version_attributes', function (
     Config::set('api.versioning.deprecated', [2]);
 
     $versions = new ApiVersionService();
-    $request = Request::create('/api/users', 'GET');
+    $request = Request::create(API_USERS_PATH, 'GET');
     $request->attributes->set('api_version', 2);
     $request->attributes->set('api_version_string', 'v2');
 
@@ -63,7 +65,7 @@ it('ApiVersionService_defaults_Good_uses_configured_versions_when_request_has_no
     Config::set('api.versioning.current', 3);
 
     $versions = new ApiVersionService();
-    $request = Request::create('/api/users', 'GET');
+    $request = Request::create(API_USERS_PATH, 'GET');
 
     expect($versions->current($request))->toBeNull();
     expect($versions->defaultVersion())->toBe(1);
@@ -74,7 +76,7 @@ it('ApiVersionService_defaults_Good_uses_configured_versions_when_request_has_no
 
 it('ApiVersionService_negotiate_Good_picks_the_best_available_handler', function () {
     $versions = new ApiVersionService();
-    $request = Request::create('/api/users', 'GET');
+    $request = Request::create(API_USERS_PATH, 'GET');
 
     $request->attributes->set('api_version', 3);
 
@@ -97,7 +99,7 @@ it('ApiVersionService_negotiate_Good_picks_the_best_available_handler', function
 
 it('ApiVersionService_negotiate_Bad_throws_when_no_handler_matches', function () {
     $versions = new ApiVersionService();
-    $request = Request::create('/api/users', 'GET');
+    $request = Request::create(API_USERS_PATH, 'GET');
     $request->attributes->set('api_version', 1);
 
     expect(fn () => $versions->negotiate($request, [
@@ -107,7 +109,7 @@ it('ApiVersionService_negotiate_Bad_throws_when_no_handler_matches', function ()
 
 it('ApiVersionService_transform_Good_applies_exact_or_fallback_transformers', function () {
     $versions = new ApiVersionService();
-    $request = Request::create('/api/users', 'GET');
+    $request = Request::create(API_USERS_PATH, 'GET');
     $payload = ['name' => 'Ada', 'legacy' => true];
 
     $request->attributes->set('api_version', 2);
@@ -130,7 +132,7 @@ it('ApiVersionService_transform_Good_applies_exact_or_fallback_transformers', fu
 
 it('ApiVersionService_transform_Ugly_returns_original_data_without_a_matching_transformer', function () {
     $versions = new ApiVersionService();
-    $request = Request::create('/api/users', 'GET');
+    $request = Request::create(API_USERS_PATH, 'GET');
     $request->attributes->set('api_version', 1);
     $payload = ['name' => 'Ada', 'legacy' => true];
 
