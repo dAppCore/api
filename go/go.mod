@@ -3,7 +3,7 @@ module dappco.re/go/api
 go 1.26.2
 
 require (
-	dappco.re/go v0.10.3
+	dappco.re/go v0.10.4
 	dappco.re/go/inference v0.9.0
 	dappco.re/go/io v0.9.0
 	dappco.re/go/log v0.9.0
