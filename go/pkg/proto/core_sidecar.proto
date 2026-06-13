@@ -1,0 +1,154 @@
+// SPDX-License-Identifier: EUPL-1.2
+//
+// core_sidecar.proto
+//
+// CANONICAL contract between CoreGO and CoreDeno (CoreTS). Single source of
+// truth: the Go stubs (api/go/pkg/proto/gen/) and the Deno proto-loader BOTH
+// derive from this exact file. Spec of record: code/core/go/api/RFC.grpc.md §2.
+//
+// Go hosts the GoService server; Deno connects as client.
+// Deno hosts the DenoService server; Go connects as client.
+//
+// Message types match the wired subsystems: go-io Medium (file I/O),
+// go-store Store (KV, group+key), go-process Service (exec), the core://
+// scheme registry, and the CoreDeno runtime (DenoService lifecycle + render).
+//
+// Every GoService request carries module_code — the module that initiated the
+// call — so Go applies per-module permission scoping.
+
+syntax = "proto3";
+
+package core.sidecar;
+
+option go_package = "dappco.re/go/api/pkg/proto/gen;sidecarpb";
+
+// GoService — Deno calls Go for sandboxed I/O and state.
+service GoService {
+    rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+    rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
+    rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+    rpc StoreGet(StoreGetRequest) returns (StoreGetResponse);
+    rpc StoreSet(StoreSetRequest) returns (StoreSetResponse);
+    rpc Exec(ExecRequest) returns (ExecResponse);
+    rpc ResolveScheme(SchemeRequest) returns (SchemeResponse);
+}
+
+// DenoService — Go calls Deno for TypeScript lifecycle and rendering.
+service DenoService {
+    rpc OnStart(LifecycleEvent) returns (Ack);
+    rpc OnStop(LifecycleEvent) returns (Ack);
+    rpc OnConfigChange(ConfigChangeEvent) returns (Ack);
+    rpc Render(RenderRequest) returns (RenderResponse);
+    rpc Eval(EvalRequest) returns (EvalResponse);
+}
+
+// --- GoService: file I/O (go-io Medium) ---
+
+message ReadFileRequest {
+    string path = 1;          // relative to the Medium sandbox root
+    string module_code = 2;   // initiating module, for permission scoping
+}
+message ReadFileResponse {
+    bytes data = 1;
+    string error = 2;
+}
+message WriteFileRequest {
+    string path = 1;
+    bytes data = 2;
+    uint32 mode = 3;          // octal file mode; 0 = Medium default
+    string module_code = 4;
+}
+message WriteFileResponse {
+    bool ok = 1;
+    string error = 2;
+}
+message ListFilesRequest {
+    string path = 1;
+    string module_code = 2;
+}
+message FileEntry {
+    string name = 1;
+    bool is_dir = 2;
+}
+message ListFilesResponse {
+    repeated FileEntry entries = 1;
+    string error = 2;
+}
+
+// --- GoService: KV store (go-store Store, group+key) ---
+
+message StoreGetRequest {
+    string group = 1;
+    string key = 2;
+    string module_code = 3;
+}
+message StoreGetResponse {
+    string value = 1;
+    bool found = 2;
+    string error = 3;
+}
+message StoreSetRequest {
+    string group = 1;
+    string key = 2;
+    string value = 3;
+    string module_code = 4;
+}
+message StoreSetResponse {
+    bool ok = 1;
+    string error = 2;
+}
+
+// --- GoService: process execution (go-process Service) ---
+
+message ExecRequest {
+    string cmd = 1;
+    repeated string args = 2;
+    string dir = 3;
+    repeated string env = 4;  // KEY=VALUE overrides
+    string module_code = 5;
+}
+message ExecResponse {
+    bytes output = 1;         // combined stdout/stderr
+    int32 exit_code = 2;
+    string error = 3;
+}
+
+// --- GoService: core:// scheme resolution ---
+
+message SchemeRequest {
+    string uri = 1;
+    string module_code = 2;
+}
+message SchemeResponse {
+    string result_json = 1;
+    string error = 2;
+}
+
+// --- DenoService: lifecycle + rendering (Go -> Deno) ---
+
+message LifecycleEvent {
+    string phase = 1;         // "start" | "stop"
+    string reason = 2;
+}
+message ConfigChangeEvent {
+    string key = 1;           // dotted config key, e.g. "theme.accent"
+    string value = 2;         // JSON-encoded for non-string types
+}
+message RenderRequest {
+    string component = 1;
+    string props = 2;         // JSON-encoded props
+}
+message RenderResponse {
+    string html = 1;
+    string error = 2;
+}
+message EvalRequest {
+    string expression = 1;
+}
+message EvalResponse {
+    string result_json = 1;
+    string error = 2;
+}
+message Ack {
+    bool ok = 1;
+}
