@@ -12,12 +12,14 @@ import (
 
 	core "dappco.re/go"
 	coreapi "dappco.re/go/api"
+	coregrpc "dappco.re/go/api/pkg/grpc"
 	coreio "dappco.re/go/io"
 	process "dappco.re/go/process"
 	proxy "dappco.re/go/proxy"
 	"dappco.re/go/scm/marketplace"
 	scmapi "dappco.re/go/scm/pkg/api"
 	"dappco.re/go/scm/repos"
+	store "dappco.re/go/store"
 	"dappco.re/go/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +28,19 @@ const (
 	defaultGatewayBind = "0.0.0.0:8080"
 	envGatewayBind     = "CORE_GATEWAY_BIND"
 	envGatewayEnable   = "CORE_GATEWAY_ENABLE"
+
+	// envGatewayGRPCSocket overrides the Unix domain socket the gRPC
+	// sidecar bridge (GoService) listens on. When empty the gateway uses
+	// defaultGatewayGRPCSocket under the workspace .core directory.
+	envGatewayGRPCSocket = "CORE_GATEWAY_GRPC_SOCKET"
+	// defaultGatewayGRPCSocket is the sidecar socket path used when
+	// envGatewayGRPCSocket is unset. Deno dials this to reach Go.
+	defaultGatewayGRPCSocket = ".core/run/core-sidecar.sock"
+	// defaultSidecarStorePath is the SQLite KV database backing the
+	// GoService StoreGet/StoreSet rpcs when no override is supplied.
+	defaultSidecarStorePath = ".core/run/sidecar-store.db"
+	// envGatewaySidecarStore overrides defaultSidecarStorePath.
+	envGatewaySidecarStore = "CORE_GATEWAY_SIDECAR_STORE"
 )
 
 type providerFactory func(*gatewayDeps) coreapi.RouteGroup
@@ -43,6 +58,12 @@ type gatewayDeps struct {
 	hub     *ws.Hub
 	logger  *slog.Logger
 	cleanup []func(context.Context)
+
+	// procService is the single go-process Service shared by the HTTP
+	// process provider and the gRPC sidecar GoService. It is constructed
+	// once in run via ensureProcessService so both consumers exec through
+	// the same daemon rather than spinning up duplicate services.
+	procService *process.Service
 }
 
 type processRouteGroup struct {
@@ -67,6 +88,172 @@ func (g processRouteGroup) RegisterRoutes(rg *gin.RouterGroup) {
 			"ready":    g.service != nil,
 		}))
 	})
+}
+
+// ensureProcessService returns the gateway's shared go-process Service,
+// constructing it on first use and registering its shutdown cleanup
+// exactly once. Both the HTTP process provider and the gRPC sidecar
+// GoService call this so a single daemon backs every exec.
+//
+//	svc := ensureProcessService(deps)
+func ensureProcessService(deps *gatewayDeps) *process.Service {
+	if deps.procService != nil {
+		return deps.procService
+	}
+	factory := process.NewService(process.Options{})
+	result := factory(deps.core)
+	if !result.OK {
+		panic(result.Error())
+	}
+	service, ok := result.Value.(*process.Service)
+	if !ok {
+		panic(core.Sprintf("process service factory returned %T", result.Value))
+	}
+	deps.procService = service
+	deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
+		if r := service.OnShutdown(ctx); !r.OK {
+			slog.Default().Warn("process service shutdown failed", "err", r.Error())
+		}
+	})
+	return service
+}
+
+// kvStoreAdapter adapts a go-store *Store to the grpc.KVStore surface
+// the GoService consumes. go-store returns plain errors; the bridge
+// contract is core.Result, and an absent key must read back as an empty
+// value on an OK Result (RFC.grpc.md StoreGet semantics), so a
+// store.NotFoundError is folded into success here rather than surfaced.
+//
+//	var kv coregrpc.KVStore = kvStoreAdapter{store: s}
+type kvStoreAdapter struct {
+	store *store.Store
+}
+
+// Get returns the value for (group, key). A missing key yields an empty
+// value on an OK Result; any other backend error fails the Result.
+func (a kvStoreAdapter) Get(group, key string) (string, core.Result) {
+	value, err := a.store.Get(group, key)
+	if err != nil {
+		if core.Is(err, store.NotFoundError) {
+			return "", core.Ok(nil)
+		}
+		return "", core.Fail(err)
+	}
+	return value, core.Ok(nil)
+}
+
+// Set writes value under (group, key), translating a go-store error
+// into a failed Result.
+func (a kvStoreAdapter) Set(group, key, value string) core.Result {
+	if err := a.store.Set(group, key, value); err != nil {
+		return core.Fail(err)
+	}
+	return core.Ok(nil)
+}
+
+// procRunnerAdapter adapts a go-process *Service to the grpc.ProcRunner
+// surface. The bridge's RunOptions is a narrow wire-facing struct, so
+// this maps it onto the concrete go-process RunOptions at the call site.
+//
+//	var r coregrpc.ProcRunner = procRunnerAdapter{service: svc}
+type procRunnerAdapter struct {
+	service *process.Service
+}
+
+// RunWithOptions executes a command through go-process and returns the
+// captured output on the Result.
+func (a procRunnerAdapter) RunWithOptions(ctx context.Context, opts coregrpc.RunOptions) core.Result {
+	return a.service.RunWithOptions(ctx, process.RunOptions{
+		Command: opts.Command,
+		Args:    opts.Args,
+		Dir:     opts.Dir,
+		Env:     opts.Env,
+	})
+}
+
+// startSidecarBridge wires the gRPC sidecar GoService to real Core
+// subsystems (go-io Local medium, a go-store KV database, the shared
+// go-process Service) and serves it on a Unix domain socket. Deno dials
+// this socket for sandboxed I/O, KV state, and process execution.
+//
+// The bridge is additive: any failure to open the store or bind the
+// socket is logged and the gateway continues serving HTTP. The server
+// is stopped gracefully both when Core's context is cancelled (signal /
+// shutdown) and via the cleanup stack run on exit.
+func startSidecarBridge(deps *gatewayDeps) {
+	logger := deps.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	socket := core.Trim(core.Getenv(envGatewayGRPCSocket))
+	if socket == "" {
+		socket = defaultGatewayGRPCSocket
+	}
+	if r := core.MkdirAll(core.PathDir(socket), 0o755); !r.OK {
+		logger.Error("sidecar bridge socket dir create failed", "path", core.PathDir(socket), "err", r.Error())
+		return
+	}
+
+	goService := coregrpc.NewGoService(
+		coreio.Local,
+		openSidecarStore(logger),
+		procRunnerAdapter{service: ensureProcessService(deps)},
+	)
+
+	srv, err := coregrpc.NewGRPCServer(
+		coregrpc.WithGRPCSocket(socket),
+		coregrpc.WithGRPCServices(goService),
+	)
+	if err != nil {
+		logger.Error("sidecar bridge listen failed", "socket", socket, "err", err)
+		return
+	}
+
+	// Stop gracefully on cleanup (exit path) and when Core's context is
+	// cancelled (signal / ServiceShutdown). srv.Stop is idempotent.
+	deps.cleanup = append(deps.cleanup, func(context.Context) { srv.Stop() })
+	if deps.core != nil {
+		ctx := deps.core.Context()
+		deps.core.Go(func() {
+			<-ctx.Done()
+			srv.Stop()
+		})
+		deps.core.Go(func() {
+			if serveErr := srv.Serve(); serveErr != nil {
+				logger.Error("sidecar bridge serve stopped with error", "err", serveErr)
+			}
+		})
+	} else {
+		go func() {
+			if serveErr := srv.Serve(); serveErr != nil {
+				logger.Error("sidecar bridge serve stopped with error", "err", serveErr)
+			}
+		}()
+	}
+
+	logger.Info("sidecar bridge listening", "socket", srv.Address())
+}
+
+// openSidecarStore opens the go-store SQLite KV database backing the
+// GoService and returns it wrapped in the grpc.KVStore adapter. On
+// failure it logs and returns nil, leaving StoreGet/StoreSet to report
+// the subsystem as unavailable rather than aborting the gateway.
+func openSidecarStore(logger *slog.Logger) coregrpc.KVStore {
+	path := core.Trim(core.Getenv(envGatewaySidecarStore))
+	if path == "" {
+		path = defaultSidecarStorePath
+	}
+	if r := core.MkdirAll(core.PathDir(path), 0o755); !r.OK {
+		logger.Error("sidecar store dir create failed", "path", core.PathDir(path), "err", r.Error())
+		return nil
+	}
+	s, err := store.New(path)
+	if err != nil {
+		logger.Error("sidecar store open failed", "path", path, "err", err)
+		return nil
+	}
+	return kvStoreAdapter{store: s}
 }
 
 func main() {
@@ -117,6 +304,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) int {
 			return spec.New(deps)
 		})
 	}
+
+	startSidecarBridge(deps)
 
 	stopSignals := forwardSignalsToCore(c, logger)
 	defer stopSignals()
@@ -170,21 +359,7 @@ func gatewayProviderSpecs() []providerSpec {
 			BasePath:    "/api/process",
 			Description: "go-process daemon and process provider",
 			New: func(deps *gatewayDeps) coreapi.RouteGroup {
-				factory := process.NewService(process.Options{})
-				result := factory(deps.core)
-				if !result.OK {
-					panic(result.Error())
-				}
-				service, ok := result.Value.(*process.Service)
-				if !ok {
-					panic(core.Sprintf("process service factory returned %T", result.Value))
-				}
-				deps.cleanup = append(deps.cleanup, func(ctx context.Context) {
-					if r := service.OnShutdown(ctx); !r.OK {
-						slog.Default().Warn("process service shutdown failed", "err", r.Error())
-					}
-				})
-				return processRouteGroup{service: service}
+				return processRouteGroup{service: ensureProcessService(deps)}
 			},
 		},
 		{
