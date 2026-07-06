@@ -868,7 +868,7 @@ func (h *chatCompletionsHandler) serveNonStreaming(c *gin.Context, model inferen
 	for tok := range model.Chat(ctx, messages, opts...) {
 		extractor.Process(tok)
 	}
-	if err := model.Err(); !err.OK {
+	if err := model.Err(); err != nil {
 		if core.Contains(core.Lower(err.Error()), "loading") {
 			writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
 			return
@@ -1006,7 +1006,7 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 		}
 	}
 
-	if err := model.Err(); !err.OK {
+	if err := model.Err(); err != nil {
 		if !streamStarted {
 			if core.Contains(core.Lower(err.Error()), "loading") {
 				writeChatCompletionError(c, http.StatusServiceUnavailable, "model_loading", "model", err.Error(), "")
@@ -1019,7 +1019,7 @@ func (h *chatCompletionsHandler) serveStreaming(c *gin.Context, model inference.
 
 	finishReason := "stop"
 	metrics := model.Metrics()
-	if err := model.Err(); !err.OK {
+	if err := model.Err(); err != nil {
 		finishReason = "error"
 	}
 	if finishReason != "error" && isTokenLengthCapReached(req.MaxTokens, metrics.GeneratedTokens) {
