@@ -1,7 +1,5 @@
 dappco.re/go v0.11.0 h1:ag+nt9p9vP+J+GKxLu+o+pBDRADlVVWKs34zPZhXMJ4=
 dappco.re/go v0.11.0/go.mod h1:xapr7fLK4/9Pu2iSCr4qZuIuatmtx1j56zS/oPDbGyQ=
-dappco.re/go/inference v0.9.0 h1:6eD49KTjj4xrowWdltobEWZYLPY+zbiyDiq+Hv2nkmc=
-dappco.re/go/inference v0.9.0/go.mod h1:eu0je5UqOQyoG6eaJ1IqY5eORev+PfmsRXSNCanqBkk=
 dappco.re/go/io v0.13.1 h1:sDihlOLHTO74EQXD8omskwp6nKQA2dpyjN7wryhXyZ4=
 dappco.re/go/io v0.13.1/go.mod h1:qZyzV46BQWKai4+Tf4Yfpac0yTkAEUye8XCTk3vILzU=
 dappco.re/go/log v0.13.1 h1:sfrB1hrxODsCo0A8psIvBqDkQD2mpoQ8S5S72zO2KlI=

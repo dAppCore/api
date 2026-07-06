@@ -233,3 +233,14 @@ func unmarshalCoreJSON(data []byte, target any) (
 	}
 	return coreResultError(result)
 }
+
+// coreResultError unwraps a failed core.Result into a plain error, falling
+// back to a generic error when the result did not carry one.
+func coreResultError(result core.Result) (
+	_ error,
+) {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.E("", "operation failed", nil)
+}

@@ -1408,78 +1408,6 @@ func TestOptions_WithGraphQL_Ugly(t *coretest.T) {
 	coretest.AssertEqual(t, "ugly", variant)
 }
 
-func TestOptions_WithChatCompletions_Good(t *coretest.T) {
-	variant := "good"
-	called := false
-	func() {
-		defer func() { _ = recover() }()
-		called = true
-		_ = WithChatCompletions(nil)
-	}()
-	coretest.AssertTrue(t, called)
-	coretest.AssertEqual(t, "good", variant)
-}
-
-func TestOptions_WithChatCompletions_Bad(t *coretest.T) {
-	variant := "bad"
-	called := false
-	func() {
-		defer func() { _ = recover() }()
-		called = true
-		_ = WithChatCompletions(nil)
-	}()
-	coretest.AssertTrue(t, called)
-	coretest.AssertEqual(t, "bad", variant)
-}
-
-func TestOptions_WithChatCompletions_Ugly(t *coretest.T) {
-	variant := "ugly"
-	called := false
-	func() {
-		defer func() { _ = recover() }()
-		called = true
-		_ = WithChatCompletions(nil)
-	}()
-	coretest.AssertTrue(t, called)
-	coretest.AssertEqual(t, "ugly", variant)
-}
-
-func TestOptions_WithChatCompletionsPath_Good(t *coretest.T) {
-	variant := "good"
-	called := false
-	func() {
-		defer func() { _ = recover() }()
-		called = true
-		_ = WithChatCompletionsPath("")
-	}()
-	coretest.AssertTrue(t, called)
-	coretest.AssertEqual(t, "good", variant)
-}
-
-func TestOptions_WithChatCompletionsPath_Bad(t *coretest.T) {
-	variant := "bad"
-	called := false
-	func() {
-		defer func() { _ = recover() }()
-		called = true
-		_ = WithChatCompletionsPath("")
-	}()
-	coretest.AssertTrue(t, called)
-	coretest.AssertEqual(t, "bad", variant)
-}
-
-func TestOptions_WithChatCompletionsPath_Ugly(t *coretest.T) {
-	variant := "ugly"
-	called := false
-	func() {
-		defer func() { _ = recover() }()
-		called = true
-		_ = WithChatCompletionsPath("")
-	}()
-	coretest.AssertTrue(t, called)
-	coretest.AssertEqual(t, "ugly", variant)
-}
-
 func TestOptions_WithSDKGen_Good(t *coretest.T) {
 	variant := "good"
 	called := false
@@ -1934,24 +1862,6 @@ func ExampleWithGraphQL_options() {
 	func() {
 		defer func() { _ = recover() }()
 		_ = WithGraphQL(nil)
-	}()
-	coretest.Println("done")
-	// Output: done
-}
-
-func ExampleWithChatCompletions_options() {
-	func() {
-		defer func() { _ = recover() }()
-		_ = WithChatCompletions(nil)
-	}()
-	coretest.Println("done")
-	// Output: done
-}
-
-func ExampleWithChatCompletionsPath_options() {
-	func() {
-		defer func() { _ = recover() }()
-		_ = WithChatCompletionsPath("")
 	}()
 	coretest.Println("done")
 	// Output: done

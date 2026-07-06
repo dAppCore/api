@@ -91,8 +91,6 @@ func specConfigFromOptions(opts core.Options) specBuilderConfig {
 		expvarEnabled:           opts.Bool("expvar"),
 		openAPISpecEnabled:      opts.Bool("openapi-spec"),
 		openAPISpecPath:         opts.String("openapi-spec-path"),
-		chatCompletionsEnabled:  opts.Bool("chat-completions"),
-		chatCompletionsPath:     opts.String("chat-completions-path"),
 		cacheEnabled:            opts.Bool("cache"),
 		cacheTTL:                opts.String("cache-ttl"),
 		cacheMaxEntries:         opts.Int("cache-max-entries"),

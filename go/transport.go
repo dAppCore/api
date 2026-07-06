@@ -13,23 +13,21 @@ import core "dappco.re/go"
 //
 //	cfg := api.TransportConfig{SwaggerPath: "/swagger", WSPath: "/ws"}
 type TransportConfig struct {
-	SwaggerEnabled         bool
-	SwaggerPath            string
-	GraphQLPath            string
-	GraphQLEnabled         bool
-	GraphQLPlayground      bool
-	GraphQLPlaygroundPath  string
-	WSEnabled              bool
-	WSPath                 string
-	SSEEnabled             bool
-	SSEPath                string
-	PprofEnabled           bool
-	ExpvarEnabled          bool
-	ChatCompletionsEnabled bool
-	ChatCompletionsPath    string
-	OpenAPISpecEnabled     bool
-	OpenAPISpecPath        string
-	UpstreamRouterPaths    []string
+	SwaggerEnabled        bool
+	SwaggerPath           string
+	GraphQLPath           string
+	GraphQLEnabled        bool
+	GraphQLPlayground     bool
+	GraphQLPlaygroundPath string
+	WSEnabled             bool
+	WSPath                string
+	SSEEnabled            bool
+	SSEPath               string
+	PprofEnabled          bool
+	ExpvarEnabled         bool
+	OpenAPISpecEnabled    bool
+	OpenAPISpecPath       string
+	UpstreamRouterPaths   []string
 }
 
 // TransportConfig returns the currently configured transport metadata for the engine.
@@ -46,13 +44,12 @@ func (e *Engine) TransportConfig() TransportConfig {
 	}
 
 	cfg := TransportConfig{
-		SwaggerEnabled:         e.swaggerEnabled,
-		WSEnabled:              e.wsHandler != nil || e.wsGinHandler != nil,
-		SSEEnabled:             e.sseBroker != nil,
-		PprofEnabled:           e.pprofEnabled,
-		ExpvarEnabled:          e.expvarEnabled,
-		ChatCompletionsEnabled: e.chatCompletionsResolver != nil || e.chatRemote != nil,
-		OpenAPISpecEnabled:     e.openAPISpecEnabled,
+		SwaggerEnabled:     e.swaggerEnabled,
+		WSEnabled:          e.wsHandler != nil || e.wsGinHandler != nil,
+		SSEEnabled:         e.sseBroker != nil,
+		PprofEnabled:       e.pprofEnabled,
+		ExpvarEnabled:      e.expvarEnabled,
+		OpenAPISpecEnabled: e.openAPISpecEnabled,
 	}
 	gql := e.GraphQLConfig()
 	cfg.GraphQLEnabled = gql.Enabled
@@ -71,9 +68,6 @@ func (e *Engine) TransportConfig() TransportConfig {
 	if e.sseBroker != nil || core.Trim(e.ssePath) != "" {
 		cfg.SSEPath = resolveSSEPath(e.ssePath)
 	}
-	if e.chatCompletionsResolver != nil || core.Trim(e.chatCompletionsPath) != "" {
-		cfg.ChatCompletionsPath = resolveChatCompletionsPath(e.chatCompletionsPath)
-	}
 	if e.openAPISpecEnabled || core.Trim(e.openAPISpecPath) != "" {
 		cfg.OpenAPISpecPath = resolveOpenAPISpecPath(e.openAPISpecPath)
 	}
@@ -84,12 +78,6 @@ func (e *Engine) TransportConfig() TransportConfig {
 	return cfg
 }
 
-// resolveChatCompletionsPath returns the configured chat completions path or
-// the spec §11.1 default when no override has been provided.
-func resolveChatCompletionsPath(path string) string {
-	return normaliseChatCompletionsPath(path)
-}
-
 func trimPathSlashes(path string) string {
 	for core.HasPrefix(path, "/") {
 		path = core.TrimPrefix(path, "/")
@@ -97,22 +85,5 @@ func trimPathSlashes(path string) string {
 	for core.HasSuffix(path, "/") {
 		path = core.TrimSuffix(path, "/")
 	}
-	return path
-}
-
-// normaliseChatCompletionsPath coerces custom chat completions paths into a
-// stable form. The path always begins with a single slash and never ends with
-// one.
-func normaliseChatCompletionsPath(path string) string {
-	path = core.Trim(path)
-	if path == "" {
-		return defaultChatCompletionsPath
-	}
-
-	path = "/" + trimPathSlashes(path)
-	if path == "/" {
-		return defaultChatCompletionsPath
-	}
-
 	return path
 }

@@ -152,7 +152,6 @@ func WithBearerAuth(token string) Option {
 	return func(e *Engine) {
 		if core.Trim(token) != "" {
 			e.bearerConfigured = true
-			e.bearerToken = token
 		}
 		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, func() []string {
 			skip := []string{"/health"}
@@ -818,37 +817,6 @@ func WithGraphQL(schema graphql.ExecutableSchema, opts ...GraphQLOption) Option 
 	}
 }
 
-// WithChatCompletions mounts an OpenAI-compatible POST /v1/chat/completions
-// endpoint backed by the given ModelResolver. The resolver maps model names to
-// loaded inference.TextModel instances (see chat_completions.go).
-//
-// Use WithChatCompletionsPath to override the default "/v1/chat/completions"
-// mount point. The endpoint streams Server-Sent Events when the request body
-// sets "stream": true, and otherwise returns a single JSON response that
-// mirrors OpenAI's chat completion payload.
-//
-// Example:
-//
-//	resolver := api.NewModelResolver()
-//	engine, _ := api.New(api.WithChatCompletions(resolver))
-func WithChatCompletions(resolver *ModelResolver) Option {
-	return func(e *Engine) {
-		e.chatCompletionsResolver = resolver
-	}
-}
-
-// WithChatCompletionsPath sets a custom URL path for the chat completions
-// endpoint. The default path is "/v1/chat/completions".
-//
-// Example:
-//
-//	api.New(api.WithChatCompletionsPath("/api/v1/chat/completions"))
-func WithChatCompletionsPath(path string) Option {
-	return func(e *Engine) {
-		e.chatCompletionsPath = normaliseChatCompletionsPath(path)
-	}
-}
-
 // WithUpstreamRouter mounts a selector-keyed reverse proxy that load-balances
 // each request across a runtime-mutable pool of HTTP upstreams (weighted
 // round-robin + passive failover, hybrid streaming, decision hook, transformer
@@ -897,66 +865,6 @@ func WithSDKGen() Option {
 	return func(e *Engine) {
 		e.sdkGenEnabled = true
 	}
-}
-
-// WithChatCompletionsRemote attaches a remote backend to /v1/chat/completions.
-// Compose with WithChatCompletions for hybrid (local-first); use alone for
-// remote-only. Models with no WithChatModelAdapter are forwarded verbatim
-// (OpenAI passthrough); adapters map non-OpenAI upstreams (see chat_adapter.go).
-//
-//	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("10.0.0.0/8"))
-//	_ = reg.SetDefault(api.Upstream{URL: "https://llm.lthn.sh"})
-//	api.New(api.WithChatCompletions(local), api.WithChatCompletionsRemote(reg))
-func WithChatCompletionsRemote(reg *UpstreamRegistry, opts ...ChatRemoteOption) Option {
-	return func(e *Engine) {
-		if reg == nil {
-			return
-		}
-		cfg := &chatRemoteConfig{reg: reg, adapters: map[string]ChatFormatAdapter{}}
-		for _, opt := range opts {
-			if opt != nil {
-				opt(cfg)
-			}
-		}
-		cfg.finalise()
-		e.chatRemote = cfg
-	}
-}
-
-// ChatRemoteOption configures the chat remote backend.
-type ChatRemoteOption func(*chatRemoteConfig)
-
-// WithChatModelAdapter maps a model name to a non-OpenAI format adapter.
-func WithChatModelAdapter(model string, a ChatFormatAdapter) ChatRemoteOption {
-	return func(cfg *chatRemoteConfig) {
-		if core.Trim(model) != "" && a != nil {
-			cfg.adapters[model] = a
-		}
-	}
-}
-
-// WithChatRemoteFailover sets max upstream attempts + per-upstream cooldown for
-// the remote backend (default: len(pool), 10s).
-func WithChatRemoteFailover(maxAttempts int, cooldown time.Duration) ChatRemoteOption {
-	return func(cfg *chatRemoteConfig) {
-		cfg.maxAttempts = maxAttempts
-		if cooldown > 0 {
-			cfg.cooldown = cooldown
-		}
-	}
-}
-
-// WithChatRemoteTransport sets the base RoundTripper for remote dispatch.
-func WithChatRemoteTransport(rt http.RoundTripper) ChatRemoteOption {
-	return func(cfg *chatRemoteConfig) { cfg.transport = rt }
-}
-
-// WithChatCompletionsAllowRemoteClients permits non-loopback clients on the chat
-// endpoint, but ONLY when a bearer is configured (WithBearerAuth) — mirrors the
-// engine's ErrPublicBindNoBearer invariant. Without it, the endpoint stays
-// loopback-only. Pair with an auth-guarded route for real enforcement.
-func WithChatCompletionsAllowRemoteClients() Option {
-	return func(e *Engine) { e.chatAllowRemote = true }
 }
 
 // WithOpenAPISpec mounts a standalone JSON document endpoint at

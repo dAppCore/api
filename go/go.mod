@@ -4,7 +4,6 @@ go 1.26.2
 
 require (
 	dappco.re/go v0.11.0
-	dappco.re/go/inference v0.9.0
 	dappco.re/go/io v0.13.1
 	dappco.re/go/log v0.13.1
 	dappco.re/go/process v0.16.1

@@ -78,8 +78,6 @@ func (e *Engine) OpenAPISpecBuilder() *SpecBuilder {
 	builder.SSEEnabled = runtime.Transport.SSEEnabled
 	builder.PprofEnabled = runtime.Transport.PprofEnabled
 	builder.ExpvarEnabled = runtime.Transport.ExpvarEnabled
-	builder.ChatCompletionsEnabled = runtime.Transport.ChatCompletionsEnabled
-	builder.ChatCompletionsPath = runtime.Transport.ChatCompletionsPath
 	builder.OpenAPISpecEnabled = runtime.Transport.OpenAPISpecEnabled
 	builder.OpenAPISpecPath = runtime.Transport.OpenAPISpecPath
 	builder.UpstreamRouterPaths = runtime.Transport.UpstreamRouterPaths

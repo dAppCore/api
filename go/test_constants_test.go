@@ -33,7 +33,6 @@ const (
 	pathHealth      = "/health"
 	pathStubPing    = "/stub/ping"
 	pathEvents      = "/events"
-	pathChatComplet = "/v1/chat/completions"
 	pathOpenAPIJSON = "/v1/openapi.json"
 	pathDebugVars   = "/debug/vars"
 	pathDebugPprof  = "/debug/pprof"

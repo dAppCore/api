@@ -61,8 +61,6 @@ type Engine struct {
 	groups                         []RouteGroup
 	streamGroups                   []apistream.StreamGroup
 	middlewares                    []gin.HandlerFunc
-	chatCompletionsResolver        *ModelResolver
-	chatCompletionsPath            string
 	sdkGenEnabled                  bool
 	cacheTTL                       time.Duration
 	cacheMaxEntries                int
@@ -109,11 +107,6 @@ type Engine struct {
 	// WithBearerAuth. Strict mode refuses to serve a public listener
 	// without one.
 	bearerConfigured bool
-	// bearerToken is the static bearer credential supplied via WithBearerAuth.
-	// The chat endpoint's off-loopback gate validates the inbound request
-	// against this token directly so it fails closed independently of the
-	// bearer middleware's path coverage.
-	bearerToken string
 	// noRouteHandler is the SPA / fallback handler invoked when no
 	// registered route matches the request. Set via WithNoRoute; nil
 	// means gin returns 404 with its default body.
@@ -121,11 +114,6 @@ type Engine struct {
 	// upstreamRouter, when set via WithUpstreamRouter, mounts a selector-keyed
 	// reverse proxy over a pool of HTTP upstreams at the configured paths.
 	upstreamRouter *upstreamRouterConfig
-	// chatRemote, when set via WithChatCompletionsRemote, adds a remote backend
-	// to the chat completions endpoint (local-first dispatch).
-	chatRemote *chatRemoteConfig
-	// chatAllowRemote permits non-loopback chat clients when a bearer is set.
-	chatAllowRemote bool
 }
 
 // New creates an Engine with the given options.
@@ -146,10 +134,6 @@ func New(opts ...Option) (
 	}
 	for _, opt := range opts {
 		opt(e)
-	}
-	// Apply calibrated defaults for optional subsystems.
-	if (e.chatCompletionsResolver != nil || e.chatRemote != nil) && core.Trim(e.chatCompletionsPath) == "" {
-		e.chatCompletionsPath = defaultChatCompletionsPath
 	}
 	return e, nil
 }
@@ -448,17 +432,6 @@ func (e *Engine) build() *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, OK("healthy"))
 	})
-
-	// Mount the OpenAI-compatible chat completion endpoint when a local resolver
-	// and/or a remote backend is configured.
-	if e.chatCompletionsResolver != nil || e.chatRemote != nil {
-		path := e.chatCompletionsPath
-		if core.Trim(path) == "" {
-			path = defaultChatCompletionsPath
-		}
-		h := newChatCompletionsHandler(e.chatCompletionsResolver, e.chatRemote, e.chatAllowRemote, bearerValidator(e.bearerToken))
-		r.POST(path, h.ServeHTTP)
-	}
 
 	// Mount the selector-keyed upstream router when configured.
 	if e.upstreamRouter != nil {
