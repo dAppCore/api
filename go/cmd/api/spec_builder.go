@@ -25,8 +25,6 @@ type specBuilderConfig struct {
 	expvarEnabled           bool
 	openAPISpecEnabled      bool
 	openAPISpecPath         string
-	chatCompletionsEnabled  bool
-	chatCompletionsPath     string
 	cacheEnabled            bool
 	cacheTTL                string
 	cacheMaxEntries         int
@@ -61,7 +59,6 @@ func newSpecBuilder(cfg specBuilderConfig) (
 	cacheTTLValid := parsePositiveDuration(cacheTTL)
 
 	openAPISpecPath := core.Trim(cfg.openAPISpecPath)
-	chatCompletionsPath := core.Trim(cfg.chatCompletionsPath)
 	builder := &goapi.SpecBuilder{
 		Title:                   core.Trim(cfg.title),
 		Summary:                 core.Trim(cfg.summary),
@@ -79,8 +76,6 @@ func newSpecBuilder(cfg specBuilderConfig) (
 		WSPath:                  wsPath,
 		PprofEnabled:            cfg.pprofEnabled,
 		ExpvarEnabled:           cfg.expvarEnabled,
-		ChatCompletionsEnabled:  cfg.chatCompletionsEnabled || chatCompletionsPath != "",
-		ChatCompletionsPath:     chatCompletionsPath,
 		OpenAPISpecEnabled:      cfg.openAPISpecEnabled || openAPISpecPath != "",
 		OpenAPISpecPath:         openAPISpecPath,
 		CacheEnabled:            cfg.cacheEnabled || cacheTTLValid,

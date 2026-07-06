@@ -12,10 +12,7 @@ import (
 	api "dappco.re/go/api"
 )
 
-const (
-	testOpenAPISpecPath     = "/api/v1/openapi.json"
-	testChatCompletionsPath = "/api/v1/chat/completions"
-)
+const testOpenAPISpecPath = "/api/v1/openapi.json"
 
 type specCmdStubGroup struct{}
 
@@ -139,15 +136,13 @@ func TestCmdSpec_SpecConfigFromOptions_Good_FlagsArePreserved(t *testing.T) {
 	}
 }
 
-// TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved
-// verifies the new spec-level flags for the standalone OpenAPI JSON and
-// chat completions endpoints round-trip through the CLI parser.
-func TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved(t *testing.T) {
+// TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIFlagsPreserved verifies the
+// spec-level flags for the standalone OpenAPI JSON endpoint round-trip
+// through the CLI parser.
+func TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIFlagsPreserved(t *testing.T) {
 	opts := core.NewOptions(
 		core.Option{Key: "openapi-spec", Value: true},
 		core.Option{Key: "openapi-spec-path", Value: testOpenAPISpecPath},
-		core.Option{Key: "chat-completions", Value: true},
-		core.Option{Key: "chat-completions-path", Value: testChatCompletionsPath},
 	)
 
 	cfg := specConfigFromOptions(opts)
@@ -158,24 +153,16 @@ func TestCmdSpec_SpecConfigFromOptions_Good_OpenAPIAndChatFlagsPreserved(t *test
 	if cfg.openAPISpecPath != testOpenAPISpecPath {
 		t.Fatalf("expected openAPISpecPath=%q, got %q", testOpenAPISpecPath, cfg.openAPISpecPath)
 	}
-	if !cfg.chatCompletionsEnabled {
-		t.Fatal("expected chatCompletionsEnabled=true")
-	}
-	if cfg.chatCompletionsPath != testChatCompletionsPath {
-		t.Fatalf("expected chatCompletionsPath=%q, got %q", testChatCompletionsPath, cfg.chatCompletionsPath)
-	}
 }
 
 // TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags verifies that the
-// spec builder respects the new OpenAPI and ChatCompletions flags.
+// spec builder respects the OpenAPI flags.
 func TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags(t *testing.T) {
 	cfg := specBuilderConfig{
-		title:                  "Test",
-		version:                "1.0.0",
-		openAPISpecEnabled:     true,
-		openAPISpecPath:        testOpenAPISpecPath,
-		chatCompletionsEnabled: true,
-		chatCompletionsPath:    testChatCompletionsPath,
+		title:              "Test",
+		version:            "1.0.0",
+		openAPISpecEnabled: true,
+		openAPISpecPath:    testOpenAPISpecPath,
 	}
 
 	builder, err := newSpecBuilder(cfg)
@@ -189,12 +176,6 @@ func TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags(t *testing.T) {
 	if builder.OpenAPISpecPath != testOpenAPISpecPath {
 		t.Fatalf("expected OpenAPISpecPath=%q, got %q", testOpenAPISpecPath, builder.OpenAPISpecPath)
 	}
-	if !builder.ChatCompletionsEnabled {
-		t.Fatal("expected ChatCompletionsEnabled=true on builder")
-	}
-	if builder.ChatCompletionsPath != testChatCompletionsPath {
-		t.Fatalf("expected ChatCompletionsPath=%q, got %q", testChatCompletionsPath, builder.ChatCompletionsPath)
-	}
 }
 
 // TestCmdSpec_NewSpecBuilder_Ugly_PathImpliesEnabled verifies that supplying
@@ -202,10 +183,9 @@ func TestCmdSpec_NewSpecBuilder_Good_PropagatesNewFlags(t *testing.T) {
 // not pass both flags in CI scripts.
 func TestCmdSpec_NewSpecBuilder_Ugly_PathImpliesEnabled(t *testing.T) {
 	cfg := specBuilderConfig{
-		title:               "Test",
-		version:             "1.0.0",
-		openAPISpecPath:     testOpenAPISpecPath,
-		chatCompletionsPath: testChatCompletionsPath,
+		title:           "Test",
+		version:         "1.0.0",
+		openAPISpecPath: testOpenAPISpecPath,
 	}
 
 	builder, err := newSpecBuilder(cfg)
@@ -215,9 +195,6 @@ func TestCmdSpec_NewSpecBuilder_Ugly_PathImpliesEnabled(t *testing.T) {
 
 	if !builder.OpenAPISpecEnabled {
 		t.Fatal("expected OpenAPISpecEnabled to be inferred from path override")
-	}
-	if !builder.ChatCompletionsEnabled {
-		t.Fatal("expected ChatCompletionsEnabled to be inferred from path override")
 	}
 }
 

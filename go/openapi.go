@@ -48,8 +48,6 @@ type SpecBuilder struct {
 	ExternalDocsURL         string
 	PprofEnabled            bool
 	ExpvarEnabled           bool
-	ChatCompletionsEnabled  bool
-	ChatCompletionsPath     string
 	OpenAPISpecEnabled      bool
 	OpenAPISpecPath         string
 	UpstreamRouterPaths     []string
@@ -154,12 +152,6 @@ func (sb *SpecBuilder) Build(groups []RouteGroup) (
 	}
 	if sb.ExpvarEnabled {
 		spec["x-expvar-enabled"] = true
-	}
-	if sb.ChatCompletionsEnabled {
-		spec["x-chat-completions-enabled"] = true
-	}
-	if path := sb.effectiveChatCompletionsPath(); path != "" {
-		spec["x-chat-completions-path"] = normaliseOpenAPIPath(path)
 	}
 	if sb.OpenAPISpecEnabled {
 		spec["x-openapi-spec-enabled"] = true
@@ -385,15 +377,6 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 			makePathItemPublic(item)
 		}
 		paths[specPath] = item
-	}
-
-	if chatPath := sb.effectiveChatCompletionsPath(); chatPath != "" {
-		chatPath = normaliseOpenAPIPath(chatPath)
-		item := chatCompletionsPathItem(chatPath, operationIDs)
-		if isPublicPathForList(chatPath, publicPaths) {
-			makePathItemPublic(item)
-		}
-		paths[chatPath] = item
 	}
 
 	for _, g := range groups {
@@ -1018,14 +1001,6 @@ func (sb *SpecBuilder) buildTags(groups []preparedRouteGroup) []map[string]any {
 		seen["debug"] = true
 	}
 
-	if sb.effectiveChatCompletionsPath() != "" && !seen["inference"] {
-		tags = append(tags, map[string]any{
-			"name":        "inference",
-			"description": "Local inference endpoints (OpenAI-compatible)",
-		})
-		seen["inference"] = true
-	}
-
 	if len(sb.UpstreamRouterPaths) > 0 && !seen["proxy"] {
 		tags = append(tags, map[string]any{
 			"name":        "proxy",
@@ -1506,198 +1481,6 @@ func upstreamRouterPathItem(path string, operationIDs map[string]int) map[string
 				},
 			},
 		},
-	}
-}
-
-// chatCompletionsPathItem returns the OpenAPI path item describing the
-// OpenAI-compatible chat completions endpoint (RFC §11). The path documents
-// the streaming and non-streaming response shapes, the Gemma 4 calibrated
-// sampling defaults, and the OpenAI-compatible error envelope so SDK
-// generators can bind to the same surface as the hand-written client.
-//
-//	paths["/v1/chat/completions"] = chatCompletionsPathItem("/v1/chat/completions", ids)
-func chatCompletionsPathItem(path string, operationIDs map[string]int) map[string]any {
-	successHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
-	errorHeaders := mergeHeaders(standardResponseHeaders(), rateLimitSuccessHeaders())
-
-	return map[string]any{
-		"post": map[string]any{
-			"summary":     "Chat completions",
-			"description": "OpenAI-compatible chat completion endpoint. Defaults to temperature=1.0, top_p=0.95, top_k=64, max_tokens=2048 (Gemma 4 calibrated). Set stream=true to receive Server-Sent Events matching OpenAI's streaming format.",
-			"tags":        []string{"inference"},
-			"operationId": operationID("post", path, operationIDs),
-			"security":    []any{},
-			"requestBody": map[string]any{
-				"required": true,
-				"content": map[string]any{
-					mimeJSON: map[string]any{
-						"schema": chatCompletionsRequestSchema(),
-					},
-				},
-			},
-			"responses": map[string]any{
-				"200": map[string]any{
-					"description": "Chat completion response",
-					"content": map[string]any{
-						mimeJSON: map[string]any{
-							"schema": chatCompletionsResponseSchema(),
-						},
-						"text/event-stream": map[string]any{
-							"schema": chatCompletionsStreamSchema(),
-						},
-					},
-					"headers": successHeaders,
-				},
-				"400": map[string]any{
-					"description": "Invalid request",
-					"content": map[string]any{
-						mimeJSON: map[string]any{
-							"schema": chatCompletionsErrorSchema(),
-						},
-					},
-					"headers": errorHeaders,
-				},
-				"404": map[string]any{
-					"description": "Model not found",
-					"content": map[string]any{
-						mimeJSON: map[string]any{
-							"schema": chatCompletionsErrorSchema(),
-						},
-					},
-					"headers": errorHeaders,
-				},
-				"503": map[string]any{
-					"description": "Model loading or unavailable",
-					"content": map[string]any{
-						mimeJSON: map[string]any{
-							"schema": chatCompletionsErrorSchema(),
-						},
-					},
-					"headers": errorHeaders,
-				},
-				"500": map[string]any{
-					"description": "Inference error",
-					"content": map[string]any{
-						mimeJSON: map[string]any{
-							"schema": chatCompletionsErrorSchema(),
-						},
-					},
-					"headers": errorHeaders,
-				},
-			},
-		},
-	}
-}
-
-// chatCompletionsRequestSchema is the OpenAPI schema for
-// ChatCompletionRequest. Gemma 4 calibrated defaults (temperature=1.0,
-// top_p=0.95, top_k=64, max_tokens=2048) are documented in the example.
-//
-//	schema := chatCompletionsRequestSchema()
-func chatCompletionsRequestSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"model": map[string]any{
-				"type":        "string",
-				"description": "Model name (lemer, lemma, lemmy, lemrd, or any identifier resolvable via ~/.core/models.yaml)",
-			},
-			"messages": map[string]any{
-				"type": "array",
-				"items": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"role":    map[string]any{"type": "string", "enum": []string{"system", "user", "assistant"}},
-						"content": map[string]any{"type": "string"},
-					},
-					"required": []string{"role", "content"},
-				},
-			},
-			"temperature": map[string]any{"type": "number", "description": "Sampling temperature (default 1.0 for Gemma 4)"},
-			"top_p":       map[string]any{"type": "number", "description": "Nucleus sampling (default 0.95)"},
-			"top_k":       map[string]any{"type": "integer", "description": "Top-K sampling (default 64)"},
-			"max_tokens":  map[string]any{"type": "integer", "description": "Output token cap (default 2048)"},
-			"stream":      map[string]any{"type": "boolean", "description": "Enable SSE streaming"},
-			"stop":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"user":        map[string]any{"type": "string", "description": "Opaque end-user identifier"},
-		},
-		"required": []string{"model", "messages"},
-	}
-}
-
-// chatCompletionsResponseSchema is the OpenAPI schema for a non-streaming
-// ChatCompletionResponse. See RFC §11.3.
-//
-//	schema := chatCompletionsResponseSchema()
-func chatCompletionsResponseSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"id":      map[string]any{"type": "string"},
-			"object":  map[string]any{"type": "string"},
-			"created": map[string]any{"type": "integer"},
-			"model":   map[string]any{"type": "string"},
-			"choices": map[string]any{
-				"type": "array",
-				"items": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"index": map[string]any{"type": "integer"},
-						"message": map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"role":    map[string]any{"type": "string"},
-								"content": map[string]any{"type": "string"},
-							},
-						},
-						"finish_reason": map[string]any{"type": "string", "enum": []string{"stop", "length", "error"}},
-					},
-				},
-			},
-			"usage": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt_tokens":     map[string]any{"type": "integer"},
-					"completion_tokens": map[string]any{"type": "integer"},
-					"total_tokens":      map[string]any{"type": "integer"},
-				},
-			},
-			"thought": map[string]any{"type": "string", "description": "Thinking channel content when the model emits <|channel>thought tokens"},
-		},
-	}
-}
-
-// chatCompletionsStreamSchema documents the text/event-stream chunk shape for
-// Server-Sent Events responses. See RFC §11.4.
-//
-//	schema := chatCompletionsStreamSchema()
-func chatCompletionsStreamSchema() map[string]any {
-	return map[string]any{
-		"type":        "string",
-		"description": "data: <json> events terminated by data: [DONE] per OpenAI's SSE format",
-	}
-}
-
-// chatCompletionsErrorSchema is the OpenAI-compatible error envelope emitted
-// by the chat completions endpoint. See RFC §11.7.
-//
-//	schema := chatCompletionsErrorSchema()
-func chatCompletionsErrorSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"error": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"message": map[string]any{"type": "string"},
-					"type":    map[string]any{"type": "string"},
-					"param":   map[string]any{"type": "string"},
-					"code":    map[string]any{"type": "string"},
-				},
-				"required": []string{"message", "type", "code"},
-			},
-		},
-		"required": []string{"error"},
 	}
 }
 
@@ -2668,23 +2451,6 @@ func (sb *SpecBuilder) effectiveSSEPath() string {
 	}
 	if sb.SSEEnabled {
 		return defaultSSEPath
-	}
-	return ""
-}
-
-// effectiveChatCompletionsPath returns the configured chat completions path or
-// the RFC §11.1 default when chat completions is enabled without an explicit
-// override. An explicit path also surfaces on its own so spec generation
-// reflects configuration authored ahead of runtime activation.
-//
-//	sb.effectiveChatCompletionsPath()  // "/v1/chat/completions" when enabled
-func (sb *SpecBuilder) effectiveChatCompletionsPath() string {
-	path := core.Trim(sb.ChatCompletionsPath)
-	if path != "" {
-		return path
-	}
-	if sb.ChatCompletionsEnabled {
-		return defaultChatCompletionsPath
 	}
 	return ""
 }
