@@ -408,6 +408,7 @@ func (sb *SpecBuilder) buildPaths(groups []preparedRouteGroup) map[string]any {
 					method:             method,
 					statusCode:         rd.StatusCode,
 					dataSchema:         rd.Response,
+					rawResponse:        rd.ResponseRaw,
 					example:            rd.ResponseExample,
 					responseHeaders:    rd.ResponseHeaders,
 					security:           security,
@@ -568,6 +569,7 @@ type operationRespParams struct {
 	method             string
 	statusCode         int
 	dataSchema         map[string]any
+	rawResponse        bool // dataSchema IS the body (no Response[T] envelope)
 	example            any
 	responseHeaders    map[string]string
 	security           []map[string][]string
@@ -604,8 +606,18 @@ func operationResponses(p operationRespParams) map[string]any {
 		"headers":     successHeaders,
 	}
 	if !isNoContentStatus(code) {
+		successSchema := envelopeSchema(p.dataSchema)
+		if p.rawResponse {
+			// The route's body is a foreign wire format documented verbatim —
+			// wrapping it in the envelope would type a shape that never
+			// arrives. A raw route with no schema documents a free object.
+			successSchema = p.dataSchema
+			if successSchema == nil {
+				successSchema = map[string]any{"type": "object"}
+			}
+		}
 		content := map[string]any{
-			"schema": envelopeSchema(p.dataSchema),
+			"schema": successSchema,
 		}
 		if p.example != nil {
 			// Example payloads are optional, but when a route provides one we

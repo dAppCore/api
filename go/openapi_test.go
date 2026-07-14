@@ -3308,3 +3308,113 @@ func TestSpecBuilder_Good_RuntimeDebugEndpointsDocumentRateLimitHeaders(t *testi
 		}
 	}
 }
+
+// TestSpecBuilder_Good_ResponseRawSchemaVerbatim proves ResponseRaw documents
+// the declared schema as the ENTIRE success body — no Response[T] envelope —
+// the contract proxied foreign surfaces (OpenAI/Anthropic compat) rely on for
+// generated clients to deserialise what the route actually returns.
+func TestSpecBuilder_Good_ResponseRawSchemaVerbatim(t *testing.T) {
+	sb := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+	group := &specStubGroup{
+		name:     "compat",
+		basePath: "/v1",
+		descs: []api.RouteDescription{{
+			Method:      "POST",
+			Path:        "/chat/completions",
+			Summary:     "Chat",
+			ResponseRaw: true,
+			Response: map[string]any{
+				"type":     "object",
+				"required": []any{"id", "choices"},
+				"properties": map[string]any{
+					"id":      map[string]any{"type": "string"},
+					"choices": map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+				},
+			},
+		}},
+	}
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf(fmtTestUnexpectedErr, err)
+	}
+	var spec map[string]any
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
+		t.Fatalf(fmtTestInvalidJSON, err)
+	}
+	op := spec["paths"].(map[string]any)["/v1/chat/completions"].(map[string]any)["post"].(map[string]any)
+	schema := op["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)[mimeJSON].(map[string]any)["schema"].(map[string]any)
+	props := schema["properties"].(map[string]any)
+	if _, envelope := props["success"]; envelope {
+		t.Fatal("ResponseRaw success schema still carries the envelope's success property")
+	}
+	if _, ok := props["choices"]; !ok {
+		t.Fatalf("declared raw schema not verbatim: %v", props)
+	}
+}
+
+// TestSpecBuilder_Bad_ResponseRawWithoutSchema proves a raw route with no
+// declared Response documents a free-form object — never a nil schema and
+// never the envelope.
+func TestSpecBuilder_Bad_ResponseRawWithoutSchema(t *testing.T) {
+	sb := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+	group := &specStubGroup{
+		name:     "compat",
+		basePath: "/v1",
+		descs: []api.RouteDescription{{
+			Method:      "GET",
+			Path:        "/models",
+			Summary:     "Models",
+			ResponseRaw: true,
+		}},
+	}
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf(fmtTestUnexpectedErr, err)
+	}
+	var spec map[string]any
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
+		t.Fatalf(fmtTestInvalidJSON, err)
+	}
+	op := spec["paths"].(map[string]any)["/v1/models"].(map[string]any)["get"].(map[string]any)
+	schema := op["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)[mimeJSON].(map[string]any)["schema"].(map[string]any)
+	if schema["type"] != "object" {
+		t.Fatalf("expected free object schema, got %v", schema)
+	}
+	if _, hasProps := schema["properties"]; hasProps {
+		t.Fatalf("schemaless raw route must not invent properties: %v", schema)
+	}
+}
+
+// TestSpecBuilder_Ugly_ResponseRawDefaultUnchanged pins the default: without
+// ResponseRaw the same declaration still renders the Response[T] envelope with
+// the schema nested under data — the raw flag must never move the default.
+func TestSpecBuilder_Ugly_ResponseRawDefaultUnchanged(t *testing.T) {
+	sb := &api.SpecBuilder{Title: "Test", Description: "Test API", Version: "1.0.0"}
+	group := &specStubGroup{
+		name:     "items",
+		basePath: "/v1",
+		descs: []api.RouteDescription{{
+			Method:   "GET",
+			Path:     "/enveloped",
+			Summary:  "Enveloped",
+			Response: map[string]any{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "integer"}}},
+		}},
+	}
+	data, err := sb.Build([]api.RouteGroup{group})
+	if err != nil {
+		t.Fatalf(fmtTestUnexpectedErr, err)
+	}
+	var spec map[string]any
+	if err := coreJSONUnmarshal(data, &spec); err != nil {
+		t.Fatalf(fmtTestInvalidJSON, err)
+	}
+	op := spec["paths"].(map[string]any)["/v1/enveloped"].(map[string]any)["get"].(map[string]any)
+	schema := op["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)[mimeJSON].(map[string]any)["schema"].(map[string]any)
+	props := schema["properties"].(map[string]any)
+	if _, ok := props["success"]; !ok {
+		t.Fatal("default (non-raw) response lost the envelope")
+	}
+	if _, ok := props["data"]; !ok {
+		t.Fatal("default (non-raw) response lost the nested data schema")
+	}
+}
