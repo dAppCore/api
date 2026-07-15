@@ -1,0 +1,24 @@
+# Keeps the api knowledge graph fresh on the homelab graphify server.
+#
+# On each push to dev/main the shell runner re-extracts api (AST-only — no LLM,
+# no API cost) into the central store at /srv/graphify and merges it into the
+# global graph that graphify-mcp serves at https://graphify.lthn.sh (hot-reloads
+# on change). external/ (vendored CoreGo deps) is excluded via .graphifyignore;
+# submodules aren't fetched.
+#
+# NOTE: identical to every repo's graphify job (it keys off $CI_PROJECT_NAME) —
+# a shared CI template / group compliance pipeline is the fleet-scale next step.
+graphify:
+  stage: build
+  tags: [homelab]
+  interruptible: true
+  allow_failure: true          # the graph is auxiliary — never gate api CI on it
+  variables:
+    GIT_SUBMODULE_STRATEGY: none
+    HOME: /srv/graphify        # → global graph at /srv/graphify/.graphify/global-graph.json
+  script:
+    - /usr/local/bin/graphify extract "$CI_PROJECT_DIR" --code-only --out "/srv/graphify/graphs/$CI_PROJECT_NAME" --global --as "$CI_PROJECT_NAME"
+    - /usr/local/bin/graphify global list
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
