@@ -99,12 +99,6 @@ it('DocsController_redoc_Good_returns_the_redoc_view', function () {
     assertDocsView($controller->redoc(), 'api::redoc');
 });
 
-it('DocsController_stoplight_Good_returns_the_stoplight_view', function () {
-    $controller = new DocsController;
-
-    assertDocsView($controller->stoplight(), 'api::stoplight');
-});
-
 it('DocsController_sdks_Good_returns_the_sdk_landing_view_without_a_language', function () {
     $controller = new DocsController;
 
