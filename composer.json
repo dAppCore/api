@@ -1,14 +1,19 @@
 {
-    "name": "lthn/api",
-    "description": "REST API module — Laravel API layer + standalone Go binary",
-    "keywords": ["api", "rest", "laravel", "openapi"],
+    "name": "dappcore/api",
+    "description": "REST API module \u2014 Laravel API layer + standalone Go binary",
+    "keywords": [
+        "api",
+        "rest",
+        "laravel",
+        "openapi"
+    ],
     "license": "EUPL-1.2",
     "require": {
         "dedoc/scramble": "^0.13",
         "php": "^8.2",
         "laravel/passport": "^12.0",
-        "lthn/php": "*",
-        "lthn/php-tenant": "*",
+        "dappcore/php": "*",
+        "dappcore/php-tenant": "*",
         "symfony/yaml": "^7.0"
     },
     "repositories": [
