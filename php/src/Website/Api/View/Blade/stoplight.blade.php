@@ -1,4 +1,4 @@
-@extends('layouts::docs')
+@extends('api::layouts.docs')
 
 @section('title', 'Stoplight')
 @section('description', 'Stoplight Elements API reference for the Core API.')
