@@ -22,8 +22,8 @@ use Core\Api\Middleware\PublicApiCors;
 use Core\Mcp\Middleware\McpApiKeyAuth;
 use Illuminate\Support\Facades\Route;
 
-define('API_ROUTE_WORKSPACE', '/{workspace}');
-define('API_ROUTE_ID', '/{id}');
+defined('API_ROUTE_WORKSPACE') || define('API_ROUTE_WORKSPACE', '/{workspace}');
+defined('API_ROUTE_ID') || define('API_ROUTE_ID', '/{id}');
 
 /*
 |--------------------------------------------------------------------------
