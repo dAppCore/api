@@ -12,6 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	cacheControlHeader = "Cache-Control"
+	cacheItemsPath     = "/items/:id"
+)
+
 type cacheControlProvider struct {
 	basePath             string
 	withDescriptions     bool
@@ -22,9 +27,9 @@ func (p *cacheControlProvider) Name() string     { return "cache-control" }
 func (p *cacheControlProvider) BasePath() string { return p.basePath }
 
 func (p *cacheControlProvider) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/items/:id", func(c *gin.Context) {
+	rg.GET(cacheItemsPath, func(c *gin.Context) {
 		if p.overrideCacheControl != "" {
-			c.Header("Cache-Control", p.overrideCacheControl)
+			c.Header(cacheControlHeader, p.overrideCacheControl)
 		}
 		c.String(http.StatusOK, "ok")
 	})
@@ -41,7 +46,7 @@ func (p *cacheControlProvider) Describe() []api.RouteDescription {
 	return []api.RouteDescription{
 		{
 			Method:       http.MethodGet,
-			Path:         "/items/{id}",
+			Path:         cacheItemsPath,
 			Summary:      "Fetch an item",
 			CacheControl: "public, max-age=300",
 		},
@@ -63,7 +68,7 @@ func (p *undescribedCacheControlProvider) Name() string     { return "plain-cach
 func (p *undescribedCacheControlProvider) BasePath() string { return p.basePath }
 
 func (p *undescribedCacheControlProvider) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/items/:id", func(c *gin.Context) {
+	rg.GET(cacheItemsPath, func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
 }
@@ -93,12 +98,12 @@ func TestCacheControl_MountAll_Good_AppliesDescribedPolicies(t *T) {
 	getRec := httptest.NewRecorder()
 	getReq := httptest.NewRequest(http.MethodGet, "/api/cache/items/123", nil)
 	handler.ServeHTTP(getRec, getReq)
-	AssertEqual(t, "public, max-age=300", getRec.Header().Get("Cache-Control"))
+	AssertEqual(t, "public, max-age=300", getRec.Header().Get(cacheControlHeader))
 
 	postRec := httptest.NewRecorder()
 	postReq := httptest.NewRequest(http.MethodPost, "/api/cache/sessions", nil)
 	handler.ServeHTTP(postRec, postReq)
-	AssertEqual(t, "no-store", postRec.Header().Get("Cache-Control"))
+	AssertEqual(t, "no-store", postRec.Header().Get(cacheControlHeader))
 }
 
 func TestCacheControl_MountAll_Bad_SkipsProvidersWithoutDescriptions(t *T) {
@@ -111,7 +116,7 @@ func TestCacheControl_MountAll_Bad_SkipsProvidersWithoutDescriptions(t *T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/plain/items/123", nil)
 	handler.ServeHTTP(rec, req)
-	AssertEqual(t, "", rec.Header().Get("Cache-Control"))
+	AssertEqual(t, "", rec.Header().Get(cacheControlHeader))
 }
 
 func TestCacheControl_MountAll_Ugly_PreservesExplicitHandlerHeaders(t *T) {
@@ -126,5 +131,5 @@ func TestCacheControl_MountAll_Ugly_PreservesExplicitHandlerHeaders(t *T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/override/items/123", nil)
 	handler.ServeHTTP(rec, req)
-	AssertEqual(t, "private, no-store", rec.Header().Get("Cache-Control"))
+	AssertEqual(t, "private, no-store", rec.Header().Get(cacheControlHeader))
 }

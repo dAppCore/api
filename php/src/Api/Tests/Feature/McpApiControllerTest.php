@@ -171,6 +171,7 @@ it('continues returning a successful MCP response when tool logging fails', func
             int $durationMs,
             ?string $error = null
         ): void {
+            // Stub — no-op for anonymous controller test double
         }
 
         protected function logApiRequest(
@@ -183,6 +184,7 @@ it('continues returning a successful MCP response when tool logging fails', func
             ?\Core\Api\Models\ApiKey $apiKey,
             ?string $error = null
         ): void {
+            // Stub — no-op for anonymous controller test double
         }
     };
 

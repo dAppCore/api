@@ -55,7 +55,7 @@ func TestWSEndpoint_Good(t *testing.T) {
 
 	e, err := api.New(api.WithWSHandler(wsHandler))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -96,7 +96,7 @@ func TestWSEndpoint_Good_CustomPath(t *testing.T) {
 
 	e, err := api.New(api.WithWSPath("/socket"), api.WithWSHandler(wsHandler))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -136,7 +136,7 @@ func TestWSEndpoint_Ugly_RootPathFallsBackToDefault(t *testing.T) {
 
 	e, err := api.New(api.WithWSPath(" / "), api.WithWSHandler(wsHandler))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -176,7 +176,7 @@ func TestWSEndpoint_Ugly_NormalisesWhitespaceWrappedPath(t *testing.T) {
 
 	e, err := api.New(api.WithWSPath(" /trimmed/ "), api.WithWSHandler(wsHandler))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -220,7 +220,7 @@ func TestWSEndpoint_Good_WithResponseMeta(t *testing.T) {
 		api.WithWSHandler(wsHandler),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -265,7 +265,7 @@ func TestWithWebSocket_Good_GinHandlerReceivesUpgrade(t *testing.T) {
 
 	e, err := api.New(api.WithWebSocket(handler))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -294,7 +294,7 @@ func TestWithWebSocket_Bad_NilHandlerNoMount(t *testing.T) {
 
 	e, err := api.New(api.WithWebSocket(nil))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	w := httptest.NewRecorder()
@@ -323,7 +323,7 @@ func TestWithWebSocket_Ugly_GinHandlerWinsOverHTTPHandler(t *testing.T) {
 
 	e, err := api.New(api.WithWSHandler(httpH), api.WithWebSocket(ginH))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	w := httptest.NewRecorder()

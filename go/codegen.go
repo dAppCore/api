@@ -65,43 +65,43 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) (
 	_ error,
 ) {
 	if g == nil {
-		return coreerr.E("SDKGenerator.Generate", "generator is nil", nil)
+		return coreerr.E(errSDKGenerate, "generator is nil", nil)
 	}
 	if ctx == nil {
-		return coreerr.E("SDKGenerator.Generate", "context is nil", nil)
+		return coreerr.E(errSDKGenerate, "context is nil", nil)
 	}
 
 	language = core.Trim(language)
 	generator, ok := supportedLanguages[language]
 	if !ok {
-		return coreerr.E("SDKGenerator.Generate", core.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
+		return coreerr.E(errSDKGenerate, core.Sprintf("unsupported language %q: supported languages are %v", language, SupportedLanguages()), nil)
 	}
 
 	specPath := core.Trim(g.SpecPath)
 	if specPath == "" {
-		return coreerr.E("SDKGenerator.Generate", "spec path is required", nil)
+		return coreerr.E(errSDKGenerate, "spec path is required", nil)
 	}
 	localFS := (&core.Fs{}).NewUnrestricted()
 	if result := localFS.Stat(specPath); !result.OK {
 		err, _ := result.Value.(error)
 		if core.Is(err, fs.ErrNotExist) {
-			return coreerr.E("SDKGenerator.Generate", "spec file not found: "+specPath, nil)
+			return coreerr.E(errSDKGenerate, "spec file not found: "+specPath, nil)
 		}
-		return coreerr.E("SDKGenerator.Generate", "stat spec file", err)
+		return coreerr.E(errSDKGenerate, "stat spec file", err)
 	}
 
 	outputBase := core.Trim(g.OutputDir)
 	if outputBase == "" {
-		return coreerr.E("SDKGenerator.Generate", "output directory is required", nil)
+		return coreerr.E(errSDKGenerate, "output directory is required", nil)
 	}
 
 	if g.PackageName != "" && !packageNameRe.MatchString(g.PackageName) {
-		return coreerr.E("SDKGenerator.Generate",
+		return coreerr.E(errSDKGenerate,
 			core.Sprintf("package name %q rejected: must match %s", g.PackageName, packageNameRe.String()), nil)
 	}
 
 	if !g.Available() {
-		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli not installed", nil)
+		return coreerr.E(errSDKGenerate, "openapi-generator-cli not installed", nil)
 	}
 
 	outputDir := core.Path(outputBase, language)
@@ -110,7 +110,7 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) (
 	}
 	if result := localFS.EnsureDir(outputDir); !result.OK {
 		err, _ := result.Value.(error)
-		return coreerr.E("SDKGenerator.Generate", "create output directory", err)
+		return coreerr.E(errSDKGenerate, "create output directory", err)
 	}
 
 	args := g.buildArgs(specPath, generator, outputDir)
@@ -128,7 +128,7 @@ func (g *SDKGenerator) Generate(ctx context.Context, language string) (
 		WithStderr(core.Stderr())
 	if result := cmd.Run(); !result.OK {
 		err, _ := result.Value.(error)
-		return coreerr.E("SDKGenerator.Generate", "openapi-generator-cli failed for "+language, err)
+		return coreerr.E(errSDKGenerate, "openapi-generator-cli failed for "+language, err)
 	}
 
 	return nil

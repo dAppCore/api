@@ -411,12 +411,12 @@ func (v *toolInputValidator) Validate(body []byte) (
 	_ error,
 ) {
 	if core.Trim(string(body)) == "" {
-		return core.E("ToolBridge.Validate", "request body is required", nil)
+		return core.E(errBridgeValidate, "request body is required", nil)
 	}
 
 	payload, err := decodeJSONValuePreserveNumbers(body)
 	if err != nil {
-		return core.E("ToolBridge.Validate", "invalid JSON", err)
+		return core.E(errBridgeValidate, "invalid JSON", err)
 	}
 
 	return validateSchemaNode(payload, v.schema, "")
@@ -431,16 +431,16 @@ func (v *toolInputValidator) ValidateResponse(body []byte) (
 
 	decoded, err := decodeJSONValuePreserveNumbers(body)
 	if err != nil {
-		return core.E("ToolBridge.ValidateResponse", "invalid JSON response", err)
+		return core.E(errBridgeValidateResp, "invalid JSON response", err)
 	}
 	envelope, ok := decoded.(map[string]any)
 	if !ok {
-		return core.E("ToolBridge.ValidateResponse", "response envelope must be an object", nil)
+		return core.E(errBridgeValidateResp, "response envelope must be an object", nil)
 	}
 
 	success, _ := envelope["success"].(bool)
 	if !success {
-		return core.E("ToolBridge.ValidateResponse", "response is missing a successful envelope", nil)
+		return core.E(errBridgeValidateResp, "response is missing a successful envelope", nil)
 	}
 
 	// data is serialised with omitempty, so a nil/zero-value payload from
@@ -453,12 +453,12 @@ func (v *toolInputValidator) ValidateResponse(body []byte) (
 
 	encoded, err := marshalCoreJSON(data)
 	if err != nil {
-		return core.E("ToolBridge.ValidateResponse", "encode response data", err)
+		return core.E(errBridgeValidateResp, "encode response data", err)
 	}
 
 	payload, err := decodeJSONValuePreserveNumbers(encoded)
 	if err != nil {
-		return core.E("ToolBridge.ValidateResponse", "decode response data", err)
+		return core.E(errBridgeValidateResp, "decode response data", err)
 	}
 
 	return validateSchemaNode(payload, v.schema, "")
@@ -482,7 +482,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) (
 
 			for _, name := range stringList(schema["required"]) {
 				if _, ok := obj[name]; !ok {
-					return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s is missing required field %q", displayPath(path), name), nil)
+					return core.E(errBridgeValidateSchema, core.Sprintf("%s is missing required field %q", displayPath(path), name), nil)
 				}
 			}
 
@@ -508,7 +508,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) (
 							continue
 						}
 					}
-					return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s contains unknown field %q", displayPath(path), name), nil)
+					return core.E(errBridgeValidateSchema, core.Sprintf("%s contains unknown field %q", displayPath(path), name), nil)
 				}
 			}
 			if err := validateObjectConstraints(obj, schema, path); err != nil {
@@ -570,7 +570,7 @@ func validateSchemaNode(value any, schema map[string]any, path string) (
 
 	if rawEnum, ok := schema["enum"]; ok {
 		if !enumContains(value, rawEnum) {
-			return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be one of the declared enum values", displayPath(path)), nil)
+			return core.E(errBridgeValidateSchema, core.Sprintf("%s must be one of the declared enum values", displayPath(path)), nil)
 		}
 	}
 
@@ -598,7 +598,7 @@ func validateSchemaCombinators(value any, schema map[string]any, path string) (
 				goto anyOfMatched
 			}
 		}
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must match at least one schema in anyOf", displayPath(path)), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must match at least one schema in anyOf", displayPath(path)), nil)
 	}
 
 anyOfMatched:
@@ -611,15 +611,15 @@ anyOfMatched:
 		}
 		if matches != 1 {
 			if matches == 0 {
-				return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must match exactly one schema in oneOf", displayPath(path)), nil)
+				return core.E(errBridgeValidateSchema, core.Sprintf("%s must match exactly one schema in oneOf", displayPath(path)), nil)
 			}
-			return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s matches multiple schemas in oneOf", displayPath(path)), nil)
+			return core.E(errBridgeValidateSchema, core.Sprintf("%s matches multiple schemas in oneOf", displayPath(path)), nil)
 		}
 	}
 
 	if subschema, ok := schema["not"].(map[string]any); ok && subschema != nil {
 		if err := validateSchemaNode(value, subschema, path); err == nil {
-			return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must not match the forbidden schema", displayPath(path)), nil)
+			return core.E(errBridgeValidateSchema, core.Sprintf("%s must not match the forbidden schema", displayPath(path)), nil)
 		}
 	}
 
@@ -631,18 +631,18 @@ func validateStringConstraints(value string, schema map[string]any, path string)
 ) {
 	length := core.RuneCount(value)
 	if minLength, ok := schemaInt(schema["minLength"]); ok && length < minLength {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be at least %d characters long", displayPath(path), minLength), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must be at least %d characters long", displayPath(path), minLength), nil)
 	}
 	if maxLength, ok := schemaInt(schema["maxLength"]); ok && length > maxLength {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be at most %d characters long", displayPath(path), maxLength), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must be at most %d characters long", displayPath(path), maxLength), nil)
 	}
 	if pattern, ok := schema["pattern"].(string); ok && pattern != "" {
 		re, err := compiledPattern(pattern)
 		if err != nil {
-			return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s has an invalid pattern %q", displayPath(path), pattern), err)
+			return core.E(errBridgeValidateSchema, core.Sprintf("%s has an invalid pattern %q", displayPath(path), pattern), err)
 		}
 		if !re.MatchString(value) {
-			return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s does not match pattern %q", displayPath(path), pattern), nil)
+			return core.E(errBridgeValidateSchema, core.Sprintf("%s does not match pattern %q", displayPath(path), pattern), nil)
 		}
 	}
 	return nil
@@ -652,10 +652,10 @@ func validateNumericConstraints(value any, schema map[string]any, path string) (
 	_ error,
 ) {
 	if minimum, ok := schemaFloat(schema["minimum"]); ok && numericLessThan(value, minimum) {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be greater than or equal to %v", displayPath(path), minimum), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must be greater than or equal to %v", displayPath(path), minimum), nil)
 	}
 	if maximum, ok := schemaFloat(schema["maximum"]); ok && numericGreaterThan(value, maximum) {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be less than or equal to %v", displayPath(path), maximum), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must be less than or equal to %v", displayPath(path), maximum), nil)
 	}
 	return nil
 }
@@ -664,10 +664,10 @@ func validateArrayConstraints(value []any, schema map[string]any, path string) (
 	_ error,
 ) {
 	if minItems, ok := schemaInt(schema["minItems"]); ok && len(value) < minItems {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must contain at least %d items", displayPath(path), minItems), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must contain at least %d items", displayPath(path), minItems), nil)
 	}
 	if maxItems, ok := schemaInt(schema["maxItems"]); ok && len(value) > maxItems {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must contain at most %d items", displayPath(path), maxItems), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must contain at most %d items", displayPath(path), maxItems), nil)
 	}
 	return nil
 }
@@ -676,10 +676,10 @@ func validateObjectConstraints(value map[string]any, schema map[string]any, path
 	_ error,
 ) {
 	if minProps, ok := schemaInt(schema["minProperties"]); ok && len(value) < minProps {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must contain at least %d properties", displayPath(path), minProps), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must contain at least %d properties", displayPath(path), minProps), nil)
 	}
 	if maxProps, ok := schemaInt(schema["maxProperties"]); ok && len(value) > maxProps {
-		return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must contain at most %d properties", displayPath(path), maxProps), nil)
+		return core.E(errBridgeValidateSchema, core.Sprintf("%s must contain at most %d properties", displayPath(path), maxProps), nil)
 	}
 	return nil
 }
@@ -901,7 +901,7 @@ func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]
 	if w.headers == nil {
 		w.headers = make(http.Header)
 	}
-	w.headers.Set("Content-Type", "application/json")
+	w.headers.Set(hdrContentType, mimeJSON)
 	w.body = append(w.body[:0], data...)
 	w.commit()
 }
@@ -909,7 +909,7 @@ func (w *toolResponseRecorder) writeErrorResponse(status int, resp Response[any]
 func typeError(path, want string, value any) (
 	_ error,
 ) {
-	return core.E("ToolBridge.ValidateSchema", core.Sprintf("%s must be %s, got %s", displayPath(path), want, describeJSONValue(value)), nil)
+	return core.E(errBridgeValidateSchema, core.Sprintf("%s must be %s, got %s", displayPath(path), want, describeJSONValue(value)), nil)
 }
 
 func displayPath(path string) string {

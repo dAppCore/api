@@ -17,10 +17,12 @@ type describableSpecGroup struct {
 	descs    []api.RouteDescription
 }
 
-func (g *describableSpecGroup) Name() string                       { return g.name }
-func (g *describableSpecGroup) BasePath() string                   { return g.basePath }
-func (g *describableSpecGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (g *describableSpecGroup) Describe() []api.RouteDescription   { return g.descs }
+func (g *describableSpecGroup) Name() string     { return g.name }
+func (g *describableSpecGroup) BasePath() string { return g.basePath }
+func (g *describableSpecGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; routes are registered through the Describe path only.
+}
+func (g *describableSpecGroup) Describe() []api.RouteDescription { return g.descs }
 
 type describableHandler struct {
 	desc            api.RouteDescription
@@ -75,12 +77,12 @@ func buildDescribableOperation(t *testing.T, group api.RouteGroup, path, method 
 
 	data, err := builder.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -146,7 +148,7 @@ func TestDescribable_Good_HandlerMetadataFlowsToOpenAPI(t *testing.T) {
 
 	tags, ok := operation["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", operation["tags"])
+		t.Fatalf(fmtTestExpectedTags, operation["tags"])
 	}
 	if len(tags) != 2 || tags[0] != "widgets" || tags[1] != "catalog" {
 		t.Fatalf("expected handler tags, got %v", tags)
@@ -154,7 +156,7 @@ func TestDescribable_Good_HandlerMetadataFlowsToOpenAPI(t *testing.T) {
 
 	requestBody := operation["requestBody"].(map[string]any)
 	content := requestBody["content"].(map[string]any)
-	schema := content["application/json"].(map[string]any)["schema"].(map[string]any)
+	schema := content[mimeJSON].(map[string]any)["schema"].(map[string]any)
 	properties := schema["properties"].(map[string]any)
 	if _, ok := properties["name"]; !ok {
 		t.Fatal("expected request body schema from handler Describe")
@@ -173,7 +175,7 @@ func TestDescribable_Bad_MissingHandlerMetadataFallsBackSafely(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:      http.MethodGet,
-				Path:        "/status",
+				Path:        pathStatus,
 				Summary:     "Widget status",
 				Description: "Returns widget availability.",
 				Tags:        []string{"status"},
@@ -196,7 +198,7 @@ func TestDescribable_Bad_MissingHandlerMetadataFallsBackSafely(t *testing.T) {
 
 	tags, ok := operation["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", operation["tags"])
+		t.Fatalf(fmtTestExpectedTags, operation["tags"])
 	}
 	if len(tags) != 1 || tags[0] != "status" {
 		t.Fatalf("expected route tag fallback, got %v", tags)
@@ -210,7 +212,7 @@ func TestDescribable_Ugly_NilHandlerIsIgnored(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  http.MethodGet,
-				Path:    "/status",
+				Path:    pathStatus,
 				Handler: (*describableHandler)(nil),
 			},
 		},
@@ -224,7 +226,7 @@ func TestDescribable_Ugly_NilHandlerIsIgnored(t *testing.T) {
 
 	tags, ok := operation["tags"].([]any)
 	if !ok {
-		t.Fatalf("expected tags array, got %T", operation["tags"])
+		t.Fatalf(fmtTestExpectedTags, operation["tags"])
 	}
 	if len(tags) != 1 || tags[0] != "widgets" {
 		t.Fatalf("expected group-name tag fallback, got %v", tags)

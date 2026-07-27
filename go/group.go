@@ -166,6 +166,13 @@ type RouteDescription struct {
 	RequestExample  any            // Optional example payload for the request body.
 	Response        map[string]any // JSON Schema for success response data
 	ResponseExample any            // Optional example payload for the success response.
+	// ResponseRaw documents Response as the ENTIRE success body instead of
+	// nesting it as the data field of the standard Response[T] envelope. For
+	// routes that proxy a foreign API surface (an OpenAI/Anthropic-compatible
+	// endpoint, a webhook echo) whose wire format is not the house envelope —
+	// without this, generated clients type the success body as the envelope
+	// and fail to deserialise what the route actually returns.
+	ResponseRaw     bool
 	ResponseHeaders map[string]string
 	// TransformerIn optionally remaps the external request DTO into the
 	// handler-facing DTO before RegisterRoutes' handler reads the request body.

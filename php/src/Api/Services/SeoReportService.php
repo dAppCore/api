@@ -25,6 +25,8 @@ class SeoReportService
      */
     protected const MAX_BODY_BYTES = 1_048_576;
 
+    private const URL_COULD_NOT_BE_RESOLVED = 'The supplied URL could not be resolved to any address.';
+
     /**
      * Analyse a URL and return a technical SEO report.
      *
@@ -293,10 +295,8 @@ class SeoReportService
         // callers receive a bare encoding label (e.g. "utf-8"), not the whole
         // content-type string.
         $contentType = $this->extractMetaContent($xpath, 'content-type', 'http-equiv');
-        if ($contentType !== null) {
-            if (preg_match('/charset\s*=\s*["\']?([^\s;"\']+)/i', $contentType, $matches)) {
-                return $matches[1];
-            }
+        if ($contentType !== null && preg_match('/charset\s*=\s*["\']?([^\s;"\']+)/i', $contentType, $matches)) {
+            return $matches[1];
         }
 
         return null;
@@ -468,9 +468,13 @@ class SeoReportService
         }
 
         $host = $parsed['host'];
-        $port = isset($parsed['port'])
-            ? (int) $parsed['port']
-            : ($scheme === 'https' ? 443 : 80);
+        if (isset($parsed['port'])) {
+            $port = (int) $parsed['port'];
+        } elseif ($scheme === 'https') {
+            $port = 443;
+        } else {
+            $port = 80;
+        }
         $resolveEntries = [];
 
         if (isset($parsed['user']) || isset($parsed['pass'])) {
@@ -508,7 +512,7 @@ class SeoReportService
         }
 
         if ($resolveEntries === []) {
-            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+            throw new \InvalidArgumentException(self::URL_COULD_NOT_BE_RESOLVED);
         }
 
         return [
@@ -538,11 +542,11 @@ class SeoReportService
         $normalisedHost = strtolower(rtrim($host, '.'));
 
         if ($normalisedHost === '' || isset($visitedHosts[$normalisedHost])) {
-            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+            throw new \InvalidArgumentException(self::URL_COULD_NOT_BE_RESOLVED);
         }
 
         if ($depth > 8) {
-            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+            throw new \InvalidArgumentException(self::URL_COULD_NOT_BE_RESOLVED);
         }
 
         $visitedHosts[$normalisedHost] = true;
@@ -556,7 +560,7 @@ class SeoReportService
         }
 
         if ($records === []) {
-            throw new \InvalidArgumentException('The supplied URL could not be resolved to any address.');
+            throw new \InvalidArgumentException(self::URL_COULD_NOT_BE_RESOLVED);
         }
 
         $ips = [];

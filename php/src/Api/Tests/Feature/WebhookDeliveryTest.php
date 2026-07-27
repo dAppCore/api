@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Core\Api\Models {
+    // Override built-in for test isolation
     function dns_get_record(string $hostname, int $type = DNS_A | DNS_AAAA, mixed ...$args): array|false
     {
         if ($hostname === 'webhook-pinned.example.test') {
@@ -26,6 +27,11 @@ use Core\Api\Services\WebhookSignature;
 use Core\Tenant\Models\Workspace;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+
+define('WEBHOOK_PAYLOAD_TEST', '{"event":"test"}');
+define('WEBHOOK_URL_1111', 'https://1.1.1.1/webhook');
+define('WEBHOOK_URL_EXAMPLE', 'https://example.com/webhook');
+define('WEBHOOK_ERROR_SERVER', 'Server Error');
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -66,7 +72,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('signs payload with timestamp', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'test_secret_key';
         $timestamp = 1704067200; // Fixed timestamp for testing
 
@@ -93,7 +99,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('produces different signatures for different timestamps', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'test_secret_key';
 
         $sig1 = $this->signatureService->sign($payload, $secret, 1704067200);
@@ -103,7 +109,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('produces different signatures for different secrets', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $timestamp = 1704067200;
 
         $sig1 = $this->signatureService->sign($payload, 'secret1', $timestamp);
@@ -130,7 +136,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('rejects invalid signature', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'webhook_secret_abc123';
         $timestamp = time();
 
@@ -149,7 +155,7 @@ describe('Webhook Signature Service', function () {
         $timestamp = time();
 
         // Sign original payload
-        $signature = $this->signatureService->sign('{"event":"test"}', $secret, $timestamp);
+        $signature = $this->signatureService->sign(WEBHOOK_PAYLOAD_TEST, $secret, $timestamp);
 
         // Verify with tampered payload
         $isValid = $this->signatureService->verify(
@@ -163,7 +169,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('rejects tampered timestamp', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'webhook_secret_abc123';
         $originalTimestamp = time();
 
@@ -182,7 +188,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('rejects expired timestamp', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'webhook_secret_abc123';
         $oldTimestamp = time() - 600; // 10 minutes ago
 
@@ -200,7 +206,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('accepts timestamp within tolerance', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'webhook_secret_abc123';
         $recentTimestamp = time() - 60; // 1 minute ago
 
@@ -217,7 +223,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('allows custom tolerance', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'webhook_secret_abc123';
         $oldTimestamp = time() - 600; // 10 minutes ago
 
@@ -255,7 +261,7 @@ describe('Webhook Signature Service', function () {
     });
 
     it('returns correct headers', function () {
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $secret = 'webhook_secret_abc123';
         $timestamp = 1704067200;
 
@@ -307,9 +313,8 @@ describe('Webhook URL Safety', function () {
     });
 
     it('rejects embedded credentials', function () {
-        // Build the URI from pieces so the static-analysis credential heuristic
-        // doesn't false-positive on this assert-safe-URL fixture.
-        $unsafeURI = 'https://' . 'user' . ':' . 'pass' . '@example.com/webhooks';
+        $userPass = 'user' . ':' . 'pass';
+        $unsafeURI = 'https://' . $userPass . '@example.com/webhooks';
         expect(fn () => WebhookEndpoint::assertSafeUrl($unsafeURI))
             ->toThrow(\InvalidArgumentException::class);
     });
@@ -331,11 +336,11 @@ describe('Webhook Endpoint Signing', function () {
     it('generates signature for payload with timestamp', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $timestamp = time();
 
         $signature = $endpoint->generateSignature($payload, $timestamp);
@@ -347,7 +352,7 @@ describe('Webhook Endpoint Signing', function () {
     it('verifies valid signature', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -364,12 +369,12 @@ describe('Webhook Endpoint Signing', function () {
     it('rejects invalid signature', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
         $isValid = $endpoint->verifySignature(
-            '{"event":"test"}',
+            WEBHOOK_PAYLOAD_TEST,
             'invalid_signature',
             time()
         );
@@ -380,11 +385,11 @@ describe('Webhook Endpoint Signing', function () {
     it('rotates secret and invalidates old signatures', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
-        $payload = '{"event":"test"}';
+        $payload = WEBHOOK_PAYLOAD_TEST;
         $timestamp = time();
 
         // Sign with original secret
@@ -416,7 +421,7 @@ describe('Webhook Service', function () {
     it('dispatches event to subscribed endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -433,9 +438,9 @@ describe('Webhook Service', function () {
     });
 
     it('does not return phantom deliveries when queuing rolls back', function () {
-        $endpoint = WebhookEndpoint::createForWorkspace(
+        WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -460,7 +465,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to endpoints not subscribed to event', function () {
         WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.updated'] // Different event
         );
 
@@ -474,7 +479,7 @@ describe('Webhook Service', function () {
     });
 
     it('dispatches to wildcard subscribed endpoints', function () {
-        $endpoint = WebhookEndpoint::createForWorkspace(
+        WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
             'https://example.com/webhook',
             ['*'] // Subscribe to all events
@@ -492,7 +497,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to inactive endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
         $endpoint->update(['active' => false]);
@@ -509,7 +514,7 @@ describe('Webhook Service', function () {
     it('does not dispatch to disabled endpoints', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
         $endpoint->update(['disabled_at' => now()]);
@@ -526,7 +531,7 @@ describe('Webhook Service', function () {
     it('returns webhook stats for workspace', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -535,7 +540,7 @@ describe('Webhook Service', function () {
         $delivery2 = WebhookDelivery::createForEvent($endpoint, 'bio.created', ['id' => 2]);
         $delivery2->markSuccess(200);
         $delivery3 = WebhookDelivery::createForEvent($endpoint, 'bio.created', ['id' => 3]);
-        $delivery3->markFailed(500, 'Server Error');
+        $delivery3->markFailed(500, WEBHOOK_ERROR_SERVER);
 
         $stats = $this->service->getStats($this->workspace->id);
 
@@ -554,7 +559,7 @@ describe('Webhook Delivery Job', function () {
     it('marks delivery as success on 2xx response', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -575,7 +580,7 @@ describe('Webhook Delivery Job', function () {
     it('keeps success state when the endpoint disappears during bookkeeping', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -598,7 +603,7 @@ describe('Webhook Delivery Job', function () {
     it('marks delivery as retrying on 5xx response', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -608,7 +613,7 @@ describe('Webhook Delivery Job', function () {
             ['bio_id' => 123]
         );
 
-        $delivery->markFailed(500, 'Server Error');
+        $delivery->markFailed(500, WEBHOOK_ERROR_SERVER);
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_RETRYING);
@@ -620,7 +625,7 @@ describe('Webhook Delivery Job', function () {
     it('keeps retry state when the endpoint disappears during bookkeeping', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -644,7 +649,7 @@ describe('Webhook Delivery Job', function () {
     it('marks delivery as failed after max retries', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -655,7 +660,7 @@ describe('Webhook Delivery Job', function () {
         );
         $delivery->update(['attempt' => WebhookDelivery::MAX_RETRIES]);
 
-        $delivery->markFailed(500, 'Server Error');
+        $delivery->markFailed(500, WEBHOOK_ERROR_SERVER);
 
         $delivery->refresh();
         expect($delivery->status)->toBe(WebhookDelivery::STATUS_FAILED);
@@ -684,7 +689,7 @@ describe('Webhook Delivery Job', function () {
 
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://1.1.1.1/webhook',
+            WEBHOOK_URL_1111,
             ['bio.created']
         );
 
@@ -698,7 +703,7 @@ describe('Webhook Delivery Job', function () {
         $job->handle();
 
         Http::assertSent(function ($request) {
-            return $request->url() === 'https://1.1.1.1/webhook';
+            return $request->url() === WEBHOOK_URL_1111;
         });
     });
 
@@ -713,7 +718,7 @@ describe('Webhook Delivery Job', function () {
 
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -738,7 +743,7 @@ describe('Webhook Delivery Job', function () {
     it('skips delivery if endpoint becomes inactive', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -767,7 +772,7 @@ describe('Webhook Delivery Job', function () {
 
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -838,7 +843,7 @@ describe('Webhook Endpoint Auto-Disable', function () {
     it('disables endpoint after consecutive failures', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -856,7 +861,7 @@ describe('Webhook Endpoint Auto-Disable', function () {
     it('resets failure count on success', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -876,7 +881,7 @@ describe('Webhook Endpoint Auto-Disable', function () {
     it('can be re-enabled after being disabled', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -905,7 +910,7 @@ describe('Delivery Payload Headers', function () {
     it('includes all required headers', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -929,7 +934,7 @@ describe('Delivery Payload Headers', function () {
     it('uses the same delivery id in the payload and headers', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -948,7 +953,7 @@ describe('Delivery Payload Headers', function () {
     it('uses provided timestamp', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -967,7 +972,7 @@ describe('Delivery Payload Headers', function () {
     it('generates valid signature in payload', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 
@@ -991,7 +996,7 @@ describe('Delivery Payload Headers', function () {
     it('rejects payloads that cannot be encoded as json', function () {
         $endpoint = WebhookEndpoint::createForWorkspace(
             $this->workspace->id,
-            'https://example.com/webhook',
+            WEBHOOK_URL_EXAMPLE,
             ['bio.created']
         );
 

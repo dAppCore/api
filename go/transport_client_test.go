@@ -390,7 +390,7 @@ func TestTransportClient_Connect_Good_SetsAcceptHeaderAndReturnsResponse(t *test
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawAccept = r.Header.Get("Accept")
 		sawToken = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set(hdrContentType, "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, "event: ping\ndata: hello\n\n")
 	}))
@@ -474,7 +474,7 @@ func TestTransportClient_Events_Good_ParsesStream(t *testing.T) {
 	}...)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set(hdrContentType, "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
 		_, _ = io.WriteString(w, payload)
@@ -508,7 +508,7 @@ func TestTransportClient_Events_Bad_ContextCancelledClosesChannel(t *testing.T) 
 	started := make(chan struct{}, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set(hdrContentType, "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
 		_, _ = io.WriteString(w, "data: one\n\n")

@@ -175,7 +175,7 @@ func rateLimitMiddleware(limit int) gin.HandlerFunc {
 			c.Header("Retry-After", core.Itoa(secs))
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, Fail(
 				"rate_limit_exceeded",
-				"Too many requests",
+				msgTooManyRequests,
 			))
 			return
 		}

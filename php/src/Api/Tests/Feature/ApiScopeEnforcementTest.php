@@ -8,6 +8,16 @@ use Mod\Tenant\Models\Workspace;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 
+define('KEY_NAME_READ_ONLY', 'Read Only Key');
+define('KEY_NAME_READ_WRITE', 'Read/Write Key');
+define('KEY_NAME_POSTS_ADMIN', 'Posts Admin Key');
+define('SCOPE_POSTS_ALL', 'posts:*');
+define('SCOPE_ALL_READ', '*:read');
+define('TEST_SCOPE_WRITE_PATH', '/api/test-scope/write');
+define('TEST_SCOPE_DELETE_PATH', '/api/test-scope/delete');
+define('TEST_EXPLICIT_POSTS_PATH', '/test-explicit/posts');
+define('API_TEST_EXPLICIT_POSTS_PATH', '/api/test-explicit/posts');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -41,7 +51,7 @@ describe('Read Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read Only Key',
+            KEY_NAME_READ_ONLY,
             [ApiKey::SCOPE_READ]
         );
 
@@ -57,11 +67,11 @@ describe('Read Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read Only Key',
+            KEY_NAME_READ_ONLY,
             [ApiKey::SCOPE_READ]
         );
 
-        $response = $this->postJson('/api/test-scope/write', [], [
+        $response = $this->postJson(TEST_SCOPE_WRITE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -74,11 +84,11 @@ describe('Read Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read Only Key',
+            KEY_NAME_READ_ONLY,
             [ApiKey::SCOPE_READ]
         );
 
-        $response = $this->deleteJson('/api/test-scope/delete', [], [
+        $response = $this->deleteJson(TEST_SCOPE_DELETE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -97,11 +107,11 @@ describe('Write Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read/Write Key',
+            KEY_NAME_READ_WRITE,
             [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE]
         );
 
-        $response = $this->postJson('/api/test-scope/write', [], [
+        $response = $this->postJson(TEST_SCOPE_WRITE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -112,7 +122,7 @@ describe('Write Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read/Write Key',
+            KEY_NAME_READ_WRITE,
             [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE]
         );
 
@@ -127,7 +137,7 @@ describe('Write Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read/Write Key',
+            KEY_NAME_READ_WRITE,
             [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE]
         );
 
@@ -142,11 +152,11 @@ describe('Write Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read/Write Key',
+            KEY_NAME_READ_WRITE,
             [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE]
         );
 
-        $response = $this->deleteJson('/api/test-scope/delete', [], [
+        $response = $this->deleteJson(TEST_SCOPE_DELETE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -168,7 +178,7 @@ describe('Delete Scope Enforcement', function () {
             [ApiKey::SCOPE_READ, ApiKey::SCOPE_WRITE, ApiKey::SCOPE_DELETE]
         );
 
-        $response = $this->deleteJson('/api/test-scope/delete', [], [
+        $response = $this->deleteJson(TEST_SCOPE_DELETE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -179,11 +189,11 @@ describe('Delete Scope Enforcement', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read Only Key',
+            KEY_NAME_READ_ONLY,
             [ApiKey::SCOPE_READ]
         );
 
-        $response = $this->deleteJson('/api/test-scope/delete', [], [
+        $response = $this->deleteJson(TEST_SCOPE_DELETE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -208,10 +218,10 @@ describe('Full Access Keys', function () {
         $headers = ['Authorization' => "Bearer {$result['plain_key']}"];
 
         expect($this->getJson('/api/test-scope/read', $headers)->status())->toBe(200);
-        expect($this->postJson('/api/test-scope/write', [], $headers)->status())->toBe(200);
+        expect($this->postJson(TEST_SCOPE_WRITE_PATH, [], $headers)->status())->toBe(200);
         expect($this->putJson('/api/test-scope/update', [], $headers)->status())->toBe(200);
         expect($this->patchJson('/api/test-scope/patch', [], $headers)->status())->toBe(200);
-        expect($this->deleteJson('/api/test-scope/delete', [], $headers)->status())->toBe(200);
+        expect($this->deleteJson(TEST_SCOPE_DELETE_PATH, [], $headers)->status())->toBe(200);
     });
 });
 
@@ -240,8 +250,8 @@ describe('Resource Wildcard Scopes', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Posts Admin Key',
-            ['posts:*']
+            KEY_NAME_POSTS_ADMIN,
+            [SCOPE_POSTS_ALL]
         );
 
         $apiKey = $result['api_key'];
@@ -258,7 +268,7 @@ describe('Resource Wildcard Scopes', function () {
             $this->workspace->id,
             $this->user->id,
             'Posts Only Key',
-            ['posts:*']
+            [SCOPE_POSTS_ALL]
         );
 
         $apiKey = $result['api_key'];
@@ -274,7 +284,7 @@ describe('Resource Wildcard Scopes', function () {
             $this->workspace->id,
             $this->user->id,
             'Content Admin Key',
-            ['posts:*', 'pages:*']
+            [SCOPE_POSTS_ALL, 'pages:*']
         );
 
         $apiKey = $result['api_key'];
@@ -300,7 +310,7 @@ describe('Action Wildcard Scopes', function () {
             $this->workspace->id,
             $this->user->id,
             'Read Only All Key',
-            ['*:read']
+            [SCOPE_ALL_READ]
         );
 
         $apiKey = $result['api_key'];
@@ -317,7 +327,7 @@ describe('Action Wildcard Scopes', function () {
             $this->workspace->id,
             $this->user->id,
             'Read Only All Key',
-            ['*:read']
+            [SCOPE_ALL_READ]
         );
 
         $apiKey = $result['api_key'];
@@ -333,7 +343,7 @@ describe('Action Wildcard Scopes', function () {
             $this->workspace->id,
             $this->user->id,
             'Read/Write All Key',
-            ['*:read', '*:write']
+            [SCOPE_ALL_READ, '*:write']
         );
 
         $apiKey = $result['api_key'];
@@ -400,7 +410,7 @@ describe('Scope Inheritance', function () {
             $this->workspace->id,
             $this->user->id,
             'Mixed Key',
-            ['posts:read', 'posts:*']
+            ['posts:read', SCOPE_POSTS_ALL]
         );
 
         $apiKey = $result['api_key'];
@@ -415,7 +425,7 @@ describe('Scope Inheritance', function () {
             $this->workspace->id,
             $this->user->id,
             'Mixed Wildcards Key',
-            ['posts:*', '*:read']
+            [SCOPE_POSTS_ALL, SCOPE_ALL_READ]
         );
 
         $apiKey = $result['api_key'];
@@ -488,8 +498,8 @@ describe('Multiple Scope Checking', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Posts Admin Key',
-            ['posts:*']
+            KEY_NAME_POSTS_ADMIN,
+            [SCOPE_POSTS_ALL]
         );
 
         $apiKey = $result['api_key'];
@@ -503,7 +513,7 @@ describe('Multiple Scope Checking', function () {
             $this->workspace->id,
             $this->user->id,
             'Read All Key',
-            ['*:read']
+            [SCOPE_ALL_READ]
         );
 
         $apiKey = $result['api_key'];
@@ -521,13 +531,13 @@ describe('CheckApiScope Middleware', function () {
     beforeEach(function () {
         // Register routes with explicit scope requirements
         Route::middleware(['api', 'api.auth', 'api.scope:posts:read'])
-            ->get('/test-explicit/posts', fn () => response()->json(['status' => 'ok']));
+            ->get(TEST_EXPLICIT_POSTS_PATH, fn () => response()->json(['status' => 'ok']));
 
         Route::middleware(['api', 'api.auth', 'api.scope:posts:write'])
-            ->post('/test-explicit/posts', fn () => response()->json(['status' => 'ok']));
+            ->post(TEST_EXPLICIT_POSTS_PATH, fn () => response()->json(['status' => 'ok']));
 
         Route::middleware(['api', 'api.auth', 'api.scope:posts:read,posts:write'])
-            ->put('/test-explicit/posts', fn () => response()->json(['status' => 'ok']));
+            ->put(TEST_EXPLICIT_POSTS_PATH, fn () => response()->json(['status' => 'ok']));
     });
 
     it('allows request with exact required scope', function () {
@@ -538,7 +548,7 @@ describe('CheckApiScope Middleware', function () {
             ['posts:read']
         );
 
-        $response = $this->getJson('/api/test-explicit/posts', [
+        $response = $this->getJson(API_TEST_EXPLICIT_POSTS_PATH, [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -549,11 +559,11 @@ describe('CheckApiScope Middleware', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Posts Admin Key',
-            ['posts:*']
+            KEY_NAME_POSTS_ADMIN,
+            [SCOPE_POSTS_ALL]
         );
 
-        $response = $this->getJson('/api/test-explicit/posts', [
+        $response = $this->getJson(API_TEST_EXPLICIT_POSTS_PATH, [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -568,7 +578,7 @@ describe('CheckApiScope Middleware', function () {
             ['users:read']
         );
 
-        $response = $this->getJson('/api/test-explicit/posts', [
+        $response = $this->getJson(API_TEST_EXPLICIT_POSTS_PATH, [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -586,7 +596,7 @@ describe('CheckApiScope Middleware', function () {
         );
 
         // Route requires both posts:read AND posts:write
-        $response = $this->putJson('/api/test-explicit/posts', [], [
+        $response = $this->putJson(API_TEST_EXPLICIT_POSTS_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -604,9 +614,9 @@ describe('CheckApiScope Middleware', function () {
 
         $headers = ['Authorization' => "Bearer {$result['plain_key']}"];
 
-        expect($this->getJson('/api/test-explicit/posts', $headers)->status())->toBe(200);
-        expect($this->postJson('/api/test-explicit/posts', [], $headers)->status())->toBe(200);
-        expect($this->putJson('/api/test-explicit/posts', [], $headers)->status())->toBe(200);
+        expect($this->getJson(API_TEST_EXPLICIT_POSTS_PATH, $headers)->status())->toBe(200);
+        expect($this->postJson(API_TEST_EXPLICIT_POSTS_PATH, [], $headers)->status())->toBe(200);
+        expect($this->putJson(API_TEST_EXPLICIT_POSTS_PATH, [], $headers)->status())->toBe(200);
     });
 });
 
@@ -619,11 +629,11 @@ describe('Scope Denial Error Responses', function () {
         $result = ApiKey::generate(
             $this->workspace->id,
             $this->user->id,
-            'Read Only Key',
+            KEY_NAME_READ_ONLY,
             [ApiKey::SCOPE_READ]
         );
 
-        $response = $this->postJson('/api/test-scope/write', [], [
+        $response = $this->postJson(TEST_SCOPE_WRITE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -642,7 +652,7 @@ describe('Scope Denial Error Responses', function () {
             ['users:read']
         );
 
-        $response = $this->getJson('/api/test-explicit/posts', [
+        $response = $this->getJson(API_TEST_EXPLICIT_POSTS_PATH, [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 
@@ -660,7 +670,7 @@ describe('Scope Denial Error Responses', function () {
             ['posts:read', 'users:read', 'analytics:read']
         );
 
-        $response = $this->deleteJson('/api/test-scope/delete', [], [
+        $response = $this->deleteJson(TEST_SCOPE_DELETE_PATH, [], [
             'Authorization' => "Bearer {$result['plain_key']}",
         ]);
 

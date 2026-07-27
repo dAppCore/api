@@ -69,7 +69,7 @@ YAML);
 
     app()->instance(ToolVersionService::class, new class
     {
-        public function getLatestVersion(string $serverId, string $toolName): object
+        public function getLatestVersion(string $_serverId, string $_toolName): object
         {
             return (object) [
                 'version' => '2.1.0',
@@ -140,7 +140,7 @@ it('rejects unsafe server identifiers before filesystem-backed lookup', function
 it('McpApiController_callToolByRoute_Good_uses_route_parameters_with_a_test_seam', function () {
     app()->instance(ToolVersionService::class, new class
     {
-        public function resolveVersion(string $server, string $tool, ?string $version): array
+        public function resolveVersion(string $_server, string $_tool, ?string $_version): array
         {
             return [
                 'version' => null,
@@ -175,6 +175,7 @@ it('McpApiController_callToolByRoute_Good_uses_route_parameters_with_a_test_seam
             bool $success,
             ?string $error = null
         ): void {
+            // Stub — no-op for anonymous controller test double
         }
 
         protected function dispatchWebhook(
@@ -184,6 +185,7 @@ it('McpApiController_callToolByRoute_Good_uses_route_parameters_with_a_test_seam
             int $durationMs,
             ?string $error = null
         ): void {
+            // Stub — no-op for anonymous controller test double
         }
 
         protected function logApiRequest(
@@ -196,6 +198,7 @@ it('McpApiController_callToolByRoute_Good_uses_route_parameters_with_a_test_seam
             ?ApiKey $apiKey,
             ?string $error = null
         ): void {
+            // Stub — no-op for anonymous controller test double
         }
     };
 

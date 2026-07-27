@@ -13,6 +13,10 @@ import (
 	api "dappco.re/go/api"
 )
 
+func noopWSHandler(w http.ResponseWriter, r *http.Request) {
+	// Placeholder WebSocket handler for spec builder tests; no upgrade is performed.
+}
+
 func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -23,13 +27,13 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 		api.WithSwaggerPath("/docs"),
 		api.WithSwaggerTermsOfService("https://example.com/terms"),
 		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
-		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
+		api.WithSwaggerServers(apiBaseURL, "/", apiBaseURL),
 		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
 		api.WithSwaggerSecuritySchemes(map[string]any{
 			"apiKeyAuth": map[string]any{
 				"type": "apiKey",
 				"in":   "header",
-				"name": "X-API-Key",
+				"name": apiKeyHeader,
 			},
 		}),
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
@@ -42,29 +46,29 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 			Issuer:       "https://auth.example.com",
 			ClientID:     "core-client",
 			TrustedProxy: true,
-			PublicPaths:  []string{" /public/ ", "docs", "/public"},
+			PublicPaths:  []string{" /public/ ", "docs", pathPublic},
 		}),
 		api.WithWSPath("/socket"),
-		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
+		api.WithWSHandler(http.HandlerFunc(noopWSHandler)),
 		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
 		api.WithSSE(broker),
-		api.WithSSEPath("/events"),
+		api.WithSSEPath(pathEvents),
 		api.WithPprof(),
 		api.WithExpvar(),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	builder := e.OpenAPISpecBuilder()
 	data, err := builder.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info, ok := spec["info"].(map[string]any)
@@ -108,7 +112,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if got := spec["x-ws-enabled"]; got != true {
 		t.Fatalf("expected x-ws-enabled=true, got %v", got)
 	}
-	if got := spec["x-sse-path"]; got != "/events" {
+	if got := spec["x-sse-path"]; got != pathEvents {
 		t.Fatalf("expected x-sse-path=/events, got %v", got)
 	}
 	if got := spec["x-sse-enabled"]; got != true {
@@ -155,7 +159,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected x-authentik-public-paths array, got %T", spec["x-authentik-public-paths"])
 	}
-	if len(publicPaths) != 4 || publicPaths[0] != "/health" || publicPaths[1] != "/swagger" || publicPaths[2] != "/docs" || publicPaths[3] != "/public" {
+	if len(publicPaths) != 4 || publicPaths[0] != pathHealth || publicPaths[1] != "/swagger" || publicPaths[2] != "/docs" || publicPaths[3] != pathPublic {
 		t.Fatalf("expected public paths [/health /swagger /docs /public], got %v", publicPaths)
 	}
 
@@ -193,7 +197,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if apiKeyAuth["in"] != "header" {
 		t.Fatalf("expected apiKeyAuth.in=header, got %v", apiKeyAuth["in"])
 	}
-	if apiKeyAuth["name"] != "X-API-Key" {
+	if apiKeyAuth["name"] != apiKeyHeader {
 		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
 	}
 
@@ -212,7 +216,7 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if len(servers) != 2 {
 		t.Fatalf("expected 2 normalised servers, got %d", len(servers))
 	}
-	if servers[0].(map[string]any)["url"] != "https://api.example.com" {
+	if servers[0].(map[string]any)["url"] != apiBaseURL {
 		t.Fatalf("expected first server to be https://api.example.com, got %v", servers[0])
 	}
 	if servers[1].(map[string]any)["url"] != "/" {
@@ -232,13 +236,13 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesEngineMetadata(t *testing.T) {
 	if _, ok := paths["/socket"]; !ok {
 		t.Fatal("expected custom WebSocket path from engine metadata in generated spec")
 	}
-	if _, ok := paths["/events"]; !ok {
+	if _, ok := paths[pathEvents]; !ok {
 		t.Fatal("expected SSE path from engine metadata in generated spec")
 	}
-	if _, ok := paths["/debug/pprof"]; !ok {
+	if _, ok := paths[pathDebugPprof]; !ok {
 		t.Fatal("expected pprof path from engine metadata in generated spec")
 	}
-	if _, ok := paths["/debug/vars"]; !ok {
+	if _, ok := paths[pathDebugVars]; !ok {
 		t.Fatal("expected expvar path from engine metadata in generated spec")
 	}
 }
@@ -251,19 +255,19 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 		api.WithSwaggerSummary("Engine overview"),
 		api.WithSwaggerTermsOfService("https://example.com/terms"),
 		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
-		api.WithSwaggerServers("https://api.example.com", "/", "https://api.example.com"),
+		api.WithSwaggerServers(apiBaseURL, "/", apiBaseURL),
 		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
 		api.WithSwaggerSecuritySchemes(map[string]any{
 			"apiKeyAuth": map[string]any{
 				"type": "apiKey",
 				"in":   "header",
-				"name": "X-API-Key",
+				"name": apiKeyHeader,
 			},
 		}),
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.SwaggerConfig()
@@ -300,7 +304,7 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	if len(cfg.Servers) != 2 {
 		t.Fatalf("expected 2 normalised servers, got %d", len(cfg.Servers))
 	}
-	if cfg.Servers[0] != "https://api.example.com" {
+	if cfg.Servers[0] != apiBaseURL {
 		t.Fatalf("expected first server to be https://api.example.com, got %q", cfg.Servers[0])
 	}
 	if cfg.Servers[1] != "/" {
@@ -312,7 +316,7 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 		api.WithSwaggerPath("/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	snap := cfgWithPath.SwaggerConfig()
 	if snap.Path != "/docs" {
@@ -323,7 +327,7 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	if !ok {
 		t.Fatal("expected apiKeyAuth security scheme in Swagger config")
 	}
-	if apiKeyAuth["name"] != "X-API-Key" {
+	if apiKeyAuth["name"] != apiKeyHeader {
 		t.Fatalf("expected apiKeyAuth.name=X-API-Key, got %v", apiKeyAuth["name"])
 	}
 
@@ -331,14 +335,14 @@ func TestEngine_Good_SwaggerConfigCarriesEngineMetadata(t *testing.T) {
 	apiKeyAuth["name"] = "Changed"
 
 	reshot := e.SwaggerConfig()
-	if reshot.Servers[0] != "https://api.example.com" {
+	if reshot.Servers[0] != apiBaseURL {
 		t.Fatalf("expected engine servers to be cloned, got %q", reshot.Servers[0])
 	}
 	reshotScheme, ok := reshot.SecuritySchemes["apiKeyAuth"].(map[string]any)
 	if !ok {
 		t.Fatal("expected apiKeyAuth security scheme in cloned Swagger config")
 	}
-	if reshotScheme["name"] != "X-API-Key" {
+	if reshotScheme["name"] != apiKeyHeader {
 		t.Fatalf("expected cloned security scheme name X-API-Key, got %v", reshotScheme["name"])
 	}
 }
@@ -357,11 +361,11 @@ func TestEngine_Good_SwaggerConfigTrimsRuntimeMetadata(t *testing.T) {
 			Issuer:       "  https://auth.example.com  ",
 			ClientID:     "  core-client  ",
 			TrustedProxy: true,
-			PublicPaths:  []string{" /public/ ", " docs ", "/public"},
+			PublicPaths:  []string{" /public/ ", " docs ", pathPublic},
 		}),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	swagger := e.SwaggerConfig()
@@ -397,19 +401,19 @@ func TestEngine_Good_SwaggerConfigTrimsRuntimeMetadata(t *testing.T) {
 	if auth.ClientID != "core-client" {
 		t.Fatalf("expected trimmed client ID, got %q", auth.ClientID)
 	}
-	if want := []string{"/public", "/docs"}; !slices.Equal(auth.PublicPaths, want) {
+	if want := []string{pathPublic, "/docs"}; !slices.Equal(auth.PublicPaths, want) {
 		t.Fatalf("expected trimmed public paths %v, got %v", want, auth.PublicPaths)
 	}
 
 	builder := e.OpenAPISpecBuilder()
 	data, err := builder.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info, ok := spec["info"].(map[string]any)
@@ -432,15 +436,15 @@ func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 		api.WithSwagger("Engine API", "Engine metadata", "2.0.0"),
 		api.WithSwaggerPath("/docs"),
 		api.WithWSPath("/socket"),
-		api.WithWSHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})),
+		api.WithWSHandler(http.HandlerFunc(noopWSHandler)),
 		api.WithGraphQL(newTestSchema(), api.WithPlayground(), api.WithGraphQLPath("/gql")),
 		api.WithSSE(broker),
-		api.WithSSEPath("/events"),
+		api.WithSSEPath(pathEvents),
 		api.WithPprof(),
 		api.WithExpvar(),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
@@ -468,7 +472,7 @@ func TestEngine_Good_TransportConfigCarriesEngineMetadata(t *testing.T) {
 	if !cfg.SSEEnabled {
 		t.Fatal("expected SSE to be enabled")
 	}
-	if cfg.SSEPath != "/events" {
+	if cfg.SSEPath != pathEvents {
 		t.Fatalf("expected sse path /events, got %q", cfg.SSEPath)
 	}
 	if !cfg.PprofEnabled {
@@ -484,7 +488,7 @@ func TestEngine_Good_TransportConfigReportsDisabledSwaggerWithoutUI(t *testing.T
 
 	e, err := api.New(api.WithSwaggerPath("/docs"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
@@ -493,47 +497,6 @@ func TestEngine_Good_TransportConfigReportsDisabledSwaggerWithoutUI(t *testing.T
 	}
 	if cfg.SwaggerPath != "/docs" {
 		t.Fatalf("expected swagger path /docs, got %q", cfg.SwaggerPath)
-	}
-}
-
-// TestEngine_Good_TransportConfigReportsChatCompletions verifies that the
-// chat completions resolver surfaces through TransportConfig so callers can
-// discover the RFC §11.1 endpoint without rebuilding the engine.
-func TestEngine_Good_TransportConfigReportsChatCompletions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	resolver := api.NewModelResolver()
-	e, err := api.New(api.WithChatCompletions(resolver))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cfg := e.TransportConfig()
-	if !cfg.ChatCompletionsEnabled {
-		t.Fatal("expected chat completions to be enabled")
-	}
-	if cfg.ChatCompletionsPath != "/v1/chat/completions" {
-		t.Fatalf("expected chat completions path /v1/chat/completions, got %q", cfg.ChatCompletionsPath)
-	}
-}
-
-// TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride verifies
-// that WithChatCompletionsPath surfaces through TransportConfig.
-func TestEngine_Good_TransportConfigHonoursChatCompletionsPathOverride(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	resolver := api.NewModelResolver()
-	e, err := api.New(
-		api.WithChatCompletions(resolver),
-		api.WithChatCompletionsPath("/chat"),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cfg := e.TransportConfig()
-	if cfg.ChatCompletionsPath != "/chat" {
-		t.Fatalf("expected chat completions path /chat, got %q", cfg.ChatCompletionsPath)
 	}
 }
 
@@ -546,14 +509,14 @@ func TestEngine_Good_TransportConfigReportsOpenAPISpec(t *testing.T) {
 
 	e, err := api.New(api.WithOpenAPISpec())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
 	if !cfg.OpenAPISpecEnabled {
 		t.Fatal("expected OpenAPISpecEnabled=true")
 	}
-	if cfg.OpenAPISpecPath != "/v1/openapi.json" {
+	if cfg.OpenAPISpecPath != pathOpenAPIJSON {
 		t.Fatalf("expected OpenAPISpecPath=/v1/openapi.json, got %q", cfg.OpenAPISpecPath)
 	}
 }
@@ -565,7 +528,7 @@ func TestEngine_Good_TransportConfigHonoursOpenAPISpecPathOverride(t *testing.T)
 
 	e, err := api.New(api.WithOpenAPISpecPath("/api/v1/openapi.json"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
@@ -585,7 +548,7 @@ func TestEngine_Bad_TransportConfigOmitsOpenAPISpecWhenDisabled(t *testing.T) {
 
 	e, err := api.New()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
@@ -605,14 +568,14 @@ func TestEngine_Bad_TransportConfigFallsBackToDefaultOpenAPISpecPathWhenBlank(t 
 
 	e, err := api.New(api.WithOpenAPISpecPath("   "))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
 	if !cfg.OpenAPISpecEnabled {
 		t.Fatal("expected OpenAPISpecEnabled=true from blank override")
 	}
-	if cfg.OpenAPISpecPath != "/v1/openapi.json" {
+	if cfg.OpenAPISpecPath != pathOpenAPIJSON {
 		t.Fatalf("expected default OpenAPISpecPath=/v1/openapi.json, got %q", cfg.OpenAPISpecPath)
 	}
 }
@@ -625,7 +588,7 @@ func TestEngine_Ugly_TransportConfigNormalisesOpenAPISpecPathOverride(t *testing
 
 	e, err := api.New(api.WithOpenAPISpecPath("  api/v1/openapi.json  "))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	cfg := e.TransportConfig()
@@ -642,18 +605,18 @@ func TestEngine_Good_OpenAPISpecBuilderExportsDefaultSwaggerPath(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("Engine API", "Engine metadata", "2.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	builder := e.OpenAPISpecBuilder()
 	data, err := builder.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-swagger-ui-path"]; got != "/swagger" {
@@ -666,18 +629,18 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesExplicitSwaggerPathWithoutUI(t *te
 
 	e, err := api.New(api.WithSwaggerPath("/docs"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	builder := e.OpenAPISpecBuilder()
 	data, err := builder.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-swagger-ui-path"]; got != "/docs" {
@@ -690,18 +653,18 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredWSPathWithoutHandler(t *
 
 	e, err := api.New(api.WithWSPath("/socket"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	builder := e.OpenAPISpecBuilder()
 	data, err := builder.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if got := spec["x-ws-path"]; got != "/socket" {
@@ -712,23 +675,23 @@ func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredWSPathWithoutHandler(t *
 func TestEngine_Good_OpenAPISpecBuilderCarriesConfiguredSSEPathWithoutBroker(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	e, err := api.New(api.WithSSE(nil), api.WithSSEPath("/events"))
+	e, err := api.New(api.WithSSE(nil), api.WithSSEPath(pathEvents))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	builder := e.OpenAPISpecBuilder()
 	data, err := builder.Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
-	if got := spec["x-sse-path"]; got != "/events" {
+	if got := spec["x-sse-path"]; got != pathEvents {
 		t.Fatalf("expected x-sse-path=/events, got %v", got)
 	}
 }
@@ -753,7 +716,7 @@ func TestEngine_Good_OpenAPISpecBuilderClonesSecuritySchemes(t *testing.T) {
 		api.WithSwaggerSecuritySchemes(schemes),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	// Mutate the original input after configuration. The builder snapshot should
@@ -763,12 +726,12 @@ func TestEngine_Good_OpenAPISpecBuilderClonesSecuritySchemes(t *testing.T) {
 
 	data, err := e.OpenAPISpecBuilder().Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	securitySchemes := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)
@@ -794,7 +757,7 @@ func TestEngine_Ugly_OpenAPISpecBuilderSkipsBlankSecuritySchemeEntries(t *testin
 
 	e, err := api.New(api.WithSwagger("Engine API", "Engine metadata", "2.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	api.WithSwaggerSecuritySchemes(nil)(e)
@@ -804,18 +767,18 @@ func TestEngine_Ugly_OpenAPISpecBuilderSkipsBlankSecuritySchemeEntries(t *testin
 		"apiKeyAuth": map[string]any{
 			"type": "apiKey",
 			"in":   "header",
-			"name": "X-API-Key",
+			"name": apiKeyHeader,
 		},
 	})(e)
 
 	data, err := e.OpenAPISpecBuilder().Build(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	securitySchemes := spec["components"].(map[string]any)["securitySchemes"].(map[string]any)

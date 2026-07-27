@@ -27,11 +27,11 @@ func TestWithSlog_Good_LogsRequestFields(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	output := buf.String()
@@ -55,11 +55,11 @@ func TestWithSlog_Good_NilLoggerUsesDefault(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 }
 
@@ -76,18 +76,18 @@ func TestWithSlog_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Both slog output and request ID header should be present.
 	if buf.Len() == 0 {
 		t.Fatal("expected slog output from WithSlog")
 	}
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -132,14 +132,14 @@ func TestWithSlog_Bad_LogsMethodAndPath(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodPost, pathStubPing, nil)
 	h.ServeHTTP(w, req)
 
 	output := buf.String()
 	if !core.Contains(buf.String(), "POST") {
 		t.Errorf("expected log to contain method POST, got: %s", output)
 	}
-	if !core.Contains(buf.String(), "/stub/ping") {
+	if !core.Contains(buf.String(), pathStubPing) {
 		t.Errorf("expected log to contain path /stub/ping, got: %s", output)
 	}
 }
@@ -158,10 +158,10 @@ func TestWithSlog_Ugly_DoubleSlogDoesNotPanic(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 }

@@ -93,7 +93,7 @@ func TestWithHTTPSign_Good_ValidSignatureAccepted(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	signRequest(req, testKeyID, testSecretKey, requiredHeaders)
 
 	h.ServeHTTP(w, req)
@@ -117,7 +117,7 @@ func TestWithHTTPSign_Bad_InvalidSignatureRejected(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 
 	// Sign with the wrong secret so the signature is invalid.
 	signRequest(req, testKeyID, "wrong-secret-key", requiredHeaders)
@@ -145,7 +145,7 @@ func TestWithHTTPSign_Bad_MissingSignatureRejected(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Send a request with no signature at all.
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 
 	h.ServeHTTP(w, req)
@@ -172,7 +172,7 @@ func TestWithHTTPSign_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	signRequest(req, testKeyID, testSecretKey, requiredHeaders)
 
 	h.ServeHTTP(w, req)
@@ -182,7 +182,7 @@ func TestWithHTTPSign_Good_CombinesWithOtherMiddleware(t *testing.T) {
 	}
 
 	// Verify that WithRequestID also ran.
-	if w.Header().Get("X-Request-ID") == "" {
+	if w.Header().Get(hdrXRequestID) == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}
 }
@@ -201,7 +201,7 @@ func TestWithHTTPSign_Ugly_UnknownKeyIDRejected(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 
 	// Sign with an unknown key ID that does not exist in the secrets map.
 	unknownKeyID := httpsign.KeyID("unknown-client")

@@ -17,10 +17,12 @@ type renderableSpecGroup struct {
 	descs    []api.RouteDescription
 }
 
-func (g *renderableSpecGroup) Name() string                       { return g.name }
-func (g *renderableSpecGroup) BasePath() string                   { return g.basePath }
-func (g *renderableSpecGroup) RegisterRoutes(rg *gin.RouterGroup) {}
-func (g *renderableSpecGroup) Describe() []api.RouteDescription   { return g.descs }
+func (g *renderableSpecGroup) Name() string     { return g.name }
+func (g *renderableSpecGroup) BasePath() string { return g.basePath }
+func (g *renderableSpecGroup) RegisterRoutes(rg *gin.RouterGroup) {
+	// Required by RouteGroup; routes are registered through the Describe path only.
+}
+func (g *renderableSpecGroup) Describe() []api.RouteDescription { return g.descs }
 
 type renderableHandler struct {
 	hints api.RenderHints
@@ -43,12 +45,12 @@ func buildRenderableOperation(t *testing.T, group api.RouteGroup, path, method s
 
 	data, err := builder.Build([]api.RouteGroup{group})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
 	if err := coreJSONUnmarshal(data, &spec); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := spec["paths"].(map[string]any)
@@ -144,7 +146,7 @@ func TestRenderable_Bad_EmptyHintsAreOmittedSafely(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  http.MethodGet,
-				Path:    "/status",
+				Path:    pathStatus,
 				Handler: &renderableHandler{},
 			},
 		},
@@ -164,7 +166,7 @@ func TestRenderable_Ugly_NilHandlerIsIgnored(t *testing.T) {
 		descs: []api.RouteDescription{
 			{
 				Method:  http.MethodGet,
-				Path:    "/status",
+				Path:    pathStatus,
 				Handler: (*renderableHandler)(nil),
 			},
 		},

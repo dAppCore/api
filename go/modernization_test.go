@@ -99,7 +99,7 @@ func TestEngine_AuthentikConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 		Issuer:       "https://auth.example.com",
 		ClientID:     "client",
 		TrustedProxy: true,
-		PublicPaths:  []string{"/public", "/docs"},
+		PublicPaths:  []string{pathPublic, "/docs"},
 	}))
 
 	cfg := e.AuthentikConfig()
@@ -112,13 +112,13 @@ func TestEngine_AuthentikConfig_Good_SnapshotsCurrentSettings(t *testing.T) {
 	if !cfg.TrustedProxy {
 		t.Fatal("expected trusted proxy to be enabled")
 	}
-	if !slices.Equal(cfg.PublicPaths, []string{"/public", "/docs"}) {
+	if !slices.Equal(cfg.PublicPaths, []string{pathPublic, "/docs"}) {
 		t.Fatalf("expected public paths [/public /docs], got %v", cfg.PublicPaths)
 	}
 }
 
 func TestEngine_AuthentikConfig_Good_ClonesPublicPaths(t *testing.T) {
-	publicPaths := []string{"/public", "/docs"}
+	publicPaths := []string{pathPublic, "/docs"}
 	e, _ := api.New(api.WithAuthentik(api.AuthentikConfig{
 		Issuer:      "https://auth.example.com",
 		PublicPaths: publicPaths,
@@ -127,18 +127,18 @@ func TestEngine_AuthentikConfig_Good_ClonesPublicPaths(t *testing.T) {
 	cfg := e.AuthentikConfig()
 	publicPaths[0] = "/mutated"
 
-	if cfg.PublicPaths[0] != "/public" {
+	if cfg.PublicPaths[0] != pathPublic {
 		t.Fatalf("expected snapshot to preserve original public paths, got %v", cfg.PublicPaths)
 	}
 }
 
 func TestEngine_AuthentikConfig_Good_NormalisesPublicPaths(t *testing.T) {
 	e, _ := api.New(api.WithAuthentik(api.AuthentikConfig{
-		PublicPaths: []string{" /public/ ", "docs", "/public"},
+		PublicPaths: []string{" /public/ ", "docs", pathPublic},
 	}))
 
 	cfg := e.AuthentikConfig()
-	expected := []string{"/public", "/docs"}
+	expected := []string{pathPublic, "/docs"}
 	if !slices.Equal(cfg.PublicPaths, expected) {
 		t.Fatalf("expected normalised public paths %v, got %v", expected, cfg.PublicPaths)
 	}

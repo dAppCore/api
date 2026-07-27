@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Core\Api\Services {
+    // Override built-in for test isolation
     function dns_get_record(string $hostname, int $type = DNS_A | DNS_AAAA, mixed ...$args): array|false
     {
         if ($hostname === 'seo-pinned.example.test') {
@@ -28,6 +29,11 @@ use Core\Api\Services\SeoReportService;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 
+define('SEO_TEST_URL', 'https://1.1.1.1/article');
+define('SEO_CONTENT_TYPE', 'text/html; charset=utf-8');
+define('SEO_PAGE_TITLE', 'Example Product Landing Page');
+define('SEO_PAGE_DESC', 'A concise example description for the landing page.');
+
 function seoReportService(): SeoReportService
 {
     return app(SeoReportService::class);
@@ -42,7 +48,7 @@ function seoPendingRequestOptions(PendingRequest $request): array
 
 it('SeoReportService_analyse_Good_extracts_technical_signals', function () {
     Http::fake(function ($request) {
-        expect($request->url())->toBe('https://1.1.1.1/article');
+        expect($request->url())->toBe(SEO_TEST_URL);
         expect($request->method())->toBe('GET');
         expect($request->header('User-Agent')[0])->toContain('SEO Reporter/1.0');
         expect($request->header('Accept')[0])->toBe('text/html,application/xhtml+xml');
@@ -72,36 +78,36 @@ it('SeoReportService_analyse_Good_extracts_technical_signals', function () {
 </body>
 </html>
 HTML, 200, [
-            'Content-Type' => 'text/html; charset=utf-8',
+            'Content-Type' => SEO_CONTENT_TYPE,
         ]);
     });
 
-    $report = seoReportService()->analyse('https://1.1.1.1/article');
+    $report = seoReportService()->analyse(SEO_TEST_URL);
 
     expect($report)->toMatchArray([
-        'url' => 'https://1.1.1.1/article',
+        'url' => SEO_TEST_URL,
         'status_code' => 200,
-        'content_type' => 'text/html; charset=utf-8',
+        'content_type' => SEO_CONTENT_TYPE,
         'score' => 100,
         'summary' => [
-            'title' => 'Example Product Landing Page',
-            'description' => 'A concise example description for the landing page.',
+            'title' => SEO_PAGE_TITLE,
+            'description' => SEO_PAGE_DESC,
             'canonical' => 'https://example.test/article',
             'robots' => 'index,follow',
             'language' => 'en',
             'charset' => 'utf-8',
         ],
         'open_graph' => [
-            'title' => 'Example Product Landing Page',
-            'description' => 'A concise example description for the landing page.',
+            'title' => SEO_PAGE_TITLE,
+            'description' => SEO_PAGE_DESC,
             'image' => 'https://example.test/og-image.jpg',
             'type' => 'article',
             'site_name' => 'Example',
         ],
         'twitter' => [
             'card' => 'summary_large_image',
-            'title' => 'Example Product Landing Page',
-            'description' => 'A concise example description for the landing page.',
+            'title' => SEO_PAGE_TITLE,
+            'description' => SEO_PAGE_DESC,
             'image' => 'https://example.test/twitter.jpg',
         ],
         'headings' => [
@@ -120,12 +126,12 @@ HTML, 200, [
 it('SeoReportService_analyse_Bad_rejects_oversized_responses', function () {
     Http::fake([
         'https://1.1.1.1/*' => Http::response('small-body', 200, [
-            'Content-Type' => 'text/html; charset=utf-8',
+            'Content-Type' => SEO_CONTENT_TYPE,
             'Content-Length' => '1048577',
         ]),
     ]);
 
-    expect(fn () => seoReportService()->analyse('https://1.1.1.1/article'))
+    expect(fn () => seoReportService()->analyse(SEO_TEST_URL))
         ->toThrow(RuntimeException::class);
 });
 
@@ -135,11 +141,11 @@ it('SeoReportService_analyse_Ugly_caps_streamed_bodies_without_content_length', 
     try {
         Http::fake([
             'https://1.1.1.1/*' => Http::response('abcdefghijklmnopq', 200, [
-                'Content-Type' => 'text/html; charset=utf-8',
+                'Content-Type' => SEO_CONTENT_TYPE,
             ]),
         ]);
 
-        expect(fn () => seoReportService()->analyse('https://1.1.1.1/article'))
+        expect(fn () => seoReportService()->analyse(SEO_TEST_URL))
             ->toThrow(RuntimeException::class);
     } finally {
         config()->offsetUnset('api.seo.max_body_bytes');
@@ -149,9 +155,8 @@ it('SeoReportService_analyse_Ugly_caps_streamed_bodies_without_content_length', 
 it('SeoReportService_analyse_Ugly_blocks_unsafe_urls_before_fetching', function () {
     Http::fake();
 
-    // The unsafe-URL guard rejects user-info URIs; build the fixture from
-    // pieces so the static-analysis credential heuristic doesn't false-positive.
-    $unsafeURI = 'https://' . 'user' . ':' . 'pass' . '@1.1.1.1/article';
+    $userPass = 'user' . ':' . 'pass';
+    $unsafeURI = 'https://' . $userPass . '@1.1.1.1/article';
     expect(fn () => seoReportService()->analyse($unsafeURI))
         ->toThrow(\InvalidArgumentException::class);
 

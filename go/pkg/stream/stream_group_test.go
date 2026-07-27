@@ -14,15 +14,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	sseContentType = "text/event-stream"
+	eventsPath     = "/events"
+	wsPath         = "/ws"
+)
+
 func TestStreamGroup_Good_RoundTrip(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	group := stream.NewGroup(
 		"events",
-		stream.SSE("/events", func(c *gin.Context) {
-			c.Data(http.StatusOK, "text/event-stream", []byte("data: ready\n\n"))
+		stream.SSE(eventsPath, func(c *gin.Context) {
+			c.Data(http.StatusOK, sseContentType, []byte("data: ready\n\n"))
 		}),
-		stream.WebSocket("/ws", func(c *gin.Context) {
+		stream.WebSocket(wsPath, func(c *gin.Context) {
 			c.Header("Upgrade", "websocket")
 			c.Status(http.StatusSwitchingProtocols)
 		}),
@@ -38,32 +44,32 @@ func TestStreamGroup_Good_RoundTrip(t *testing.T) {
 	if handlers[0].Method != http.MethodGet {
 		t.Fatalf("expected first method %q, got %q", http.MethodGet, handlers[0].Method)
 	}
-	if handlers[0].Path != "/events" {
-		t.Fatalf("expected first path %q, got %q", "/events", handlers[0].Path)
+	if handlers[0].Path != eventsPath {
+		t.Fatalf("expected first path %q, got %q", eventsPath, handlers[0].Path)
 	}
 	if handlers[1].Protocol != stream.ProtocolWebSocket {
 		t.Fatalf("expected second protocol %q, got %q", stream.ProtocolWebSocket, handlers[1].Protocol)
 	}
-	if handlers[1].Path != "/ws" {
-		t.Fatalf("expected second path %q, got %q", "/ws", handlers[1].Path)
+	if handlers[1].Path != wsPath {
+		t.Fatalf("expected second path %q, got %q", wsPath, handlers[1].Path)
 	}
 
 	router := gin.New()
 	group.Register(router)
 
 	sseRecorder := httptest.NewRecorder()
-	sseReq, _ := http.NewRequest(http.MethodGet, "/events", nil)
+	sseReq, _ := http.NewRequest(http.MethodGet, eventsPath, nil)
 	router.ServeHTTP(sseRecorder, sseReq)
 
 	if sseRecorder.Code != http.StatusOK {
 		t.Fatalf("expected SSE status 200, got %d", sseRecorder.Code)
 	}
-	if got := sseRecorder.Header().Get("Content-Type"); got != "text/event-stream" {
-		t.Fatalf("expected SSE content type %q, got %q", "text/event-stream", got)
+	if got := sseRecorder.Header().Get("Content-Type"); got != sseContentType {
+		t.Fatalf("expected SSE content type %q, got %q", sseContentType, got)
 	}
 
 	wsRecorder := httptest.NewRecorder()
-	wsReq, _ := http.NewRequest(http.MethodGet, "/ws", nil)
+	wsReq, _ := http.NewRequest(http.MethodGet, wsPath, nil)
 	router.ServeHTTP(wsRecorder, wsReq)
 
 	if wsRecorder.Code != http.StatusSwitchingProtocols {
@@ -85,10 +91,10 @@ func TestStreamGroup_Bad_DropsInvalidHandlersAndClonesMetadata(t *testing.T) {
 		stream.Handler{
 			Protocol: stream.ProtocolWebSocket,
 			Method:   http.MethodGet,
-			Path:     "/ws",
+			Path:     wsPath,
 			Handle:   nil,
 		},
-		stream.SSE("/events", func(c *gin.Context) {
+		stream.SSE(eventsPath, func(c *gin.Context) {
 			c.Status(http.StatusNoContent)
 		}),
 	)
@@ -104,15 +110,15 @@ func TestStreamGroup_Bad_DropsInvalidHandlersAndClonesMetadata(t *testing.T) {
 	if len(fresh) != 1 {
 		t.Fatalf("expected 1 fresh handler, got %d", len(fresh))
 	}
-	if fresh[0].Path != "/events" {
-		t.Fatalf("expected cloned handler path %q, got %q", "/events", fresh[0].Path)
+	if fresh[0].Path != eventsPath {
+		t.Fatalf("expected cloned handler path %q, got %q", eventsPath, fresh[0].Path)
 	}
 
 	router := gin.New()
 	group.Register(router)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, eventsPath, nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNoContent {
@@ -176,13 +182,13 @@ func TestEngineRegisterStreamGroup_Good_MultiTenantRegistration(t *testing.T) {
 	engine.RegisterStreamGroup(stream.NewGroup(
 		"tenant-a",
 		stream.SSE("/tenants/a/events", func(c *gin.Context) {
-			c.Data(http.StatusOK, "text/event-stream", []byte("data: tenant-a\n\n"))
+			c.Data(http.StatusOK, sseContentType, []byte("data: tenant-a\n\n"))
 		}),
 	))
 	engine.RegisterStreamGroup(stream.NewGroup(
 		"tenant-b",
 		stream.SSE("/tenants/b/events", func(c *gin.Context) {
-			c.Data(http.StatusOK, "text/event-stream", []byte("data: tenant-b\n\n"))
+			c.Data(http.StatusOK, sseContentType, []byte("data: tenant-b\n\n"))
 		}),
 	))
 
@@ -207,8 +213,8 @@ func TestEngineRegisterStreamGroup_Good_MultiTenantRegistration(t *testing.T) {
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("%s: expected status 200, got %d", tc.path, resp.StatusCode)
 			}
-			if got := resp.Header.Get("Content-Type"); got != "text/event-stream" {
-				t.Fatalf("%s: expected content type %q, got %q", tc.path, "text/event-stream", got)
+			if got := resp.Header.Get("Content-Type"); got != sseContentType {
+				t.Fatalf("%s: expected content type %q, got %q", tc.path, sseContentType, got)
 			}
 
 			body, readErr := io.ReadAll(resp.Body)

@@ -21,7 +21,7 @@ func TestSwaggerEndpoint_Good(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("Test API", "A test API service", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	// Use a real test server because gin-swagger reads RequestURI
@@ -29,19 +29,19 @@ func TestSwaggerEndpoint_Good(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 	if len(body) == 0 {
 		t.Fatal("expected non-empty response body")
@@ -73,7 +73,7 @@ func TestSwaggerEndpoint_Good_CustomPath(t *testing.T) {
 		api.WithSwaggerPath("/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -81,17 +81,17 @@ func TestSwaggerEndpoint_Good_CustomPath(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/docs/doc.json")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 	if len(body) == 0 {
 		t.Fatal("expected non-empty response body")
@@ -116,7 +116,7 @@ func TestSwaggerEndpoint_Good_BasePathRedirect(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("Test API", "A test API service", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -130,7 +130,7 @@ func TestSwaggerEndpoint_Good_BasePathRedirect(t *testing.T) {
 
 	resp, err := client.Get(srv.URL + "/swagger")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -150,7 +150,7 @@ func TestSwaggerEndpoint_Good_CustomBasePathRedirect(t *testing.T) {
 		api.WithSwaggerPath("/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -164,7 +164,7 @@ func TestSwaggerEndpoint_Good_CustomBasePathRedirect(t *testing.T) {
 
 	resp, err := client.Get(srv.URL + "/docs")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -184,7 +184,7 @@ func TestSwaggerDisabledByDefault_Good(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/swagger/doc.json", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathSwaggerDoc, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -201,7 +201,7 @@ func TestSwaggerAuth_Good_CustomPathBypassesBearerAuth(t *testing.T) {
 		api.WithSwaggerPath("/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -209,7 +209,7 @@ func TestSwaggerAuth_Good_CustomPathBypassesBearerAuth(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/docs/doc.json")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -223,7 +223,7 @@ func TestSwagger_Good_SpecNotEmpty(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("Test API", "Test", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	// Register a describable group so paths has more than just /health.
@@ -246,24 +246,24 @@ func TestSwagger_Good_SpecNotEmpty(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths, ok := doc["paths"].(map[string]any)
@@ -286,7 +286,7 @@ func TestSwagger_Good_WithToolBridge(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("Tool API", "Tool test", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	bridge := api.NewToolBridge("/api/tools")
@@ -308,20 +308,20 @@ func TestSwagger_Good_WithToolBridge(t *testing.T) {
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := doc["paths"].(map[string]any)
@@ -353,30 +353,30 @@ func TestSwagger_Good_IncludesSSEEndpoint(t *testing.T) {
 	broker := api.NewSSEBroker()
 	e, err := api.New(api.WithSwagger("SSE API", "SSE test", "1.0.0"), api.WithSSE(broker))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := doc["paths"].(map[string]any)
-	pathItem, ok := paths["/events"].(map[string]any)
+	pathItem, ok := paths[pathEvents].(map[string]any)
 	if !ok {
 		t.Fatal("expected /events path in swagger doc")
 	}
@@ -397,33 +397,33 @@ func TestSwagger_Good_UsesCustomSSEPath(t *testing.T) {
 		api.WithSSEPath("/stream"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths := doc["paths"].(map[string]any)
 	if _, ok := paths["/stream"]; !ok {
 		t.Fatal("expected custom SSE path /stream in swagger doc")
 	}
-	if _, ok := paths["/events"]; ok {
+	if _, ok := paths[pathEvents]; ok {
 		t.Fatal("did not expect default /events path when custom SSE path is configured")
 	}
 }
@@ -452,26 +452,26 @@ func TestSwagger_Good_InfoFromOptions(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("MyTitle", "MyDesc", "2.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := doc["info"].(map[string]any)
@@ -491,37 +491,37 @@ func TestSwagger_Good_IncludesGraphQLEndpoint(t *testing.T) {
 
 	e, err := api.New(api.WithGraphQL(newTestSchema()), api.WithSwagger("Graph API", "GraphQL docs", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	paths, ok := doc["paths"].(map[string]any)
 	if !ok {
 		t.Fatal("expected paths object in swagger doc")
 	}
-	if _, ok := paths["/graphql"]; !ok {
+	if _, ok := paths[pathGraphQL]; !ok {
 		t.Fatal("expected /graphql path in swagger doc")
 	}
 }
@@ -534,26 +534,26 @@ func TestSwagger_Good_UsesLicenseMetadata(t *testing.T) {
 		api.WithSwaggerLicense("EUPL-1.2", "https://eupl.eu/1.2/en/"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := doc["info"].(map[string]any)
@@ -577,26 +577,26 @@ func TestSwagger_Good_UsesContactMetadata(t *testing.T) {
 		api.WithSwaggerContact("API Support", "https://example.com/support", "support@example.com"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := doc["info"].(map[string]any)
@@ -623,26 +623,26 @@ func TestSwagger_Good_UsesTermsOfServiceMetadata(t *testing.T) {
 		api.WithSwaggerTermsOfService("https://example.com/terms"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := doc["info"].(map[string]any)
@@ -659,26 +659,26 @@ func TestSwagger_Good_UsesExternalDocsMetadata(t *testing.T) {
 		api.WithSwaggerExternalDocs("Developer guide", "https://example.com/docs"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	externalDocs, ok := doc["externalDocs"].(map[string]any)
@@ -708,26 +708,26 @@ func TestSwagger_Good_IgnoresBlankMetadataOverrides(t *testing.T) {
 		api.WithSwaggerExternalDocs("", ""),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	info := doc["info"].(map[string]any)
@@ -777,29 +777,29 @@ func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 
 	e, err := api.New(
 		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
-		api.WithSwaggerServers(" https://api.example.com ", "/", "", "https://api.example.com"),
+		api.WithSwaggerServers(" https://api.example.com ", "/", "", apiBaseURL),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	servers, ok := doc["servers"].([]any)
@@ -811,8 +811,8 @@ func TestSwagger_Good_UsesServerMetadata(t *testing.T) {
 	}
 
 	first := servers[0].(map[string]any)
-	if first["url"] != "https://api.example.com" {
-		t.Fatalf("expected first server url=%q, got %v", "https://api.example.com", first["url"])
+	if first["url"] != apiBaseURL {
+		t.Fatalf("expected first server url=%q, got %v", apiBaseURL, first["url"])
 	}
 
 	second := servers[1].(map[string]any)
@@ -826,30 +826,30 @@ func TestSwagger_Good_AppendsServerMetadataAcrossCalls(t *testing.T) {
 
 	e, err := api.New(
 		api.WithSwagger("Server API", "Server metadata test", "1.0.0"),
-		api.WithSwaggerServers("https://api.example.com", "/"),
-		api.WithSwaggerServers(" https://docs.example.com ", "/", "https://api.example.com"),
+		api.WithSwaggerServers(apiBaseURL, "/"),
+		api.WithSwaggerServers(" https://docs.example.com ", "/", apiBaseURL),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	servers, ok := doc["servers"].([]any)
@@ -860,7 +860,7 @@ func TestSwagger_Good_AppendsServerMetadataAcrossCalls(t *testing.T) {
 		t.Fatalf("expected 3 normalised servers, got %d", len(servers))
 	}
 
-	expected := []string{"https://api.example.com", "/", "https://docs.example.com"}
+	expected := []string{apiBaseURL, "/", "https://docs.example.com"}
 	for i, want := range expected {
 		got := servers[i].(map[string]any)["url"]
 		if got != want {
@@ -874,26 +874,26 @@ func TestSwagger_Good_ValidOpenAPI(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("OpenAPI Test", "Verify version", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/swagger/doc.json")
+	resp, err := http.Get(srv.URL + pathSwaggerDoc)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 
 	if doc["openapi"] != "3.1.0" {
@@ -940,35 +940,35 @@ func TestOpenAPISpecEndpoint_Good(t *testing.T) {
 		api.WithOpenAPISpec(),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/v1/openapi.json")
+	resp, err := http.Get(srv.URL + pathOpenAPIJSON)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
-	contentType := resp.Header.Get("Content-Type")
-	if !core.HasPrefix(contentType, "application/json") {
+	contentType := resp.Header.Get(hdrContentType)
+	if !core.HasPrefix(contentType, mimeJSON) {
 		t.Fatalf("expected application/json content type, got %q", contentType)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 	if doc["openapi"] != "3.1.0" {
 		t.Fatalf("expected openapi=3.1.0, got %v", doc["openapi"])
@@ -977,7 +977,7 @@ func TestOpenAPISpecEndpoint_Good(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected paths map, got %T", doc["paths"])
 	}
-	if _, ok := paths["/v1/openapi.json"]; !ok {
+	if _, ok := paths[pathOpenAPIJSON]; !ok {
 		t.Fatal("expected the spec endpoint to describe itself in paths")
 	}
 }
@@ -992,7 +992,7 @@ func TestOpenAPISpecEndpoint_Good_CustomPath(t *testing.T) {
 		api.WithOpenAPISpecPath("/api/v1/openapi.json"),
 	)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
@@ -1000,7 +1000,7 @@ func TestOpenAPISpecEndpoint_Good_CustomPath(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/api/v1/openapi.json")
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -1009,9 +1009,9 @@ func TestOpenAPISpecEndpoint_Good_CustomPath(t *testing.T) {
 	}
 
 	// Default path should 404 when overridden.
-	defaultResp, err := http.Get(srv.URL + "/v1/openapi.json")
+	defaultResp, err := http.Get(srv.URL + pathOpenAPIJSON)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer defaultResp.Body.Close()
 	if defaultResp.StatusCode != http.StatusNotFound {
@@ -1026,15 +1026,15 @@ func TestOpenAPISpecEndpoint_Bad_DisabledByDefault(t *testing.T) {
 
 	e, err := api.New(api.WithSwagger("Test API", "A test API service", "1.0.0"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/v1/openapi.json")
+	resp, err := http.Get(srv.URL + pathOpenAPIJSON)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -1051,15 +1051,15 @@ func TestOpenAPISpecEndpoint_Ugly_WorksWithoutSwagger(t *testing.T) {
 
 	e, err := api.New(api.WithOpenAPISpec())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	srv := httptest.NewServer(e.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/v1/openapi.json")
+	resp, err := http.Get(srv.URL + pathOpenAPIJSON)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		t.Fatalf(fmtTestRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -1069,11 +1069,11 @@ func TestOpenAPISpecEndpoint_Ugly_WorksWithoutSwagger(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read body: %v", err)
+		t.Fatalf(fmtTestFailedReadBody, err)
 	}
 	var doc map[string]any
 	if err := coreJSONUnmarshal(body, &doc); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf(fmtTestInvalidJSON, err)
 	}
 	if doc["openapi"] != "3.1.0" {
 		t.Fatalf("expected openapi=3.1.0, got %v", doc["openapi"])

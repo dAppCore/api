@@ -7,6 +7,8 @@ use Core\Api\Models\ApiKey;
 use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 
+define('ALLOWED_SERVER_YAML', '/allowed-server.yaml');
+
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
@@ -48,7 +50,7 @@ servers:
   - id: blocked-server
 YAML);
 
-    file_put_contents($this->serverDir.'/allowed-server.yaml', <<<YAML
+    file_put_contents($this->serverDir.ALLOWED_SERVER_YAML, <<<YAML
 id: allowed-server
 name: Allowed Server
 status: available
@@ -87,7 +89,7 @@ afterEach(function () {
     $paths = [];
 
     if (isset($this->serverDir)) {
-        $paths[] = $this->serverDir.'/allowed-server.yaml';
+        $paths[] = $this->serverDir.ALLOWED_SERVER_YAML;
         $paths[] = $this->serverDir.'/blocked-server.yaml';
     }
 
@@ -157,7 +159,7 @@ YAML);
 });
 
 it('returns a not found response when a server definition cannot be parsed', function () {
-    file_put_contents($this->serverDir.'/allowed-server.yaml', <<<YAML
+    file_put_contents($this->serverDir.ALLOWED_SERVER_YAML, <<<YAML
 id: allowed-server
 name: Allowed Server
 status: available
@@ -183,8 +185,8 @@ YAML);
 });
 
 it('rejects server definitions that escape the configured directory via symlink', function () {
-    if (file_exists($this->serverDir.'/allowed-server.yaml')) {
-        unlink($this->serverDir.'/allowed-server.yaml');
+    if (file_exists($this->serverDir.ALLOWED_SERVER_YAML)) {
+        unlink($this->serverDir.ALLOWED_SERVER_YAML);
     }
 
     file_put_contents($this->evilServerFile, <<<YAML
@@ -193,7 +195,7 @@ name: Evil Server
 status: available
 YAML);
 
-    symlink($this->evilServerFile, $this->serverDir.'/allowed-server.yaml');
+    symlink($this->evilServerFile, $this->serverDir.ALLOWED_SERVER_YAML);
 
     $response = $this->getJson('/api/mcp/servers/allowed-server', [
         'Authorization' => "Bearer {$this->plainKey}",

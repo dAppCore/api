@@ -22,15 +22,15 @@ func TestWithGzip_Good_CompressesResponse(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "gzip")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "gzip" {
 		t.Fatalf("expected Content-Encoding=%q, got %q", "gzip", ce)
 	}
@@ -43,15 +43,15 @@ func TestWithGzip_Good_NoCompressionWithoutAcceptHeader(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
 	// Deliberately not setting Accept-Encoding header.
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce == "gzip" {
 		t.Fatal("expected no gzip Content-Encoding when client does not request it")
 	}
@@ -66,15 +66,15 @@ func TestWithGzip_Good_DefaultLevel(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "gzip")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "gzip" {
 		t.Fatalf("expected Content-Encoding=%q with default level, got %q", "gzip", ce)
 	}
@@ -88,15 +88,15 @@ func TestWithGzip_Good_CustomLevel(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "gzip")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "gzip" {
 		t.Fatalf("expected Content-Encoding=%q with BestSpeed, got %q", "gzip", ce)
 	}
@@ -112,21 +112,21 @@ func TestWithGzip_Good_CombinesWithOtherMiddleware(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/stub/ping", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
+	req, _ := http.NewRequest(http.MethodGet, pathStubPing, nil)
+	req.Header.Set(hdrAcceptEnc, "gzip")
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	// Both gzip compression and request ID should be present.
-	ce := w.Header().Get("Content-Encoding")
+	ce := w.Header().Get(hdrContentEnc)
 	if ce != "gzip" {
 		t.Fatalf("expected Content-Encoding=%q, got %q", "gzip", ce)
 	}
 
-	rid := w.Header().Get("X-Request-ID")
+	rid := w.Header().Get(hdrXRequestID)
 	if rid == "" {
 		t.Fatal("expected X-Request-ID header from WithRequestID")
 	}

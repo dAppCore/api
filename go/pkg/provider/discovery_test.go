@@ -11,6 +11,11 @@ import (
 	"dappco.re/go/api/pkg/provider"
 )
 
+const (
+	providersDirName = "providers"
+	coreDirName      = ".core"
+)
+
 func TestDiscover_Good_LoadsYAMLProxyProvider(t *T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -18,7 +23,7 @@ func TestDiscover_Good_LoadsYAMLProxyProvider(t *T) {
 	}))
 	defer upstream.Close()
 
-	dir := PathJoin(t.TempDir(), ".core", "providers")
+	dir := PathJoin(t.TempDir(), coreDirName, providersDirName)
 	RequireNoError(t, coreMkdirAll(dir, 0755))
 	specPath := PathJoin(PathDir(dir), "specs", "openapi.yaml")
 	RequireNoError(t, coreMkdirAll(PathDir(specPath), 0755))
@@ -67,13 +72,13 @@ element:
 }
 
 func TestDiscover_Good_MissingDirIsEmpty(t *T) {
-	providers, err := provider.Discover(PathJoin(t.TempDir(), ".core", "providers"))
+	providers, err := provider.Discover(PathJoin(t.TempDir(), coreDirName, providersDirName))
 	RequireNoError(t, err)
 	AssertEmpty(t, providers)
 }
 
 func TestDiscover_Good_LoadsYAMLProvidersFromCleanDir(t *T) {
-	dir := PathJoin(t.TempDir(), ".core", "providers")
+	dir := PathJoin(t.TempDir(), coreDirName, providersDirName)
 	RequireNoError(t, coreMkdirAll(dir, 0755))
 	upstream := newDiscoveryUpstream(t)
 
@@ -90,18 +95,18 @@ func TestDiscover_Good_LoadsYAMLProvidersFromCleanDir(t *T) {
 
 func TestDiscover_Good_DirWithDotDotSegmentResolves(t *T) {
 	root := t.TempDir()
-	dir := PathJoin(root, "providers")
+	dir := PathJoin(root, providersDirName)
 	RequireNoError(t, coreMkdirAll(dir, 0755))
 	writeProviderManifest(t, dir, "dotdot", newDiscoveryUpstream(t))
 
-	providers, err := provider.Discover(PathJoin(root, "other", "..", "providers"))
+	providers, err := provider.Discover(PathJoin(root, "other", "..", providersDirName))
 	RequireNoError(t, err)
 	AssertLen(t, providers, 1)
 	AssertEqual(t, "dotdot", providers[0].Name())
 }
 
 func TestDiscover_Bad_InvalidManifest(t *T) {
-	dir := PathJoin(t.TempDir(), ".core", "providers")
+	dir := PathJoin(t.TempDir(), coreDirName, providersDirName)
 	RequireNoError(t, coreMkdirAll(dir, 0755))
 	RequireNoError(t, coreWriteFile(PathJoin(dir, "broken.yaml"), []byte(`
 name: broken
@@ -117,7 +122,7 @@ basePath: /api/broken
 func TestDiscover_Bad_SymlinkedDirRefused(t *T) {
 	root := t.TempDir()
 	realDir := PathJoin(root, "real-providers")
-	linkDir := PathJoin(root, "providers")
+	linkDir := PathJoin(root, providersDirName)
 	RequireNoError(t, coreMkdirAll(realDir, 0755))
 	if err := coreSymlink(realDir, linkDir); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
@@ -131,7 +136,7 @@ func TestDiscover_Bad_SymlinkedDirRefused(t *T) {
 
 func TestDiscover_Bad_SymlinkManifestOutsideDirRefused(t *T) {
 	root := t.TempDir()
-	dir := PathJoin(root, "providers")
+	dir := PathJoin(root, providersDirName)
 	RequireNoError(t, coreMkdirAll(dir, 0755))
 	outside := PathJoin(root, "outside.yaml")
 	RequireNoError(t, coreWriteFile(outside, []byte("not: loaded\n"), 0644))
@@ -146,7 +151,7 @@ func TestDiscover_Bad_SymlinkManifestOutsideDirRefused(t *T) {
 }
 
 func TestDiscover_Bad_SymlinkManifestWithinDirRefused(t *T) {
-	dir := PathJoin(t.TempDir(), "providers")
+	dir := PathJoin(t.TempDir(), providersDirName)
 	RequireNoError(t, coreMkdirAll(dir, 0755))
 	realManifest := writeProviderManifest(t, dir, "real", newDiscoveryUpstream(t))
 	if err := coreSymlink(realManifest, PathJoin(dir, "alias.yaml")); err != nil {

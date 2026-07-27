@@ -21,7 +21,7 @@ func TestExportSpec_Good_JSON(t *testing.T) {
 
 	buf := core.NewBuffer()
 	if err := api.ExportSpec(buf, "json", builder, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
@@ -44,7 +44,7 @@ func TestExportSpec_Good_YAML(t *testing.T) {
 
 	buf := core.NewBuffer()
 	if err := api.ExportSpec(buf, "yaml", builder, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	output := buf.String()
@@ -67,7 +67,7 @@ func TestExportSpec_Good_NormalisesFormatInput(t *testing.T) {
 
 	buf := core.NewBuffer()
 	if err := api.ExportSpec(buf, " YAML ", builder, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any
@@ -100,7 +100,7 @@ func TestExportSpecToFile_Good_CreatesFile(t *testing.T) {
 	path := core.PathJoin(dir, "subdir", "spec.json")
 
 	if err := api.ExportSpecToFile(path, "json", builder, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	data, err := coreReadFile(path)
@@ -144,7 +144,7 @@ func TestExportSpecToFileIter_Good_CreatesFileFromIterator(t *testing.T) {
 	path := core.PathJoin(dir, "subdir", "spec.json")
 
 	if err := api.ExportSpecToFileIter(path, "json", builder, groups); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	data, err := coreReadFile(path)
@@ -197,7 +197,7 @@ func TestExportSpec_Good_WithToolBridge(t *testing.T) {
 
 	buf := core.NewBuffer()
 	if err := api.ExportSpec(buf, "json", builder, []api.RouteGroup{bridge}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	output := buf.String()
@@ -248,7 +248,7 @@ func TestExportSpecIter_Good_WithGroupIterator(t *testing.T) {
 
 	buf := core.NewBuffer()
 	if err := api.ExportSpecIter(buf, "json", builder, groups); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 
 	var spec map[string]any

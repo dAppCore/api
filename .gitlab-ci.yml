@@ -1,0 +1,9 @@
+# graphify code-graph job — shared from dappcore/devops/build.
+# Keeps api's slice of the fleet knowledge graph fresh on
+# https://graphify.lthn.sh. external/ (vendored CoreGo deps) is excluded via
+# .graphifyignore. The job + the flock-serialised global merge live in the
+# shared template, so the fix is in one place for the whole fleet.
+include:
+  - project: 'dappcore/devops/build'
+    file: '/gitlab/graphify.yml'
+    ref: dev

@@ -136,7 +136,7 @@ class WebhookTemplateService
     public function getAvailableVariables(?string $eventType = null): array
     {
         // Base variables available for all events
-        $variables = [
+        return [
             'event.type' => [
                 'type' => 'string',
                 'description' => 'The event identifier',
@@ -178,8 +178,6 @@ class WebhookTemplateService
                 'example' => '550e8400-e29b-41d4-a716-446655440000',
             ],
         ];
-
-        return $variables;
     }
 
     /**
@@ -340,7 +338,7 @@ class WebhookTemplateService
     {
         // Match {{variable}} or {{variable | filter}} or {{variable | filter:arg}}
         return preg_replace_callback(
-            '/\{\{\s*([a-zA-Z0-9_\.]+)(?:\s*\|\s*([a-zA-Z0-9_]+)(?::([^\}]+))?)?\s*\}\}/',
+            '/\{\{\s*([\w.]+)(?:\s*\|\s*(\w+)(?::([^\}]+))?)?\s*\}\}/',
             function ($matches) use ($context) {
                 $path = $matches[1];
                 $filter = $matches[2] ?? null;
@@ -483,7 +481,7 @@ class WebhookTemplateService
         }
 
         // Check for unknown filters
-        preg_match_all('/\|\s*([a-zA-Z0-9_]+)/', $template, $filterMatches);
+        preg_match_all('/\|\s*(\w+)/', $template, $filterMatches);
         foreach ($filterMatches[1] as $filter) {
             if (! isset(self::FILTERS[$filter])) {
                 $errors[] = "Unknown filter: {$filter}. Available: ".implode(', ', array_keys(self::FILTERS));
@@ -544,7 +542,7 @@ class WebhookTemplateService
     // Filter methods
     // -------------------------------------------------------------------------
 
-    protected function formatIso8601(mixed $value, ?string $arg = null): string
+    protected function formatIso8601(mixed $value, ?string $_arg = null): string
     {
         if ($value instanceof Carbon) {
             return $value->toIso8601String();
@@ -565,7 +563,7 @@ class WebhookTemplateService
         return (string) $value;
     }
 
-    protected function formatTimestamp(mixed $value, ?string $arg = null): int
+    protected function formatTimestamp(mixed $value, ?string $_arg = null): int
     {
         if ($value instanceof Carbon) {
             return $value->timestamp;
@@ -593,17 +591,17 @@ class WebhookTemplateService
         return number_format((float) $value, $decimals);
     }
 
-    protected function formatJson(mixed $value, ?string $arg = null): string
+    protected function formatJson(mixed $value, ?string $_arg = null): string
     {
         return json_encode($value) ?: '""';
     }
 
-    protected function formatUpper(mixed $value, ?string $arg = null): string
+    protected function formatUpper(mixed $value, ?string $_arg = null): string
     {
         return mb_strtoupper((string) $value);
     }
 
-    protected function formatLower(mixed $value, ?string $arg = null): string
+    protected function formatLower(mixed $value, ?string $_arg = null): string
     {
         return mb_strtolower((string) $value);
     }
@@ -629,12 +627,12 @@ class WebhookTemplateService
         return mb_substr($string, 0, $length - 3).'...';
     }
 
-    protected function formatEscape(mixed $value, ?string $arg = null): string
+    protected function formatEscape(mixed $value, ?string $_arg = null): string
     {
         return htmlspecialchars((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
-    protected function formatUrlencode(mixed $value, ?string $arg = null): string
+    protected function formatUrlencode(mixed $value, ?string $_arg = null): string
     {
         return urlencode((string) $value);
     }

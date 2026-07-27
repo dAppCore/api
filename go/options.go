@@ -45,6 +45,66 @@ func WithAddr(addr string) Option {
 	}
 }
 
+// WithStrictBind enables strict bind enforcement at Serve time. It is opt-in
+// and OFF by default, so existing consumers that bind non-loopback addresses
+// keep their historic behaviour. When strict mode is on, Serve:
+//
+//   - serves a loopback address unconditionally;
+//   - rejects a non-loopback address with ErrNonLoopbackBind unless
+//     WithPublicBind is also set;
+//   - rejects a public (non-loopback) bind with ErrPublicBindNoBearer unless a
+//     bearer credential was supplied via WithBearerAuth.
+//
+// The check runs before the listener opens, so a misconfigured strict engine
+// fails fast rather than exposing an unauthenticated public listener.
+//
+// Example:
+//
+//	engine, _ := api.New(
+//	    api.WithAddr("127.0.0.1:8787"),
+//	    api.WithStrictBind(),
+//	)
+func WithStrictBind() Option {
+	return func(e *Engine) {
+		e.strictBind = true
+	}
+}
+
+// WithLoopbackOnly is an alias for WithStrictBind without WithPublicBind: it
+// turns on strict mode so any non-loopback bind is rejected. Use it when a
+// consumer must never serve off the loopback interface.
+//
+// Example:
+//
+//	engine, _ := api.New(
+//	    api.WithAddr("127.0.0.1:8787"),
+//	    api.WithLoopbackOnly(),
+//	)
+func WithLoopbackOnly() Option {
+	return func(e *Engine) {
+		e.strictBind = true
+	}
+}
+
+// WithPublicBind is the explicit opt-in that allows a non-loopback bind under
+// strict mode. It has no effect unless WithStrictBind / WithLoopbackOnly is
+// also set. A public bind still requires a bearer credential via
+// WithBearerAuth — WithPublicBind alone does not relax that requirement.
+//
+// Example:
+//
+//	engine, _ := api.New(
+//	    api.WithAddr("0.0.0.0:8787"),
+//	    api.WithStrictBind(),
+//	    api.WithPublicBind(),
+//	    api.WithBearerAuth(token),
+//	)
+func WithPublicBind() Option {
+	return func(e *Engine) {
+		e.publicBind = true
+	}
+}
+
 // WithHTTP3 enables HTTP/3 advertisement and configures the QUIC listen
 // address used by ServeH3. Pass an empty address to reuse the main HTTP
 // address at serve time.
@@ -90,6 +150,9 @@ func WithNoRoute(h gin.HandlerFunc) Option {
 //	api.New(api.WithBearerAuth("secret"))
 func WithBearerAuth(token string) Option {
 	return func(e *Engine) {
+		if core.Trim(token) != "" {
+			e.bearerConfigured = true
+		}
 		e.middlewares = append(e.middlewares, bearerAuthMiddleware(token, func() []string {
 			skip := []string{"/health"}
 			if swaggerPath := resolveSwaggerPath(e.swaggerPath); swaggerPath != "" {
@@ -141,7 +204,7 @@ func WithCORS(allowOrigins ...string) Option {
 	return func(e *Engine) {
 		cfg := cors.Config{
 			AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-			AllowHeaders: []string{"Authorization", "Content-Type", "X-Request-ID"},
+			AllowHeaders: []string{"Authorization", hdrContentType, "X-Request-ID"},
 			MaxAge:       12 * time.Hour,
 		}
 
@@ -754,34 +817,44 @@ func WithGraphQL(schema graphql.ExecutableSchema, opts ...GraphQLOption) Option 
 	}
 }
 
-// WithChatCompletions mounts an OpenAI-compatible POST /v1/chat/completions
-// endpoint backed by the given ModelResolver. The resolver maps model names to
-// loaded inference.TextModel instances (see chat_completions.go).
+// WithUpstreamRouter mounts a selector-keyed reverse proxy that load-balances
+// each request across a runtime-mutable pool of HTTP upstreams (weighted
+// round-robin + passive failover, hybrid streaming, decision hook, transformer
+// composition). The registry is the source of truth for upstreams.
 //
-// Use WithChatCompletionsPath to override the default "/v1/chat/completions"
-// mount point. The endpoint streams Server-Sent Events when the request body
-// sets "stream": true, and otherwise returns a single JSON response that
-// mirrors OpenAI's chat completion payload.
+// v1 caveat: the balancer retains one small state entry per distinct routing key
+// it sees, so with a default pool set (SetDefault) attacker-chosen keys can grow
+// that map unbounded; a bounded/LRU keyspace is a future hardening.
 //
-// Example:
-//
-//	resolver := api.NewModelResolver()
-//	engine, _ := api.New(api.WithChatCompletions(resolver))
-func WithChatCompletions(resolver *ModelResolver) Option {
-	return func(e *Engine) {
-		e.chatCompletionsResolver = resolver
-	}
-}
-
-// WithChatCompletionsPath sets a custom URL path for the chat completions
-// endpoint. The default path is "/v1/chat/completions".
+// Middleware composition: engine middleware that runs BEFORE the handler
+// (authentication, rate limiting, CORS, request validation) composes normally —
+// it gates the request before the proxy dispatches. Middleware that mutates
+// RESPONSE headers AFTER the handler (post-c.Next(), e.g. ApiSunset / WithSunset)
+// does NOT apply to proxied responses, because the reverse proxy writes the full
+// response during the handler, before the post-Next phase runs.
 //
 // Example:
 //
-//	api.New(api.WithChatCompletionsPath("/api/v1/chat/completions"))
-func WithChatCompletionsPath(path string) Option {
+//	reg := api.NewUpstreamRegistry(api.AllowPrivateUpstreams("127.0.0.0/8"))
+//	_ = reg.Set("lemma", api.Upstream{URL: "http://127.0.0.1:11434"})
+//	engine, _ := api.New(api.WithUpstreamRouter(reg))
+func WithUpstreamRouter(reg *UpstreamRegistry, opts ...UpstreamRouterOption) Option {
 	return func(e *Engine) {
-		e.chatCompletionsPath = normaliseChatCompletionsPath(path)
+		if reg == nil {
+			return
+		}
+		cfg := &upstreamRouterConfig{registry: reg}
+		for _, opt := range opts {
+			if opt != nil {
+				opt(cfg)
+			}
+		}
+		if err := cfg.finalise(); err != nil {
+			// Transformer compile errors mirror the panic contract used by
+			// transformerRouteConfigForDescription (transformer_in.go:78).
+			panic(err)
+		}
+		e.upstreamRouter = cfg
 	}
 }
 

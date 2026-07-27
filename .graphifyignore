@@ -1,0 +1,7 @@
+# .graphifyignore — scope the api knowledge graph to OUR code.
+#
+# Same syntax as .gitignore. graphify already auto-respects .gitignore; this
+# only ADDS exclusions. external/ is vendored CoreGo deps (git submodules —
+# therefore NOT in .gitignore); excluding it keeps the graph to api's own
+# code rather than ~1100 vendored files.
+external/

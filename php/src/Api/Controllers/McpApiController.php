@@ -28,6 +28,9 @@ class McpApiController extends Controller
 {
     use HasApiResponses;
 
+    private const VALIDATION_SERVER_ID_INVALID = 'The selected server id is invalid.';
+    private const VALIDATION_TOOL_NAME_INVALID = 'The selected tool name is invalid.';
+
     /**
      * Safe MCP server identifier pattern.
      *
@@ -106,7 +109,7 @@ class McpApiController extends Controller
     {
         if (! $this->isValidServerId($id)) {
             return $this->validationErrorResponse([
-                'id' => ['The selected server id is invalid.'],
+                'id' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 
@@ -155,7 +158,7 @@ class McpApiController extends Controller
     {
         if (! $this->isValidServerId($id)) {
             return $this->validationErrorResponse([
-                'id' => ['The selected server id is invalid.'],
+                'id' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 
@@ -222,7 +225,7 @@ class McpApiController extends Controller
     {
         if (! $this->isValidServerId($id)) {
             return $this->validationErrorResponse([
-                'id' => ['The selected server id is invalid.'],
+                'id' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 
@@ -343,7 +346,7 @@ class McpApiController extends Controller
 
         if (! $this->isValidToolName($validated['tool'])) {
             return $this->validationErrorResponse([
-                'tool' => ['The selected tool name is invalid.'],
+                'tool' => [self::VALIDATION_TOOL_NAME_INVALID],
             ]);
         }
 
@@ -374,13 +377,13 @@ class McpApiController extends Controller
     {
         if (! $this->isValidServerId($server)) {
             return $this->validationErrorResponse([
-                'server' => ['The selected server id is invalid.'],
+                'server' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 
         if (! $this->isValidToolName($tool)) {
             return $this->validationErrorResponse([
-                'tool' => ['The selected tool name is invalid.'],
+                'tool' => [self::VALIDATION_TOOL_NAME_INVALID],
             ]);
         }
 
@@ -418,7 +421,7 @@ class McpApiController extends Controller
     ): JsonResponse {
         if (! $this->isValidToolName($tool)) {
             return $this->validationErrorResponse([
-                'tool' => ['The selected tool name is invalid.'],
+                'tool' => [self::VALIDATION_TOOL_NAME_INVALID],
             ]);
         }
 
@@ -667,13 +670,13 @@ class McpApiController extends Controller
     {
         if (! $this->isValidServerId($server)) {
             return $this->validationErrorResponse([
-                'server' => ['The selected server id is invalid.'],
+                'server' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 
         if (! $this->isValidToolName($tool)) {
             return $this->validationErrorResponse([
-                'tool' => ['The selected tool name is invalid.'],
+                'tool' => [self::VALIDATION_TOOL_NAME_INVALID],
             ]);
         }
 
@@ -712,13 +715,13 @@ class McpApiController extends Controller
     {
         if (! $this->isValidServerId($server)) {
             return $this->validationErrorResponse([
-                'server' => ['The selected server id is invalid.'],
+                'server' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 
         if (! $this->isValidToolName($tool)) {
             return $this->validationErrorResponse([
-                'tool' => ['The selected tool name is invalid.'],
+                'tool' => [self::VALIDATION_TOOL_NAME_INVALID],
             ]);
         }
 
@@ -767,7 +770,7 @@ class McpApiController extends Controller
 
         if (! $this->isValidServerId($serverId)) {
             return $this->validationErrorResponse([
-                'uri' => ['The selected server id is invalid.'],
+                'uri' => [self::VALIDATION_SERVER_ID_INVALID],
             ]);
         }
 

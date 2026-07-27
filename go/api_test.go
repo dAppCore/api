@@ -43,7 +43,7 @@ func (p *panicGroup) RegisterRoutes(rg *gin.RouterGroup) {
 func TestNew_Good(t *testing.T) {
 	e, err := api.New()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	if e == nil {
 		t.Fatal("expected non-nil Engine")
@@ -53,7 +53,7 @@ func TestNew_Good(t *testing.T) {
 func TestNew_Good_WithAddr(t *testing.T) {
 	e, err := api.New(api.WithAddr(":9090"))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf(fmtTestUnexpectedErr, err)
 	}
 	if e.Addr() != ":9090" {
 		t.Fatalf("expected addr=%q, got %q", ":9090", e.Addr())
@@ -124,22 +124,22 @@ func TestHandler_Good_HealthEndpoint(t *testing.T) {
 
 	h := e.Handler()
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
+	req, _ := http.NewRequest(http.MethodGet, pathHealth, nil)
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if !resp.Success {
-		t.Fatal("expected Success=true")
+		t.Fatal(fmtTestExpectedSuc)
 	}
 	if resp.Data != "healthy" {
-		t.Fatalf("expected Data=%q, got %q", "healthy", resp.Data)
+		t.Fatalf(fmtTestExpectedData, "healthy", resp.Data)
 	}
 }
 
@@ -154,15 +154,15 @@ func TestHandler_Good_RegisteredRoutes(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf(fmtTestExpected200, w.Code)
 	}
 
 	var resp api.Response[string]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Data != "echo" {
-		t.Fatalf("expected Data=%q, got %q", "echo", resp.Data)
+		t.Fatalf(fmtTestExpectedData, "echo", resp.Data)
 	}
 }
 
@@ -196,10 +196,10 @@ func TestHandler_Bad_PanicReturnsEnvelope(t *testing.T) {
 
 	var resp api.Response[any]
 	if err := coreJSONUnmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
+		t.Fatalf(fmtTestUnmarshalErr, err)
 	}
 	if resp.Success {
-		t.Fatal("expected Success=false")
+		t.Fatal(fmtTestExpectedFail)
 	}
 	if resp.Error == nil {
 		t.Fatal("expected Error to be non-nil")
@@ -210,7 +210,7 @@ func TestHandler_Bad_PanicReturnsEnvelope(t *testing.T) {
 	if resp.Error.Message != "Internal server error" {
 		t.Fatalf("expected error message=%q, got %q", "Internal server error", resp.Error.Message)
 	}
-	if got := w.Header().Get("X-Request-ID"); got == "" {
+	if got := w.Header().Get(hdrXRequestID); got == "" {
 		t.Fatal("expected X-Request-ID header to survive panic recovery")
 	}
 }
@@ -247,13 +247,13 @@ func TestServe_Good_GracefulShutdown(t *testing.T) {
 	}
 
 	// Verify the server responds.
-	resp, err := http.Get("http://" + addr + "/health")
+	resp, err := http.Get("http://" + addr + pathHealth)
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+		t.Fatalf(fmtTestExpected200, resp.StatusCode)
 	}
 
 	// Cancel context to trigger graceful shutdown.

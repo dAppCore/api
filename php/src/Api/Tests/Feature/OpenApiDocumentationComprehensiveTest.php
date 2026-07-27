@@ -18,6 +18,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as RouteFacade;
 
+define('TEST_SCAN_ITEMS_ID_PATH', '/test-scan/items/{id}');
+define('API_WILDCARD_INCLUDE', 'api/*');
+define('CUSTOM_TAG_NAME', 'Custom Tag');
+
 // ─────────────────────────────────────────────────────────────────────────────
 // OpenApiBuilder Schema Generation
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,17 +109,17 @@ describe('OpenApiBuilder Controller Scanning', function () {
             ->group(function () {
                 RouteFacade::get('/test-scan/items', [TestOpenApiController::class, 'index'])
                     ->name('test-scan.items.index');
-                RouteFacade::get('/test-scan/items/{id}', [TestOpenApiController::class, 'show'])
+                RouteFacade::get(TEST_SCAN_ITEMS_ID_PATH, [TestOpenApiController::class, 'show'])
                     ->name('test-scan.items.show');
                 RouteFacade::post('/test-scan/items', [TestOpenApiController::class, 'store'])
                     ->name('test-scan.items.store');
-                RouteFacade::put('/test-scan/items/{id}', [TestOpenApiController::class, 'update'])
+                RouteFacade::put(TEST_SCAN_ITEMS_ID_PATH, [TestOpenApiController::class, 'update'])
                     ->name('test-scan.items.update');
-                RouteFacade::delete('/test-scan/items/{id}', [TestOpenApiController::class, 'destroy'])
+                RouteFacade::delete(TEST_SCAN_ITEMS_ID_PATH, [TestOpenApiController::class, 'destroy'])
                     ->name('test-scan.items.destroy');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
         config(['api-docs.routes.exclude' => []]);
     });
 
@@ -161,7 +165,7 @@ describe('OpenApiBuilder Controller Scanning', function () {
                 RouteFacade::get('/duplicate-id/dup_one', fn () => response()->json([]));
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -480,13 +484,13 @@ describe('ApiResponse Attribute Rendering', function () {
     });
 
     it('infers resource schema fields from JsonResource payloads', function () {
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
         config(['api-docs.routes.exclude' => []]);
 
         RouteFacade::prefix('api')
             ->middleware('api')
             ->group(function () {
-                RouteFacade::get('/test-scan/items/{id}', [TestOpenApiController::class, 'show']);
+                RouteFacade::get(TEST_SCAN_ITEMS_ID_PATH, [TestOpenApiController::class, 'show']);
             });
 
         $builder = new OpenApiBuilder;
@@ -603,7 +607,7 @@ describe('ApiHidden Attribute Filtering', function () {
                     ->name('hidden-test.internal');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -625,7 +629,7 @@ describe('ApiHidden Attribute Filtering', function () {
                     ->name('partial-hidden.hidden');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -665,13 +669,13 @@ describe('ApiTag Attribute Grouping', function () {
                     ->name('tagged.items.index');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
 
         $operation = $spec['paths']['/api/tagged/items']['get'];
-        expect($operation['tags'])->toContain('Custom Tag');
+        expect($operation['tags'])->toContain(CUSTOM_TAG_NAME);
     });
 
     it('collects discovered tags in tags section', function () {
@@ -682,13 +686,13 @@ describe('ApiTag Attribute Grouping', function () {
                     ->name('tagged.items.index');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
 
         $tagNames = collect($spec['tags'])->pluck('name')->toArray();
-        expect($tagNames)->toContain('Custom Tag');
+        expect($tagNames)->toContain(CUSTOM_TAG_NAME);
     });
 
     it('infers tags from route prefixes when not specified', function () {
@@ -699,7 +703,7 @@ describe('ApiTag Attribute Grouping', function () {
                     ->name('bio.links.index');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -891,7 +895,7 @@ describe('Sunset Documentation', function () {
                     ->name('sunset-test.legacy');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -913,7 +917,7 @@ describe('Sunset Documentation', function () {
                     ->name('sunset-test.plain');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -977,7 +981,7 @@ describe('Authentication Documentation', function () {
                     ->name('auth-test.protected');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1000,7 +1004,7 @@ describe('Request/Response Examples Validation', function () {
                     ->name('example.create');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1018,7 +1022,7 @@ describe('Request/Response Examples Validation', function () {
                     ->name('example.update');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1035,7 +1039,7 @@ describe('Request/Response Examples Validation', function () {
                     ->name('example.patch');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1052,7 +1056,7 @@ describe('Request/Response Examples Validation', function () {
                     ->name('example.list');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1069,7 +1073,7 @@ describe('Request/Response Examples Validation', function () {
                     ->name('default-response.index');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1123,7 +1127,7 @@ describe('Route Exclusion', function () {
                     ->name('internal.excluded');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
         config(['api-docs.routes.exclude' => ['api/internal/*']]);
 
         $builder = new OpenApiBuilder;
@@ -1141,7 +1145,7 @@ describe('Route Exclusion', function () {
                     ->name('head-test');
             });
 
-        config(['api-docs.routes.include' => ['api/*']]);
+        config(['api-docs.routes.include' => [API_WILDCARD_INCLUDE]]);
 
         $builder = new OpenApiBuilder;
         $spec = $builder->build();
@@ -1197,24 +1201,39 @@ class TestOpenApiController
     #[ApiParameter('filter', 'query', 'string', 'Filter items')]
     #[ApiParameter('page', 'query', 'integer', 'Page number', false, 1)]
     #[ApiResponse(200, TestJsonResource::class, 'List of items', paginated: true)]
-    public function index(): void {}
+    public function index(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 
     #[ApiResponse(200, TestJsonResource::class, 'Item details')]
     #[ApiResponse(404, null, 'Item not found')]
-    public function show(string $id): void {}
+    public function show(string $_id): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 
     #[ApiSecurity('apiKey', ['write'])]
     #[ApiResponse(201, TestJsonResource::class, 'Item created')]
     #[ApiResponse(422, null, 'Validation failed')]
-    public function store(): void {}
+    public function store(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 
     #[ApiSecurity('apiKey', ['write'])]
     #[ApiResponse(200, TestJsonResource::class, 'Item updated')]
-    public function update(string $id): void {}
+    public function update(string $_id): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 
     #[ApiSecurity('apiKey', ['delete'])]
     #[ApiResponse(204, null, 'Item deleted')]
-    public function destroy(string $id): void {}
+    public function destroy(string $_id): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 }
 
 /**
@@ -1223,7 +1242,10 @@ class TestOpenApiController
 #[ApiHidden('Internal use only')]
 class TestHiddenController
 {
-    public function index(): void {}
+    public function index(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 }
 
 /**
@@ -1231,7 +1253,10 @@ class TestHiddenController
  */
 class TestPublicController
 {
-    public function index(): void {}
+    public function index(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 }
 
 /**
@@ -1239,10 +1264,16 @@ class TestPublicController
  */
 class TestPartialHiddenController
 {
-    public function publicMethod(): void {}
+    public function publicMethod(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 
     #[ApiHidden]
-    public function hiddenMethod(): void {}
+    public function hiddenMethod(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 }
 
 /**
@@ -1252,16 +1283,22 @@ class TestExplicitPathParameterController
 {
     #[ApiParameter('id', 'path', 'string', 'Explicit item identifier')]
     #[ApiResponse(200, TestJsonResource::class, 'Item details')]
-    public function show(string $id): void {}
+    public function show(string $_id): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 }
 
 /**
  * Test tagged controller.
  */
-#[ApiTag('Custom Tag', 'Custom tag description')]
+#[ApiTag(CUSTOM_TAG_NAME, 'Custom tag description')]
 class TestTaggedController
 {
-    public function index(): void {}
+    public function index(): void
+    {
+        // Empty — test fixture; behaviour is expressed via attributes only
+    }
 }
 
 /**
