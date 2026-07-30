@@ -3,8 +3,8 @@ module dappco.re/go/api
 go 1.26.2
 
 require (
-	dappco.re/go v0.11.0
-	dappco.re/go/io v0.13.1
+	dappco.re/go v0.12.0
+	dappco.re/go/io v0.15.3
 	dappco.re/go/log v0.13.1
 	dappco.re/go/process v0.16.1
 	github.com/99designs/gqlgen v0.17.88
