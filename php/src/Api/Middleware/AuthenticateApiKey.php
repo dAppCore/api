@@ -150,7 +150,16 @@ class AuthenticateApiKey
 
         // For API requests, use token authentication
         if (! $request->user()) {
-            // Try to authenticate via Sanctum token
+            // Sanctum is optional: an application can consume this package
+            // without installing it, and asking for a guard that was never
+            // defined throws rather than returning false. Unauthenticated is
+            // the honest answer for a caller who presented nothing we can
+            // check, and a 500 on every anonymous request is not — it turns a
+            // routine 401 into an error page and hides real faults among them.
+            if (! array_key_exists('sanctum', (array) config('auth.guards', []))) {
+                return $this->unauthorized('Invalid authentication token');
+            }
+
             $guard = auth('sanctum');
             if (! $guard->check()) {
                 return $this->unauthorized('Invalid authentication token');
