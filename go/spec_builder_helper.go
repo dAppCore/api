@@ -4,6 +4,7 @@ package api
 
 import (
 	// Note: AX-6 — reflect is structural for OpenAPI spec generation by introspecting Go types.
+	"maps"
 	"reflect"
 	"slices"
 
@@ -227,9 +228,7 @@ func cloneStringMap(v map[string]string) map[string]string {
 	}
 
 	out := make(map[string]string, len(v))
-	for key, value := range v {
-		out[key] = value
-	}
+	maps.Copy(out, v)
 	return out
 }
 

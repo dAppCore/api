@@ -966,12 +966,7 @@ func pathParameterNames(pathTemplate string) []string {
 }
 
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 func appendQueryValue(query url.Values, key string, value any) {

@@ -12,7 +12,7 @@ func TestUpstreamBalancer_WeightedSpread_Good(t *testing.T) {
 	b := newUpstreamBalancer(time.Minute, func() time.Time { return time.Unix(0, 0) })
 	pool := []Upstream{{URL: "a", Weight: 2}, {URL: "b", Weight: 1}}
 	counts := map[string]int{}
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		up, ok := b.pick("k", pool)
 		if !ok {
 			t.Fatal("pick returned !ok with healthy pool")
@@ -31,7 +31,7 @@ func TestUpstreamBalancer_CooldownSkip_Good(t *testing.T) {
 	pool := []Upstream{{URL: "a", Weight: 1}, {URL: "b", Weight: 1}}
 
 	b.markFailed("a")
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		up, ok := b.pick("k", pool)
 		if !ok || up.URL != "b" {
 			t.Fatalf("during cooldown got (%v,%v), want b", up.URL, ok)
@@ -39,7 +39,7 @@ func TestUpstreamBalancer_CooldownSkip_Good(t *testing.T) {
 	}
 	now = now.Add(11 * time.Second) // cooldown elapsed
 	seen := map[string]bool{}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		up, _ := b.pick("k", pool)
 		seen[up.URL] = true
 	}
@@ -65,7 +65,7 @@ func TestUpstreamBalancer_ConcurrentPickMark_Ugly(t *testing.T) {
 	b := newUpstreamBalancer(time.Minute, time.Now)
 	pool := []Upstream{{URL: "a", Weight: 2}, {URL: "b", Weight: 1}}
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		wg.Add(2)
 		go func() { defer wg.Done(); _, _ = b.pick("k", pool) }()
 		go func() { defer wg.Done(); b.markFailed("a") }()

@@ -83,7 +83,7 @@ func TestUpstreamRegistry_Ugly_ConcurrentWriteSnapshot(t *testing.T) {
 	reg := api.NewUpstreamRegistry()
 	_ = reg.Set("k", api.Upstream{URL: "https://a.example.com"})
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		wg.Add(2)
 		go func() { defer wg.Done(); _ = reg.Add("k", api.Upstream{URL: "https://b.example.com"}) }()
 		go func() { defer wg.Done(); _ = reg.Keys() }()

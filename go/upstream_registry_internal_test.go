@@ -87,14 +87,14 @@ func TestUpstreamRegistry_Ugly_HeadersDeepCopy(t *testing.T) {
 	// racing itself.
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			headers["Authorization"] = "Bearer rotated"
 		}
 	}()
 	// Reader iterating the stored map — must be a distinct map after the deep copy.
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			for range storedHeaders {
 			}
 		}

@@ -316,10 +316,8 @@ func TestWithRateLimit_Good_ConcurrentRequestsDoNotOversubscribe(t *testing.T) {
 	var successCount int32
 	errCh := make(chan string, requests)
 
-	for i := 0; i < requests; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range requests {
+		wg.Go(func() {
 			<-start
 
 			w := httptest.NewRecorder()
@@ -334,7 +332,7 @@ func TestWithRateLimit_Good_ConcurrentRequestsDoNotOversubscribe(t *testing.T) {
 			default:
 				errCh <- w.Body.String()
 			}
-		}()
+		})
 	}
 
 	close(start)
@@ -382,7 +380,7 @@ func TestWithRateLimit_Ugly_NonPositiveLimitDisablesMiddleware(t *testing.T) {
 
 	h := e.Handler()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodGet, "/rate/ping", nil)
 		req.RemoteAddr = "203.0.113.13:1234"

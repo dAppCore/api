@@ -63,7 +63,7 @@ func coreStringRepeat(s string, count int) string {
 		return ""
 	}
 	b := core.NewBuilder()
-	for i := 0; i < count; i++ {
+	for range count {
 		b.WriteString(s)
 	}
 	return b.String()
@@ -81,7 +81,7 @@ func coreBytesRepeat(b []byte, count int) []byte {
 		return nil
 	}
 	out := make([]byte, 0, len(b)*count)
-	for i := 0; i < count; i++ {
+	for range count {
 		out = append(out, b...)
 	}
 	return out

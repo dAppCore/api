@@ -425,7 +425,7 @@ func TestWithCache_Ugly_NonPositiveTTLDisablesMiddleware(t *testing.T) {
 
 	h := e.Handler()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
 		h.ServeHTTP(w, req)
@@ -453,7 +453,7 @@ func TestWithCache_Ugly_ExplicitZeroLimitsDisableMiddleware(t *testing.T) {
 
 	h := e.Handler()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodGet, "/cache/counter", nil)
 		h.ServeHTTP(w, req)

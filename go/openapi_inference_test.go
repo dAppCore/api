@@ -4,6 +4,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	api "dappco.re/go/api"
@@ -54,12 +55,7 @@ func postTags(paths map[string]any, path string) []string {
 }
 
 func hasTag(tags []string, want string) bool {
-	for _, t := range tags {
-		if t == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tags, want)
 }
 
 func keysOf(m map[string]any) []string {

@@ -3,6 +3,7 @@
 package api
 
 import (
+	"maps"
 	"reflect"
 
 	core "dappco.re/go"
@@ -96,9 +97,7 @@ func (r FieldRenamer) rename(payload map[string]any) map[string]any {
 	}
 
 	out := make(map[string]any, len(payload))
-	for key, value := range payload {
-		out[key] = value
-	}
+	maps.Copy(out, payload)
 
 	for from, to := range r.Fields {
 		from = core.Trim(from)
@@ -123,8 +122,8 @@ const (
 )
 
 var (
-	ginContextReflectType = reflect.TypeOf((*gin.Context)(nil))
-	errorReflectType      = reflect.TypeOf((*error)(nil)).Elem()
+	ginContextReflectType = reflect.TypeFor[*gin.Context]()
+	errorReflectType      = reflect.TypeFor[error]()
 )
 
 type compiledTransformer struct {

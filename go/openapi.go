@@ -4,6 +4,7 @@ package api
 
 import (
 	"iter"
+	"maps"
 	"net/http"
 	"slices"
 	"time"
@@ -2641,9 +2642,7 @@ func standardResponseHeaders() map[string]any {
 func mergeHeaders(sets ...map[string]any) map[string]any {
 	merged := make(map[string]any)
 	for _, set := range sets {
-		for name, value := range set {
-			merged[name] = value
-		}
+		maps.Copy(merged, set)
 	}
 	return merged
 }

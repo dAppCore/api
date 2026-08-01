@@ -1153,10 +1153,7 @@ func compareIntegralNumericToFloat64(value *big.Int, limit float64) (int, bool) 
 	// gosec:disable G115 -- BitLen() returns int >= 0; +1 stays positive and within
 	// int range (BitLen on a *big.Int can't reach math.MaxInt minus one in
 	// practice). Cast to uint cannot overflow.
-	precision := uint(value.BitLen() + 1)
-	if precision < 64 {
-		precision = 64
-	}
+	precision := max(uint(value.BitLen()+1), 64)
 
 	left := new(big.Float).SetPrec(precision).SetInt(value)
 	right := new(big.Float).SetPrec(precision).SetFloat64(limit)

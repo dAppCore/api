@@ -318,10 +318,8 @@ func ValidateWebhookURL(raw string) (
 	if len(ips) == 0 {
 		return core.E("ValidateWebhookURL", "webhook URL must resolve to a public IP address", nil)
 	}
-	for _, ip := range ips {
-		if isBlockedWebhookIP(ip) {
-			return core.E("ValidateWebhookURL", "webhook URLs must not resolve to private, loopback, or reserved addresses", nil)
-		}
+	if slices.ContainsFunc(ips, isBlockedWebhookIP) {
+		return core.E("ValidateWebhookURL", "webhook URLs must not resolve to private, loopback, or reserved addresses", nil)
 	}
 
 	return nil

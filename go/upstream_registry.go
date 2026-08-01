@@ -3,6 +3,7 @@
 package api
 
 import (
+	"maps"
 	"net"     // Note: AX-6 — net.ParseIP/ParseCIDR are structural for SSRF IP-range checks.
 	"net/url" // Note: AX-6 — url.URL fields are structural for upstream URL validation.
 	"sort"
@@ -171,9 +172,7 @@ func (r *UpstreamRegistry) clone() *registrySnapshot {
 		pools: make(map[string][]Upstream, len(cur.pools)),
 		deflt: cloneUpstreams(cur.deflt),
 	}
-	for k, v := range cur.pools {
-		next.pools[k] = v
-	}
+	maps.Copy(next.pools, cur.pools)
 	return next
 }
 
@@ -266,9 +265,7 @@ func cloneUpstreams(ups []Upstream) []Upstream {
 			continue
 		}
 		headers := make(map[string]string, len(out[i].Headers))
-		for k, v := range out[i].Headers {
-			headers[k] = v
-		}
+		maps.Copy(headers, out[i].Headers)
 		out[i].Headers = headers
 	}
 	return out

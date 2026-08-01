@@ -3,6 +3,7 @@
 package api
 
 import (
+	"maps"
 	"slices"
 
 	core "dappco.re/go"
@@ -238,9 +239,7 @@ func cloneI18nMessages(messages map[string]map[string]string) map[string]map[str
 			continue
 		}
 		cloned := make(map[string]string, len(msgs))
-		for key, value := range msgs {
-			cloned[key] = value
-		}
+		maps.Copy(cloned, msgs)
 		out[locale] = cloned
 	}
 	return out
