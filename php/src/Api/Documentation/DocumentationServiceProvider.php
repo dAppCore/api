@@ -110,7 +110,6 @@ class DocumentationServiceProvider extends ServiceProvider
                 Route::get('/swagger', [DocumentationController::class, 'swagger']);
                 Route::get('/scalar', [DocumentationController::class, 'scalar']);
                 Route::get('/redoc', [DocumentationController::class, 'redoc']);
-                Route::get('/stoplight', [DocumentationController::class, 'stoplight']);
 
                 Route::get('/openapi.json', [DocumentationController::class, 'openApiJson'])
                     ->middleware('throttle:60,1');

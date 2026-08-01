@@ -95,7 +95,6 @@ it('DocumentationController_index_Good_selects_the_configured_documentation_ui',
     $cases = [
         'swagger' => 'api-docs::swagger',
         'redoc' => 'api-docs::redoc',
-        'stoplight' => 'api-docs::stoplight',
     ];
 
     foreach ($cases as $ui => $expectedView) {

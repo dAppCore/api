@@ -33,7 +33,6 @@ class DocumentationController
         return match ($defaultUi) {
             'swagger' => $this->swagger(),
             'redoc' => $this->redoc(),
-            'stoplight' => $this->stoplight(),
             default => $this->scalar(),
         };
     }
@@ -71,19 +70,6 @@ class DocumentationController
     {
         return view('api-docs::redoc', [
             'specUrl' => route('api.docs.openapi.json'),
-        ]);
-    }
-
-    /**
-     * Show Stoplight Elements.
-     */
-    public function stoplight(): View
-    {
-        $config = config('api-docs.ui.stoplight', []);
-
-        return view('api-docs::stoplight', [
-            'specUrl' => route('api.docs.openapi.json'),
-            'config' => $config,
         ]);
     }
 
