@@ -52,7 +52,7 @@ func (f *fakeDenoServer) Eval(_ context.Context, req *sidecarpb.EvalRequest) (*s
 // the dial address ("unix:<socket>") plus the backing fake.
 func startFakeDeno(t *testing.T, fake *fakeDenoServer) string {
 	t.Helper()
-	socket := core.JoinPath(t.TempDir(), "deno.sock")
+	socket := shortSocketPath(t, "deno.sock")
 	lis, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
