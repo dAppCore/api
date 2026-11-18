@@ -71,7 +71,7 @@ func (fakeResolver) Resolve(url string) (any, error) {
 // returns a connected GoServiceClient. Cleanup stops both ends.
 func dialServer(t *testing.T, svc *apigrpc.GoService) sidecarpb.GoServiceClient {
 	t.Helper()
-	socket := core.JoinPath(t.TempDir(), "sidecar.sock")
+	socket := shortSocketPath(t, "sidecar.sock")
 	srv, err := apigrpc.NewGRPCServer(
 		apigrpc.WithGRPCSocket(socket),
 		apigrpc.WithGRPCServices(svc),
@@ -113,7 +113,7 @@ func TestServer_NewGRPCServer_Good(t *testing.T) {
 		},
 		{
 			name: "unix socket transport",
-			opts: []apigrpc.GRPCOption{apigrpc.WithGRPCSocket(core.JoinPath(t.TempDir(), "s.sock"))},
+			opts: []apigrpc.GRPCOption{apigrpc.WithGRPCSocket(shortSocketPath(t, "s.sock"))},
 			want: ".sock",
 		},
 	}
@@ -150,7 +150,7 @@ func TestServer_NewGRPCServer_Ugly(t *testing.T) {
 	t.Parallel()
 	// Two servers asked to bind the SAME Unix socket: the first wins,
 	// the second must fail to listen rather than silently share.
-	socket := core.JoinPath(t.TempDir(), "contended.sock")
+	socket := shortSocketPath(t, "contended.sock")
 	first, err := apigrpc.NewGRPCServer(apigrpc.WithGRPCSocket(socket))
 	if err != nil {
 		t.Fatalf("first NewGRPCServer: %v", err)
@@ -423,4 +423,20 @@ func TestServer_ModuleScope_Ugly(t *testing.T) {
 	if resp.GetExitCode() == 0 {
 		t.Fatalf("denied exec must report non-zero exit, got %+v", resp)
 	}
+}
+
+// shortSocketPath returns a Unix socket path under /tmp. t.TempDir() lives
+// under macOS's long /var/folders/… root, which pushes socket paths past the
+// 104-byte sun_path limit, so bind fails with "invalid argument".
+//
+//	socket := shortSocketPath(t, "sidecar.sock")
+func shortSocketPath(t *testing.T, name string) string {
+	t.Helper()
+	r := core.MkdirTemp("/tmp", "apigrpc")
+	if !r.OK {
+		t.Fatalf("short socket dir: %v", r.Value)
+	}
+	dir := r.Value.(string)
+	t.Cleanup(func() { core.RemoveAll(dir) })
+	return core.JoinPath(dir, name)
 }
