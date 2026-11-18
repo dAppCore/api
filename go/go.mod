@@ -1,16 +1,16 @@
-module dappco.re/go/api
+module github.com/dappcore/api/go
 
 go 1.26.2
 
 require (
-	dappco.re/go v0.12.0
-	dappco.re/go/io v0.15.3
-	dappco.re/go/log v0.13.1
-	dappco.re/go/process v0.16.1
 	github.com/99designs/gqlgen v0.17.94
 	github.com/andybalholm/brotli v1.2.2
 	github.com/casbin/casbin/v2 v2.135.0
 	github.com/coreos/go-oidc/v3 v3.20.0
+	github.com/dappcore/go v0.14.0
+	github.com/dappcore/go-io/go v0.16.0
+	github.com/dappcore/go-log/go v0.14.0
+	github.com/dappcore/go-process/go v0.17.0
 	github.com/gin-contrib/authz v1.0.7
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-contrib/expvar v1.0.4

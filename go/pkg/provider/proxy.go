@@ -9,9 +9,9 @@ import (
 	"net/url" // Note: AX-6 — net/url url.URL fields are structural for reverse-proxy URL rewriting.
 	"strconv"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	coreapi "dappco.re/go/api"
+	coreapi "github.com/dappcore/api/go"
 	"github.com/gin-gonic/gin"
 )
 

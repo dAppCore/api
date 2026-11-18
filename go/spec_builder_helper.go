@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"slices"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // SwaggerConfig captures the configured Swagger/OpenAPI metadata for an Engine.

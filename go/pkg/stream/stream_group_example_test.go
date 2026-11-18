@@ -2,7 +2,7 @@
 
 package stream
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func TestStreamGroup_NewGroup_Good(t *coretest.T) {
 	variant := "good"

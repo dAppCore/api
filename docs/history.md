@@ -2,7 +2,7 @@
 
 # go-api — Project History and Known Limitations
 
-Module: `dappco.re/go/api`
+Module: `github.com/dappcore/api/go`
 
 ---
 
@@ -26,7 +26,7 @@ Commits `889391a` through `22f8a69`
 The initial phase established the foundational abstractions that all subsequent work builds on.
 
 **Scaffold** (`889391a`):
-Module path `dappco.re/go/api` created. `go.mod` initialised with Gin as the only
+Module path `github.com/dappcore/api/go` created. `go.mod` initialised with Gin as the only
 direct dependency.
 
 **Response envelope** (`7835837`):

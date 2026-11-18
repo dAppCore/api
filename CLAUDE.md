@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Core API is the REST framework for the Lethean ecosystem, providing both a **Go HTTP engine** (Gin-based, with OpenAPI generation, WebSocket/SSE, ToolBridge) and a **PHP Laravel package** (rate limiting, webhooks, API key management, OpenAPI documentation). Both halves serve the same purpose in their respective stacks.
 
-Module: `dappco.re/go/api` | Package: `dappco.re/php/service` | Licence: EUPL-1.2
+Module: `github.com/dappcore/api/go` | Package: `dappco.re/php/service` | Licence: EUPL-1.2
 
 ## Repo Layout
 
@@ -14,7 +14,7 @@ Module: `dappco.re/go/api` | Package: `dappco.re/php/service` | Licence: EUPL-1.
 core/api/
 ├── go.work                            ← workspace root (one level above the module)
 ├── external/<dappco.re-go-dep>/       ← git submodules tracking dev branches on github
-├── go/                                ← Go module root (module dappco.re/go/api)
+├── go/                                ← Go module root (module github.com/dappcore/api/go)
 ├── php/                               ← PHP package
 ├── docs/                              ← engine docs (symlinked from go/)
 ├── sdk-config/                        ← cross-language SDK gen configs
@@ -25,7 +25,7 @@ Cross-language symmetry target: `dappco.re/<lang>/api/<feature>` ↔ `core/api/<
 
 ## Go Resolution Modes
 
-Two ways the same `go/go.mod` resolves dappco.re/go/* deps:
+Two ways the same `go/go.mod` resolves github.com/dappcore/* deps:
 
 | Mode | When | What runs |
 |------|------|-----------|
@@ -45,7 +45,7 @@ git submodule update --remote external/go-process
 ( cd external/go-process && git tag --sort=-v:refname | head )
 
 # When ready to bump the api go.mod to that dep's new tag
-( cd go && go get dappco.re/go/process@v0.11.0 && go mod tidy )
+( cd go && go get github.com/dappcore/go-process/go@v0.11.0 && go mod tidy )
 ```
 
 ### Workspace mode caveat
@@ -142,7 +142,7 @@ Key services: `WebhookService`, `RateLimitService`, `IpRestrictionService`, `Ope
 
 | Go module | Role |
 |-----------|------|
-| `dappco.re/go/cli` | CLI command registration for the nested `cmd/api` module |
+| `github.com/dappcore/cli/go` | CLI command registration for the nested `cmd/api` module |
 | `github.com/gin-gonic/gin` | HTTP router |
 | `github.com/casbin/casbin/v2` | Authorisation policies |
 | `github.com/coreos/go-oidc/v3` | OIDC / Authentik |

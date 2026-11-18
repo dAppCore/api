@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 
 	"github.com/gin-gonic/gin"
 )

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/casbin/casbin/v2"

@@ -28,8 +28,8 @@ import (
 	"context"
 	"io/fs"
 
-	core "dappco.re/go"
-	sidecarpb "dappco.re/go/api/pkg/proto/gen"
+	core "github.com/dappcore/go"
+	sidecarpb "github.com/dappcore/api/go/pkg/proto/gen"
 )
 
 // IOMedium is the file-I/O surface the GoService consumes. It is the

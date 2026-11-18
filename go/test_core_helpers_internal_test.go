@@ -2,7 +2,7 @@
 
 package api
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func testCoreResultError(r core.Result) error {
 	if r.OK {

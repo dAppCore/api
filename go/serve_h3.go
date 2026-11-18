@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/http"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 	quichttp3 "github.com/quic-go/quic-go/http3"

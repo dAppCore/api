@@ -4,11 +4,11 @@ package api_test
 
 import (
 	"context"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"slices"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // ── SDKGenerator tests ─────────────────────────────────────────────────────

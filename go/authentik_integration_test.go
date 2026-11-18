@@ -3,14 +3,14 @@
 package api_test
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 	"github.com/gin-gonic/gin"
 )
 

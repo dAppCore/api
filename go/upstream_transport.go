@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url" // Note: AX-6 — url.URL fields are structural for per-attempt upstream rewriting.
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // upstreamTransport is the http.RoundTripper that owns weighted selection and

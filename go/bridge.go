@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"slices" // Note: AX-6 - deterministic snapshot cloning needs slices.Clone; no core primitive.
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 )

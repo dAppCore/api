@@ -7,7 +7,7 @@ description: Gin-based REST framework with OpenAPI generation, middleware compos
 
 # go-api
 
-**Module path:** `dappco.re/go/api`
+**Module path:** `github.com/dappcore/api/go`
 **Language:** Go 1.26
 **Licence:** EUPL-1.2
 
@@ -33,7 +33,7 @@ import (
     "os/signal"
     "syscall"
 
-    api "dappco.re/go/api"
+    api "github.com/dappcore/api/go"
 )
 
 func main() {
@@ -148,7 +148,7 @@ engine.Register(&Routes{service: svc})
 | `go.opentelemetry.io/contrib/.../otelgin` | OpenTelemetry Gin instrumentation |
 | `golang.org/x/text` | BCP 47 language tag matching |
 | `gopkg.in/yaml.v3` | YAML export of OpenAPI specs |
-| `dappco.re/go/cli` | CLI command registration for the nested `cmd/api` module |
+| `github.com/dappcore/cli/go` | CLI command registration for the nested `cmd/api` module |
 
 ### Ecosystem position
 

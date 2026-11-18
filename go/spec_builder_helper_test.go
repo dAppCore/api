@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"slices"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 func noopWSHandler(w http.ResponseWriter, r *http.Request) {

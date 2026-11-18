@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Upstream is one backend endpoint in a routing pool.

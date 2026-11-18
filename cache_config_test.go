@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // TestCacheConfig_Good_SnapshotsConfiguredEngine verifies that CacheConfig

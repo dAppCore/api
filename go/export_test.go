@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"iter"
 	"net/http"
 	"testing"
@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // ── ExportSpec tests ─────────────────────────────────────────────────────

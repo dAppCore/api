@@ -12,7 +12,7 @@
 package provider
 
 import (
-	"dappco.re/go/api"
+	"github.com/dappcore/api/go"
 )
 
 // Provider extends RouteGroup with a provider identity.

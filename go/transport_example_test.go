@@ -2,7 +2,7 @@
 
 package api
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func TestTransport_Engine_TransportConfig_Good(t *coretest.T) {
 	variant := "good"

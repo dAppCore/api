@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	. "dappco.re/go"
-	"dappco.re/go/api"
-	"dappco.re/go/api/pkg/provider"
+	. "github.com/dappcore/go"
+	"github.com/dappcore/api/go"
+	"github.com/dappcore/api/go/pkg/provider"
 )
 
 const (

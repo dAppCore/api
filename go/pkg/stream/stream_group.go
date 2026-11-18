@@ -5,7 +5,7 @@
 package stream
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 )

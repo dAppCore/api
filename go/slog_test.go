@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // ── WithSlog ──────────────────────────────────────────────────────────

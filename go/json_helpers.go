@@ -5,7 +5,7 @@ package api
 import (
 	"strconv"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 type jsonNumber string

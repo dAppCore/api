@@ -11,9 +11,9 @@ import (
 	"regexp"
 	"slices"
 
-	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
-	processexec "dappco.re/go/process/exec"
+	core "github.com/dappcore/go"
+	coreerr "github.com/dappcore/go-log/go"
+	processexec "github.com/dappcore/go-process/go/exec"
 )
 
 // packageNameRe constrains SDKGenerator.PackageName to identifier-shaped

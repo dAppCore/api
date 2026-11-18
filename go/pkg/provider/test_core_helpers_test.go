@@ -5,7 +5,7 @@ package provider_test
 import (
 	"syscall"
 
-	. "dappco.re/go"
+	. "github.com/dappcore/go"
 )
 
 func coreResultError(r Result) error {

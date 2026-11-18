@@ -2,7 +2,7 @@
 
 package api
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func TestSsrfGuard_URLError_Error_Good(t *coretest.T) {
 	variant := "good"

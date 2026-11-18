@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	core "dappco.re/go/core"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 )

@@ -2,7 +2,7 @@
 
 package api
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func ExampleEngine_ServeH3_serveH3() {
 	func() {

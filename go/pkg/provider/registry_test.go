@@ -3,9 +3,9 @@
 package provider_test
 
 import (
-	. "dappco.re/go"
-	"dappco.re/go/api"
-	"dappco.re/go/api/pkg/provider"
+	. "github.com/dappcore/go"
+	"github.com/dappcore/api/go"
+	"github.com/dappcore/api/go/pkg/provider"
 	"github.com/gin-gonic/gin"
 )
 

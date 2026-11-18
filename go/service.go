@@ -21,7 +21,7 @@ package api
 import (
 	"context"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // ApiConfig configures the api service. Empty config gives an Engine

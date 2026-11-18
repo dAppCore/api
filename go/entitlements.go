@@ -9,7 +9,7 @@ import (
 	"net/url"  // Note: AX-6 - path escaping is required for feature/workspace URL segments.
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 )

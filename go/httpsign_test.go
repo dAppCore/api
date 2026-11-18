@@ -5,7 +5,7 @@ package api_test
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +16,7 @@ import (
 	"github.com/gin-contrib/httpsign/crypto"
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 const testSecretKey = "test-secret-key-for-hmac-sha256"

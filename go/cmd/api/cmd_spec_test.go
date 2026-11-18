@@ -6,10 +6,10 @@ import (
 	"iter"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 const testOpenAPISpecPath = "/api/v1/openapi.json"
