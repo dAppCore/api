@@ -4,7 +4,7 @@ package api
 
 import (
 	"bufio"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"net"
 	"net/http"
 	"testing"

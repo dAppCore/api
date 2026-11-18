@@ -2,7 +2,7 @@
 
 package provider
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func TestRegistry_NewRegistry_Good(t *coretest.T) {
 	variant := "good"

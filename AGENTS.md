@@ -25,7 +25,7 @@ verify the whole module before handing work back.
 
 ## Compliance Rules
 
-Follow the v0.9.0 Core compliance shape. Use `dappco.re/go` wrappers for JSON,
+Follow the v0.9.0 Core compliance shape. Use `github.com/dappcore/go` wrappers for JSON,
 errors, formatting, strings, buffers, filesystem, process, and environment
 helpers whenever a wrapper exists. Do not add files named `ax7*.go`, versioned
 test files, or monolithic compliance dumps.

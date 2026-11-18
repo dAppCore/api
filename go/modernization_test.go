@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 func TestEngine_GroupsIter(t *testing.T) {

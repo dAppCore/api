@@ -5,9 +5,9 @@ package api
 import (
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	goapi "dappco.re/go/api"
+	goapi "github.com/dappcore/api/go"
 )
 
 type specBuilderConfig struct {

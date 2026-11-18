@@ -1,7 +1,7 @@
 package api
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestService_NewService_Good(t *core.T) {

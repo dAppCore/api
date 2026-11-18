@@ -2,7 +2,7 @@
 
 package api
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func ExampleNumber_String_jsonHelpers() {
 	func() {

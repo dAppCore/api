@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
-	apigrpc "dappco.re/go/api/pkg/grpc"
-	sidecarpb "dappco.re/go/api/pkg/proto/gen"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	apigrpc "github.com/dappcore/api/go/pkg/grpc"
+	sidecarpb "github.com/dappcore/api/go/pkg/proto/gen"
+	coreio "github.com/dappcore/go-io/go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

@@ -8,7 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"math/big"
 	"net"
 	"net/http"

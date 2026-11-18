@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 	"github.com/gin-gonic/gin"
 )
 

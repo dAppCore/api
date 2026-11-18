@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func coreResultError(r core.Result) error {

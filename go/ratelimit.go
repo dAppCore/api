@@ -7,7 +7,7 @@ import (
 	"net/http" // Note: AX-6 — structural HTTP status boundary for Gin handlers; no core primitive.
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 )

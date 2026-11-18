@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# dappco.re/go/api
+# github.com/dappcore/api/go
 
 > Gin-based HTTP framework + multi-language REST gateway for the Core ecosystem.
 
@@ -12,12 +12,12 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dappcore_api&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=dappcore_api)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=dappcore_api&metric=code_smells)](https://sonarcloud.io/dashboard?id=dappcore_api)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=dappcore_api&metric=ncloc)](https://sonarcloud.io/dashboard?id=dappcore_api)
-[![Go Reference](https://pkg.go.dev/badge/dappco.re/go/api.svg)](https://pkg.go.dev/dappco.re/go/api)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dappcore/api/go.svg)](https://pkg.go.dev/github.com/dappcore/api/go)
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](https://eupl.eu/1.2/en/)
 
 ## Overview
 
-`dappco.re/go/api` is the Gin-based HTTP framework used by the Core Go
+`github.com/dappcore/api/go` is the Gin-based HTTP framework used by the Core Go
 ecosystem. It provides a small `Engine` type, option-driven middleware
 configuration, route group mounting, response envelopes, OpenAPI 3.1
 generation, SDK export/codegen helpers, SSE and WebSocket wiring, GraphQL
@@ -45,7 +45,7 @@ return engine.Serve(ctx)
 
 ```
 api/
-├── go/                       Go module — module path: dappco.re/go/api
+├── go/                       Go module — module path: github.com/dappcore/api/go
 │   ├── api.go, options.go    HTTP engine surface
 │   ├── cmd/api/              core api spec + sdk CLI subcommands
 │   ├── cmd/gateway/          runnable gateway, mounts Core providers

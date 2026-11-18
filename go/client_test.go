@@ -4,7 +4,7 @@ package api_test
 
 import (
 	"context"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +14,7 @@ import (
 
 	"slices"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 type trackingReadCloser struct {

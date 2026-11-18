@@ -3,7 +3,7 @@
 package api_test
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // cacheCounterGroup registers routes that increment a counter on each call,

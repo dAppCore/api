@@ -5,7 +5,7 @@ package api_test
 import (
 	"bufio"
 	"context"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // ── SSE endpoint ────────────────────────────────────────────────────────

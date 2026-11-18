@@ -2,7 +2,7 @@
 
 package api
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func TestServeH3_Engine_ServeH3_Good(t *coretest.T) {
 	variant := "good"

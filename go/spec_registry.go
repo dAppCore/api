@@ -6,7 +6,7 @@ import (
 	"iter"
 	"slices"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // specRegistry stores RouteGroups that should be included in CLI-generated

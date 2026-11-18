@@ -5,7 +5,7 @@ package api
 import (
 	"net/http" // Note: AX-6 - structural HTTP boundary for wrapped handlers; no core primitive.
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"

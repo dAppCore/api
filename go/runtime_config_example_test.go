@@ -2,7 +2,7 @@
 
 package api
 
-import coretest "dappco.re/go"
+import coretest "github.com/dappcore/go"
 
 func TestRuntimeConfig_Engine_RuntimeConfig_Good(t *coretest.T) {
 	variant := "good"

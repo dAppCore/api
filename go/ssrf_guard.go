@@ -9,8 +9,8 @@ import (
 	// Note: AX-6 — URL parsing is structural for SSRF scheme and host extraction before outbound requests.
 	"net/url"
 
-	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
+	core "github.com/dappcore/go"
+	coreerr "github.com/dappcore/go-log/go"
 )
 
 // SSRF mitigation per Cerberus mechanism review on Mantis #318.

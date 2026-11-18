@@ -20,7 +20,7 @@ syntax = "proto3";
 
 package core.sidecar;
 
-option go_package = "dappco.re/go/api/pkg/proto/gen;sidecarpb";
+option go_package = "github.com/dappcore/api/go/pkg/proto/gen;sidecarpb";
 
 // GoService — Deno calls Go for sandboxed I/O and state.
 service GoService {

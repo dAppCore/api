@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	api "dappco.re/go/api"
-	"dappco.re/go/api/pkg/stream"
+	api "github.com/dappcore/api/go"
+	"github.com/dappcore/api/go/pkg/stream"
 
 	"github.com/gin-gonic/gin"
 )

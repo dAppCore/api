@@ -6,7 +6,7 @@ import (
 	"maps"
 	"slices"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/language"

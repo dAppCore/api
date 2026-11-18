@@ -5,7 +5,7 @@ package api_test
 import (
 	"fmt"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 func ExampleWithUpstreamRouter() {

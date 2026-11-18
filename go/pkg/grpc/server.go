@@ -7,8 +7,8 @@ import (
 	"net"
 	"sync"
 
-	core "dappco.re/go"
-	sidecarpb "dappco.re/go/api/pkg/proto/gen"
+	core "github.com/dappcore/go"
+	sidecarpb "github.com/dappcore/api/go/pkg/proto/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

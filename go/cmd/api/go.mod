@@ -1,19 +1,19 @@
-module dappco.re/go/api-cli
+module github.com/dappcore/api/go/cmd/api
 
 go 1.26.2
 
 require (
-	dappco.re/go v0.12.0
-	dappco.re/go/api v0.19.0
-	dappco.re/go/cli v0.13.0
-	dappco.re/go/io v0.15.3
+	github.com/dappcore/go v0.12.0
+	github.com/dappcore/api/go v0.19.0
+	github.com/dappcore/cli/go v0.13.0
+	github.com/dappcore/go-io/go v0.15.3
 	github.com/gin-gonic/gin v1.12.0
 )
 
 require (
-	dappco.re/go/i18n v0.12.1 // indirect
-	dappco.re/go/log v0.13.1 // indirect
-	dappco.re/go/process v0.16.1 // indirect
+	github.com/dappcore/go-i18n/go v0.12.1 // indirect
+	github.com/dappcore/go-log/go v0.13.1 // indirect
+	github.com/dappcore/go-process/go v0.16.1 // indirect
 	github.com/99designs/gqlgen v0.17.88 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect

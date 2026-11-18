@@ -7,9 +7,9 @@ import (
 	"net"
 	"testing"
 
-	core "dappco.re/go"
-	apigrpc "dappco.re/go/api/pkg/grpc"
-	sidecarpb "dappco.re/go/api/pkg/proto/gen"
+	core "github.com/dappcore/go"
+	apigrpc "github.com/dappcore/api/go/pkg/grpc"
+	sidecarpb "github.com/dappcore/api/go/pkg/proto/gen"
 	"google.golang.org/grpc"
 )
 

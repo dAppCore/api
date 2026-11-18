@@ -4,7 +4,7 @@ package api_test
 
 import (
 	"context"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // setupTracing creates an in-memory span exporter, wires it into a

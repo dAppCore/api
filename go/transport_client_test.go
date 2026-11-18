@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 
 	"github.com/gorilla/websocket"
 )

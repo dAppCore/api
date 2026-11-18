@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 func TestUpstreamRegistry_Good(t *testing.T) {

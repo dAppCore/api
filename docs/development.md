@@ -9,7 +9,7 @@ description: How to build, test, and contribute to the go-api REST framework -- 
 
 This guide covers everything needed to build, test, extend, and contribute to go-api.
 
-**Module path:** `dappco.re/go/api`
+**Module path:** `github.com/dappcore/api/go`
 **Licence:** EUPL-1.2
 **Language:** Go 1.26
 
@@ -43,7 +43,7 @@ go version
 
 go-api depends on the provider modules that the gateway wires (`process`, `scm`, `miner`,
 `proxy`, and `ws`) plus the core helper modules it uses directly. The `cmd/api/` CLI lives in
-its own nested module and imports `dappco.re/go/cli`. There are no `replace` directives in the
+its own nested module and imports `github.com/dappcore/cli/go`. There are no `replace` directives in the
 root module.
 
 If working within the Go workspace at `~/Code/go.work`, the workspace `use` directive handles
@@ -276,7 +276,7 @@ package mypackage
 import (
     "net/http"
 
-    api "dappco.re/go/api"
+    api "github.com/dappcore/api/go"
     "github.com/gin-gonic/gin"
 )
 

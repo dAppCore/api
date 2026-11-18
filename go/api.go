@@ -13,8 +13,8 @@ import (
 	"slices"
 	"time"
 
-	core "dappco.re/go"
-	apistream "dappco.re/go/api/pkg/stream"
+	core "github.com/dappcore/go"
+	apistream "github.com/dappcore/api/go/pkg/stream"
 
 	"github.com/gin-contrib/expvar"
 	"github.com/gin-contrib/pprof"

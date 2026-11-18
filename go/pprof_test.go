@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // ── Pprof profiling endpoints ─────────────────────────────────────────

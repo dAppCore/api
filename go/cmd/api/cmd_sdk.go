@@ -5,11 +5,11 @@ package api
 import (
 	"iter"
 
-	core "dappco.re/go"
-	"dappco.re/go/cli/pkg/cli"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/cli/go/pkg/cli"
 
-	goapi "dappco.re/go/api"
-	coreio "dappco.re/go/io"
+	goapi "github.com/dappcore/api/go"
+	coreio "github.com/dappcore/go-io/go"
 )
 
 const (

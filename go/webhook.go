@@ -13,7 +13,7 @@ import (
 	"slices"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Canonical webhook event identifiers from RFC §6. These constants mirror the

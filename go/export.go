@@ -8,8 +8,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
+	core "github.com/dappcore/go"
+	coreerr "github.com/dappcore/go-log/go"
 )
 
 // ExportSpec generates the OpenAPI spec and writes it to w.

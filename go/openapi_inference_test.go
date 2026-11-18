@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // specObject builds the engine's OpenAPI spec and returns the whole document.

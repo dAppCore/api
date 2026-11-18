@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 func TestEntitlementBridge_Good_CallbackChecksWorkspaceEndpoint(t *testing.T) {

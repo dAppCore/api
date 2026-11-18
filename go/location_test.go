@@ -10,7 +10,7 @@ import (
 	"github.com/gin-contrib/location/v2"
 	"github.com/gin-gonic/gin"
 
-	api "dappco.re/go/api"
+	api "github.com/dappcore/api/go"
 )
 
 // ── Helpers ─────────────────────────────────────────────────────────────
